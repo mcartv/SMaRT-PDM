@@ -2,9 +2,11 @@ const DEVICE_ID_KEY = 'smartpdmAdminDeviceId';
 const SESSION_FEEDBACK_KEY = 'smartpdmPortalSessionFeedback';
 const SESSION_FEEDBACK_MAX_AGE_MS = 10 * 60_000;
 const ACTIVE_PORTAL_HINT_KEY = 'smartpdmActivePortal';
-const PORTAL_SESSION_CHANNEL = 'smartpdm-portal-session-sync-v1';
-const PORTAL_SESSION_STORAGE_EVENT_KEY = 'smartpdmPortalSessionSyncEvent';
+const PORTAL_SESSION_CHANNEL = 'smartpdm-portal-session-sync-v2';
+const PORTAL_SESSION_STORAGE_EVENT_KEY = 'smartpdmPortalSessionSyncEventV2';
 const PORTAL_SESSION_REQUEST_TIMEOUT_MS = 1_800;
+const PORTAL_SESSION_META_PREFIX = 'smartpdmPortalSessionMetaV2';
+const PROCESSED_SYNC_EVENT_LIMIT = 128;
 
 export const PORTAL_CONFIG = {
     admin: {
@@ -53,6 +55,10 @@ function isKnownPortalName(portalName) {
     return Boolean(portalName && PORTAL_CONFIG[portalName]);
 }
 
+function getPortalSessionMetaKey(portalName) {
+    return `${PORTAL_SESSION_META_PREFIX}:${portalName}`;
+}
+
 function setActivePortalHint(portalName) {
     if (!isKnownPortalName(portalName)) return;
     localStorage.setItem(ACTIVE_PORTAL_HINT_KEY, portalName);
@@ -64,17 +70,148 @@ function clearActivePortalHint(portalName = null) {
     }
 }
 
-function clearTabAuthStorage() {
-    AUTH_STORAGE_KEYS.forEach((key) => sessionStorage.removeItem(key));
+function makeRandomId() {
+    if (globalThis.crypto?.randomUUID) {
+        return globalThis.crypto.randomUUID();
+    }
+
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random()
+        .toString(36)
+        .slice(2)}`;
 }
 
-function writePortalSessionToTab({ portalName, token, profile }) {
+function tokenMarker(token) {
+    const value = String(token || '').trim();
+    if (!value) return '';
+    return value.slice(-32);
+}
+
+function decodeJwtPayload(token) {
+    try {
+        const value = String(token || '').trim();
+        const parts = value.split('.');
+        if (parts.length < 2) return {};
+
+        let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        while (base64.length % 4) base64 += '=';
+
+        return JSON.parse(globalThis.atob(base64)) || {};
+    } catch {
+        return {};
+    }
+}
+
+function deriveServerSessionId(token) {
+    const payload = decodeJwtPayload(token);
+    const value = payload?.sid || payload?.session_id || null;
+    return value ? String(value) : null;
+}
+
+function readPortalSessionMeta(storage, portalName, token) {
+    if (!storage || !isKnownPortalName(portalName) || !token) return null;
+
+    const raw = storage.getItem(getPortalSessionMetaKey(portalName));
+    if (!raw) return null;
+
+    try {
+        const parsed = JSON.parse(raw);
+        if (!parsed?.browserSessionId) return null;
+        if (parsed.tokenMarker && parsed.tokenMarker !== tokenMarker(token)) return null;
+
+        return {
+            browserSessionId: String(parsed.browserSessionId),
+            serverSessionId: parsed.serverSessionId ? String(parsed.serverSessionId) : null,
+            tokenMarker: tokenMarker(token),
+            createdAt: Number(parsed.createdAt || Date.now()),
+        };
+    } catch {
+        return null;
+    }
+}
+
+function createPortalSessionMeta(token, {
+    browserSessionId = '',
+    serverSessionId = null,
+    createdAt = Date.now(),
+} = {}) {
+    return {
+        browserSessionId: String(browserSessionId || '').trim() || makeRandomId(),
+        serverSessionId:
+            String(serverSessionId || '').trim() ||
+            deriveServerSessionId(token) ||
+            null,
+        tokenMarker: tokenMarker(token),
+        createdAt: Number(createdAt || Date.now()),
+    };
+}
+
+function writePortalSessionMeta(storage, portalName, meta) {
+    if (!storage || !isKnownPortalName(portalName) || !meta?.browserSessionId) return;
+    storage.setItem(getPortalSessionMetaKey(portalName), JSON.stringify(meta));
+}
+
+function getOrCreatePortalSessionMeta(portalName, token) {
+    if (!isKnownPortalName(portalName) || !token) return null;
+
+    const fromTab = readPortalSessionMeta(sessionStorage, portalName, token);
+    if (fromTab) return fromTab;
+
+    const portal = PORTAL_CONFIG[portalName];
+    const rememberedToken = localStorage.getItem(portal.tokenKey);
+    const fromRemembered =
+        rememberedToken === token
+            ? readPortalSessionMeta(localStorage, portalName, token)
+            : null;
+
+    if (fromRemembered) {
+        writePortalSessionMeta(sessionStorage, portalName, fromRemembered);
+        return fromRemembered;
+    }
+
+    const meta = createPortalSessionMeta(token);
+    writePortalSessionMeta(sessionStorage, portalName, meta);
+
+    if (rememberedToken === token) {
+        writePortalSessionMeta(localStorage, portalName, meta);
+    }
+
+    return meta;
+}
+
+function clearTabAuthStorage() {
+    AUTH_STORAGE_KEYS.forEach((key) => sessionStorage.removeItem(key));
+    Object.keys(PORTAL_CONFIG).forEach((portalName) => {
+        sessionStorage.removeItem(getPortalSessionMetaKey(portalName));
+    });
+}
+
+function writePortalSessionToTab({
+    portalName,
+    token,
+    profile,
+    browserSessionId = '',
+    serverSessionId = null,
+    createdAt = Date.now(),
+}) {
     const portal = PORTAL_CONFIG[portalName];
     if (!portal || !token) return null;
+
+    const existing =
+        getStoredPortalSession(portalName)?.token === token
+            ? getOrCreatePortalSessionMeta(portalName, token)
+            : null;
+    const meta =
+        existing ||
+        createPortalSessionMeta(token, {
+            browserSessionId,
+            serverSessionId,
+            createdAt,
+        });
 
     clearTabAuthStorage();
     sessionStorage.setItem(portal.tokenKey, token);
     sessionStorage.setItem(portal.profileKey, JSON.stringify(profile || {}));
+    writePortalSessionMeta(sessionStorage, portalName, meta);
     setActivePortalHint(portalName);
 
     return {
@@ -83,6 +220,9 @@ function writePortalSessionToTab({ portalName, token, profile }) {
         token,
         profile: profile || null,
         remembered: Boolean(localStorage.getItem(portal.tokenKey)),
+        browserSessionId: meta.browserSessionId,
+        serverSessionId: meta.serverSessionId,
+        sessionCreatedAt: meta.createdAt,
     };
 }
 
@@ -126,16 +266,6 @@ export function isSessionInvalidationError(error = {}) {
     return SESSION_INVALIDATION_CODES.has(code);
 }
 
-function makeRandomId() {
-    if (globalThis.crypto?.randomUUID) {
-        return globalThis.crypto.randomUUID();
-    }
-
-    return `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random()
-        .toString(36)
-        .slice(2)}`;
-}
-
 export const PAGE_INSTANCE_ID = makeRandomId();
 
 export function getAdminDeviceId() {
@@ -161,6 +291,31 @@ export function hydrateRememberedSessions() {
             sessionStorage.setItem(key, rememberedValue);
         }
     });
+
+    Object.entries(PORTAL_CONFIG).forEach(([portalName, portal]) => {
+        const token = sessionStorage.getItem(portal.tokenKey);
+        if (!token) return;
+
+        const rememberedToken = localStorage.getItem(portal.tokenKey);
+        const rememberedMeta =
+            rememberedToken === token
+                ? readPortalSessionMeta(localStorage, portalName, token)
+                : null;
+        const tabMeta = readPortalSessionMeta(sessionStorage, portalName, token);
+
+        if (rememberedMeta && !tabMeta) {
+            writePortalSessionMeta(sessionStorage, portalName, rememberedMeta);
+            return;
+        }
+
+        if (!tabMeta) {
+            const meta = createPortalSessionMeta(token);
+            writePortalSessionMeta(sessionStorage, portalName, meta);
+            if (rememberedToken === token) {
+                writePortalSessionMeta(localStorage, portalName, meta);
+            }
+        }
+    });
 }
 
 export function clearAuthStorage() {
@@ -168,18 +323,75 @@ export function clearAuthStorage() {
         sessionStorage.removeItem(key);
         localStorage.removeItem(key);
     });
+
+    Object.keys(PORTAL_CONFIG).forEach((portalName) => {
+        const metaKey = getPortalSessionMetaKey(portalName);
+        sessionStorage.removeItem(metaKey);
+        localStorage.removeItem(metaKey);
+    });
+
     clearActivePortalHint();
 }
 
-export function clearPortalSession(portalName) {
+export function clearPortalSession(
+    portalName,
+    { expectedToken = '', expectedBrowserSessionId = '' } = {}
+) {
     const portal = PORTAL_CONFIG[portalName];
-    if (!portal) return;
+    if (!portal) return false;
 
-    [portal.tokenKey, portal.profileKey].forEach((key) => {
-        sessionStorage.removeItem(key);
-        localStorage.removeItem(key);
-    });
-    clearActivePortalHint(portalName);
+    const normalizedExpectedToken = String(expectedToken || '').trim();
+    const normalizedExpectedBrowserSessionId = String(expectedBrowserSessionId || '').trim();
+    const metaKey = getPortalSessionMetaKey(portalName);
+
+    const clearMatchingStorage = (storage) => {
+        const storedToken = storage.getItem(portal.tokenKey);
+        const storedProfile = storage.getItem(portal.profileKey);
+        const storedMeta = storedToken
+            ? readPortalSessionMeta(storage, portalName, storedToken)
+            : null;
+
+        if (normalizedExpectedToken && storedToken !== normalizedExpectedToken) {
+            return false;
+        }
+
+        if (
+            !normalizedExpectedToken &&
+            normalizedExpectedBrowserSessionId &&
+            storedMeta?.browserSessionId !== normalizedExpectedBrowserSessionId
+        ) {
+            return false;
+        }
+
+        if (
+            !storedToken &&
+            storedProfile === null &&
+            storage.getItem(metaKey) === null
+        ) {
+            return false;
+        }
+
+        storage.removeItem(portal.tokenKey);
+        storage.removeItem(portal.profileKey);
+        storage.removeItem(metaKey);
+        return true;
+    };
+
+    // Clear each storage independently. A stale tab may still hold token A in
+    // sessionStorage while another tab has already persisted newer token B in
+    // localStorage; invalidating A must never delete B's remembered session.
+    const clearedTab = clearMatchingStorage(sessionStorage);
+    const clearedRemembered = clearMatchingStorage(localStorage);
+    const cleared = clearedTab || clearedRemembered;
+
+    if (
+        !sessionStorage.getItem(portal.tokenKey) &&
+        !localStorage.getItem(portal.tokenKey)
+    ) {
+        clearActivePortalHint(portalName);
+    }
+
+    return cleared;
 }
 
 export function redirectPortalToLogin(portalName) {
@@ -303,7 +515,13 @@ export function clearPortalSessionFeedback(portalName = null) {
     }
 }
 
-export function invalidateStoredPortalSession({ portalName, code, message }) {
+export function invalidateStoredPortalSession({
+    portalName,
+    code,
+    message,
+    expectedToken = '',
+    expectedBrowserSessionId = '',
+}) {
     const resolvedPortalName = PORTAL_CONFIG[portalName]
         ? portalName
         : getStoredPortalSession()?.portalName || null;
@@ -312,20 +530,72 @@ export function invalidateStoredPortalSession({ portalName, code, message }) {
         return null;
     }
 
+    const active = getStoredPortalSession(resolvedPortalName);
+    if (!active?.token) {
+        return null;
+    }
+
+    const normalizedExpectedToken = String(expectedToken || '').trim();
+    const normalizedExpectedBrowserSessionId = String(expectedBrowserSessionId || '').trim();
+
+    if (normalizedExpectedToken && active.token !== normalizedExpectedToken) {
+        return {
+            portalName: resolvedPortalName,
+            ignored: true,
+            reason: 'stale-token',
+        };
+    }
+
+    if (
+        !normalizedExpectedToken &&
+        normalizedExpectedBrowserSessionId &&
+        active.browserSessionId !== normalizedExpectedBrowserSessionId
+    ) {
+        return {
+            portalName: resolvedPortalName,
+            ignored: true,
+            reason: 'stale-browser-session',
+        };
+    }
+
     const feedback = savePortalSessionFeedback({
         portalName: resolvedPortalName,
         code,
         message,
     });
 
-    clearPortalSession(resolvedPortalName);
-    broadcastPortalSessionCleared(resolvedPortalName);
+    broadcastPortalSessionCleared(resolvedPortalName, active);
+
+    const cleared = clearPortalSession(resolvedPortalName, {
+        expectedToken: active.token,
+        expectedBrowserSessionId: active.browserSessionId,
+    });
+
+    if (!cleared) {
+        return {
+            portalName: resolvedPortalName,
+            ignored: true,
+            reason: 'session-changed-before-clear',
+        };
+    }
+
+    const replacementSession = getStoredPortalSession(resolvedPortalName);
+    if (replacementSession?.token && replacementSession.token !== active.token) {
+        clearPortalSessionFeedback(resolvedPortalName);
+        return {
+            portalName: resolvedPortalName,
+            ignored: true,
+            reason: 'replacement-session-present',
+        };
+    }
 
     if (typeof window !== 'undefined') {
         window.dispatchEvent(
             new CustomEvent('portal-session:invalidated', {
                 detail: {
                     portalName: resolvedPortalName,
+                    browserSessionId: active.browserSessionId,
+                    serverSessionId: active.serverSessionId,
                     code: String(code || 'SESSION_REVOKED'),
                     message: String(message || ''),
                     feedback,
@@ -333,16 +603,59 @@ export function invalidateStoredPortalSession({ portalName, code, message }) {
             })
         );
 
-        // Do not depend on a particular layout component being mounted to
-        // perform the forced logout. This also covers idle dashboards and
-        // invalidations raised by the global HTTP guard.
+        // The backend remains the source of truth. This redirect only happens
+        // after the exact currently stored session has been proven invalid.
         redirectPortalToLogin(resolvedPortalName);
     }
 
     return {
         portalName: resolvedPortalName,
         feedback,
+        ignored: false,
     };
+}
+
+function readAuthorizationHeader(headers) {
+    if (!headers) return '';
+
+    try {
+        if (typeof headers.get === 'function') {
+            return String(headers.get('Authorization') || headers.get('authorization') || '');
+        }
+
+        if (Array.isArray(headers)) {
+            const entry = headers.find(
+                ([key]) => String(key || '').trim().toLowerCase() === 'authorization'
+            );
+            return String(entry?.[1] || '');
+        }
+
+        if (typeof headers === 'object') {
+            const key = Object.keys(headers).find(
+                (name) => String(name).trim().toLowerCase() === 'authorization'
+            );
+            return key ? String(headers[key] || '') : '';
+        }
+    } catch {
+        return '';
+    }
+
+    return '';
+}
+
+function getFetchRequestToken(input, init = {}) {
+    let authorization = readAuthorizationHeader(init?.headers);
+
+    if (
+        !authorization &&
+        typeof Request !== 'undefined' &&
+        input instanceof Request
+    ) {
+        authorization = readAuthorizationHeader(input.headers);
+    }
+
+    const match = authorization.trim().match(/^Bearer\s+(.+)$/i);
+    return match?.[1]?.trim() || '';
 }
 
 let fetchSessionGuardInstalled = false;
@@ -360,16 +673,23 @@ export function installSessionInvalidationFetchGuard() {
     const originalFetch = window.fetch.bind(window);
 
     window.fetch = async (...args) => {
+        // Capture the identity that actually sent the request. A delayed 401
+        // from an older token must never invalidate a newer cross-tab session.
+        const requestToken = getFetchRequestToken(args[0], args[1] || {});
+        const requestSession =
+            requestToken &&
+            Object.keys(PORTAL_CONFIG)
+                .map((portalName) => getStoredPortalSession(portalName))
+                .find((session) => session?.token === requestToken);
+
         const response = await originalFetch(...args);
 
-        if (response.status !== 401) {
+        if (response.status !== 401 || !requestToken) {
             return response;
         }
 
-        // Only authenticated portal sessions are eligible for forced logout.
-        // A failed login request must keep its normal login error behavior.
         const activeSession = getStoredPortalSession();
-        if (!activeSession?.token) {
+        if (!activeSession?.token || activeSession.token !== requestToken) {
             return response;
         }
 
@@ -380,6 +700,8 @@ export function installSessionInvalidationFetchGuard() {
             if (SESSION_INVALIDATION_CODES.has(code)) {
                 invalidateStoredPortalSession({
                     portalName: activeSession.portalName,
+                    expectedToken: requestToken,
+                    expectedBrowserSessionId: requestSession?.browserSessionId || '',
                     code,
                     message: payload?.message || payload?.error || '',
                 });
@@ -403,24 +725,26 @@ export function savePortalSession({ portalName, token, user, stayLoggedIn }) {
     clearPortalSessionFeedback(portalName);
 
     const profileJson = JSON.stringify(user || {});
+    const meta = createPortalSessionMeta(token);
 
-    writePortalSessionToTab({
+    const session = writePortalSessionToTab({
         portalName,
         token,
         profile: user || {},
+        browserSessionId: meta.browserSessionId,
+        serverSessionId: meta.serverSessionId,
+        createdAt: meta.createdAt,
     });
 
     if (stayLoggedIn) {
         localStorage.setItem(portal.tokenKey, token);
         localStorage.setItem(portal.profileKey, profileJson);
+        writePortalSessionMeta(localStorage, portalName, meta);
     }
 
     setActivePortalHint(portalName);
-    broadcastPortalSessionEstablished({
-        portalName,
-        token,
-        profile: user || {},
-    });
+    broadcastPortalSessionEstablished(session);
+    return session;
 }
 
 export function getPortalNameFromRole(role) {
@@ -444,10 +768,14 @@ export function getStoredPortalSession(portalName = null) {
     for (const [name, portal] of entries) {
         if (!portal) continue;
 
-        const token = getStoredItem(portal.tokenKey);
+        const tabToken = sessionStorage.getItem(portal.tokenKey);
+        const rememberedToken = localStorage.getItem(portal.tokenKey);
+        const token = tabToken || rememberedToken;
         if (!token) continue;
 
-        const rawProfile = getStoredItem(portal.profileKey);
+        const rawProfile =
+            (tabToken ? sessionStorage.getItem(portal.profileKey) : null) ||
+            localStorage.getItem(portal.profileKey);
         let profile = null;
 
         try {
@@ -456,12 +784,17 @@ export function getStoredPortalSession(portalName = null) {
             profile = null;
         }
 
+        const meta = getOrCreatePortalSessionMeta(name, token);
+
         return {
             portalName: name,
             ...portal,
             token,
             profile,
-            remembered: Boolean(localStorage.getItem(portal.tokenKey)),
+            remembered: Boolean(rememberedToken),
+            browserSessionId: meta?.browserSessionId || null,
+            serverSessionId: meta?.serverSessionId || null,
+            sessionCreatedAt: meta?.createdAt || null,
         };
     }
 
@@ -487,7 +820,17 @@ function getTabPortalSession(portalName = null) {
             profile = null;
         }
 
-        return { portalName: name, ...portal, token, profile };
+        const meta = getOrCreatePortalSessionMeta(name, token);
+
+        return {
+            portalName: name,
+            ...portal,
+            token,
+            profile,
+            browserSessionId: meta?.browserSessionId || null,
+            serverSessionId: meta?.serverSessionId || null,
+            sessionCreatedAt: meta?.createdAt || null,
+        };
     }
 
     return null;
@@ -495,6 +838,7 @@ function getTabPortalSession(portalName = null) {
 
 let portalSessionSyncChannel = null;
 let portalSessionSyncInstalled = false;
+const processedSyncEventIds = new Set();
 
 function createPortalSessionChannel() {
     if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') {
@@ -508,28 +852,74 @@ function createPortalSessionChannel() {
     }
 }
 
+function normalizeSyncPayload(payload = {}) {
+    return {
+        ...payload,
+        sourceId: String(payload.sourceId || PAGE_INSTANCE_ID),
+        eventId: String(payload.eventId || makeRandomId()),
+    };
+}
+
 function publishPortalSessionStorageEvent(payload) {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') return false;
 
     try {
         localStorage.setItem(
             PORTAL_SESSION_STORAGE_EVENT_KEY,
-            JSON.stringify({ ...payload, sourceId: PAGE_INSTANCE_ID, eventId: makeRandomId() })
+            JSON.stringify(payload)
         );
         localStorage.removeItem(PORTAL_SESSION_STORAGE_EVENT_KEY);
+        return true;
     } catch {
-        // BroadcastChannel remains the primary transport when storage is unavailable.
+        return false;
     }
 }
 
 function publishPortalSessionMessage(payload, channel = portalSessionSyncChannel) {
-    try {
-        channel?.postMessage(payload);
-    } catch {
-        // The storage event below provides a same-origin fallback.
+    const normalized = normalizeSyncPayload(payload);
+    let sentViaChannel = false;
+
+    if (channel) {
+        try {
+            channel.postMessage(normalized);
+            sentViaChannel = true;
+        } catch {
+            sentViaChannel = false;
+        }
     }
 
-    publishPortalSessionStorageEvent(payload);
+    // Storage events are a fallback only. Sending through both transports
+    // caused duplicate/out-of-order authentication events between tabs.
+    if (!sentViaChannel) {
+        publishPortalSessionStorageEvent(normalized);
+    }
+
+    return normalized;
+}
+
+function shouldHandleSyncPayload(payload = {}) {
+    if (payload.sourceId && payload.sourceId === PAGE_INSTANCE_ID) {
+        return false;
+    }
+
+    const eventId = String(payload.eventId || '').trim();
+    if (!eventId) {
+        // Legacy messages are accepted except for ambiguous clear events,
+        // which are rejected separately because they cannot identify a session.
+        return true;
+    }
+
+    if (processedSyncEventIds.has(eventId)) {
+        return false;
+    }
+
+    processedSyncEventIds.add(eventId);
+    if (processedSyncEventIds.size > PROCESSED_SYNC_EVENT_LIMIT) {
+        const oldest = processedSyncEventIds.values().next().value;
+        processedSyncEventIds.delete(oldest);
+    }
+
+    return true;
 }
 
 export async function hydratePortalSessionFromPeerTabs({
@@ -553,8 +943,6 @@ export async function hydratePortalSessionFromPeerTabs({
         return existing;
     }
 
-    // Without a route or shared active-portal hint there is no authenticated
-    // peer session to request. This keeps first-time public/login loads instant.
     if (!requestedPortal) return null;
 
     const channel = createPortalSessionChannel();
@@ -562,6 +950,7 @@ export async function hydratePortalSessionFromPeerTabs({
 
     return new Promise((resolve) => {
         let settled = false;
+
         const finish = (session = null) => {
             if (settled) return;
             settled = true;
@@ -580,6 +969,9 @@ export async function hydratePortalSessionFromPeerTabs({
                 portalName: payload.portalName,
                 token: payload.token,
                 profile: payload.profile || {},
+                browserSessionId: payload.browserSessionId || '',
+                serverSessionId: payload.serverSessionId || null,
+                createdAt: payload.sessionCreatedAt || Date.now(),
             });
 
             finish(session);
@@ -590,25 +982,36 @@ export async function hydratePortalSessionFromPeerTabs({
 
             try {
                 const payload = JSON.parse(event.newValue);
-                if (payload.sourceId === PAGE_INSTANCE_ID) return;
+                if (!shouldHandleSyncPayload(payload)) return;
                 handlePayload(payload);
             } catch {
                 // Ignore malformed cross-tab events.
             }
         };
 
-        const timer = window.setTimeout(() => finish(null), Math.max(40, Number(timeoutMs) || 0));
+        const timer = window.setTimeout(
+            () => finish(null),
+            Math.max(40, Number(timeoutMs) || 0)
+        );
 
         if (channel) {
-            channel.onmessage = (event) => handlePayload(event?.data || {});
+            channel.onmessage = (event) => {
+                const payload = event?.data || {};
+                if (!shouldHandleSyncPayload(payload)) return;
+                handlePayload(payload);
+            };
         }
+
         window.addEventListener('storage', handleStorageResponse);
 
-        publishPortalSessionMessage({
-            type: 'SESSION_REQUEST',
-            requestId,
-            portalName: requestedPortal,
-        }, channel);
+        publishPortalSessionMessage(
+            {
+                type: 'SESSION_REQUEST',
+                requestId,
+                portalName: requestedPortal,
+            },
+            channel
+        );
     });
 }
 
@@ -624,6 +1027,8 @@ export function installPortalSessionSync() {
     }
 
     const handleSyncPayload = (payload = {}) => {
+        if (!shouldHandleSyncPayload(payload)) return;
+
         if (payload.type === 'SESSION_REQUEST') {
             const requestedPortal = isKnownPortalName(payload.portalName)
                 ? payload.portalName
@@ -640,6 +1045,9 @@ export function installPortalSessionSync() {
                 portalName: active.portalName,
                 token: active.token,
                 profile: active.profile || {},
+                browserSessionId: active.browserSessionId,
+                serverSessionId: active.serverSessionId,
+                sessionCreatedAt: active.sessionCreatedAt,
             });
             return;
         }
@@ -652,16 +1060,33 @@ export function installPortalSessionSync() {
                 portalName: payload.portalName,
                 token: payload.token,
                 profile: payload.profile || {},
+                browserSessionId: payload.browserSessionId || '',
+                serverSessionId: payload.serverSessionId || null,
+                createdAt: payload.sessionCreatedAt || Date.now(),
             });
             if (!session) return;
 
-            const currentPortal = getPortalNameFromPath(window.location.pathname);
+            const currentPath = window.location.pathname || '';
+            const currentPortal = getPortalNameFromPath(currentPath);
+
+            // Public pages may learn/store the shared browser session, but a
+            // login in another tab must not hijack unrelated public navigation.
+            if (!currentPortal) {
+                if (currentPath === '/login') {
+                    window.location.replace(session.redirectPath);
+                }
+                return;
+            }
+
             if (currentPortal !== session.portalName) {
                 window.location.replace(session.redirectPath);
                 return;
             }
 
-            if (previous?.token !== session.token) {
+            if (
+                previous?.token !== session.token ||
+                previous?.browserSessionId !== session.browserSessionId
+            ) {
                 window.location.reload();
             }
             return;
@@ -671,8 +1096,29 @@ export function installPortalSessionSync() {
             const active = getStoredPortalSession(payload.portalName);
             if (!active?.token) return;
 
-            clearPortalSession(payload.portalName);
-            redirectPortalToLogin(payload.portalName);
+            // Unidentified/legacy clear events are intentionally ignored. A
+            // portal-wide clear cannot prove that it belongs to this tab's
+            // current session and was the source of intermittent auto-logouts.
+            if (!payload.token && !payload.browserSessionId) return;
+
+            if (payload.token && active.token !== payload.token) return;
+
+            if (
+                !payload.token &&
+                payload.browserSessionId &&
+                active.browserSessionId !== payload.browserSessionId
+            ) {
+                return;
+            }
+
+            const cleared = clearPortalSession(payload.portalName, {
+                expectedToken: payload.token || '',
+                expectedBrowserSessionId: payload.browserSessionId || '',
+            });
+
+            if (cleared) {
+                redirectPortalToLogin(payload.portalName);
+            }
         }
     };
 
@@ -686,43 +1132,73 @@ export function installPortalSessionSync() {
         if (event.key !== PORTAL_SESSION_STORAGE_EVENT_KEY || !event.newValue) return;
 
         try {
-            const payload = JSON.parse(event.newValue);
-            if (payload.sourceId === PAGE_INSTANCE_ID) return;
-            handleSyncPayload(payload);
+            handleSyncPayload(JSON.parse(event.newValue));
         } catch {
             // Ignore malformed cross-tab events.
         }
     });
 }
 
-export function broadcastPortalSessionEstablished({ portalName, token, profile }) {
-    if (!isKnownPortalName(portalName) || !token) return;
-
-    const channel = portalSessionSyncChannel || createPortalSessionChannel();
-
-    publishPortalSessionMessage({
-        type: 'SESSION_ESTABLISHED',
+export function broadcastPortalSessionEstablished(session = {}) {
+    const {
         portalName,
         token,
-        profile: profile || {},
-    }, channel);
+        profile,
+        browserSessionId,
+        serverSessionId,
+        sessionCreatedAt,
+    } = session;
 
-    if (channel !== portalSessionSyncChannel) {
-        channel.close();
-    }
-}
-
-export function broadcastPortalSessionCleared(portalName) {
-    if (!isKnownPortalName(portalName)) return;
+    if (!isKnownPortalName(portalName) || !token) return null;
 
     const channel = portalSessionSyncChannel || createPortalSessionChannel();
 
-    publishPortalSessionMessage({
-        type: 'SESSION_CLEARED',
-        portalName,
-    }, channel);
+    const message = publishPortalSessionMessage(
+        {
+            type: 'SESSION_ESTABLISHED',
+            portalName,
+            token,
+            profile: profile || {},
+            browserSessionId: browserSessionId || '',
+            serverSessionId: serverSessionId || null,
+            sessionCreatedAt: sessionCreatedAt || Date.now(),
+        },
+        channel
+    );
 
-    if (channel !== portalSessionSyncChannel) {
+    if (channel && channel !== portalSessionSyncChannel) {
         channel.close();
     }
+
+    return message;
+}
+
+export function broadcastPortalSessionCleared(portalName, session = null) {
+    if (!isKnownPortalName(portalName)) return null;
+
+    const active =
+        session?.token || session?.browserSessionId
+            ? session
+            : getStoredPortalSession(portalName);
+
+    if (!active?.token && !active?.browserSessionId) return null;
+
+    const channel = portalSessionSyncChannel || createPortalSessionChannel();
+
+    const message = publishPortalSessionMessage(
+        {
+            type: 'SESSION_CLEARED',
+            portalName,
+            token: active.token || '',
+            browserSessionId: active.browserSessionId || '',
+            serverSessionId: active.serverSessionId || null,
+        },
+        channel
+    );
+
+    if (channel && channel !== portalSessionSyncChannel) {
+        channel.close();
+    }
+
+    return message;
 }

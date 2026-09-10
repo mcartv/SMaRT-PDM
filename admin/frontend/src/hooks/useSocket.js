@@ -3,6 +3,7 @@ import { io } from 'socket.io-client';
 import { buildApiUrl } from '@/api';
 import {
   PORTAL_CONFIG,
+  getStoredPortalSession,
   invalidateStoredPortalSession,
 } from '@/utils/authStorage';
 
@@ -28,6 +29,16 @@ const SESSION_INVALID_CODES = new Set([
   'SOCKET_AUTH_INVALID',
   'SOCKET_AUTH_REQUIRED',
   'NOT_ADMIN_ACCOUNT',
+]);
+
+// These describe account/access changes rather than the validity of one
+// particular transport token. They must still remove the current session even
+// if the event was delivered through a socket that was being replaced.
+const ACCOUNT_WIDE_INVALID_CODES = new Set([
+  'ACCOUNT_DEACTIVATED',
+  'SESSION_ROLE_CHANGED',
+  'STAFF_ACCOUNT_NOT_FOUND',
+  'STAFF_SESSION_INVALID',
 ]);
 
 let globalSocket = null;
@@ -121,27 +132,78 @@ function stopSocket(socket = globalSocket) {
   socket.disconnect();
 }
 
-function invalidatePortalSession(error) {
-  const token = globalSocket?.auth?.token || getStoredSocketToken();
-  const { role } = getSocketIdentity(token);
+function recoverSocketWithCurrentSession(socket) {
+  if (!socket) return false;
+  if (!refreshSocketAuthFromStorage(socket)) return false;
+
+  try {
+    socket.io.reconnection(true);
+    if (!socket.connected) {
+      socket.connect();
+    }
+    return true;
+  } catch (error) {
+    console.warn(
+      '[Socket] Recovery after stale auth event failed:',
+      error?.message || error
+    );
+    return false;
+  }
+}
+
+function invalidatePortalSession(error, socket = globalSocket) {
+  const socketToken = socket?.auth?.token || '';
+  const currentToken = getStoredSocketToken();
+  const { role } = getSocketIdentity(socketToken || currentToken);
   const portalName = resolvePortalNameFromIdentity(role);
-  const code = String(error?.data?.code || 'SESSION_REVOKED');
+  const code = String(error?.data?.code || 'SESSION_REVOKED').trim().toUpperCase();
   const message = String(
     error?.message || 'Your session is no longer active. Please sign in again.'
   );
+  const accountWide = ACCOUNT_WIDE_INVALID_CODES.has(code);
+
+  // A socket can report an authentication error after another tab has already
+  // replaced the shared token. That old transport is stale; it has no authority
+  // to clear the newer browser session.
+  if (
+    !accountWide &&
+    socketToken &&
+    currentToken &&
+    socketToken !== currentToken
+  ) {
+    recoverSocketWithCurrentSession(socket);
+    return { ignored: true, reason: 'stale-socket-token' };
+  }
+
+  let invalidation = null;
 
   if (portalName && PORTAL_CONFIG[portalName]) {
-    invalidateStoredPortalSession({
+    const active = getStoredPortalSession(portalName);
+
+    invalidation = invalidateStoredPortalSession({
       portalName,
+      expectedToken: accountWide ? '' : socketToken || currentToken,
+      expectedBrowserSessionId:
+        !accountWide && active?.token === (socketToken || currentToken)
+          ? active.browserSessionId || ''
+          : '',
       code,
       message,
     });
   }
 
-  stopSocket(globalSocket);
-  globalSocket = null;
+  if (invalidation?.ignored) {
+    recoverSocketWithCurrentSession(socket);
+    return invalidation;
+  }
+
+  stopSocket(socket);
+  if (socket === globalSocket) {
+    globalSocket = null;
+  }
   joinedUserId = '';
 
+  return invalidation;
 }
 
 function emitUserJoin(socket) {
@@ -295,14 +357,17 @@ function attachSocketLifecycle(socket) {
       });
     }
 
-    invalidatePortalSession({
-      message:
-        payload?.message ||
-        'Your session is no longer active. Please sign in again.',
-      data: {
-        code: payload?.code || 'SESSION_REVOKED',
+    invalidatePortalSession(
+      {
+        message:
+          payload?.message ||
+          'Your session is no longer active. Please sign in again.',
+        data: {
+          code: payload?.code || 'SESSION_REVOKED',
+        },
       },
-    });
+      socket
+    );
   });
 
   socket.on('connect_error', (error) => {
@@ -310,7 +375,7 @@ function attachSocketLifecycle(socket) {
 
     if (SESSION_INVALID_CODES.has(code)) {
       console.warn('[Socket] Session rejected:', code);
-      invalidatePortalSession(error);
+      invalidatePortalSession(error, socket);
       return;
     }
 
@@ -324,6 +389,7 @@ function attachSocketLifecycle(socket) {
     refreshSocketAuthFromStorage(socket);
   });
 }
+
 export const initializeSocket = () => {
   installSocketRecoveryHooks();
   const token = getStoredSocketToken();

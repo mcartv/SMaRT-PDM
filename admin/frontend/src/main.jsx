@@ -17,9 +17,15 @@ import {
 async function bootstrap() {
   hydrateRememberedSessions();
 
-  await hydratePortalSessionFromPeerTabs({
-    portalName: getPortalNameFromPath(window.location.pathname),
-  });
+  const pathname = window.location.pathname || '';
+  const portalName = getPortalNameFromPath(pathname);
+
+  // Protected routes and the unified login page may resume an already active
+  // same-browser session before React mounts. Unrelated public pages render
+  // immediately and are never blocked by a stale active-portal hint.
+  if (portalName || pathname === '/login') {
+    await hydratePortalSessionFromPeerTabs({ portalName });
+  }
 
   installPortalSessionSync();
   installSessionInvalidationFetchGuard();

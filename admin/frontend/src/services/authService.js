@@ -3,6 +3,7 @@ import {
   PAGE_INSTANCE_ID,
   broadcastPortalSessionCleared,
   clearAuthStorage,
+  clearPortalSession,
   clearPortalSessionFeedback,
   getAdminDeviceId,
   getStoredPortalSession,
@@ -77,6 +78,25 @@ let logoutInProgress = false;
 let lifecycleInstalled = false;
 let validationInFlight = false;
 
+function invalidateIfStillCurrent(active, error) {
+  if (
+    !active?.portalName ||
+    !active?.token ||
+    !(error instanceof AuthRequestError) ||
+    !isSessionInvalidationError(error)
+  ) {
+    return null;
+  }
+
+  return invalidateStoredPortalSession({
+    portalName: active.portalName,
+    expectedToken: active.token,
+    expectedBrowserSessionId: active.browserSessionId || '',
+    code: error.code,
+    message: error.message,
+  });
+}
+
 export const authService = {
   login: async ({ email, password, stayLoggedIn = false, turnstileToken = '' }) => {
     return requestJson('/api/auth/login', {
@@ -113,8 +133,8 @@ export const authService = {
     } catch (error) {
       // Compatibility fallback for a backend that has not yet exposed the
       // dedicated lightweight session-check route. This endpoint is already
-      // protected for every staff role, so the same account/session middleware
-      // still decides whether the current token is allowed.
+      // protected for every staff role, so backend authorization still decides
+      // whether the candidate token is allowed.
       if (error instanceof AuthRequestError && error.status === 404) {
         return requestJson('/api/theme-settings', {
           method: 'GET',
@@ -225,17 +245,15 @@ export const authService = {
     logoutInProgress = true;
     const active = getStoredPortalSession();
 
-    // Dispatch the server-side logout before clearing local storage/navigation.
-    // sendBeacon survives the redirect and frees this device slot even when the
-    // normal request would otherwise be interrupted by a slow network/backend.
+    // Server-side Admin logout targets the exact session captured when the user
+    // clicked Logout. A later replacement login must not be erased by this
+    // request completing after the newer session has become current.
     let beaconQueued = false;
     if (active?.portalName === 'admin' && active.token) {
       beaconQueued = authService.logoutAdminSessionBeacon(active.token);
     }
 
     try {
-      // If Beacon is unavailable or could not be queued, fall back to the
-      // authenticated keepalive request and wait for the backend acknowledgement.
       if (active?.portalName === 'admin' && active.token && !beaconQueued) {
         await requestJson('/api/auth/session/logout', {
           token: active.token,
@@ -245,14 +263,32 @@ export const authService = {
         });
       }
     } catch {
-      // Local/cross-tab logout still proceeds. On supported browsers the beacon
-      // was already queued above; otherwise a same-device login replaces stale
-      // state without consuming an additional device slot.
+      // Local/cross-tab logout still proceeds for the captured session. A
+      // same-device Admin login can replace stale backend state if necessary.
     } finally {
       clearPortalSessionFeedback(active?.portalName || null);
-      if (active?.portalName) {
-        broadcastPortalSessionCleared(active.portalName);
+
+      if (active?.portalName && active?.token) {
+        broadcastPortalSessionCleared(active.portalName, active);
+
+        const cleared = clearPortalSession(active.portalName, {
+          expectedToken: active.token,
+          expectedBrowserSessionId: active.browserSessionId || '',
+        });
+        const replacement = getStoredPortalSession(active.portalName);
+
+        if (cleared && !replacement?.token) {
+          window.location.href = '/login';
+          return;
+        }
+
+        // Another tab established a newer session while this logout request was
+        // in flight. The logout belongs only to the captured old session, so
+        // the replacement remains active and this tab must not force /login.
+        logoutInProgress = false;
+        return;
       }
+
       clearAuthStorage();
       window.location.href = '/login';
     }
@@ -283,16 +319,7 @@ export function installAdminSessionLifecycle() {
     try {
       await authService.validateStaffSession(active.token);
     } catch (error) {
-      if (
-        error instanceof AuthRequestError &&
-        isSessionInvalidationError(error)
-      ) {
-        invalidateStoredPortalSession({
-          portalName: active.portalName,
-          code: error.code,
-          message: error.message,
-        });
-      }
+      invalidateIfStillCurrent(active, error);
     } finally {
       validationInFlight = false;
     }
@@ -312,16 +339,7 @@ export function installAdminSessionLifecycle() {
     try {
       await authService.heartbeatAdminSession(active.token);
     } catch (error) {
-      if (
-        error instanceof AuthRequestError &&
-        isSessionInvalidationError(error)
-      ) {
-        invalidateStoredPortalSession({
-          portalName: 'admin',
-          code: error.code,
-          message: error.message,
-        });
-      }
+      invalidateIfStillCurrent(active, error);
     }
   };
 
@@ -339,16 +357,7 @@ export function installAdminSessionLifecycle() {
     try {
       await authService.resumeAdminSession(active.token);
     } catch (error) {
-      if (
-        error instanceof AuthRequestError &&
-        isSessionInvalidationError(error)
-      ) {
-        invalidateStoredPortalSession({
-          portalName: 'admin',
-          code: error.code,
-          message: error.message,
-        });
-      }
+      invalidateIfStillCurrent(active, error);
     }
   };
 
@@ -366,11 +375,9 @@ export function installAdminSessionLifecycle() {
   window.addEventListener('focus', validateWhenVisible);
   document.addEventListener('visibilitychange', validateWhenVisible);
 
-  // Account access is validated independently of Socket.IO. The backend
-  // remains the source of truth; this short poll only controls how quickly an
-  // already-rendered portal is removed from view after access is revoked.
-  // Browsers may throttle background timers, so focus/visibility listeners
-  // above also trigger an immediate validation when the user returns.
+  // Account access is validated independently of Socket.IO. The backend is the
+  // source of truth; captured session identity prevents stale async failures
+  // from invalidating a newer cross-tab login.
   validateCurrentPortal();
   window.setInterval(validateCurrentPortal, 60_000);
   window.setInterval(heartbeat, 5 * 60_000);

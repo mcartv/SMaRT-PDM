@@ -2147,7 +2147,7 @@ export default function ROAdmin() {
             </div>
           )}
 
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+          <div className="compact-toolbar-row flex flex-col gap-2 lg:flex-row lg:items-center">
             <ToolbarSegment
               options={TOP_TABS}
               value={topTab}

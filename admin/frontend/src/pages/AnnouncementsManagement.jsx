@@ -902,7 +902,7 @@ function AnnouncementRow({
 
   return (
     <article className="group overflow-hidden rounded-xl border border-stone-200 bg-white transition hover:border-stone-300 hover:shadow-sm">
-      <div className="flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:gap-5">
+      <div className="compact-announcement-row flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:gap-5">
         <div className="flex min-w-0 flex-1 items-start gap-2">
           <div
             className="announcement-icon mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md"

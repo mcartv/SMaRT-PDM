@@ -203,7 +203,7 @@ export default function PayoutProofReviewPanel() {
 
   return (
     <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
-      <div className="flex flex-col gap-3 border-b border-stone-100 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="compact-toolbar-row flex flex-col gap-3 border-b border-stone-100 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="text-sm font-semibold text-stone-800">Payout Proof Review</h2>
           <p className="mt-1 text-xs text-stone-500">

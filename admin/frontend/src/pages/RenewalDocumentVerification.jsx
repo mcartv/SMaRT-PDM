@@ -604,7 +604,7 @@ export default function RenewalDocumentVerification() {
         </div>
       </div>
 
-      <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(260px,320px)_minmax(0,1fr)] 2xl:grid-cols-[300px_minmax(440px,1fr)_380px]">
+      <div className="compact-review-workspace grid min-w-0 gap-5 lg:grid-cols-[minmax(260px,320px)_minmax(0,1fr)] 2xl:grid-cols-[300px_minmax(440px,1fr)_380px]">
         <aside className="space-y-5 2xl:sticky 2xl:top-4 2xl:self-start">
           <Card className="gap-0 overflow-hidden rounded-2xl bg-white py-0 shadow-[0_1px_2px_rgba(28,25,23,0.04)] ring-stone-200/80">
             <div className="p-5">

@@ -1483,7 +1483,7 @@ export default function PayoutManagement() {
             </button>
           </div>
 
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+          <div className="compact-toolbar-row flex flex-col gap-2 lg:flex-row lg:items-center">
             <div className="relative w-full lg:w-[320px]">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
               <Input

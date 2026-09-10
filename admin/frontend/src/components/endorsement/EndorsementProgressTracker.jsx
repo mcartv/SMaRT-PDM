@@ -66,7 +66,7 @@ export default function EndorsementProgressTracker({
         ) : null}
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-2">
         {tracker.steps.map((step, index) => {
           const tone = resolveTone(step.state);
           const isLast = index === tracker.steps.length - 1;

@@ -5183,7 +5183,7 @@ export default function DocumentVerification() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[clamp(370px,29vw,430px)_minmax(0,1fr)] xl:gap-5">
+      <div className="compact-review-workspace grid grid-cols-1 gap-4 lg:grid-cols-[clamp(370px,29vw,430px)_minmax(0,1fr)] xl:gap-5">
         <aside className="min-w-0 space-y-4 lg:sticky lg:top-3 lg:self-start">
           <StudentCard application={application} parentsInformation={birthParentsInformation} />
 

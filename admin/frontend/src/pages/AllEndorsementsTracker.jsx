@@ -400,7 +400,7 @@ export default function AllEndorsementsTracker({
             <h1 className="text-xl font-semibold text-stone-900">All Endorsement Slips</h1>
           </div>
 
-          <div className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+          <div className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-[repeat(5,minmax(0,1fr))]">
             {adminSummaryPills.map((item) => (
               <div
                 key={item.label}

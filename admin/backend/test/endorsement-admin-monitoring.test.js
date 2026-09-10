@@ -23,6 +23,17 @@ test('endorsement tracker keeps stage-focused monitoring views', () => {
   assert.match(tracker, /Completed/);
 });
 
+test('endorsement monitoring keeps compact cards fitted across laptop widths', () => {
+  const tracker = read('frontend/src/pages/AllEndorsementsTracker.jsx');
+  const progressTracker = read('frontend/src/components/endorsement/EndorsementProgressTracker.jsx');
+
+  assert.match(tracker, /lg:grid-cols-\[repeat\(5,minmax\(0,1fr\)\)\]/);
+  assert.doesNotMatch(tracker, /col-span-full/);
+  assert.match(tracker, /grid grid-cols-1 gap-2\.5 xl:grid-cols-2/);
+  assert.match(progressTracker, /grid-cols-\[repeat\(3,minmax\(0,1fr\)\)\]/);
+  assert.doesNotMatch(progressTracker, /className="grid grid-cols-3 gap-2"/);
+});
+
 test('public verification keeps office standing sections', () => {
   const verification = read('frontend/src/pages/EndorsementVerification.jsx');
 

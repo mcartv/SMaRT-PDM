@@ -158,15 +158,30 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
           savedOpeningId.isNotEmpty &&
           savedOpeningId != initialOpeningId;
 
-      if (!shouldReplaceDraft) {
-        _data.applySavedForm(savedFormData);
+      // SMART_PDM_SEMESTER_PREFILL_RETAIN_V1
+      // Replacing an old-semester draft must replace only its opening
+      // association. Reusable applicant information is still loaded first.
+      _data.applySavedForm(savedFormData);
 
+      if (shouldReplaceDraft) {
+        // applySavedForm may contain the old draft opening, so restore the
+        // newly selected semester/opening after hydrating the reusable fields.
+        _applyOpeningSelection(
+          openingId: initialOpeningId,
+          openingTitle: widget.initialOpeningTitle?.trim() ?? '',
+          programName: widget.initialProgramName?.trim() ?? '',
+        );
+
+        // The first autosave below creates/replaces the draft for the new
+        // opening while keeping the prefilled applicant information.
+        _hasDraftLoaded = false;
+      } else {
         _hasDraftLoaded =
             widget.editExistingApplication ||
             savedFormData['has_saved_form'] == true;
-
-        await _syncAccountHolderCache();
       }
+
+      await _syncAccountHolderCache();
     } catch (error) {
       debugPrint('APPLICATION FORM PREFILL ERROR: $error');
     }

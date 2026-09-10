@@ -922,6 +922,133 @@ async function getDraft(userId) {
     return data || null;
 }
 
+// SMART_PDM_HISTORICAL_APPLICATION_PREFILL_V1
+function isPlainPrefillObject(value) {
+    return Boolean(
+        value &&
+        typeof value === 'object' &&
+        !Array.isArray(value)
+    );
+}
+
+function mergeMissingPrefillValues(primary = {}, fallback = {}) {
+    if (!isPlainPrefillObject(primary)) {
+        return isPlainPrefillObject(fallback)
+            ? { ...fallback }
+            : primary;
+    }
+
+    if (!isPlainPrefillObject(fallback)) {
+        return { ...primary };
+    }
+
+    const merged = { ...primary };
+
+    for (const [key, fallbackValue] of Object.entries(fallback)) {
+        const primaryValue = merged[key];
+
+        if (
+            isPlainPrefillObject(primaryValue) &&
+            isPlainPrefillObject(fallbackValue)
+        ) {
+            merged[key] = mergeMissingPrefillValues(
+                primaryValue,
+                fallbackValue
+            );
+            continue;
+        }
+
+        const missing =
+            primaryValue === null ||
+            primaryValue === undefined ||
+            (
+                typeof primaryValue === 'string' &&
+                primaryValue.trim() === ''
+            );
+
+        if (missing && fallbackValue !== undefined && fallbackValue !== null) {
+            merged[key] = fallbackValue;
+        }
+    }
+
+    return merged;
+}
+
+function mergeHistoricalApplicationPrefill(
+    basePayload = {},
+    historicalPayload = {}
+) {
+    // Reuse applicant-entered data only. Never reuse the old scholarship
+    // opening, workflow state, documents, or certification acceptance.
+    const reusableSections = [
+        'personal',
+        'address',
+        'contact',
+        'family',
+        'academic',
+        'support',
+        'discipline',
+        'essays',
+    ];
+
+    const merged = { ...basePayload };
+
+    for (const section of reusableSections) {
+        merged[section] = mergeMissingPrefillValues(
+            isPlainPrefillObject(basePayload?.[section])
+                ? basePayload[section]
+                : {},
+            isPlainPrefillObject(historicalPayload?.[section])
+                ? historicalPayload[section]
+                : {}
+        );
+    }
+
+    // A new application must always select its own opening and re-accept the
+    // final certification. Those fields are intentionally not inherited.
+    merged.opening = basePayload.opening || {};
+    merged.certification = basePayload.certification || {
+        certification_read: false,
+        agree: false,
+    };
+
+    return merged;
+}
+
+async function getLatestApplicationPrefillPayload(studentId) {
+    if (!studentId) {
+        return {};
+    }
+
+    const { data, error } = await supabase
+        .from('applications')
+        .select(
+            'application_id, application_payload, submission_date, created_at'
+        )
+        .eq('student_id', studentId)
+        .not('application_payload', 'is', null)
+        .order('submission_date', {
+            ascending: false,
+            nullsFirst: false,
+        })
+        .order('created_at', {
+            ascending: false,
+            nullsFirst: false,
+        })
+        .limit(1)
+        .maybeSingle();
+
+    if (error) {
+        throw error;
+    }
+
+    const payload = data?.application_payload;
+
+    return isPlainPrefillObject(payload)
+        ? payload
+        : {};
+}
+
 async function getOpening(openingId) {
     if (!openingId) return null;
 
@@ -1005,15 +1132,23 @@ async function getMyFormData(userId, options = {}) {
         };
     }
 
-    const [master, profile, course, familyRows, educationRows, opening] =
-        await Promise.all([
-            getMasterStudent(student.master_student_id),
-            getStudentProfile(student.student_id),
-            getCourse(student.course_id),
-            getFamilyRows(student.student_id),
-            getEducationRows(student.student_id),
-            getOpening(draft?.opening_id || draftPayload.opening?.opening_id),
-        ]);
+    const [
+        master,
+        profile,
+        course,
+        familyRows,
+        educationRows,
+        opening,
+        historicalApplicationPayload,
+    ] = await Promise.all([
+        getMasterStudent(student.master_student_id),
+        getStudentProfile(student.student_id),
+        getCourse(student.course_id),
+        getFamilyRows(student.student_id),
+        getEducationRows(student.student_id),
+        getOpening(draft?.opening_id || draftPayload.opening?.opening_id),
+        getLatestApplicationPrefillPayload(student.student_id),
+    ]);
 
     const father =
         familyRows.find((row) => normalizeFamilyRelation(row.relation) === 'Father') ||
@@ -1088,7 +1223,7 @@ async function getMyFormData(userId, options = {}) {
     );
     const rawAddress = addressFromRawSnapshot(master?.raw_snapshot);
 
-    const basePayload = {
+    let basePayload = {
         has_saved_form: !!draft,
         opening: opening
             ? {
@@ -1323,6 +1458,16 @@ async function getMyFormData(userId, options = {}) {
             agree: false,
         },
     };
+
+    // The normalized student/profile/family/education tables remain the
+    // authoritative source. The previous submitted application snapshot only
+    // fills fields that are missing there (for example legacy form-only
+    // fields). This keeps old applicant information available after a
+    // semester switch without copying the old opening or workflow state.
+    basePayload = mergeHistoricalApplicationPrefill(
+        basePayload,
+        historicalApplicationPayload
+    );
 
     if (!draftPayload || Object.keys(draftPayload).length === 0) {
         return basePayload;

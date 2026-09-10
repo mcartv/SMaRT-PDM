@@ -238,7 +238,11 @@ async function getStudentApplications(studentId) {
       is_disqualified,
       is_archived,
       created_at,
-      updated_at
+      updated_at,
+      program_openings (
+        period_id,
+        academic_year_id
+      )
     `)
     .eq('student_id', studentId)
     .order('submission_date', {
@@ -309,6 +313,24 @@ function isActiveApplication(application) {
   return true;
 }
 
+// SMART_PDM_ACTIVE_APPLICATION_PERIOD_SCOPE_V1
+function applicationBelongsToPeriod(application, periodId) {
+  const normalizedPeriodId = String(periodId || '').trim();
+
+  if (!normalizedPeriodId || !application) {
+    return false;
+  }
+
+  const opening = Array.isArray(application.program_openings)
+    ? application.program_openings[0]
+    : application.program_openings;
+
+  return (
+    String(opening?.period_id || '').trim() ===
+    normalizedPeriodId
+  );
+}
+
 function canReapplyToSameOpening(application, majorViolationIds) {
   if (!application || !isRejectedApplication(application)) {
     return false;
@@ -350,11 +372,23 @@ async function getActiveAcademicPeriod() {
 async function getOpeningsForMobile(userId) {
   const student = await getStudentByUserId(userId);
   const applications = await getStudentApplications(student?.student_id);
-  const activeApplication =
-    applications.find(isActiveApplication) || null;
 
   const availability = await loadApplicationAvailabilityPolicy();
   const activePeriod = availability.activePeriod;
+
+  // Only an application from the currently active academic period can block
+  // another application. Historical applications remain stored and visible
+  // through their historical/status workflows, but they must not trap the
+  // same login account when Admin advances to a new semester.
+  const activeApplication =
+    applications.find(
+      (application) =>
+        isActiveApplication(application) &&
+        applicationBelongsToPeriod(
+          application,
+          activePeriod?.period_id
+        )
+    ) || null;
 
   const { data, error } = await supabase
     .from('program_openings')

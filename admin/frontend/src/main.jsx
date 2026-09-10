@@ -14,16 +14,21 @@ import {
   installSessionInvalidationFetchGuard,
 } from './utils/authStorage.js';
 
+const PEER_SESSION_ENTRY_PATHS = new Set(['/', '/landing', '/login']);
+
 async function bootstrap() {
   hydrateRememberedSessions();
 
   const pathname = window.location.pathname || '';
   const portalName = getPortalNameFromPath(pathname);
 
-  // Protected routes and the unified login page may resume an already active
-  // same-browser session before React mounts. Unrelated public pages render
-  // immediately and are never blocked by a stale active-portal hint.
-  if (portalName || pathname === '/login') {
+  // A newly opened browser tab does not inherit sessionStorage from an
+  // existing tab. Protected routes and the main entry pages therefore ask an
+  // already-authenticated peer tab for the shared browser session before React
+  // mounts. Existing public tabs are still not redirected when another tab
+  // signs in later; authStorage handles SESSION_ESTABLISHED without hijacking
+  // unrelated public navigation.
+  if (portalName || PEER_SESSION_ENTRY_PATHS.has(pathname)) {
     await hydratePortalSessionFromPeerTabs({ portalName });
   }
 

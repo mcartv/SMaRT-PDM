@@ -24,7 +24,9 @@ test('cross-tab session resume uses one transport with request/response hydratio
 
   assert.match(main, /hydratePortalSessionFromPeerTabs/);
   assert.match(main, /const portalName = getPortalNameFromPath\(pathname\)/);
-  assert.match(main, /if \(portalName \|\| pathname === '\/login'\)/);
+  assert.match(main, /PEER_SESSION_ENTRY_PATHS/);
+  assert.match(main, /new Set\(\['\/', '\/landing', '\/login'\]\)/);
+  assert.match(main, /if \(portalName \|\| PEER_SESSION_ENTRY_PATHS\.has\(pathname\)\)/);
   assert.match(main, /installPortalSessionSync\(\)/);
 });
 

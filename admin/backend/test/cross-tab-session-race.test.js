@@ -248,6 +248,72 @@ test('peer tab hydrates the same shared browser session without creating another
   assert.equal(tabB.api.getStoredPortalSession('admin').token, 'token-A');
 });
 
+test('new root tab discovers the active portal from the shared hint and hydrates the same session', async () => {
+  const bus = createBus();
+  const tabA = loadAuthStorage({
+    tabId: 'A',
+    bus,
+    pathname: '/admin/dashboard',
+  });
+
+  const saved = tabA.api.savePortalSession({
+    portalName: 'admin',
+    token: 'token-A',
+    user: { role: 'admin', user_id: 'user-1' },
+    stayLoggedIn: false,
+  });
+  tabA.api.installPortalSessionSync();
+
+  const tabB = loadAuthStorage({
+    tabId: 'B',
+    bus,
+    pathname: '/',
+  });
+  const hydrated = await tabB.api.hydratePortalSessionFromPeerTabs({
+    portalName: null,
+    timeoutMs: 100,
+  });
+
+  assert.equal(hydrated.portalName, 'admin');
+  assert.equal(hydrated.token, saved.token);
+  assert.equal(hydrated.browserSessionId, saved.browserSessionId);
+  assert.equal(tabB.api.getStoredPortalSession('admin').token, 'token-A');
+  assert.deepEqual(tabB.window.location.replacements, []);
+});
+
+test('new landing tab may hydrate the active session without being forcibly redirected', async () => {
+  const bus = createBus();
+  const tabA = loadAuthStorage({
+    tabId: 'A',
+    bus,
+    pathname: '/sdo/dashboard',
+  });
+
+  const saved = tabA.api.savePortalSession({
+    portalName: 'sdo',
+    token: 'sdo-token-A',
+    user: { role: 'sdo', user_id: 'user-2' },
+    stayLoggedIn: false,
+  });
+  tabA.api.installPortalSessionSync();
+
+  const tabB = loadAuthStorage({
+    tabId: 'B',
+    bus,
+    pathname: '/landing',
+  });
+  const hydrated = await tabB.api.hydratePortalSessionFromPeerTabs({
+    portalName: null,
+    timeoutMs: 100,
+  });
+
+  assert.equal(hydrated.portalName, 'sdo');
+  assert.equal(hydrated.token, saved.token);
+  assert.equal(hydrated.browserSessionId, saved.browserSessionId);
+  assert.equal(tabB.window.location.pathname, '/landing');
+  assert.deepEqual(tabB.window.location.replacements, []);
+});
+
 test('stale invalidation and stale clear event cannot erase a newer shared session', async () => {
   const bus = createBus();
   const tabA = loadAuthStorage({ tabId: 'A', bus });

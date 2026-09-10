@@ -47,11 +47,12 @@ test('group information no longer renders as a fixed right drawer', () => {
   assert.doesNotMatch(source, /fixed inset-y-0 right-0 z-\[90\]/);
 });
 
-test('Search members regression is removed and Search chat is restored', () => {
-  assert.doesNotMatch(source, /placeholder="Search members"/);
-  assert.doesNotMatch(source, /aria-label="Search group members"/);
-  assert.match(source, />Search chat</);
-  assert.match(source, /onSearchChat/);
+test('conversation search and group-member search remain available in their own contexts', () => {
+  assert.match(source, /placeholder="Search member"/);
+  assert.match(source, /aria-label="Search group members"/);
+  assert.match(source, /aria-label="Search this conversation"/);
+  assert.match(source, /aria-label="Search messages in this conversation"/);
+  assert.match(source, /setChatSearchOpen/);
 });
 
 test('group info keeps member actions and leave group', () => {

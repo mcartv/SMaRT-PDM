@@ -1,6 +1,10 @@
 const pool = require('../config/db');
 const notificationService = require('./notificationService');
 
+const PAYOUT_PAYMENT_MODES = Object.freeze([
+  'Cash',
+  'Other',
+]);
 
 function payoutError(statusCode, message) {
   const error = new Error(message);
@@ -27,6 +31,22 @@ function validatePayoutDate(value) {
   return normalized;
 }
 
+function validatePaymentMode(value) {
+  const normalized = normalizeRequiredText(value, 'Payment mode', 60);
+  if (!PAYOUT_PAYMENT_MODES.includes(normalized)) {
+    throw payoutError(
+      400,
+      `Payment mode must be one of: ${PAYOUT_PAYMENT_MODES.join(', ')}.`
+    );
+  }
+  return normalized;
+}
+
+function validateOtherPaymentMode(paymentMode, value) {
+  if (paymentMode !== 'Other') return null;
+  return normalizeRequiredText(value, 'Other payment type', 60);
+}
+
 function validateMoney(value, field) {
   const amount = Number(value);
   if (!Number.isFinite(amount) || amount <= 0 || amount > 1000000) {
@@ -51,6 +71,7 @@ async function fetchPayoutBatches() {
       pb.payout_title,
       pb.payout_date,
       pb.payment_mode,
+      pb.payment_mode_other,
       pb.amount_per_scholar,
       pb.total_amount,
       pb.batch_status,
@@ -115,6 +136,7 @@ async function fetchPayoutBatches() {
       pb.payout_title,
       pb.payout_date,
       pb.payment_mode,
+      pb.payment_mode_other,
       pb.amount_per_scholar,
       pb.total_amount,
       pb.batch_status,
@@ -290,6 +312,7 @@ async function createPayoutBatchFromOpening({
   payout_title,
   payout_date,
   payment_mode,
+  payment_mode_other,
   remarks,
   scholar_ids,
 }) {
@@ -299,7 +322,11 @@ async function createPayoutBatchFromOpening({
 
   const normalizedTitle = normalizeRequiredText(payout_title, 'Payout title');
   const normalizedDate = validatePayoutDate(payout_date);
-  const normalizedPaymentMode = normalizeRequiredText(payment_mode, 'Payment mode', 60);
+  const normalizedPaymentMode = validatePaymentMode(payment_mode);
+  const normalizedOtherPaymentMode = validateOtherPaymentMode(
+    normalizedPaymentMode,
+    payment_mode_other
+  );
 
   let uniqueStudentIds = Array.isArray(scholar_ids)
     ? [...new Set(scholar_ids.filter(Boolean))]
@@ -438,12 +465,13 @@ async function createPayoutBatchFromOpening({
         payout_title,
         payout_date,
         payment_mode,
+        payment_mode_other,
         amount_per_scholar,
         total_amount,
         batch_status,
         remarks
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Draft', $10)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'Draft', $11)
       RETURNING *;
       `,
       [
@@ -454,6 +482,7 @@ async function createPayoutBatchFromOpening({
         normalizedTitle,
         normalizedDate,
         normalizedPaymentMode,
+        normalizedOtherPaymentMode,
         amount,
         totalAmount,
         remarks || null,
@@ -845,6 +874,7 @@ async function fetchMyPayouts(userId) {
       pb.payout_title,
       pb.payout_date,
       pb.payment_mode,
+      pb.payment_mode_other,
       pb.amount_per_scholar,
       pb.batch_status,
       pb.remarks AS batch_remarks,
@@ -879,6 +909,7 @@ async function fetchMyPayouts(userId) {
       semester: row.semester || '-',
       academic_year: row.academic_year || '-',
       payment_mode: row.payment_mode || '-',
+      payment_mode_other: row.payment_mode_other || '',
       batch_status: row.batch_status || 'Pending',
       program_name: row.program_name || 'Scholarship Program',
       reference: row.check_number || row.payout_entry_id,

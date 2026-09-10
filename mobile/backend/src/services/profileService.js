@@ -409,6 +409,37 @@ async function setupMyProfile(userId, payload = {}) {
     throw createHttpError(401, 'Authentication required.');
   }
 
+  const hasOwn = (key) => Object.prototype.hasOwnProperty.call(payload, key);
+  const constrainedProfileFields = [
+    ['civil_status', ['Single', 'Married', 'Widowed', 'Separated', 'Divorced'], 'Civil status'],
+    ['financial_support_type', ['Parents', 'Scholarship', 'Loan', 'Other'], 'Financial support type'],
+  ];
+
+  for (const [key, allowedValues, label] of constrainedProfileFields) {
+    const value = safeText(payload[key]);
+    if (hasOwn(key) && value && !allowedValues.includes(value)) {
+      throw createHttpError(
+        400,
+        `${label} must be one of: ${allowedValues.join(', ')}.`
+      );
+    }
+  }
+
+  let validatedYearLevel = null;
+  if (hasOwn('year_level')) {
+    const rawYearLevel = safeText(payload.year_level);
+    if (rawYearLevel) {
+      validatedYearLevel = Number(rawYearLevel);
+      if (
+        !Number.isInteger(validatedYearLevel) ||
+        validatedYearLevel < 1 ||
+        validatedYearLevel > 6
+      ) {
+        throw createHttpError(400, 'Year level must be a whole number from 1 to 6.');
+      }
+    }
+  }
+
   const client = await db.connect();
   try {
   await client.query('BEGIN');
@@ -428,7 +459,6 @@ async function setupMyProfile(userId, payload = {}) {
     );
   }
 
-  const hasOwn = (key) => Object.prototype.hasOwnProperty.call(payload, key);
   const userUpdate = {};
   const studentUpdate = { is_profile_complete: true };
 
@@ -465,8 +495,7 @@ async function setupMyProfile(userId, payload = {}) {
   if (hasOwn('middle_name')) studentUpdate.middle_name = safeText(payload.middle_name) || null;
   if (hasOwn('last_name')) studentUpdate.last_name = safeText(payload.last_name) || null;
   if (hasOwn('year_level')) {
-    const yearLevel = Number(payload.year_level);
-    studentUpdate.year_level = Number.isFinite(yearLevel) ? yearLevel : null;
+    studentUpdate.year_level = validatedYearLevel;
   }
   if (hasOwn('sex') || hasOwn('sex_at_birth')) {
     studentUpdate.sex_at_birth = safeText(payload.sex ?? payload.sex_at_birth) || null;

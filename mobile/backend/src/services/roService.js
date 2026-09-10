@@ -9,6 +9,12 @@ const {
 const RO_PROOFS_BUCKET =
   process.env.RO_PROOFS_BUCKET ||
   'ro-proofs';
+const RO_PROOF_TYPES = new Set([
+  'time_in',
+  'time_out',
+  'auto_timeout_note',
+  'completion',
+]);
 
 const AUTO_TIMEOUT_INTERVAL_MS = Number(
   process.env.RO_AUTO_TIMEOUT_INTERVAL_MS || 60000
@@ -321,6 +327,13 @@ async function saveRoTimeLogProof({
   body = {},
   file = null,
 }) {
+  if (!RO_PROOF_TYPES.has(proofType)) {
+    throw createHttpError(
+      400,
+      'Invalid RO proof type.'
+    );
+  }
+
   if (
     !file ||
     !Buffer.isBuffer(file.buffer) ||

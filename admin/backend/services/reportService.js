@@ -448,7 +448,12 @@ async function getPayoutRows({ academicYearId, semester, programId }) {
       ay.label AS academic_year,
       ap.term AS semester,
       pb.payout_date,
-      pb.payment_mode,
+      CASE
+        WHEN pb.payment_mode = 'Other'
+          AND NULLIF(TRIM(pb.payment_mode_other), '') IS NOT NULL
+          THEN CONCAT('Other - ', TRIM(pb.payment_mode_other))
+        ELSE pb.payment_mode
+      END AS payment_mode,
       pb.amount_per_scholar,
       pb.total_amount,
       pb.batch_status,

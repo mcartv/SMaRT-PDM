@@ -14,7 +14,7 @@ const context = vm.createContext({
   ...require('../src/validation/applicationSection'),
   ...require('../src/validation/applicationFieldLimits'),
 });
-vm.runInContext(source.slice(source.indexOf('function isBlankSubmissionValue('), source.indexOf('async function getMySubmittedFormData(')), context);
+vm.runInContext(source.slice(source.indexOf('const CIVIL_STATUS_TYPES'), source.indexOf('async function getMySubmittedFormData(')), context);
 
 function completeForm() {
   const family = { parent_guardian_address: 'N/A', parent_native_status: 'No',
@@ -41,6 +41,29 @@ test('server accepts explicit N/A and rejects empty required family/address valu
   payload.family.guardian.first_name = 'N/A';
   payload.address.subdivision = '';
   assert.throws(() => context.validateApplicationSubmissionPayload(payload), /Subdivision/);
+});
+
+test('application civil statuses match the student profile database constraint', () => {
+  const payload = completeForm();
+  payload.personal.civil_status = 'Divorced';
+  assert.doesNotThrow(() => context.validateApplicationSubmissionPayload(payload));
+
+  payload.personal.civil_status = 'Partnered';
+  assert.throws(
+    () => context.validateApplicationSubmissionPayload(payload),
+    /Civil status must be one of/
+  );
+
+  const migration = fs.readFileSync(
+    path.join(
+      __dirname,
+      '../../../supabase/migrations/20260910021441_allow_divorced_civil_status.sql'
+    ),
+    'utf8'
+  );
+  assert.match(migration, /student_profiles_civil_status_check/);
+  assert.match(migration, /'Divorced'/);
+  assert.match(migration, /VALIDATE CONSTRAINT student_profiles_civil_status_check/);
 });
 
 test('snapshot answers including false, blank and N/A are preserved during export', () => {

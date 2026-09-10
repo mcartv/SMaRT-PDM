@@ -98,6 +98,7 @@ const EMPTY_FORM = {
   payout_title: '',
   payout_date: getManilaDateInputValue(),
   payment_mode: 'Cash',
+  payment_mode_other: '',
   amount_per_scholar: '',
   remarks: '',
   scholar_ids: [],
@@ -114,6 +115,12 @@ function getAuthHeaders(json = true) {
 
 function normalizeId(value) {
   return value == null ? '' : String(value).trim();
+}
+
+function formatPaymentMode(paymentMode, otherPaymentMode = '') {
+  const mode = String(paymentMode || '').trim();
+  const other = String(otherPaymentMode || '').trim();
+  return mode === 'Other' && other ? `Other - ${other}` : mode;
 }
 
 function normalizeReleaseStatus(value) {
@@ -874,7 +881,10 @@ export default function PayoutManagement() {
       `Please be informed that the payout batch for ${openingTitle} has been created.`,
       '',
       `Payout Date: ${payoutDate}`,
-      `Payment Mode: ${newPayoutForPrompt.payment_mode || 'Cash'}`,
+      `Payment Mode: ${formatPaymentMode(
+        newPayoutForPrompt.payment_mode,
+        newPayoutForPrompt.payment_mode_other
+      ) || 'Cash'}`,
       amountPerScholar > 0
         ? `Amount per Scholar: ${formatMoney(amountPerScholar)}`
         : '',
@@ -931,6 +941,7 @@ export default function PayoutManagement() {
         payout_title: form.payout_title,
         payout_date: form.payout_date,
         payment_mode: form.payment_mode,
+        payment_mode_other: form.payment_mode_other,
         remarks: form.remarks,
         scholar_ids: form.scholar_ids,
       };
@@ -984,6 +995,7 @@ export default function PayoutManagement() {
         payout_title: form.payout_title,
         payout_date: form.payout_date,
         payment_mode: form.payment_mode,
+        payment_mode_other: form.payment_mode_other,
         amount_per_scholar: form.amount_per_scholar,
         scholar_count: form.scholar_ids.length,
       };
@@ -1302,7 +1314,7 @@ export default function PayoutManagement() {
                     color: b.payment_mode === 'Cash' ? C.green : C.blue,
                   }}
                 >
-                  {b.payment_mode || EM_DASH}
+                  {formatPaymentMode(b.payment_mode, b.payment_mode_other) || EM_DASH}
                 </Badge>
 
                 {b.is_archived ? (
@@ -1714,6 +1726,8 @@ export default function PayoutManagement() {
                             setForm((prev) => ({
                               ...prev,
                               payment_mode: e.target.value,
+                              payment_mode_other:
+                                e.target.value === 'Other' ? prev.payment_mode_other : '',
                             }))
                           }
                         >
@@ -1722,6 +1736,28 @@ export default function PayoutManagement() {
                         </select>
                       </div>
                     </div>
+
+                    {form.payment_mode === 'Other' ? (
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium" htmlFor="other-payment-type">
+                          Specify Payment Type
+                        </label>
+                        <input
+                          id="other-payment-type"
+                          className="h-11 w-full rounded-md border px-3"
+                          value={form.payment_mode_other}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              payment_mode_other: e.target.value,
+                            }))
+                          }
+                          maxLength={60}
+                          required
+                          placeholder="Example: GCash, Maya, bank transfer"
+                        />
+                      </div>
+                    ) : null}
 
                     <div className="space-y-1">
                       <label className="text-sm font-medium">Remarks</label>
@@ -1940,7 +1976,12 @@ export default function PayoutManagement() {
 
                           <div className="mt-2 flex flex-wrap gap-2">
                             {entry.payment_mode ? (
-                              <Badge variant="outline">{entry.payment_mode}</Badge>
+                              <Badge variant="outline">
+                                {formatPaymentMode(
+                                  entry.payment_mode,
+                                  entry.payment_mode_other
+                                )}
+                              </Badge>
                             ) : null}
                             {entry.check_number ? (
                               <Badge variant="outline">

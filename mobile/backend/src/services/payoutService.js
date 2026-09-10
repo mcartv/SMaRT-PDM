@@ -93,6 +93,7 @@ async function getMyPayouts(userId) {
       pb.payout_title,
       pb.payout_date,
       pb.payment_mode,
+      pb.payment_mode_other,
       pb.amount_per_scholar,
       pb.total_amount,
       pb.batch_status,
@@ -146,7 +147,11 @@ async function getMyPayouts(userId) {
         amount_per_scholar: Number(row.amount_per_scholar || 0),
 
         payout_date: row.payout_date || null,
-        payment_mode: row.payment_mode || '-',
+        payment_mode:
+            row.payment_mode === 'Other' && row.payment_mode_other
+                ? `Other - ${row.payment_mode_other}`
+                : row.payment_mode || '-',
+        payment_mode_other: row.payment_mode_other || '',
         batch_status: row.batch_status || 'Pending',
         release_status: row.release_status || 'Pending',
         acknowledgement_status: row.acknowledgement_status || 'Pending',

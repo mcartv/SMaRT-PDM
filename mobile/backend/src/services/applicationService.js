@@ -3176,6 +3176,14 @@ async function ensureApplicationEndorsementSlip(application = {}) {
 }
 
 
+const CIVIL_STATUS_TYPES = Object.freeze([
+    'Single',
+    'Married',
+    'Widowed',
+    'Separated',
+    'Divorced',
+]);
+
 function isBlankSubmissionValue(value) {
     return (
         value === null ||
@@ -3373,6 +3381,17 @@ function validateApplicationSubmissionPayload(payload = {}) {
         throw createHttpError(
             400,
             `Complete the following required fields: ${missingFields.join(', ')}.`
+        );
+    }
+
+    const personal = payload.personal || {};
+    const civilStatus = safeText(
+        personal.civil_status || personal.civilStatus
+    );
+    if (!CIVIL_STATUS_TYPES.includes(civilStatus)) {
+        throw createHttpError(
+            400,
+            `Civil status must be one of: ${CIVIL_STATUS_TYPES.join(', ')}.`
         );
     }
 

@@ -45,6 +45,7 @@ function normalizeBatchPayload(row = {}, action = 'updated') {
         payout_title: batch.payout_title || row.payout_title || 'Payout Batch',
         payout_date: batch.payout_date || row.payout_date || null,
         payment_mode: batch.payment_mode || row.payment_mode || null,
+        payment_mode_other: batch.payment_mode_other || row.payment_mode_other || null,
         total_amount: batch.total_amount || row.total_amount || null,
         batch_status: batch.batch_status || row.batch_status || null,
         is_archived: batch.is_archived ?? row.is_archived ?? false,
@@ -268,6 +269,8 @@ async function writePayoutAudit(req, actionTaken, description, entity = null, me
                 payout_title: batchPayload.payout_title || metadata.payout_title || null,
                 payout_date: batchPayload.payout_date || metadata.payout_date || null,
                 payment_mode: batchPayload.payment_mode || metadata.payment_mode || null,
+                payment_mode_other:
+                    batchPayload.payment_mode_other || metadata.payment_mode_other || null,
                 total_amount: batchPayload.total_amount || metadata.total_amount || null,
                 student_id: entryPayload.student_id || metadata.student_id || null,
                 scholar_id: entryPayload.scholar_id || metadata.scholar_id || null,

@@ -33,7 +33,8 @@ test('Review Open opening behavior', () => {
 test('Review Re-Open behavior', () => {
   assert.ok(frontend.includes('const canReopen = isClosed && canBeOpened;'));
   assert.ok(frontend.includes('const reopenCandidate = {'));
-  assert.ok(frontend.includes("await updateOpeningStatus(opening.opening_id, 'open'"));
+  assert.ok(frontend.includes("requestStatusAction('reopen', opening, 'open');"));
+  assert.match(frontend, /confirmStatusAction[\s\S]*await updateOpeningStatus\([\s\S]*opening\.opening_id,[\s\S]*nextStatus/);
 });
 
 test('Ensure incomplete openings remain Draft', () => {

@@ -38,10 +38,10 @@ test('legacy login components are inert compatibility shims with no duplicated a
 });
 
 test('session invalidation sends users directly to the unified login', () => {
-  const authService = read('frontend/src/services/authService.js');
+  const authStorage = read('frontend/src/utils/authStorage.js');
 
-  assert.match(authService, /window\.location\.replace\('\/login'\)/);
-  assert.doesNotMatch(authService, /window\.location\.replace\('\/admin\/login'\)/);
+  assert.match(authStorage, /window\.location\.replace\('\/login'\)/);
+  assert.doesNotMatch(authStorage, /window\.location\.replace\('\/admin\/login'\)/);
 });
 
 

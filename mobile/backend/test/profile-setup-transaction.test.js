@@ -12,6 +12,7 @@ function harness() {
   let pending;
   let failProfile = true;
   let released = 0;
+  let connections = 0;
   const client = {
     async query(sql, values) {
       if (sql === 'BEGIN') pending = { ...committed };
@@ -29,7 +30,7 @@ function harness() {
     release() { released++; },
   };
   const context = {
-    db: { connect: async () => client },
+    db: { connect: async () => { connections++; return client; } },
     createHttpError: (statusCode, message) => Object.assign(new Error(message), { statusCode }),
     safeText: (value) => String(value ?? '').trim(),
     getMyProfile: async () => ({ ...committed }),
@@ -38,9 +39,11 @@ function harness() {
   vm.runInContext(setup, context);
   return {
     run: () => context.setupMyProfile('user', { phone_number: 'new', street_address: 'new street' }),
+    runWith: (payload) => context.setupMyProfile('user', payload),
     state: () => committed,
     allowSave: () => { failProfile = false; },
     releases: () => released,
+    connections: () => connections,
   };
 }
 
@@ -53,4 +56,13 @@ test('failed profile details roll back contact changes and allow setup retry', a
   assert.deepEqual(h.state(), { complete: true, phone: 'new', address: 'new street' });
   await assert.rejects(h.run(), /already complete/);
   assert.equal(h.releases(), 3);
+});
+
+test('profile setup rejects values outside database constraints before connecting', async () => {
+  const h = harness();
+  await assert.rejects(h.runWith({ year_level: 7 }), { statusCode: 400 });
+  await assert.rejects(h.runWith({ year_level: 2.5 }), { statusCode: 400 });
+  await assert.rejects(h.runWith({ civil_status: 'Partnered' }), { statusCode: 400 });
+  await assert.rejects(h.runWith({ financial_support_type: 'Employer' }), { statusCode: 400 });
+  assert.equal(h.connections(), 0);
 });

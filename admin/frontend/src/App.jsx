@@ -49,6 +49,7 @@ import AboutPage from './pages/AboutPage';
 import HowToApplyPage from './pages/HowToApplyPage';
 import UnifiedLogin from './pages/UnifiedLogin';
 import AdminLogin from './pages/AdminLogin';
+import NotFoundPage from './pages/NotFoundPage';
 import { DataProcessingConsent, PrivacyNotice, TermsOfUse } from './pages/PublicPolicyPages';
 
 // --- SDO PAGES ---
@@ -376,7 +377,7 @@ export default function App() {
           <Route path="maintenance" element={<Navigate to="/ro-coordinator/settings" replace />} />
         </Route>
 
-        <Route path="*" element={<Navigate to="/landing" replace />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
       <Toaster
         position="top-right"

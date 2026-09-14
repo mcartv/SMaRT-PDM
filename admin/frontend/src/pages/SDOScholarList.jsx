@@ -8,6 +8,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 
@@ -15,7 +25,6 @@ import {
 import {
   Search,
   Eye,
-  Save,
   AlertTriangle,
   Users,
   CheckCircle2,
@@ -114,10 +123,10 @@ function formatDate(value) {
   });
 }
 
-function ScholarViewModal({ scholar, draft, onClose }) {
+function ScholarViewModal({ scholar, onClose }) {
   if (!scholar) return null;
 
-  const displayStatus = getSdoStyle(draft?.status || scholar.sdu_level);
+  const displayStatus = getSdoStyle(getEditableStatus(scholar.sdu_level));
 
   return (
     <div
@@ -268,7 +277,7 @@ function ScholarViewModal({ scholar, draft, onClose }) {
                       <span>Comment</span>
                     </div>
                     <p className="font-medium text-stone-800 whitespace-pre-wrap">
-                      {(draft?.comment ?? scholar.sdo_comment ?? '').trim() || 'No comment provided.'}
+                      {(scholar.sdo_comment || '').trim() || 'No comment provided.'}
                     </p>
                   </div>
                 </CardContent>
@@ -295,6 +304,99 @@ function ScholarViewModal({ scholar, draft, onClose }) {
   );
 }
 
+function DisciplinaryStandingConfirmModal({
+  action,
+  remarks,
+  onRemarksChange,
+  saving,
+  error,
+  theme,
+  onCancel,
+  onConfirm,
+}) {
+  if (!action) return null;
+
+  const status = getSdoStyle(action.status);
+  const isMajor = action.status === 'major';
+  const warning = isMajor
+    ? 'This records a major disciplinary offense in the scholar’s official scholarship record. Review the selected standing carefully before confirming.'
+    : action.status === 'minor'
+      ? 'This records a minor disciplinary offense in the scholar’s official scholarship record.'
+      : 'This records the scholar as clear of disciplinary offenses in the official scholarship record.';
+
+  return (
+    <AlertDialog open onOpenChange={(open) => !open && !saving && onCancel()}>
+      <AlertDialogContent className="max-h-[calc(100dvh-1rem)] overflow-y-auto rounded-2xl sm:max-w-md">
+        <AlertDialogHeader>
+          <AlertDialogMedia
+            className={isMajor ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}
+          >
+            <ShieldAlert />
+          </AlertDialogMedia>
+          <AlertDialogTitle>Confirm disciplinary standing</AlertDialogTitle>
+          <AlertDialogDescription>
+            Update {action.scholar.student_name || 'this scholar'} to{' '}
+            <span className="font-semibold" style={{ color: status.color }}>
+              {status.label}
+            </span>
+            ?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="space-y-4">
+          <div
+            className={`rounded-xl border px-4 py-3 text-sm leading-5 ${
+              isMajor
+                ? 'border-red-200 bg-red-50 text-red-800'
+                : 'border-amber-200 bg-amber-50 text-amber-800'
+            }`}
+          >
+            {warning}
+          </div>
+
+          <label className="block">
+            <span className="text-xs font-semibold text-stone-700">
+              Remarks or notes <span className="font-normal text-stone-400">(optional)</span>
+            </span>
+            <Textarea
+              value={remarks}
+              onChange={(event) => onRemarksChange(event.target.value)}
+              rows={4}
+              maxLength={500}
+              disabled={saving}
+              placeholder="Add optional disciplinary remarks or supporting notes"
+              className="mt-2 min-h-24 resize-none rounded-xl border-stone-200 bg-white text-sm"
+            />
+            <span className="mt-1 block text-right text-[11px] text-stone-400">
+              {remarks.length}/500
+            </span>
+          </label>
+
+          {error ? (
+            <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
+        </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel>
+          <Button
+            type="button"
+            disabled={saving}
+            onClick={onConfirm}
+            className="border-none font-semibold text-white hover:brightness-95"
+            style={{ background: theme.base }}
+          >
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Confirm Update
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 // ─── Main Component ──────────────────────────────────────────────
 export default function SDOScholarList() {
   const { theme } = usePortalTheme('sdo');
@@ -315,9 +417,10 @@ export default function SDOScholarList() {
   const [sortBy, setSortBy] = useState('Name A-Z');
   const [page, setPage] = useState(1);
 
-  const [drafts, setDrafts] = useState({});
   const [savingId, setSavingId] = useState(null);
   const [viewScholar, setViewScholar] = useState(null);
+  const [pendingStanding, setPendingStanding] = useState(null);
+  const [confirmationRemarks, setConfirmationRemarks] = useState('');
 
   const loadScholars = async ({ soft = false } = {}) => {
     try {
@@ -459,22 +562,24 @@ export default function SDOScholarList() {
     return filteredScholars.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   }, [filteredScholars, page]);
 
-  const handleDraftChange = (scholarId, field, value, scholar) => {
-    setDrafts((current) => ({
-      ...current,
-      [scholarId]: {
-        status: current[scholarId]?.status || getEditableStatus(scholar.sdu_level),
-        comment: current[scholarId]?.comment ?? scholar.sdo_comment ?? '',
-        [field]: value,
-      },
-    }));
+  const requestStandingUpdate = (scholar, status) => {
+    if (status === getEditableStatus(scholar.sdu_level)) return;
+    setError('');
+    setPendingStanding({ scholar, status });
+    setConfirmationRemarks(scholar.sdo_comment || '');
   };
 
-  const handleSave = async (scholar) => {
-    const draft = drafts[scholar.scholar_id] || {
-      status: getEditableStatus(scholar.sdu_level),
-      comment: scholar.sdo_comment || '',
-    };
+  const closeStandingConfirmation = () => {
+    setPendingStanding(null);
+    setConfirmationRemarks('');
+    setError('');
+  };
+
+  const handleSave = async () => {
+    if (!pendingStanding) return;
+
+    const { scholar, status } = pendingStanding;
+    const comment = confirmationRemarks.trim();
 
     try {
       setSavingId(scholar.scholar_id);
@@ -487,8 +592,8 @@ export default function SDOScholarList() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          status: draft.status,
-          comment: draft.comment,
+          status,
+          comment,
         }),
       });
 
@@ -503,8 +608,8 @@ export default function SDOScholarList() {
           item.scholar_id === scholar.scholar_id
             ? {
                 ...item,
-                sdu_level: draft.status,
-                sdo_comment: draft.comment,
+                sdu_level: status,
+                sdo_comment: comment,
               }
             : item
         )
@@ -513,6 +618,8 @@ export default function SDOScholarList() {
       toast.success('Disciplinary standing updated', {
         description: `${scholar.student_name}'s disciplinary standing was saved.`,
       });
+      setPendingStanding(null);
+      setConfirmationRemarks('');
     } catch (err) {
       setError(err.message || 'Failed to save scholar update.');
     } finally {
@@ -580,10 +687,20 @@ export default function SDOScholarList() {
       {viewScholar && (
         <ScholarViewModal
           scholar={viewScholar}
-          draft={drafts[viewScholar.scholar_id]}
           onClose={() => setViewScholar(null)}
         />
       )}
+
+      <DisciplinaryStandingConfirmModal
+        action={pendingStanding}
+        remarks={confirmationRemarks}
+        onRemarksChange={setConfirmationRemarks}
+        saving={Boolean(pendingStanding && savingId === pendingStanding.scholar.scholar_id)}
+        error={pendingStanding ? error : ''}
+        theme={theme}
+        onCancel={closeStandingConfirmation}
+        onConfirm={handleSave}
+      />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {statCards.map((s) => (
@@ -685,15 +802,13 @@ export default function SDOScholarList() {
 
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-          <Table className="min-w-[1120px]">
+          <Table className="min-w-[700px]">
             <TableHeader className="bg-stone-50/80">
               <TableRow className="border-stone-100 hover:bg-transparent">
                 <TableHead className="text-xs font-medium text-stone-500 py-3 px-5">Scholar</TableHead>
                 <TableHead className="text-xs font-medium text-stone-500 py-3">Student ID</TableHead>
-                <TableHead className="text-xs font-medium text-stone-500 py-3">Program</TableHead>
                 <TableHead className="text-xs font-medium text-stone-500 py-3">Course</TableHead>
                 <TableHead className="text-xs font-medium text-stone-500 py-3 w-[160px]">Disciplinary Standing</TableHead>
-                <TableHead className="text-xs font-medium text-stone-500 py-3 min-w-[280px]">Comment</TableHead>
                 <TableHead className="text-xs font-medium text-stone-500 py-3 text-right pr-5">Action</TableHead>
               </TableRow>
             </TableHeader>
@@ -701,25 +816,28 @@ export default function SDOScholarList() {
             <TableBody>
               {pageData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12 text-sm text-stone-400">
+                  <TableCell colSpan={5} className="text-center py-12 text-sm text-stone-400">
                     No scholars match the current filters.
                   </TableCell>
                 </TableRow>
               ) : (
                 pageData.map((scholar) => {
-                  const draft = drafts[scholar.scholar_id] || {
-                    status: getEditableStatus(scholar.sdu_level),
-                    comment: scholar.sdo_comment || '',
-                  };
-
                   return (
                     <TableRow
                       key={scholar.scholar_id}
                       className="border-stone-100 hover:bg-amber-50/20 transition-colors"
                     >
                       <TableCell className="py-3.5 px-5 align-top">
-                        <div>
-                          <p className="font-medium text-sm text-stone-800">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <PreviewableProfileAvatar
+                            src={scholar.avatar_url || scholar.profile_photo_url || scholar.avatarUrl || ''}
+                            name={`${scholar.student_name || 'Scholar'} profile photo`}
+                            fallback={getInitials(scholar.student_name)}
+                            avatarClassName="h-9 w-9 shrink-0 border border-stone-200"
+                            imageClassName="object-cover"
+                            fallbackClassName="bg-orange-50 text-xs font-bold text-[#5c2d0e]"
+                          />
+                          <p className="min-w-0 font-medium text-sm text-stone-800">
                             {scholar.student_name || 'Unknown Scholar'}
                           </p>
                         </div>
@@ -730,22 +848,16 @@ export default function SDOScholarList() {
                       </TableCell>
 
                       <TableCell className="py-3.5 align-top text-sm text-stone-600">
-                        {scholar.program_name || '—'}
-                      </TableCell>
-
-                      <TableCell className="py-3.5 align-top text-sm text-stone-600">
                         {scholar.course_code || scholar.course_name || '—'}
                       </TableCell>
 
                       <TableCell className="py-3.5 align-top">
                         <Select
-                          value={draft.status}
-                          onValueChange={(value) =>
-                            handleDraftChange(scholar.scholar_id, 'status', value, scholar)
-                          }
+                          value={getEditableStatus(scholar.sdu_level)}
+                          onValueChange={(value) => requestStandingUpdate(scholar, value)}
                         >
                           <SelectTrigger className="h-9 rounded-lg border-stone-200 bg-white text-sm w-[120px]">
-                            <SelectValue>{normalizeStatus(draft.status)}</SelectValue>
+                            <SelectValue>{normalizeStatus(getEditableStatus(scholar.sdu_level))}</SelectValue>
                           </SelectTrigger>
                           <SelectContent>
                             {STATUS_OPTIONS.map((option) => (
@@ -755,18 +867,6 @@ export default function SDOScholarList() {
                             ))}
                           </SelectContent>
                         </Select>
-                      </TableCell>
-
-                      <TableCell className="py-3.5 align-top">
-                        <Textarea
-                          value={draft.comment}
-                          onChange={(e) =>
-                            handleDraftChange(scholar.scholar_id, 'comment', e.target.value, scholar)
-                          }
-                          rows={3}
-                          placeholder="Add disciplinary remarks"
-                          className="min-h-[88px] rounded-lg border-stone-200 text-sm resize-none bg-white"
-                        />
                       </TableCell>
 
                       <TableCell className="py-3.5 pr-5 align-top">
@@ -779,25 +879,6 @@ export default function SDOScholarList() {
                           >
                             <Eye className="w-3.5 h-3.5 mr-1.5" />
                             View
-                          </Button>
-
-                          <Button
-                            onClick={() => handleSave(scholar)}
-                            disabled={savingId === scholar.scholar_id}
-                            className="h-8 rounded-lg text-white text-xs px-4 border-none"
-                            style={{ background: theme.base }}
-                          >
-                            {savingId === scholar.scholar_id ? (
-                              <>
-                                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                                Saving
-                              </>
-                            ) : (
-                              <>
-                                <Save className="w-3.5 h-3.5 mr-1.5" />
-                                Save
-                              </>
-                            )}
                           </Button>
                         </div>
                       </TableCell>

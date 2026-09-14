@@ -40,7 +40,9 @@ test('server accepts explicit N/A and rejects empty required family/address valu
   assert.throws(() => context.validateApplicationSubmissionPayload(payload), /guardian first name/);
   payload.family.guardian.first_name = 'N/A';
   payload.address.subdivision = '';
-  assert.throws(() => context.validateApplicationSubmissionPayload(payload), /Subdivision/);
+  assert.doesNotThrow(() => context.validateApplicationSubmissionPayload(payload));
+  payload.address.street = '';
+  assert.throws(() => context.validateApplicationSubmissionPayload(payload), /Street/);
 });
 
 test('application civil statuses match the student profile database constraint', () => {

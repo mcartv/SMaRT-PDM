@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { useSocketEvent } from '@/hooks/useSocket';
 import usePortalTheme from '@/hooks/usePortalTheme';
 import { SectionLoadingSkeleton } from '@/components/system/PageLoadingSkeleton';
+import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
 import ROCoordinatorScholarRequests from './ROCoordinatorScholarRequests';
 
 const FILTERS = [
@@ -26,6 +27,16 @@ const FILTERS = [
   { key: 'rejected', label: 'Returned' },
   { key: 'all', label: 'All Requests' },
 ];
+
+function getInitials(name = '') {
+  return (name || 'NA')
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
 
 function authHeaders(tokenStorageKey) {
   return {
@@ -572,7 +583,16 @@ export default function ROCoordinatorQueue({
                   <div className="grid gap-0 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
                     <div className="p-5">
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <PreviewableProfileAvatar
+                            src={request.avatar_url || request.profile_photo_url || ''}
+                            name={`${request.first_name || ''} ${request.last_name || ''}`.trim() || 'Scholar profile photo'}
+                            fallback={getInitials(`${request.first_name || ''} ${request.last_name || ''}`)}
+                            avatarClassName="h-11 w-11 shrink-0 border border-stone-200"
+                            imageClassName="object-cover"
+                            fallbackClassName="bg-stone-100 text-xs font-semibold text-stone-600"
+                          />
+                          <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <h2 className="text-base font-semibold text-stone-900">{request.first_name} {request.last_name}</h2>
                             <span className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide" style={{ background: 'var(--portal-accent-soft)', color: 'var(--portal-fg-accent)' }}>
@@ -580,7 +600,8 @@ export default function ROCoordinatorQueue({
                             </span>
                           </div>
                           <p className="mt-1 text-xs text-stone-500">{request.pdm_id} · {request.course_code || 'Course not set'} · Year {request.year_level || 'N/A'}</p>
-                          <p className="mt-2 text-sm font-medium text-stone-700">{request.program_name || 'Scholarship program not set'}</p>
+                            <p className="mt-2 text-sm font-medium text-stone-700">{request.program_name || 'Scholarship program not set'}</p>
+                          </div>
                         </div>
                         <div className="shrink-0 text-left sm:text-right">
                           <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">Requested</p>
@@ -688,7 +709,16 @@ export default function ROCoordinatorQueue({
               <Card key={log.log_id} className="rounded-2xl border-stone-200 shadow-none">
                 <CardContent className="space-y-4 p-4">
                   <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                    <div>
+                    <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3">
+                      <PreviewableProfileAvatar
+                        src={log.avatar_url || log.profile_photo_url || ''}
+                        name={`${log.first_name || ''} ${log.last_name || ''}`.trim() || 'Scholar profile photo'}
+                        fallback={getInitials(`${log.first_name || ''} ${log.last_name || ''}`)}
+                        avatarClassName="row-span-2 h-10 w-10 shrink-0 border border-stone-200"
+                        imageClassName="object-cover"
+                        fallbackClassName="bg-stone-100 text-xs font-semibold text-stone-600"
+                        buttonClassName="row-span-2"
+                      />
                       <p className="font-semibold text-stone-900">{log.first_name} {log.last_name}</p>
                       <p className="text-xs text-stone-500">{log.pdm_id} · {log.course_code || 'Course not set'} · {log.assigned_area}</p>
                     </div>

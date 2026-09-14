@@ -3388,7 +3388,6 @@ function collectMissingSubmissionFields(payload = {}) {
 
     const requiredFields = [
         { label: 'Street', value: address.street || address.street_address },
-        { label: 'Subdivision', value: address.subdivision },
         { label: 'ZIP code', value: address.zip_code },
         { label: 'Parent or guardian address', value: family.parent_guardian_address },
         { label: 'Parents native of Marilao', value: family.parent_native_status },

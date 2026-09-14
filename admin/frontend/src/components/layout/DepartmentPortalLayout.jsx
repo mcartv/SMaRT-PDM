@@ -9,7 +9,9 @@ import {
   FileText,
   LayoutDashboard,
   LogOut,
+  Menu,
   Settings,
+  X,
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
 import PortalQuickTools from './PortalQuickTools';
@@ -78,6 +80,7 @@ export default function DepartmentPortalLayout({
   const portalRootPath = `/${portalKey.replaceAll('_', '-')}`;
 
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [profile, setProfile] = useState(() => readStoredProfile(profileStorageKey));
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
@@ -193,6 +196,17 @@ export default function DepartmentPortalLayout({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [notifOpen]);
 
+  useEffect(() => {
+    if (!mobileNavOpen) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setMobileNavOpen(false);
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [mobileNavOpen]);
+
   useSocketEvent(
     'maintenance:updated',
     () => {
@@ -213,6 +227,7 @@ export default function DepartmentPortalLayout({
   };
 
   const handleNavRefresh = (event, path) => {
+    setMobileNavOpen(false);
     if (location.pathname !== path) return;
 
     event.preventDefault();
@@ -279,25 +294,44 @@ export default function DepartmentPortalLayout({
         '--portal-text': `color-mix(in srgb, ${theme.base} 24%, black)`,
       }}
     >
+      {mobileNavOpen ? (
+        <button
+          type="button"
+          aria-label="Close department navigation"
+          className="portal-responsive-sidebar-backdrop"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      ) : null}
+
       <aside
-        className="portal-responsive-sidebar flex h-full shrink-0 flex-col border-r border-black/10 transition-all duration-300"
+        className={`portal-responsive-sidebar flex h-full min-h-0 shrink-0 flex-col border-r border-black/10 transition-all duration-300 ${
+          mobileNavOpen ? 'portal-responsive-sidebar--mobile-open' : ''
+        }`}
         style={{ width: collapsed ? '76px' : '248px', background: theme.base }}
+        aria-label="Department navigation"
       >
-        <div className="flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-4">
+        <div className="relative flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-4">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 shadow-sm">
             <img src={pdmLogo} alt="PDM" className="h-5 w-5 object-contain" />
           </div>
 
-          {!collapsed && (
-            <div className="portal-responsive-sidebar-copy min-w-0">
+          <div className={`portal-responsive-sidebar-copy min-w-0 ${collapsed ? 'hidden' : ''}`}>
               <p className="truncate text-sm font-semibold leading-tight text-white">
                 PDM · {portalDisplayName}
               </p>
               <p className="truncate text-[11px]" style={{ color: theme.sub }}>
                 {officeName}
               </p>
-            </div>
-          )}
+          </div>
+
+          <button
+            type="button"
+            className="portal-responsive-sidebar-close"
+            onClick={() => setMobileNavOpen(false)}
+            aria-label="Close department navigation"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
         <nav className="flex-1 space-y-1.5 overflow-y-auto px-3 py-4">
@@ -320,7 +354,9 @@ export default function DepartmentPortalLayout({
               title={collapsed ? item.label : ''}
             >
               <item.icon className="h-4 w-4 shrink-0" />
-              {!collapsed && <span className="portal-responsive-sidebar-label truncate font-medium">{item.label}</span>}
+              <span className={`portal-responsive-sidebar-label truncate font-medium ${collapsed ? 'hidden' : ''}`}>
+                {item.label}
+              </span>
             </NavLink>
           ))}
         </nav>
@@ -328,14 +364,16 @@ export default function DepartmentPortalLayout({
         <div className="space-y-1.5 border-t border-white/10 p-3">
           <button
             onClick={() => setCollapsed((current) => !current)}
-            className={`flex w-full items-center ${
+            className={`portal-responsive-collapse-control flex w-full items-center ${
               collapsed ? 'justify-center' : 'gap-3'
             } rounded-xl px-3 py-2.5 text-sm transition-colors hover:bg-white/10`}
             style={{ color: theme.text }}
             title={collapsed ? 'Expand' : 'Collapse'}
           >
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-            {!collapsed && <span className="portal-responsive-sidebar-label font-medium">Collapse</span>}
+            <span className={`portal-responsive-sidebar-label font-medium ${collapsed ? 'hidden' : ''}`}>
+              Collapse
+            </span>
           </button>
 
           <button
@@ -347,14 +385,24 @@ export default function DepartmentPortalLayout({
             title={collapsed ? 'Logout' : ''}
           >
             <LogOut className="h-4 w-4" />
-            {!collapsed && <span className="portal-responsive-sidebar-label font-medium">Logout</span>}
+            <span className={`portal-responsive-sidebar-label font-medium ${collapsed ? 'hidden' : ''}`}>
+              Logout
+            </span>
           </button>
         </div>
       </aside>
 
-      <div className="portal-responsive-frame flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="portal-responsive-frame flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <header className="portal-responsive-header flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-5 md:px-6">
-          <div aria-hidden="true" />
+          <button
+            type="button"
+            className="portal-responsive-menu-button"
+            onClick={() => setMobileNavOpen(true)}
+            aria-label="Open department navigation"
+            aria-expanded={mobileNavOpen}
+          >
+            <Menu className="h-5 w-5" />
+          </button>
 
           <div className="portal-responsive-header-actions flex items-center gap-3">
             <div className="relative" ref={notifRef}>

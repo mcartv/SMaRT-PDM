@@ -4,6 +4,7 @@ const auditLogService = require('../services/auditLogService');
 const notificationService = require('../services/notificationService');
 const socketEvents = require('../utils/socketEvents');
 const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
+const { resolveAvatarUrl } = require('../services/avatarService');
 
 
 
@@ -208,7 +209,7 @@ exports.getRequests = async (req, res) => {
               ro.ro_id, ro.student_id, ro.application_id, ro.ro_status,
               ro.required_hours, ro.assignment_status,
               rd.department_name AS assigned_area,
-              s.pdm_id, s.first_name, s.last_name, s.year_level,
+              s.pdm_id, s.first_name, s.last_name, s.year_level, s.profile_photo_url,
               ac.course_code, ac.course_name,
               sp.program_name, po.opening_title
        FROM ro_placements rp
@@ -225,10 +226,17 @@ exports.getRequests = async (req, res) => {
                 rp.updated_at DESC`,
       [coordinator.assignmentIds, statusValue, search]
     );
+    const items = await Promise.all(
+      result.rows.map(async (row) => ({
+        ...row,
+        avatar_url: await resolveAvatarUrl(row.profile_photo_url),
+      }))
+    );
+
     return res.json({
       department: coordinator.department,
       departments: coordinator.departments,
-      items: result.rows,
+      items,
     });
   } catch (error) {
     return res.status(error.statusCode || 500).json({ message: error.message || 'Failed to load RO requests.' });
@@ -276,6 +284,7 @@ exports.getScholarRequests = async (req, res) => {
                'student_id', st.student_id,
                'pdm_id', st.pdm_id,
                'student_name', CONCAT_WS(' ', st.first_name, st.middle_name, st.last_name),
+               'profile_photo_url', st.profile_photo_url,
                'placement_status', rp.placement_status,
                'acknowledged_at', rp.student_acknowledged_at,
                'conflict_reason', rp.conflict_reason,
@@ -301,12 +310,21 @@ exports.getScholarRequests = async (req, res) => {
       [coordinator.assignmentIds]
     );
 
-    const items = result.rows.map((row) => {
+    const items = await Promise.all(result.rows.map(async (row) => {
       const requested = Math.max(0, Number(row.requested_scholar_count || 0));
       const active = Math.max(0, Number(row.active_assignment_count || 0));
       const acknowledged = Math.max(0, Number(row.acknowledged_count || 0));
+      const assignedScholars = await Promise.all(
+        (Array.isArray(row.assigned_scholars) ? row.assigned_scholars : []).map(
+          async (scholar) => ({
+            ...scholar,
+            avatar_url: await resolveAvatarUrl(scholar.profile_photo_url),
+          })
+        )
+      );
       return {
         ...row,
+        assigned_scholars: assignedScholars,
         active_assignment_count: active,
         acknowledged_count: acknowledged,
         awaiting_acknowledgment_count: Math.max(0, Number(row.awaiting_acknowledgment_count || 0)),
@@ -320,7 +338,7 @@ exports.getScholarRequests = async (req, res) => {
               ? 'Fully Assigned'
               : 'Partially Assigned',
       };
-    });
+    }));
 
     return res.json({
       areas: coordinator.assignments.map((assignment) => ({
@@ -656,6 +674,7 @@ exports.getAttendanceQueue = async (req, res) => {
          s.pdm_id,
          s.first_name,
          s.last_name,
+         s.profile_photo_url,
          ac.course_code,
          COALESCE(
            json_agg(
@@ -687,13 +706,19 @@ exports.getAttendanceQueue = async (req, res) => {
          AND ($2::text IS NULL OR rtl.department_validation_status = $2)
        GROUP BY rtl.log_id, rp.placement_status, rd.department_name,
                 ro.required_hours, ro.ro_status, s.pdm_id, s.first_name,
-                s.last_name, ac.course_code
+                s.last_name, s.profile_photo_url, ac.course_code
        ORDER BY CASE rtl.department_validation_status WHEN 'Pending' THEN 0 WHEN 'Returned' THEN 1 ELSE 2 END,
                 rtl.time_out_at DESC NULLS LAST`,
       [coordinator.assignmentIds, statusValue]
     );
 
-    const items = await hydrateAttendanceProofUrls(result.rows);
+    const rowsWithAvatars = await Promise.all(
+      result.rows.map(async (row) => ({
+        ...row,
+        avatar_url: await resolveAvatarUrl(row.profile_photo_url),
+      }))
+    );
+    const items = await hydrateAttendanceProofUrls(rowsWithAvatars);
     return res.json({ items, department: coordinator.department });
   } catch (error) {
     return res.status(error.statusCode || 500).json({

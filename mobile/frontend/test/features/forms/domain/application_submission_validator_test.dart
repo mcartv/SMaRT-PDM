@@ -28,9 +28,10 @@ void main() {
     });
 
     test(
-      'address requires street and subdivision but block and phase may be empty',
+      'address requires street but subdivision, block and phase may be empty',
       () {
         final data = _validApplicationData()
+          ..subdivision = ''
           ..houseLotBlockNo = ''
           ..phase = '';
         expect(validator.validatePersonalProgression(data).isValid, isTrue);

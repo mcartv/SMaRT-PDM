@@ -21,6 +21,17 @@ import EndorsementProgressTracker from '@/components/endorsement/EndorsementProg
 import { useSocketEvent } from '@/hooks/useSocket';
 import usePortalTheme from '@/hooks/usePortalTheme';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
+import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
+
+function getInitials(name = '') {
+  return (name || 'NA')
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
 
 const STAGE_META = {
   completed: 'bg-green-50 text-green-700',
@@ -302,7 +313,18 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
             <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">
               {meta.name} View
             </p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight">{slip.student_name}</h1>
+            <div className="mt-2 flex min-w-0 items-center gap-3">
+              <PreviewableProfileAvatar
+                src={slip.avatar_url || slip.profile_photo_url || ''}
+                name={`${slip.student_name || 'Applicant'} profile photo`}
+                fallback={getInitials(slip.student_name)}
+                avatarClassName="h-12 w-12 shrink-0 border-2 border-white/40"
+                imageClassName="object-cover"
+                fallbackClassName="bg-white/15 text-sm font-semibold text-white"
+                buttonClassName="ring-offset-transparent focus-visible:ring-white"
+              />
+              <h1 className="min-w-0 text-2xl font-semibold tracking-tight">{slip.student_name}</h1>
+            </div>
             <p className="mt-2 text-sm font-medium text-white/90">
               {slip.course_display || slip.course_code || slip.course_name || 'N/A'}
             </p>

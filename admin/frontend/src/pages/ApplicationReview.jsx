@@ -1583,11 +1583,11 @@ function RegistryTable({
                     row.documents_ready === true ||
                     Number(row.uploaded_required_count || 0) >= 4;
 
-                  const requirementsMeta = getReadinessMeta(
-                    documentsReady,
-                    'Documents Ready',
-                    'Incomplete'
-                  );
+                  const requirementsMeta = row.requirements_complete === true
+                    ? { label: 'Verified', bg: C.greenSoft, color: C.green }
+                    : documentsReady
+                      ? { label: 'Documents Ready', bg: C.blueSoft, color: C.blueMid }
+                      : { label: 'Incomplete', bg: '#f5f5f4', color: '#78716c' };
                   const endorsementMeta = getReadinessMeta(
                     row.endorsement_complete,
                     'Complete',

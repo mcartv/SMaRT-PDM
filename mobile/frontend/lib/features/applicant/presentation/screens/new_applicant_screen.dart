@@ -19,7 +19,7 @@ import 'package:smartpdm_mobileapp/features/forms/presentation/providers/new_sch
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
-import 'package:smartpdm_mobileapp/shared/validation/app_field_validators.dart';
+import 'package:smartpdm_mobileapp/features/forms/presentation/widgets/focus_invalid_field.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/shared_widgets.dart';
 
 class NewApplicantScreen extends StatefulWidget {
@@ -49,6 +49,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   int _step = 0;
   final _data = ApplicationData();
   final _scrollCtrl = ScrollController();
+  final _stepContentKey = GlobalKey();
   bool _isBootstrapping = true;
   bool _showValidationErrors = false;
   Timer? _autosaveDebounce;
@@ -370,7 +371,13 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
         _showValidationErrors = true;
         _formFeedbackError = validationError;
       });
-      _scrollToFormTop();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final stepContext = _stepContentKey.currentContext;
+        if (stepContext == null || !focusFirstInvalidField(stepContext)) {
+          _scrollToFormTop();
+        }
+      });
       return;
     }
 
@@ -731,165 +738,28 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   }
 
   String? _validateCurrentForm() {
-    String? validatePersonalAndContact() {
-      final requiredFields = <String, String>{
-        'Last name': _data.lastName,
-        'First name': _data.firstName,
-        'Age': _data.age,
-        'Date of birth': _data.dateOfBirth,
-        'Sex': _data.sex,
-        'Place of birth': _data.placeOfBirth,
-        'Citizenship': _data.citizenship,
-        'Civil status': _data.civilStatus,
-        'Religion': _data.religion,
-        'Mobile number': _data.mobileNumber,
-      };
-
-      for (final entry in requiredFields.entries) {
-        if (entry.value.trim().isEmpty) {
-          return '${entry.key} is required.';
-        }
-      }
-
-      final birthDate = ApplicationData.parseInputDate(_data.dateOfBirth);
-      if (birthDate == null || birthDate.isAfter(DateTime.now())) {
-        return 'Date of birth must be a valid past date.';
-      }
-
-      final inputAge = ApplicationData.parseAgeValue(_data.age);
-      final computedAge = ApplicationData.calculateAge(birthDate);
-      if (inputAge == null) {
-        return 'Age must be a valid number.';
-      }
-      if (inputAge < 0) {
-        return 'Age cannot be negative.';
-      }
-      if (inputAge < 16) {
-        return 'Age must be at least 16.';
-      }
-      if (computedAge == null || inputAge != computedAge) {
-        return 'Age must match the selected date of birth.';
-      }
-
-      final rawMobile = _data.mobileNumber.trim();
-      final normalizedMobile = ApplicationData.normalizeMobileNumber(rawMobile);
-      if (normalizedMobile.isEmpty) {
-        return 'Mobile number is required.';
-      }
-      if (!RegExp(
-        r'^\+?\d+$',
-      ).hasMatch(rawMobile.replaceAll(RegExp(r'[\s-]+'), ''))) {
-        return 'Mobile number must contain digits only.';
-      }
-      if (!normalizedMobile.startsWith('09')) {
-        return 'Mobile number must start with 09 or +639.';
-      }
-      if (normalizedMobile.length < 11) {
-        return 'Mobile number is too short.';
-      }
-      if (normalizedMobile.length > 11) {
-        return 'Mobile number is too long.';
-      }
-
-      final hasStreetAddress =
-          _data.unitBldgNo.trim().isNotEmpty ||
-          _data.houseLotBlockNo.trim().isNotEmpty ||
-          _data.street.trim().isNotEmpty ||
-          _data.subdivision.trim().isNotEmpty;
-      if (!hasStreetAddress) {
-        return 'House, building, street, or subdivision is required.';
-      }
-      if (_data.barangay.trim().isEmpty) return 'Barangay is required.';
-      if (_data.city.trim().isEmpty) return 'City is required.';
-      if (_data.province.trim().isEmpty) return 'Province is required.';
-      if (_data.zipCode.trim().isEmpty) return 'ZIP code is required.';
-
-      final email = _data.email.trim();
-      if (email.isEmpty) {
-        return 'Email address is required.';
-      }
-      final emailError = AppFieldValidators.email(email);
-      if (emailError != null) {
-        return emailError;
-      }
-
-      return null;
-    }
-
-    String? validateAcademic() {
-      return _submissionValidator
-          .validateAcademicProgression(_data)
-          .firstMessage;
-    }
-
-    String? validateEssay() {
-      return _submissionValidator.validateEssayProgression(_data).firstMessage;
-    }
-
-    String? validateFamily() {
-      final hasNamedFather =
-          _data.fatherPresent &&
-          _data.fatherFirstName.trim().isNotEmpty &&
-          _data.fatherLastName.trim().isNotEmpty;
-      final hasNamedMother =
-          _data.motherPresent &&
-          _data.motherFirstName.trim().isNotEmpty &&
-          _data.motherLastName.trim().isNotEmpty;
-      final hasNamedGuardian =
-          _data.guardianFirstName.trim().isNotEmpty &&
-          _data.guardianLastName.trim().isNotEmpty;
-
-      if (!hasNamedFather && !hasNamedMother && !hasNamedGuardian) {
-        return 'Enter the complete name of at least one parent or guardian.';
-      }
-
-      if (_data.guardianOnly && !hasNamedGuardian) {
-        return 'Guardian name is required.';
-      }
-      if (!_data.guardianOnly) {
-        if (_data.parentNativeStatus == 'No') {
-          if (_data.parentPreviousTownMunicipality.trim().isEmpty) {
-            return 'Town or municipality is required.';
-          }
-
-          if (_data.parentPreviousProvince.trim().isEmpty) {
-            return 'Province is required.';
-          }
-        } else {
-          final residencyDuration = _data.parentMarilaoResidencyDuration.trim();
-
-          if (residencyDuration.isEmpty) {
-            return 'Marilao residency duration is required.';
-          }
-
-          if (!RegExp(r'^\d+$').hasMatch(residencyDuration)) {
-            return 'Enter the number of years as a Marilao resident using digits only.';
-          }
-        }
-      }
-
-      return null;
-    }
-
     switch (_step) {
       case 0:
-        return validatePersonalAndContact();
+        return _submissionValidator.validatePersonalProgression(_data).firstMessage;
       case 1:
-        return validateFamily();
+        return _submissionValidator.validateFamilyProgression(_data).firstMessage;
       case 2:
-        return validateAcademic();
+        return _submissionValidator.validateAcademicProgression(_data).firstMessage;
       case 3:
-        return validateEssay();
+        return _submissionValidator.validateEssayProgression(_data).firstMessage;
       case 4:
-        return _submissionValidator
-            .validateSubmissionPreflight(_data)
-            .firstMessage;
+        return _submissionValidator.validateSubmissionPreflight(_data).firstMessage;
       default:
         return null;
     }
   }
 
-  Widget _buildStep() {
+  Widget _buildStep() => KeyedSubtree(
+    key: _stepContentKey,
+    child: _buildStepContent(),
+  );
+
+  Widget _buildStepContent() {
     switch (_step) {
       case 0:
         return StepPersonal(
@@ -1296,7 +1166,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                 : _step < 4
                 ? NavyButton(
                     label: _nextButtonLabel,
-                    onTap: _requiredStepGateComplete ? _next : null,
+                    onTap: _next,
                   )
                 : provider.isLoading
                 ? const Center(

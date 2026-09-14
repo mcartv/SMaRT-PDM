@@ -11,9 +11,30 @@ import {
 import { toast } from 'sonner';
 import { buildApiUrl } from '@/api';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useSocketEvent } from '@/hooks/useSocket';
 import usePortalTheme from '@/hooks/usePortalTheme';
 import { SectionLoadingSkeleton } from '@/components/system/PageLoadingSkeleton';
+import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
+
+function getInitials(name = '') {
+  return (name || 'NA')
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
 
 function headers(tokenStorageKey) {
   return {
@@ -179,6 +200,8 @@ export default function ROCoordinatorScholarRequests({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [cancellingId, setCancellingId] = useState('');
+  const [pendingCancellation, setPendingCancellation] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [error, setError] = useState('');
 
@@ -231,21 +254,61 @@ export default function ROCoordinatorScholarRequests({
 
   const cancelRequest = async (requestId) => {
     try {
+      setCancellingId(requestId);
       const response = await fetch(
         buildApiUrl(`/api/ro-coordinator/scholar-requests/${requestId}/cancel`),
         { method: 'PATCH', headers: headers(tokenStorageKey) }
       );
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.message || 'Failed to cancel request.');
+      setPendingCancellation(null);
       toast.success('Scholar request cancelled');
       await loadRequests({ soft: true });
     } catch (cancelError) {
       toast.error('Request was not cancelled', { description: cancelError.message });
+    } finally {
+      setCancellingId('');
     }
   };
 
   return (
     <div className="space-y-4">
+      <AlertDialog
+        open={Boolean(pendingCancellation)}
+        onOpenChange={(open) => {
+          if (!open && !cancellingId) setPendingCancellation(null);
+        }}
+      >
+        <AlertDialogContent className="rounded-2xl sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogMedia className="bg-red-100 text-red-700">
+              <AlertTriangle className="h-5 w-5" />
+            </AlertDialogMedia>
+            <AlertDialogTitle>Cancel scholar request?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This withdraws the request for {pendingCancellation?.assigned_area || 'this RO area'}.
+              Admin will no longer be able to assign scholars to it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-5 text-red-800">
+            This action cannot be undone. Create a new request if scholars are needed later.
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(cancellingId)}>Keep Request</AlertDialogCancel>
+            <Button
+              type="button"
+              disabled={Boolean(cancellingId)}
+              onClick={() => pendingCancellation && cancelRequest(pendingCancellation.request_id)}
+              className="border-none font-semibold text-white hover:brightness-95"
+              style={{ background: theme.base }}
+            >
+              {cancellingId ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Confirm Cancellation
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <RequestModal
         key={modalOpen ? 'request-open' : 'request-closed'}
         open={modalOpen}
@@ -375,9 +438,19 @@ export default function ROCoordinatorScholarRequests({
                               : 'Awaiting acknowledgment';
                         return (
                           <div key={scholar.placement_id} className="flex items-center justify-between gap-2 rounded-lg bg-stone-50 px-3 py-2">
-                            <div className="min-w-0">
-                              <p className="truncate text-xs font-medium text-stone-800">{scholar.student_name || 'Scholar'}</p>
-                              <p className="text-[10px] text-stone-500">{scholar.pdm_id || ''}</p>
+                            <div className="flex min-w-0 items-center gap-2.5">
+                              <PreviewableProfileAvatar
+                                src={scholar.avatar_url || scholar.profile_photo_url || ''}
+                                name={`${scholar.student_name || 'Scholar'} profile photo`}
+                                fallback={getInitials(scholar.student_name)}
+                                avatarClassName="h-8 w-8 shrink-0 border border-stone-200"
+                                imageClassName="object-cover"
+                                fallbackClassName="bg-white text-[10px] font-semibold text-stone-600"
+                              />
+                              <div className="min-w-0">
+                                <p className="truncate text-xs font-medium text-stone-800">{scholar.student_name || 'Scholar'}</p>
+                                <p className="text-[10px] text-stone-500">{scholar.pdm_id || ''}</p>
+                              </div>
                             </div>
                             <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${statusClass}`}>
                               {statusLabel}
@@ -407,7 +480,8 @@ export default function ROCoordinatorScholarRequests({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => cancelRequest(item.request_id)}
+                    onClick={() => setPendingCancellation(item)}
+                    disabled={cancellingId === item.request_id}
                     className="border-red-200 text-red-700 hover:bg-red-50"
                   >
                     Cancel Request

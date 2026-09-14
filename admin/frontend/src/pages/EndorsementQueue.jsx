@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import usePortalTheme from '@/hooks/usePortalTheme';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import ProfilePhotoPreviewDialog from '@/components/profile/ProfilePhotoPreviewDialog';
 import { Button } from '@/components/ui/button';
@@ -54,7 +55,6 @@ import {
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -441,10 +441,6 @@ function endorsementButtonClass(queueKey, value) {
   return 'w-full bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-emerald-300 disabled:text-white';
 }
 
-function confirmationButtonClass() {
-  return 'bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-emerald-600';
-}
-
 function legacySdoPayload(action, remarks) {
   const legacyAction = {
     no_offense: 'clear',
@@ -685,6 +681,7 @@ export default function EndorsementQueue({
 }) {
   const navigate = useNavigate();
   const meta = QUEUE_META[queueKey];
+  const { theme } = usePortalTheme(queueKey);
   const profile = useMemo(() => {
     try { return JSON.parse(sessionStorage.getItem(profileStorageKey) || '{}'); } catch { return {}; }
   }, [profileStorageKey]);
@@ -891,9 +888,10 @@ export default function EndorsementQueue({
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={Boolean(savingSlipId)}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                className={`${confirmationButtonClass()} min-w-24 border-emerald-600 font-semibold shadow-sm`}
-                style={{ backgroundColor: '#059669', color: '#ffffff', borderColor: '#059669' }}
+              <Button
+                type="button"
+                className="min-w-24 border-none font-semibold text-white shadow-sm hover:brightness-95"
+                style={{ background: theme.base }}
                 disabled={Boolean(savingSlipId) || confirmBlockedByMissingGrade || confirmBlockedByUnviewedGrade}
                 onClick={(event) => {
                   event.preventDefault();
@@ -902,7 +900,7 @@ export default function EndorsementQueue({
               >
                 {savingSlipId ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Confirm
-              </AlertDialogAction>
+              </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
         ) : null}

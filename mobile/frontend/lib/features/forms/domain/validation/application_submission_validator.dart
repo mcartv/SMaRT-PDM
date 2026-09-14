@@ -309,7 +309,6 @@ class ApplicationSubmissionValidator {
 
     final requiredAddressFields = <String, String>{
       'street': data.street,
-      'subdivision': data.subdivision,
       'barangay': data.barangay,
       'city': data.city,
       'province': data.province,

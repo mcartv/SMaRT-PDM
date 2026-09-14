@@ -1174,11 +1174,6 @@ class _StepPersonalState extends State<StepPersonal> {
                 ],
                 label: 'Subdivision',
                 hint: 'Enter subdivision',
-                errorText:
-                    widget.showErrors &&
-                        subdivisionController.text.trim().isEmpty
-                    ? 'Subdivision is required.'
-                    : null,
               ),
             ]),
             const SizedBox(height: 16),

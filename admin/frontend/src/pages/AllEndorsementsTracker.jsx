@@ -25,6 +25,17 @@ import {
 } from '@/components/ui/select';
 import EndorsementProgressTracker from '@/components/endorsement/EndorsementProgressTracker';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
+import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
+
+function getInitials(name = '') {
+  return (name || 'NA')
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
 
 function buildHeaders(tokenStorageKey) {
   return {
@@ -584,47 +595,58 @@ export default function AllEndorsementsTracker({
                     className="rounded-xl border border-stone-200 bg-white p-2.5"
                   >
                     <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0 space-y-1.5">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <p className="text-sm font-semibold text-stone-900">{row.student_name}</p>
+                      <div className="flex min-w-0 flex-1 items-start gap-3">
+                        <PreviewableProfileAvatar
+                          src={row.avatar_url || row.profile_photo_url || ''}
+                          name={`${row.student_name || 'Applicant'} profile photo`}
+                          fallback={getInitials(row.student_name)}
+                          avatarClassName="h-10 w-10 shrink-0 border border-stone-200"
+                          imageClassName="object-cover"
+                          fallbackClassName="bg-stone-100 text-xs font-semibold text-stone-600"
+                        />
 
-                          <Badge
-                            className={
-                              STATUS_TONE[row.overall_status] || 'bg-stone-100 text-stone-700'
-                            }
-                          >
-                            {formatWorkflowStatus(row.overall_status, row.overall_status_label)}
-                          </Badge>
+                        <div className="min-w-0 space-y-1.5">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <p className="text-sm font-semibold text-stone-900">{row.student_name}</p>
 
-                          {formatWorkflowStatus(row.current_stage, row.current_stage_label) !==
-                          formatWorkflowStatus(row.overall_status, row.overall_status_label) ? (
                             <Badge
-                              variant="outline"
-                              className="border-stone-200 bg-white text-stone-600"
+                              className={
+                                STATUS_TONE[row.overall_status] || 'bg-stone-100 text-stone-700'
+                              }
                             >
-                              {formatWorkflowStatus(row.current_stage, row.current_stage_label)}
+                              {formatWorkflowStatus(row.overall_status, row.overall_status_label)}
                             </Badge>
-                          ) : null}
 
-                          {row.slip_code ? (
-                            <Badge
-                              variant="outline"
-                              className="border-stone-200 font-mono text-[11px] text-stone-500"
-                            >
-                              {row.slip_code}
-                            </Badge>
-                          ) : null}
+                            {formatWorkflowStatus(row.current_stage, row.current_stage_label) !==
+                            formatWorkflowStatus(row.overall_status, row.overall_status_label) ? (
+                              <Badge
+                                variant="outline"
+                                className="border-stone-200 bg-white text-stone-600"
+                              >
+                                {formatWorkflowStatus(row.current_stage, row.current_stage_label)}
+                              </Badge>
+                            ) : null}
+
+                            {row.slip_code ? (
+                              <Badge
+                                variant="outline"
+                                className="border-stone-200 font-mono text-[11px] text-stone-500"
+                              >
+                                {row.slip_code}
+                              </Badge>
+                            ) : null}
+                          </div>
+
+                          <p className="text-sm text-stone-600">
+                            {row.pdm_id || 'No PDM ID'} • {row.program_name || row.opening_title || 'Program not set'}
+                          </p>
+
+                          <p className="text-xs font-medium text-stone-700">
+                            {row.course_display || row.course_code || row.course_name || 'N/A'} • Section {row.section || 'Not provided'}
+                          </p>
+
+                          <p className="text-xs text-stone-500">Submitted: {formatDate(row.submitted_at)}</p>
                         </div>
-
-                        <p className="text-sm text-stone-600">
-                          {row.pdm_id || 'No PDM ID'} • {row.program_name || row.opening_title || 'Program not set'}
-                        </p>
-
-                        <p className="text-xs font-medium text-stone-700">
-                          {row.course_display || row.course_code || row.course_name || 'N/A'} • Section {row.section || 'Not provided'}
-                        </p>
-
-                        <p className="text-xs text-stone-500">Submitted: {formatDate(row.submitted_at)}</p>
                       </div>
 
                       <Button
@@ -666,30 +688,41 @@ export default function AllEndorsementsTracker({
                     className="rounded-xl border border-stone-200 bg-stone-50/70 p-3"
                   >
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="space-y-1.5">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-semibold text-stone-900">{row.student_name}</p>
+                      <div className="flex min-w-0 flex-1 items-start gap-3">
+                        <PreviewableProfileAvatar
+                          src={row.avatar_url || row.profile_photo_url || ''}
+                          name={`${row.student_name || 'Applicant'} profile photo`}
+                          fallback={getInitials(row.student_name)}
+                          avatarClassName="h-10 w-10 shrink-0 border border-stone-200"
+                          imageClassName="object-cover"
+                          fallbackClassName="bg-stone-100 text-xs font-semibold text-stone-600"
+                        />
 
-                          <Badge
-                            className={
-                              STATUS_TONE[row.overall_status] || 'bg-stone-100 text-stone-700'
-                            }
-                          >
-                            {formatWorkflowStatus(row.overall_status, row.overall_status_label)}
-                          </Badge>
+                        <div className="min-w-0 space-y-1.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-semibold text-stone-900">{row.student_name}</p>
+
+                            <Badge
+                              className={
+                                STATUS_TONE[row.overall_status] || 'bg-stone-100 text-stone-700'
+                              }
+                            >
+                              {formatWorkflowStatus(row.overall_status, row.overall_status_label)}
+                            </Badge>
+                          </div>
+
+                          <p className="text-sm text-stone-600">
+                            {row.pdm_id || 'No PDM ID'} • {row.program_name || row.opening_title || 'Program not set'}
+                          </p>
+
+                          <p className="text-xs font-medium text-stone-700">
+                            {row.course_display || row.course_code || row.course_name || 'N/A'} • Section {row.section || 'Not provided'}
+                          </p>
+
+                          <p className="text-xs text-stone-500">
+                            Current stage: {formatWorkflowStatus(row.current_stage, row.current_stage_label)}
+                          </p>
                         </div>
-
-                        <p className="text-sm text-stone-600">
-                          {row.pdm_id || 'No PDM ID'} • {row.program_name || row.opening_title || 'Program not set'}
-                        </p>
-
-                        <p className="text-xs font-medium text-stone-700">
-                          {row.course_display || row.course_code || row.course_name || 'N/A'} • Section {row.section || 'Not provided'}
-                        </p>
-
-                        <p className="text-xs text-stone-500">
-                          Current stage: {formatWorkflowStatus(row.current_stage, row.current_stage_label)}
-                        </p>
                       </div>
 
                       <Button

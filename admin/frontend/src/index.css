@@ -2596,6 +2596,119 @@ body {
   }
 }
 
+/* Phone view: keep the existing department layout while moving its sidebar
+ * into an accessible off-canvas drawer so the page retains the full viewport. */
+.portal-responsive-menu-button,
+.portal-responsive-sidebar-close,
+.portal-responsive-sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 639px) {
+  .portal-responsive-sidebar {
+    position: fixed !important;
+    inset: 0 auto 0 0;
+    z-index: 60;
+    width: min(82vw, 18rem) !important;
+    max-width: min(82vw, 18rem) !important;
+    transform: translateX(-100%);
+    visibility: hidden;
+    pointer-events: none;
+    box-shadow: 1rem 0 2.5rem rgb(0 0 0 / 0.25);
+  }
+
+  .portal-responsive-sidebar--mobile-open {
+    transform: translateX(0);
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .portal-responsive-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: block;
+    border: 0;
+    background: rgb(0 0 0 / 0.42);
+  }
+
+  .portal-responsive-menu-button,
+  .portal-responsive-sidebar-close {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.75rem;
+  }
+
+  .portal-responsive-menu-button {
+    border: 1px solid var(--portal-border);
+    background: var(--portal-surface);
+    color: var(--portal-fg-accent);
+  }
+
+  .portal-responsive-sidebar-close {
+    position: absolute;
+    right: 0.625rem;
+    border: 1px solid rgb(255 255 255 / 0.18);
+    background: rgb(255 255 255 / 0.1);
+    color: white;
+  }
+
+  .portal-responsive-sidebar > div:first-child {
+    justify-content: flex-start !important;
+    padding-inline: 1rem 3.5rem !important;
+  }
+
+  .portal-responsive-sidebar-copy,
+  .portal-responsive-sidebar-label {
+    display: block !important;
+  }
+
+  .portal-responsive-sidebar nav {
+    padding-inline: 0.75rem !important;
+  }
+
+  .portal-responsive-sidebar nav a,
+  .portal-responsive-sidebar > div:last-child button {
+    justify-content: flex-start !important;
+    gap: 0.75rem !important;
+    padding-inline: 0.75rem !important;
+  }
+
+  .portal-responsive-sidebar > div:last-child {
+    padding-inline: 0.75rem !important;
+  }
+
+  .portal-responsive-collapse-control {
+    display: none !important;
+  }
+
+  .portal-responsive-header {
+    height: 3.5rem !important;
+  }
+
+  .portal-responsive-main {
+    padding: 0.5rem !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .portal-responsive-header {
+    padding-inline: 0.375rem !important;
+  }
+
+  .portal-responsive-header-actions {
+    gap: 0.25rem !important;
+  }
+
+  .portal-responsive-main {
+    padding: 0.375rem !important;
+  }
+}
+
 /* Short laptop viewports: preserve the same shell, reduce chrome only. */
 @media (max-height: 720px) {
   .portal-responsive-header,

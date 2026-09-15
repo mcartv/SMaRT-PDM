@@ -1,6 +1,65 @@
 const reportService = require('../services/reportService');
+const benefactorReportPdfService = require('../services/benefactorReportPdfService');
 const auditLogService = require('../services/auditLogService');
 const accountService = require('../services/accountService');
+
+const EXPORT_LOCK_TIMEOUT_MS = 2 * 60 * 1000;
+const EXPORT_COOLDOWN_MS = 1500;
+const reportExportLocks = new Map();
+
+function cleanupExportLocks(now = Date.now()) {
+    for (const [key, value] of reportExportLocks.entries()) {
+        if (!value || Number(value.expiresAt || 0) <= now) {
+            reportExportLocks.delete(key);
+        }
+    }
+}
+
+function buildExportLockKey(access, queryPayload) {
+    const filterFingerprint = JSON.stringify({
+        reportType: String(queryPayload.reportType || 'applications').toLowerCase(),
+        academicYearId: queryPayload.academicYearId,
+        semester: queryPayload.semester,
+        programId: queryPayload.programId,
+        benefactorId: queryPayload.benefactorId,
+        reviewResult: queryPayload.reviewResult,
+        courseId: queryPayload.courseId,
+        yearLevel: queryPayload.yearLevel,
+        gender: queryPayload.gender,
+        roAreaId: queryPayload.roAreaId,
+        applicationStatus: queryPayload.applicationStatus,
+        documentStatus: queryPayload.documentStatus,
+        verificationStatus: queryPayload.verificationStatus,
+        batchStatus: queryPayload.batchStatus,
+        releaseStatus: queryPayload.releaseStatus,
+        paymentMode: queryPayload.paymentMode,
+        dateFrom: queryPayload.dateFrom,
+        dateTo: queryPayload.dateTo,
+    });
+
+    return `${access.userId || access.role || 'unknown'}|${filterFingerprint}`;
+}
+
+function acquireExportLock(access, queryPayload) {
+    const now = Date.now();
+    cleanupExportLocks(now);
+    const key = buildExportLockKey(access, queryPayload);
+    if (reportExportLocks.has(key)) return null;
+
+    reportExportLocks.set(key, {
+        state: 'active',
+        expiresAt: now + EXPORT_LOCK_TIMEOUT_MS,
+    });
+    return key;
+}
+
+function releaseExportLock(key) {
+    if (!key) return;
+    reportExportLocks.set(key, {
+        state: 'cooldown',
+        expiresAt: Date.now() + EXPORT_COOLDOWN_MS,
+    });
+}
 
 function canAccessReports(req) {
     const role = String(req.user?.role || '').toLowerCase();
@@ -108,6 +167,12 @@ function getReportQueryPayload(req) {
         roAreaId: req.query?.roAreaId || req.query?.ro_area_id || 'all',
         dateFrom: req.query?.dateFrom || req.query?.date_from || '',
         dateTo: req.query?.dateTo || req.query?.date_to || '',
+        applicationStatus: req.query?.applicationStatus || req.query?.application_status || 'all',
+        documentStatus: req.query?.documentStatus || req.query?.document_status || 'all',
+        verificationStatus: req.query?.verificationStatus || req.query?.verification_status || 'all',
+        batchStatus: req.query?.batchStatus || req.query?.batch_status || 'all',
+        releaseStatus: req.query?.releaseStatus || req.query?.release_status || 'all',
+        paymentMode: req.query?.paymentMode || req.query?.payment_mode || 'all',
         format: req.query?.format || null,
     };
 }
@@ -189,13 +254,70 @@ async function previewReport(req, res) {
 }
 
 async function exportReport(req, res) {
+    let exportLockKey = null;
+
     try {
         const access = await resolveReportAccess(req);
         const queryPayload = getReportQueryPayload(req);
         const format = String(req.query?.format || 'xlsx').toLowerCase();
+        const scopedQuery = getScopedServiceQuery(req, access);
+
+        if (!['xlsx', 'csv', 'pdf'].includes(format)) {
+            const error = new Error('Unsupported report export format.');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        const normalizedReportType = String(queryPayload.reportType || '').toLowerCase();
+        if (normalizedReportType === 'scholars_by_benefactor' && format !== 'pdf') {
+            const error = new Error('Scholar Count by Benefactor is available as PDF only.');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        exportLockKey = acquireExportLock(access, queryPayload);
+        if (!exportLockKey) {
+            const error = new Error('This report is already being generated.');
+            error.statusCode = 429;
+            throw error;
+        }
+
+        if (format === 'pdf') {
+            if (String(queryPayload.reportType).toLowerCase() !== 'scholars_by_benefactor') {
+                const error = new Error('PDF export is available for the Scholar Count by Benefactor report only.');
+                error.statusCode = 400;
+                throw error;
+            }
+
+            const [excelResult, metadata] = await Promise.all([
+                reportService.generateExcelReport(scopedQuery),
+                reportService.getReportMetadata(),
+            ]);
+            const result = await benefactorReportPdfService.generateScholarCountPdf({
+                workbook: excelResult.workbook,
+                query: queryPayload,
+                metadata,
+            });
+
+            await writeReportAudit(
+                req,
+                'EXPORT_REPORT_PDF',
+                'Exported Scholar Count by Benefactor report as PDF.',
+                {
+                    ...queryPayload,
+                    format: 'pdf',
+                    filename: result.filename,
+                }
+            );
+
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+            res.setHeader('Content-Length', String(result.buffer.length));
+            return res.status(200).send(result.buffer);
+        }
 
         if (format === 'csv') {
-            const result = await reportService.generateCsvReport(getScopedServiceQuery(req, access));
+            const result = await reportService.generateCsvReport(scopedQuery);
 
             await writeReportAudit(
                 req,
@@ -209,15 +331,11 @@ async function exportReport(req, res) {
             );
 
             res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-            res.setHeader(
-                'Content-Disposition',
-                `attachment; filename="${result.filename}"`
-            );
-
+            res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
             return res.status(200).send(result.content);
         }
 
-        const result = await reportService.generateExcelReport(getScopedServiceQuery(req, access));
+        const result = await reportService.generateExcelReport(scopedQuery);
 
         await writeReportAudit(
             req,
@@ -234,11 +352,7 @@ async function exportReport(req, res) {
             'Content-Type',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         );
-        res.setHeader(
-            'Content-Disposition',
-            `attachment; filename="${result.filename}"`
-        );
-
+        res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
         await result.workbook.xlsx.write(res);
         return res.end();
     } catch (error) {
@@ -246,6 +360,8 @@ async function exportReport(req, res) {
         return res.status(error.statusCode || 500).json({
             error: error.message || 'Failed to export report.',
         });
+    } finally {
+        releaseExportLock(exportLockKey);
     }
 }
 

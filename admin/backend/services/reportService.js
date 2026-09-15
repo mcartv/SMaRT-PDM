@@ -1,5 +1,11 @@
+const path = require('path');
 const ExcelJS = require('exceljs');
 const pool = require('../config/db');
+
+const EXCEL_HEADER_IMAGE_PATH = path.resolve(
+    __dirname,
+    '../assets/report-templates/pdm-excel-header.png'
+);
 
 function createHttpError(statusCode, message) {
     const error = new Error(message);
@@ -9,6 +15,30 @@ function createHttpError(statusCode, message) {
 
 function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
+}
+
+function humanizeLabel(value) {
+    const text = safeText(value);
+    if (!text) return '';
+    if (!/[_-]/.test(text)) return text;
+
+    return text
+        .replace(/[_-]+/g, ' ')
+        .replace(/\b\w/g, (char) => char.toUpperCase())
+        .replace(/\bSdo\b/g, 'SDO')
+        .replace(/\bPd\b/g, 'PD')
+        .replace(/\bRo\b/g, 'RO')
+        .replace(/\bGwa\b/g, 'GWA');
+}
+
+function buildMetadataOptions(rows, key, allLabel) {
+    return [
+        { value: 'all', label: allLabel },
+        ...(rows || [])
+            .map((row) => safeText(row?.[key]))
+            .filter(Boolean)
+            .map((value) => ({ value, label: humanizeLabel(value) })),
+    ];
 }
 
 function appendDateRange(where, params, fieldExpression, dateFrom, dateTo) {
@@ -73,6 +103,12 @@ async function getReportMetadata() {
         roAreasResult,
         yearLevelsResult,
         gendersResult,
+        applicationStatusesResult,
+        documentStatusesResult,
+        verificationStatusesResult,
+        payoutBatchStatusesResult,
+        payoutReleaseStatusesResult,
+        payoutPaymentModesResult,
     ] = await Promise.all([
         pool.query(`
       SELECT program_id, program_name
@@ -119,6 +155,42 @@ async function getReportMetadata() {
       ) values_with_gender
       WHERE gender IS NOT NULL
       ORDER BY gender;
+    `),
+        pool.query(`
+      SELECT DISTINCT TRIM(application_status) AS value
+      FROM applications
+      WHERE NULLIF(TRIM(COALESCE(application_status, '')), '') IS NOT NULL
+      ORDER BY value;
+    `),
+        pool.query(`
+      SELECT DISTINCT TRIM(document_status) AS value
+      FROM applications
+      WHERE NULLIF(TRIM(COALESCE(document_status, '')), '') IS NOT NULL
+      ORDER BY value;
+    `),
+        pool.query(`
+      SELECT DISTINCT TRIM(verification_status) AS value
+      FROM applications
+      WHERE NULLIF(TRIM(COALESCE(verification_status, '')), '') IS NOT NULL
+      ORDER BY value;
+    `),
+        pool.query(`
+      SELECT DISTINCT TRIM(batch_status) AS value
+      FROM payout_batches
+      WHERE NULLIF(TRIM(COALESCE(batch_status, '')), '') IS NOT NULL
+      ORDER BY value;
+    `),
+        pool.query(`
+      SELECT DISTINCT TRIM(release_status) AS value
+      FROM payout_batch_students
+      WHERE NULLIF(TRIM(COALESCE(release_status, '')), '') IS NOT NULL
+      ORDER BY value;
+    `),
+        pool.query(`
+      SELECT DISTINCT TRIM(payment_mode) AS value
+      FROM payout_batches
+      WHERE NULLIF(TRIM(COALESCE(payment_mode, '')), '') IS NOT NULL
+      ORDER BY value;
     `),
     ]);
 
@@ -172,7 +244,7 @@ async function getReportMetadata() {
             {
                 id: 'ro_compliance',
                 name: 'RO Scholar Compliance Report',
-                sub: 'Finished and not fully complied scholars by RO Area, course, year level, and gender',
+                sub: 'Finished and not fully complied scholars by RO Area, course, year level, gender, and PIC',
             },
             {
                 id: 'renewals',
@@ -181,7 +253,7 @@ async function getReportMetadata() {
             },
             {
                 id: 'slot_utilization',
-                name: 'Scholarship Slot Utilization Report',
+                name: 'Scholarship Slot Report',
                 sub: 'Allocated, filled, available, and released scholarship slots by program and benefactor',
             },
         ],
@@ -225,6 +297,12 @@ async function getReportMetadata() {
                 label: String(row.gender),
             })),
         ],
+        applicationStatuses: buildMetadataOptions(applicationStatusesResult.rows, 'value', 'All Application Statuses'),
+        documentStatuses: buildMetadataOptions(documentStatusesResult.rows, 'value', 'All Document Statuses'),
+        verificationStatuses: buildMetadataOptions(verificationStatusesResult.rows, 'value', 'All Verification Statuses'),
+        payoutBatchStatuses: buildMetadataOptions(payoutBatchStatusesResult.rows, 'value', 'All Batch Statuses'),
+        payoutReleaseStatuses: buildMetadataOptions(payoutReleaseStatusesResult.rows, 'value', 'All Release Statuses'),
+        payoutPaymentModes: buildMetadataOptions(payoutPaymentModesResult.rows, 'value', 'All Payment Modes'),
     };
 }
 
@@ -250,90 +328,451 @@ function appendScholarDetailFilters(
     }
 }
 
+function appendTextEqualityFilter(where, params, expression, value) {
+    if (!value || value === 'all') return;
+    params.push(value);
+    where.push(`LOWER(TRIM(COALESCE(${expression}, ''))) = LOWER(TRIM($${params.length}))`);
+}
+
 const EXCEL_COLUMN_MAX_WIDTHS = {
-    student_name: 28,
-    email_address: 30,
-    program_name: 28,
-    benefactor_name: 24,
-    opening_title: 28,
-    remarks: 32,
-    sdo_remarks: 32,
-    guidance_remarks: 32,
-    pd_remarks: 32,
-    final_pdf_url: 32,
+    row_number: 7,
+    pdm_id: 18,
+    student_name: 32,
+    _last_name: 24,
+    _given_name: 24,
+    _middle_initial: 7,
+    email_address: 34,
+    phone_number: 18,
+    gender: 14,
+    course_code: 14,
+    course_name: 32,
+    year_level: 11,
+    program_name: 34,
+    benefactor_name: 30,
+    opening_title: 34,
+    academic_year: 18,
+    applicable_academic_year: 20,
+    previous_academic_year: 20,
+    semester: 20,
+    remarks: 40,
+    sdo_remarks: 40,
+    guidance_remarks: 40,
+    pd_remarks: 40,
+    final_pdf_url: 38,
+    personnel_in_charge: 32,
+    assigned_areas: 30,
+    application_status: 22,
+    document_status: 22,
+    verification_status: 22,
+    scholarship_status: 22,
+    renewal_status: 20,
+    release_status: 20,
+    batch_status: 20,
+    payment_mode: 22,
+    compliance_status: 24,
+    progress_status: 22,
+    assignment_status: 22,
+    clearance_status: 22,
+    opening_status: 18,
+};
+
+const EXCEL_COLUMN_MIN_WIDTHS = {
+    row_number: 5,
+    _middle_initial: 5,
+    gender: 9,
+    course_code: 9,
+    year_level: 8,
+    gwa: 8,
+    _gwa: 8,
+    total_slots: 11,
+    filled_slots: 11,
+    available_slots: 13,
+    released_slots: 13,
+    scholar_count: 12,
+    required_hours: 12,
+    submitted_hours: 13,
+    validated_hours: 13,
+    remaining_hours: 13,
+    completion_percentage: 12,
+};
+
+
+const INSTITUTIONAL_EXCEL_COLUMN_MAX_WIDTHS = {
+    row_number: 6,
+    pdm_id: 14,
+    _last_name: 18,
+    _given_name: 20,
+    _middle_initial: 7,
+    course_code: 11,
+    year_level: 8,
+    gender: 10,
+    gwa: 9,
+    _gwa: 9,
+    program_name: 20,
+    benefactor_name: 20,
+    academic_year: 14,
+    applicable_academic_year: 14,
+    semester: 16,
+    scholarship_status: 16,
+    ro_status: 13,
+    renewal_status: 16,
+    date_awarded: 15,
+    renewal_date: 15,
+    remarks: 26,
 };
 
 function normalizeExcelCellValue(value) {
     return typeof value === 'string' ? value.trim() : value;
 }
 
-function styleSheet(sheet) {
-    const header = sheet.getRow(1);
-    header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    header.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FF7C4A2E' },
-    };
-    header.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-    header.height = 30;
+function normalizeReportDisplayValue(key, value) {
+    const normalized = normalizeExcelCellValue(value);
+    if (typeof normalized !== 'string') return normalized;
 
-    sheet.views = [{ state: 'frozen', ySplit: 1 }];
-    sheet.autoFilter = {
-        from: { row: 1, column: 1 },
-        to: { row: 1, column: Math.max(1, sheet.columnCount) },
+    if (/(status|stage|result|compliance)/i.test(String(key || '')) && /[_-]/.test(normalized)) {
+        return humanizeLabel(normalized);
+    }
+
+    return normalized;
+}
+
+function stripInternalReportFields(row = {}) {
+    return Object.fromEntries(
+        Object.entries(row)
+            .filter(([key]) => !String(key).startsWith('_'))
+            .map(([key, value]) => [key, normalizeReportDisplayValue(key, value)])
+    );
+}
+
+function getExcelPeriodLabel(normalized, rows = []) {
+    const resolvedAcademicYear =
+        rows.find((row) => safeText(row.applicable_academic_year))?.applicable_academic_year ||
+        rows.find((row) => safeText(row.academic_year))?.academic_year ||
+        rows.find((row) => safeText(row.previous_academic_year))?.previous_academic_year;
+
+    const academicYear = normalized.academicYearId !== 'all'
+        ? safeText(resolvedAcademicYear) || 'Selected Academic Year'
+        : 'All Academic Years';
+
+    const semester = normalized.semester !== 'all'
+        ? safeText(normalized.semester)
+        : 'All Semesters';
+
+    return { academicYear, semester };
+}
+
+function formatExcelPeriodSubtitle(normalized, rows = []) {
+    const { academicYear, semester } = getExcelPeriodLabel(normalized, rows);
+    const hasAcademicYear = normalized.academicYearId !== 'all';
+    const hasSemester = normalized.semester !== 'all';
+
+    if (hasAcademicYear && hasSemester) {
+        return `${semester.toUpperCase()} A.Y. ${academicYear}`;
+    }
+    if (hasAcademicYear) {
+        return `ALL SEMESTERS • A.Y. ${academicYear}`;
+    }
+    if (hasSemester) {
+        return `${semester.toUpperCase()} • ALL ACADEMIC YEARS`;
+    }
+    return 'ALL ACADEMIC YEARS • ALL SEMESTERS';
+}
+
+function getInstitutionalReportTitle(reportType) {
+    const titles = {
+        applications: 'APPLICATION REGISTRY REPORT',
+        scholars: 'FINANCIAL ASSISTANCE BENEFICIARIES',
+        scholars_by_benefactor: 'SCHOLAR COUNT BY BENEFACTOR',
+        payouts: 'PAYOUT BATCH REPORT',
+        renewals: 'SCHOLARSHIP RENEWAL REPORT',
+        slot_utilization: 'SCHOLARSHIP SLOT REPORT',
+        sdo: 'SDO ENDORSEMENT REPORT',
+        guidance: 'GUIDANCE ENDORSEMENT REPORT',
+        pd: 'PD ENDORSEMENT REPORT',
+        ro: 'RO PERSONNEL-IN-CHARGE REPORT',
+        ro_compliance: 'RO SCHOLAR COMPLIANCE REPORT',
+        endorsements: 'ENDORSEMENT REPORT',
     };
+
+    return titles[reportType] || 'SMaRT-PDM REPORT';
+}
+
+function excelCellText(cell) {
+    if (!cell) return '';
+    if (cell.text !== undefined && cell.text !== null && String(cell.text) !== '') {
+        return String(cell.text).replace(/\r\n/g, '\n').trim();
+    }
+
+    const value = cell.value;
+    if (value === null || value === undefined) return '';
+    if (value instanceof Date) return value.toISOString().replace('T', ' ').slice(0, 16);
+    if (typeof value === 'object') {
+        if (value.text !== undefined) return String(value.text).trim();
+        if (value.result !== undefined) return String(value.result).trim();
+    }
+    return String(value).replace(/\r\n/g, '\n').trim();
+}
+
+function visualTextWidth(text) {
+    const lines = String(text || '').split('\n');
+    return Math.max(0, ...lines.map((line) => {
+        let width = 0;
+        for (const char of Array.from(line)) {
+            if (/\s/.test(char)) width += 0.55;
+            else if (/[MW@#%&]/.test(char)) width += 1.35;
+            else if (/[ilI1.,'`|]/.test(char)) width += 0.55;
+            else if (char.charCodeAt(0) > 255) width += 1.8;
+            else width += 1;
+        }
+        return width;
+    }));
+}
+
+function resolveExcelWidthBounds(key, headerText, { institutional = false } = {}) {
+    const normalizedKey = String(key || '');
+    const institutionalMax = institutional ? INSTITUTIONAL_EXCEL_COLUMN_MAX_WIDTHS[normalizedKey] : null;
+    const explicitMax = institutionalMax || EXCEL_COLUMN_MAX_WIDTHS[normalizedKey];
+    const maxWidth = explicitMax || (/remarks|reason|description|address/i.test(normalizedKey) ? 40 : 28);
+    const headerWidth = Math.ceil(visualTextWidth(headerText));
+    const explicitMin = EXCEL_COLUMN_MIN_WIDTHS[normalizedKey];
+    const defaultMin = institutional ? 6 : 7;
+    const headerMinCap = institutional ? 13 : 16;
+    const minWidth = Math.min(maxWidth, explicitMin || Math.max(defaultMin, Math.min(headerMinCap, headerWidth + 2)));
+    return { minWidth, maxWidth };
+}
+
+function estimateWrappedLines(text, columnWidth) {
+    const available = Math.max(4, Number(columnWidth || 10) - 1.5);
+    const rawLines = String(text || '').split('\n');
+    return Math.max(1, rawLines.reduce((total, line) => {
+        const width = Math.max(1, visualTextWidth(line));
+        return total + Math.max(1, Math.ceil(width / available));
+    }, 0));
+}
+
+function applyAdaptiveWorksheetLayout(sheet, {
+    headerRow = 1,
+    dataStartRow = headerRow + 1,
+    freezeRow = headerRow,
+    alternateRows = true,
+    institutional = false,
+} = {}) {
+    const lastRow = Math.max(headerRow, sheet.lastRow?.number || headerRow);
+    const lastColumn = Math.max(1, sheet.columnCount);
+    let totalColumnWidth = 0;
+
+    const header = sheet.getRow(headerRow);
+    header.font = {
+        ...(header.font || {}),
+        bold: true,
+        color: { argb: institutional ? 'FF111111' : 'FFFFFFFF' },
+        size: lastColumn >= 18 ? 9 : 10,
+    };
+    header.fill = institutional
+        ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } }
+        : { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF7C4A2E' } };
+    header.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+
+    sheet.views = institutional
+        ? [{
+            state: 'normal',
+            showGridLines: true,
+            zoomScale: 85,
+            zoomScaleNormal: 100,
+        }]
+        : [{
+            state: 'frozen',
+            ySplit: freezeRow,
+            showGridLines: false,
+            zoomScale: 100,
+            zoomScaleNormal: 100,
+        }];
+    if (!institutional) {
+        sheet.autoFilter = {
+            from: { row: headerRow, column: 1 },
+            to: { row: headerRow, column: lastColumn },
+        };
+    }
+    sheet.properties.defaultRowHeight = 18;
 
     sheet.columns.forEach((column) => {
         const key = String(column.key || '');
-        const headerLength = String(column.header || '').trim().length;
-        const maxWidth = EXCEL_COLUMN_MAX_WIDTHS[key] || 24;
-        const minWidth = Math.min(maxWidth, Math.max(9, headerLength + 1));
-        let maxLength = headerLength;
+        const headerCell = sheet.getCell(headerRow, column.number);
+        const headerText = excelCellText(headerCell) || String(column.header || '');
+        const { minWidth, maxWidth } = resolveExcelWidthBounds(key, headerText, { institutional });
+        let bestWidth = Math.max(minWidth, Math.ceil(visualTextWidth(headerText)) + 2);
 
         column.eachCell({ includeEmpty: false }, (cell, rowNumber) => {
-            if (rowNumber === 1) return;
-
-            const cellText = cell.value === null || cell.value === undefined
-                ? ''
-                : String(cell.value).replace(/\s+/g, ' ').trim();
-
-            maxLength = Math.max(maxLength, Math.min(cellText.length, maxWidth - 1));
-            cell.alignment = { vertical: 'top', wrapText: true };
+            if (rowNumber < dataStartRow) return;
+            const text = excelCellText(cell);
+            if (!text) return;
+            bestWidth = Math.max(bestWidth, Math.ceil(visualTextWidth(text)) + 2);
         });
 
-        // Keep downloaded reports compact instead of forcing every column to a
-        // wide minimum. Longer narrative fields still get enough room to wrap.
-        column.width = Math.min(maxWidth, Math.max(minWidth, maxLength + 1));
+        column.width = Math.min(maxWidth, Math.max(minWidth, bestWidth));
+        totalColumnWidth += Number(column.width || minWidth);
 
-        if (/amount|total/i.test(String(column.key || ''))) {
+        const numericKey = /(amount|total|count|slots|hours|percentage|gwa|year_level)$/i.test(key);
+        const compactKey = /^(row_number|_middle_initial|course_code|year_level|gender|gwa|_gwa)$/i.test(key);
+
+        column.eachCell({ includeEmpty: true }, (cell, rowNumber) => {
+            if (rowNumber < dataStartRow) return;
+            cell.alignment = {
+                vertical: 'middle',
+                horizontal: numericKey || compactKey ? 'center' : 'left',
+                wrapText: true,
+                shrinkToFit: false,
+            };
+            cell.border = {
+                top: { style: 'thin', color: { argb: institutional ? 'FF555555' : 'FFE7E5E4' } },
+                left: { style: 'thin', color: { argb: institutional ? 'FF555555' : 'FFE7E5E4' } },
+                bottom: { style: 'thin', color: { argb: institutional ? 'FF555555' : 'FFE7E5E4' } },
+                right: { style: 'thin', color: { argb: institutional ? 'FF555555' : 'FFE7E5E4' } },
+            };
+            if (lastColumn >= 18 && !institutional) {
+                cell.font = { ...(cell.font || {}), size: 9 };
+            }
+        });
+
+        if (/amount|total_amount|amount_received/i.test(key)) {
             column.numFmt = '₱#,##0.00;[Red]-₱#,##0.00';
+        } else if (/percentage/i.test(key)) {
+            column.numFmt = '0.0';
+        } else if (/gwa|hours/i.test(key)) {
+            column.numFmt = '0.00';
+        } else if (/slots|count/i.test(key)) {
+            column.numFmt = '0';
         }
-        if (/date|_at$|submitted/i.test(String(column.key || ''))) {
+
+        if (/date|_at$|submitted|requested|decided|cleared/i.test(key)) {
             column.numFmt = 'yyyy-mm-dd hh:mm';
         }
     });
 
-    sheet.eachRow((row, rowNumber) => {
-        if (rowNumber > 1 && rowNumber % 2 === 0) {
+    let headerLines = 1;
+    for (let columnNumber = 1; columnNumber <= lastColumn; columnNumber += 1) {
+        const cell = header.getCell(columnNumber);
+        const width = sheet.getColumn(columnNumber).width || 10;
+        headerLines = Math.max(headerLines, estimateWrappedLines(excelCellText(cell), width));
+    }
+    const maxHeaderHeight = institutional ? 46 : 60;
+    header.height = Math.max(28, Math.min(maxHeaderHeight, 18 + headerLines * 10));
+
+    for (let rowNumber = dataStartRow; rowNumber <= lastRow; rowNumber += 1) {
+        const row = sheet.getRow(rowNumber);
+        let wrappedLines = 1;
+        for (let columnNumber = 1; columnNumber <= lastColumn; columnNumber += 1) {
+            const cell = row.getCell(columnNumber);
+            const width = sheet.getColumn(columnNumber).width || 10;
+            wrappedLines = Math.max(wrappedLines, estimateWrappedLines(excelCellText(cell), width));
+        }
+        row.height = Math.max(18, Math.min(institutional ? 42 : 84, 7 + wrappedLines * (institutional ? 12 : 14)));
+
+        if (alternateRows && (rowNumber - dataStartRow) % 2 === 1) {
             row.fill = {
                 type: 'pattern',
                 pattern: 'solid',
                 fgColor: { argb: 'FFF7F3EF' },
             };
         }
-    });
+    }
+
+    const orientation = lastColumn <= 7 && totalColumnWidth <= 95 ? 'portrait' : 'landscape';
+    const veryWide = lastColumn >= 18 || totalColumnWidth >= 230;
+    const lastColumnLetter = sheet.getColumn(lastColumn).letter;
 
     sheet.pageSetup = {
-        orientation: 'landscape',
+        orientation,
         fitToPage: true,
         fitToWidth: 1,
         fitToHeight: 0,
-        paperSize: 9,
-        margins: { left: 0.25, right: 0.25, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
+        paperSize: veryWide ? 8 : 9,
+        horizontalCentered: true,
+        verticalCentered: false,
+        margins: {
+            left: 0.2,
+            right: 0.2,
+            top: institutional ? 0.3 : 0.45,
+            bottom: 0.45,
+            header: 0.15,
+            footer: 0.2,
+        },
+        printArea: `A1:${lastColumnLetter}${lastRow}`,
+        printTitlesRow: `${headerRow}:${headerRow}`,
     };
-    sheet.headerFooter.oddHeader = '&C&BOSFA - Pambayang Dalubhasaan ng Marilao';
+    sheet.headerFooter.oddHeader = institutional ? '' : '&C&BOSFA - Pambayang Dalubhasaan ng Marilao';
     sheet.headerFooter.oddFooter = '&LGenerated by SMaRT-PDM&CPage &P of &N&RConfidential';
+
+    return { totalColumnWidth, orientation, lastRow, lastColumn };
+}
+
+function addInstitutionalWorksheetHeader(workbook, sheet, {
+    title,
+    subtitle,
+    lastColumn,
+    headerRow = 11,
+    sectionLabel = '',
+}) {
+    const imageId = workbook.addImage({
+        filename: EXCEL_HEADER_IMAGE_PATH,
+        extension: 'png',
+    });
+
+    // Keep the PDM banner at a stable aspect ratio. Tying the image to the
+    // worksheet columns stretches it whenever auto-fit changes column widths.
+    sheet.addImage(imageId, {
+        tl: { col: 0, row: 0 },
+        ext: { width: 662, height: 140 },
+        editAs: 'oneCell',
+    });
+
+    [1, 2, 3, 4, 5, 6, 7].forEach((rowNumber) => {
+        sheet.getRow(rowNumber).height = rowNumber === 7 ? 6 : 18;
+    });
+
+    sheet.mergeCells(`A8:${lastColumn}8`);
+    sheet.getCell('A8').value = title;
+    sheet.getCell('A8').font = { bold: true, size: 12, color: { argb: 'FF111111' } };
+    sheet.getCell('A8').alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    sheet.getRow(8).height = Math.max(24, Math.min(42, 18 + estimateWrappedLines(title, Math.max(18, sheet.columnCount * 10)) * 10));
+
+    sheet.mergeCells(`A9:${lastColumn}9`);
+    sheet.getCell('A9').value = subtitle;
+    sheet.getCell('A9').font = { bold: true, size: 10, color: { argb: 'FF111111' } };
+    sheet.getCell('A9').alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    sheet.getRow(9).height = 20;
+
+    sheet.getRow(10).height = 6;
+
+    if (sectionLabel) {
+        const sectionRow = headerRow + 1;
+        sheet.mergeCells(`A${sectionRow}:${lastColumn}${sectionRow}`);
+        sheet.getCell(`A${sectionRow}`).value = sectionLabel;
+        sheet.getCell(`A${sectionRow}`).font = { bold: true, size: 10, color: { argb: 'FF111111' } };
+        sheet.getCell(`A${sectionRow}`).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFD9D9D9' },
+        };
+        sheet.getCell(`A${sectionRow}`).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+        sheet.getRow(sectionRow).height = 20;
+    }
+}
+
+function styleSheet(sheet, {
+    headerRow = 1,
+    dataStartRow = headerRow + 1,
+    freezeRow = headerRow,
+    alternateRows = true,
+    institutional = false,
+} = {}) {
+    return applyAdaptiveWorksheetLayout(sheet, {
+        headerRow,
+        dataStartRow,
+        freezeRow,
+        alternateRows,
+        institutional,
+    });
 }
 
 async function getApplicationsRows({
@@ -344,6 +783,9 @@ async function getApplicationsRows({
     courseId,
     yearLevel,
     gender,
+    applicationStatus,
+    documentStatus,
+    verificationStatus,
     dateFrom,
     dateTo,
 }) {
@@ -371,12 +813,16 @@ async function getApplicationsRows({
     }
 
     appendScholarDetailFilters(where, params, { courseId, yearLevel, gender });
+    appendTextEqualityFilter(where, params, 'a.application_status', applicationStatus);
+    appendTextEqualityFilter(where, params, 'a.document_status', documentStatus);
+    appendTextEqualityFilter(where, params, 'a.verification_status', verificationStatus);
     appendDateRange(where, params, 'a.submission_date', dateFrom, dateTo);
 
     const query = `
     SELECT
       st.pdm_id,
       CONCAT(st.last_name, ', ', st.first_name) AS student_name,
+      COALESCE(NULLIF(TRIM(st.sex_at_birth), ''), 'Not specified') AS gender,
       ac.course_code,
       st.year_level,
       st.gwa,
@@ -452,6 +898,10 @@ async function getScholarsRows({
     SELECT
       st.pdm_id,
       CONCAT(st.last_name, ', ', st.first_name) AS student_name,
+      st.last_name AS _last_name,
+      st.first_name AS _given_name,
+      CASE WHEN NULLIF(TRIM(st.middle_name), '') IS NULL THEN '' ELSE CONCAT(LEFT(TRIM(st.middle_name), 1), '.') END AS _middle_initial,
+      COALESCE(NULLIF(TRIM(st.sex_at_birth), ''), 'Not specified') AS gender,
       ac.course_code,
       st.year_level,
       sp.program_name,
@@ -553,6 +1003,9 @@ async function getPayoutRows({
     courseId,
     yearLevel,
     gender,
+    batchStatus,
+    releaseStatus,
+    paymentMode,
     dateFrom,
     dateTo,
 }) {
@@ -580,6 +1033,9 @@ async function getPayoutRows({
     }
 
     appendScholarDetailFilters(where, params, { courseId, yearLevel, gender });
+    appendTextEqualityFilter(where, params, 'pb.batch_status', batchStatus);
+    appendTextEqualityFilter(where, params, 'pbs.release_status', releaseStatus);
+    appendTextEqualityFilter(where, params, 'pb.payment_mode', paymentMode);
     appendDateRange(where, params, 'pb.payout_date', dateFrom, dateTo);
 
     const query = `
@@ -600,6 +1056,7 @@ async function getPayoutRows({
       pb.batch_status,
       st.pdm_id,
       CONCAT(st.last_name, ', ', st.first_name) AS student_name,
+      COALESCE(NULLIF(TRIM(st.sex_at_birth), ''), 'Not specified') AS gender,
       pbs.amount_received,
       pbs.release_status,
       pbs.released_at,
@@ -637,7 +1094,6 @@ async function getRenewalRows({
         params.push(academicYearId);
         where.push(`COALESCE(r.academic_year_id, renewal_period.academic_year_id) = $${params.length}`);
     }
-
     if (semester && semester !== 'all') {
         params.push(semester);
         where.push(`renewal_period.term = $${params.length}`);
@@ -677,6 +1133,10 @@ async function getRenewalRows({
         r.renewal_id,
         st.pdm_id,
         CONCAT(st.last_name, ', ', st.first_name, CASE WHEN NULLIF(st.middle_name, '') IS NULL THEN '' ELSE CONCAT(' ', LEFT(st.middle_name, 1), '.') END) AS student_name,
+        st.last_name AS _last_name,
+        st.first_name AS _given_name,
+        CASE WHEN NULLIF(TRIM(st.middle_name), '') IS NULL THEN '' ELSE CONCAT(LEFT(TRIM(st.middle_name), 1), '.') END AS _middle_initial,
+        st.gwa AS _gwa,
         sp.program_name,
         b.benefactor_name,
         ac.course_code,
@@ -901,6 +1361,7 @@ async function getSdoRows({
       es.slip_id,
       st.pdm_id,
       CONCAT(st.last_name, ', ', st.first_name) AS student_name,
+      COALESCE(NULLIF(TRIM(st.sex_at_birth), ''), 'Not specified') AS gender,
       ac.course_code,
       st.year_level,
       sp.program_name,
@@ -997,6 +1458,7 @@ async function getGuidanceRows({
       es.slip_id,
       st.pdm_id,
       CONCAT(st.last_name, ', ', st.first_name) AS student_name,
+      COALESCE(NULLIF(TRIM(st.sex_at_birth), ''), 'Not specified') AS gender,
       ac.course_code,
       st.year_level,
       sp.program_name,
@@ -1118,6 +1580,7 @@ async function getPdRows({
       es.slip_id,
       st.pdm_id,
       CONCAT(st.last_name, ', ', st.first_name) AS student_name,
+      COALESCE(NULLIF(TRIM(st.sex_at_birth), ''), 'Not specified') AS gender,
       ac.course_code,
       st.year_level,
       sp.program_name,
@@ -1167,6 +1630,12 @@ async function getRoRows({
     yearLevel,
     gender,
     roAreaId,
+    applicationStatus,
+    documentStatus,
+    verificationStatus,
+    batchStatus,
+    releaseStatus,
+    paymentMode,
 }) {
     if (!roUserId) {
         throw createHttpError(403, 'RO Personnel-In-Charge assignment is required for this report.');
@@ -1233,6 +1702,7 @@ async function getRoRows({
         ro.ro_id,
         st.pdm_id,
         CONCAT(st.last_name, ', ', st.first_name) AS student_name,
+        COALESCE(NULLIF(TRIM(st.sex_at_birth), ''), 'Not specified') AS gender,
         ac.course_code,
         st.year_level,
         sp.program_name,
@@ -1447,13 +1917,52 @@ async function getRoComplianceRows({
     return rows;
 }
 
-function addRows(sheet, rows) {
-    rows.forEach((row) => {
-        const normalizedRow = Object.fromEntries(
-            Object.entries(row || {}).map(([key, value]) => [key, normalizeExcelCellValue(value)])
-        );
+function addRows(sheet, rows, columns = sheet.columns || []) {
+    const keys = columns.map((column) => String(column.key || '')).filter(Boolean);
+
+    rows.forEach((row, index) => {
+        const normalizedRow = {};
+        keys.forEach((key) => {
+            const rawValue = key === 'row_number' ? index + 1 : row?.[key];
+            normalizedRow[key] = normalizeReportDisplayValue(key, rawValue);
+        });
         sheet.addRow(normalizedRow);
     });
+}
+
+function styleInstitutionalTable(sheet, { headerRow, dataStartRow }) {
+    const lastRow = sheet.lastRow?.number || headerRow;
+    const lastColumn = Math.max(1, sheet.columnCount);
+    const header = sheet.getRow(headerRow);
+    header.font = { bold: true, color: { argb: 'FF111111' }, size: 9 };
+    header.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFFFFFF' },
+    };
+    header.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    header.height = Math.max(header.height || 0, 28);
+
+    for (let rowNumber = headerRow; rowNumber <= lastRow; rowNumber += 1) {
+        const row = sheet.getRow(rowNumber);
+        for (let columnNumber = 1; columnNumber <= lastColumn; columnNumber += 1) {
+            const cell = row.getCell(columnNumber);
+            cell.border = {
+                top: { style: 'thin', color: { argb: 'FF333333' } },
+                left: { style: 'thin', color: { argb: 'FF333333' } },
+                bottom: { style: 'thin', color: { argb: 'FF333333' } },
+                right: { style: 'thin', color: { argb: 'FF333333' } },
+            };
+            if (rowNumber >= dataStartRow) {
+                cell.font = { ...(cell.font || {}), size: 9 };
+                cell.alignment = {
+                    ...(cell.alignment || {}),
+                    vertical: 'middle',
+                    wrapText: true,
+                };
+            }
+        }
+    }
 }
 
 function buildOfficeSummary(reportType, rows = []) {
@@ -1569,6 +2078,12 @@ async function getRowsByReportType({
     yearLevel,
     gender,
     roAreaId,
+    applicationStatus,
+    documentStatus,
+    verificationStatus,
+    batchStatus,
+    releaseStatus,
+    paymentMode,
 }) {
     const sharedFilters = {
         academicYearId,
@@ -1584,6 +2099,12 @@ async function getRowsByReportType({
         yearLevel,
         gender,
         roAreaId,
+        applicationStatus,
+        documentStatus,
+        verificationStatus,
+        batchStatus,
+        releaseStatus,
+        paymentMode,
     };
 
     if (reportType === 'applications') {
@@ -1597,7 +2118,6 @@ async function getRowsByReportType({
     if (reportType === 'payouts') {
         return await getPayoutRows(sharedFilters);
     }
-
     if (reportType === 'renewals') {
         return await getRenewalRows(sharedFilters);
     }
@@ -1658,6 +2178,12 @@ function normalizeReportQuery(query = {}) {
         yearLevel: safeText(query.yearLevel || query.year_level || 'all'),
         gender: safeText(query.gender || 'all'),
         roAreaId: safeText(query.roAreaId || query.ro_area_id || 'all'),
+        applicationStatus: safeText(query.applicationStatus || query.application_status || 'all'),
+        documentStatus: safeText(query.documentStatus || query.document_status || 'all'),
+        verificationStatus: safeText(query.verificationStatus || query.verification_status || 'all'),
+        batchStatus: safeText(query.batchStatus || query.batch_status || 'all'),
+        releaseStatus: safeText(query.releaseStatus || query.release_status || 'all'),
+        paymentMode: safeText(query.paymentMode || query.payment_mode || 'all'),
     };
 
     if (normalized.dateFrom && normalized.dateTo && normalized.dateFrom > normalized.dateTo) {
@@ -1674,7 +2200,7 @@ async function previewReport(query = {}) {
     const previewResult = {
         reportType: normalized.reportType,
         total: rows.length,
-        rows: rows.slice(0, 50),
+        rows: rows.slice(0, 50).map(stripInternalReportFields),
         summary: ['sdo', 'guidance', 'pd', 'ro', 'ro_compliance'].includes(normalized.reportType)
             ? buildOfficeSummary(normalized.reportType, rows)
             : null,
@@ -1714,22 +2240,21 @@ async function previewReport(query = {}) {
     return previewResult;
 }
 
-async function generateExcelReport(query = {}) {
-    const normalized = normalizeReportQuery(query);
-
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'SMaRT-PDM';
-    workbook.created = new Date();
-
-    let sheet;
-    let rows;
-    let filename;
+async function buildExportDefinition(normalized) {
+    let rows = [];
+    let columns = [];
+    let sheetName = 'Report';
+    let filename = 'report.xlsx';
+    let institutional = null;
 
     if (normalized.reportType === 'applications') {
-        sheet = workbook.addWorksheet('Applications');
-        sheet.columns = [
+        rows = await getApplicationsRows(normalized);
+        sheetName = 'Applications';
+        filename = 'application_registry_report.xlsx';
+        columns = [
             { header: 'Student Number', key: 'pdm_id' },
             { header: 'Student Name', key: 'student_name' },
+            { header: 'Gender', key: 'gender' },
             { header: 'Course', key: 'course_code' },
             { header: 'Year Level', key: 'year_level' },
             { header: 'GWA', key: 'gwa' },
@@ -1746,43 +2271,47 @@ async function generateExcelReport(query = {}) {
             { header: 'Submitted At', key: 'submission_date' },
             { header: 'Remarks', key: 'remarks' },
         ];
-        rows = await getApplicationsRows(normalized);
-        filename = 'application_registry_report.xlsx';
-    }
-
-    if (normalized.reportType === 'scholars') {
-        sheet = workbook.addWorksheet('Scholars');
-        sheet.columns = [
+    } else if (normalized.reportType === 'scholars') {
+        rows = await getScholarsRows(normalized);
+        sheetName = 'Active Scholars';
+        filename = 'active_scholars_master_list.xlsx';
+        columns = [
+            { header: 'No.', key: 'row_number' },
             { header: 'Student Number', key: 'pdm_id' },
-            { header: 'Student Name', key: 'student_name' },
+            { header: 'Last Name', key: '_last_name' },
+            { header: 'Given Name', key: '_given_name' },
+            { header: 'MI', key: '_middle_initial' },
             { header: 'Course', key: 'course_code' },
-            { header: 'Year Level', key: 'year_level' },
-            { header: 'Program', key: 'program_name' },
+            { header: 'Year', key: 'year_level' },
+            { header: 'Gender', key: 'gender' },
+            { header: 'Scholarship Program', key: 'program_name' },
+            { header: 'Benefactor', key: 'benefactor_name' },
             { header: 'Academic Year', key: 'academic_year' },
             { header: 'Semester', key: 'semester' },
-            { header: 'Benefactor', key: 'benefactor_name' },
             { header: 'Scholarship Status', key: 'scholarship_status' },
-            { header: 'Date Awarded', key: 'date_awarded' },
             { header: 'RO Status', key: 'ro_status' },
+            { header: 'Date Awarded', key: 'date_awarded' },
         ];
-        rows = await getScholarsRows(normalized);
-        filename = 'active_scholars_report.xlsx';
-    }
-
-    if (normalized.reportType === 'scholars_by_benefactor') {
-        sheet = workbook.addWorksheet('Scholar Counts');
-        sheet.columns = [
+        institutional = {
+            title: 'FINANCIAL ASSISTANCE BENEFICIARIES',
+            subtitle: formatExcelPeriodSubtitle(normalized, rows),
+            headerRow: 11,
+            dataStartRow: 12,
+        };
+    } else if (normalized.reportType === 'scholars_by_benefactor') {
+        rows = await getScholarCountRows(normalized);
+        sheetName = 'Scholar Counts';
+        filename = 'scholar_count_by_benefactor_report.xlsx';
+        columns = [
             { header: 'Benefactor', key: 'benefactor_name' },
             { header: 'Program', key: 'program_name' },
             { header: 'Scholar Count', key: 'scholar_count' },
         ];
-        rows = await getScholarCountRows(normalized);
-        filename = 'scholar_count_by_benefactor_report.xlsx';
-    }
-
-    if (normalized.reportType === 'payouts') {
-        sheet = workbook.addWorksheet('Payouts');
-        sheet.columns = [
+    } else if (normalized.reportType === 'payouts') {
+        rows = await getPayoutRows(normalized);
+        sheetName = 'Payouts';
+        filename = 'payout_batch_report.xlsx';
+        columns = [
             { header: 'Payout Title', key: 'payout_title' },
             { header: 'Program', key: 'program_name' },
             { header: 'Academic Year', key: 'academic_year' },
@@ -1794,42 +2323,48 @@ async function generateExcelReport(query = {}) {
             { header: 'Batch Status', key: 'batch_status' },
             { header: 'Student Number', key: 'pdm_id' },
             { header: 'Student Name', key: 'student_name' },
+            { header: 'Gender', key: 'gender' },
             { header: 'Amount Received', key: 'amount_received' },
             { header: 'Release Status', key: 'release_status' },
             { header: 'Released At', key: 'released_at' },
             { header: 'Remarks', key: 'remarks' },
         ];
-        rows = await getPayoutRows(normalized);
-        filename = 'payout_batch_report.xlsx';
-    }
-
-    if (normalized.reportType === 'renewals') {
-        sheet = workbook.addWorksheet('Scholarship Renewals');
-        sheet.columns = [
-            { header: 'Renewal ID', key: 'renewal_id' },
-            { header: 'Student Number', key: 'pdm_id' },
-            { header: 'Scholar Name', key: 'student_name' },
-            { header: 'Scholarship Program', key: 'program_name' },
-            { header: 'Benefactor', key: 'benefactor_name' },
+    } else if (normalized.reportType === 'renewals') {
+        rows = await getRenewalRows(normalized);
+        sheetName = 'Scholarship Renewals';
+        filename = 'scholarship_renewal_report.xlsx';
+        const selectedBenefactor = normalized.benefactorId !== 'all'
+            ? safeText(rows.find((row) => safeText(row.benefactor_name))?.benefactor_name)
+            : '';
+        const titleSuffix = selectedBenefactor ? ` OF ${selectedBenefactor.toUpperCase()}` : '';
+        columns = [
+            { header: 'No.', key: 'row_number' },
+            { header: 'Last Name', key: '_last_name' },
+            { header: 'Given Name', key: '_given_name' },
+            { header: 'MI', key: '_middle_initial' },
             { header: 'Course', key: 'course_code' },
-            { header: 'Course Name', key: 'course_name' },
-            { header: 'Year Level', key: 'year_level' },
-            { header: 'Previous Academic Year', key: 'previous_academic_year' },
-            { header: 'Previous Semester', key: 'previous_semester' },
-            { header: 'Applicable Academic Year', key: 'applicable_academic_year' },
+            { header: 'Year', key: 'year_level' },
+            { header: 'GWA', key: '_gwa' },
+            { header: 'Benefactor', key: 'benefactor_name' },
+            { header: 'Scholarship Program', key: 'program_name' },
+            { header: 'Academic Year', key: 'applicable_academic_year' },
             { header: 'Semester', key: 'semester' },
             { header: 'Renewal Status', key: 'renewal_status' },
             { header: 'Renewal Date', key: 'renewal_date' },
-            { header: 'Submitted At', key: 'submitted_on' },
-            { header: 'Remarks / Reason', key: 'remarks' },
+            { header: 'Remarks', key: 'remarks' },
         ];
-        rows = await getRenewalRows(normalized);
-        filename = 'scholarship_renewal_report.xlsx';
-    }
-
-    if (normalized.reportType === 'slot_utilization') {
-        sheet = workbook.addWorksheet('Slot Utilization');
-        sheet.columns = [
+        institutional = {
+            title: `STATUS AND RECOMMENDED FINANCIAL ASSISTANCE BENEFICIARIES${titleSuffix}`,
+            subtitle: formatExcelPeriodSubtitle(normalized, rows),
+            headerRow: 11,
+            dataStartRow: 13,
+            sectionLabel: 'FOR RENEWAL',
+        };
+    } else if (normalized.reportType === 'slot_utilization') {
+        rows = await getSlotUtilizationRows(normalized);
+        sheetName = 'Scholarship Slots';
+        filename = 'scholarship_slot_report.xlsx';
+        columns = [
             { header: 'Opening ID', key: 'opening_id' },
             { header: 'Opening', key: 'opening_title' },
             { header: 'Scholarship Program', key: 'program_name' },
@@ -1843,16 +2378,15 @@ async function generateExcelReport(query = {}) {
             { header: 'Opening Status', key: 'opening_status' },
             { header: 'Opening Created At', key: 'opening_created_at' },
         ];
-        rows = await getSlotUtilizationRows(normalized);
-        filename = 'scholarship_slot_utilization_report.xlsx';
-    }
-
-    if (normalized.reportType === 'sdo') {
-        sheet = workbook.addWorksheet('SDO Endorsements');
-        sheet.columns = [
+    } else if (normalized.reportType === 'sdo') {
+        rows = await getSdoRows(normalized);
+        sheetName = 'SDO Endorsements';
+        filename = 'sdo_endorsement_report.xlsx';
+        columns = [
             { header: 'Slip ID', key: 'slip_id' },
             { header: 'Student Number', key: 'pdm_id' },
             { header: 'Student Name', key: 'student_name' },
+            { header: 'Gender', key: 'gender' },
             { header: 'Course', key: 'course_code' },
             { header: 'Year Level', key: 'year_level' },
             { header: 'Program', key: 'program_name' },
@@ -1868,16 +2402,15 @@ async function generateExcelReport(query = {}) {
             { header: 'Reviewed At', key: 'sdo_acted_at' },
             { header: 'Submitted At', key: 'submission_date' },
         ];
-        rows = await getSdoRows(normalized);
-        filename = 'sdo_endorsement_report.xlsx';
-    }
-
-    if (normalized.reportType === 'guidance') {
-        sheet = workbook.addWorksheet('Guidance Endorsements');
-        sheet.columns = [
+    } else if (normalized.reportType === 'guidance') {
+        rows = await getGuidanceRows(normalized);
+        sheetName = 'Guidance Endorsements';
+        filename = 'guidance_endorsement_report.xlsx';
+        columns = [
             { header: 'Slip ID', key: 'slip_id' },
             { header: 'Student Number', key: 'pdm_id' },
             { header: 'Student Name', key: 'student_name' },
+            { header: 'Gender', key: 'gender' },
             { header: 'Course', key: 'course_code' },
             { header: 'Year Level', key: 'year_level' },
             { header: 'Program', key: 'program_name' },
@@ -1894,16 +2427,15 @@ async function generateExcelReport(query = {}) {
             { header: 'Reviewed At', key: 'guidance_acted_at' },
             { header: 'Submitted At', key: 'submission_date' },
         ];
-        rows = await getGuidanceRows(normalized);
-        filename = 'guidance_endorsement_report.xlsx';
-    }
-
-    if (normalized.reportType === 'pd') {
-        sheet = workbook.addWorksheet('PD Endorsements');
-        sheet.columns = [
+    } else if (normalized.reportType === 'pd') {
+        rows = await getPdRows(normalized);
+        sheetName = 'PD Endorsements';
+        filename = 'pd_endorsement_report.xlsx';
+        columns = [
             { header: 'Slip ID', key: 'slip_id' },
             { header: 'Student Number', key: 'pdm_id' },
             { header: 'Student Name', key: 'student_name' },
+            { header: 'Gender', key: 'gender' },
             { header: 'Course', key: 'course_code' },
             { header: 'Year Level', key: 'year_level' },
             { header: 'Program', key: 'program_name' },
@@ -1923,16 +2455,15 @@ async function generateExcelReport(query = {}) {
             { header: 'Final PDF URL', key: 'final_pdf_url' },
             { header: 'Submitted At', key: 'submission_date' },
         ];
-        rows = await getPdRows(normalized);
-        filename = 'pd_endorsement_report.xlsx';
-    }
-
-    if (normalized.reportType === 'ro') {
-        sheet = workbook.addWorksheet('RO Personnel-In-Charge');
-        sheet.columns = [
+    } else if (normalized.reportType === 'ro') {
+        rows = await getRoRows(normalized);
+        sheetName = 'RO Personnel-In-Charge';
+        filename = 'ro_coordinator_report.xlsx';
+        columns = [
             { header: 'RO ID', key: 'ro_id' },
             { header: 'Student Number', key: 'pdm_id' },
             { header: 'Student Name', key: 'student_name' },
+            { header: 'Gender', key: 'gender' },
             { header: 'Course', key: 'course_code' },
             { header: 'Year Level', key: 'year_level' },
             { header: 'Program', key: 'program_name' },
@@ -1951,13 +2482,11 @@ async function generateExcelReport(query = {}) {
             { header: 'Requested At', key: 'requested_at' },
             { header: 'Decided At', key: 'decided_at' },
         ];
-        rows = await getRoRows(normalized);
-        filename = 'ro_coordinator_report.xlsx';
-    }
-
-    if (normalized.reportType === 'ro_compliance') {
-        sheet = workbook.addWorksheet('RO Scholar Compliance');
-        sheet.columns = [
+    } else if (normalized.reportType === 'ro_compliance') {
+        rows = await getRoComplianceRows(normalized);
+        sheetName = 'RO Scholar Compliance';
+        filename = 'ro_scholar_compliance_report.xlsx';
+        columns = [
             { header: 'RO ID', key: 'ro_id' },
             { header: 'Student Number', key: 'pdm_id' },
             { header: 'Student Name', key: 'student_name' },
@@ -1972,7 +2501,7 @@ async function generateExcelReport(query = {}) {
             { header: 'Academic Year', key: 'academic_year' },
             { header: 'Semester', key: 'semester' },
             { header: 'Assigned RO Area', key: 'assigned_areas' },
-            { header: 'Personnel-In-Charge', key: 'personnel_in_charge' },
+            { header: 'PIC Name', key: 'personnel_in_charge' },
             { header: 'Required Hours', key: 'required_hours' },
             { header: 'Submitted Hours', key: 'submitted_hours' },
             { header: 'Validated Hours', key: 'validated_hours' },
@@ -1986,16 +2515,15 @@ async function generateExcelReport(query = {}) {
             { header: 'Assigned At', key: 'assigned_at' },
             { header: 'Cleared At', key: 'cleared_at' },
         ];
-        rows = await getRoComplianceRows(normalized);
-        filename = 'ro_scholar_compliance_report.xlsx';
-    }
-
-    if (normalized.reportType === 'endorsements') {
-        sheet = workbook.addWorksheet('Endorsements');
-        sheet.columns = [
+    } else if (normalized.reportType === 'endorsements') {
+        rows = await getPdRows({ ...normalized, consolidated: true });
+        sheetName = 'Endorsements';
+        filename = 'endorsement_report.xlsx';
+        columns = [
             { header: 'Slip ID', key: 'slip_id' },
             { header: 'Student Number', key: 'pdm_id' },
             { header: 'Student Name', key: 'student_name' },
+            { header: 'Gender', key: 'gender' },
             { header: 'Course', key: 'course_code' },
             { header: 'Year Level', key: 'year_level' },
             { header: 'Program', key: 'program_name' },
@@ -2015,45 +2543,92 @@ async function generateExcelReport(query = {}) {
             { header: 'Final PDF URL', key: 'final_pdf_url' },
             { header: 'Submitted At', key: 'submission_date' },
         ];
-        rows = await getPdRows({ ...normalized, consolidated: true });
-        filename = 'endorsement_report.xlsx';
-    }
-
-    if (!sheet) {
+    } else {
         throw createHttpError(400, 'Invalid report type.');
     }
 
-    addRows(sheet, rows || []);
-    styleSheet(sheet);
+    if (!institutional) {
+        institutional = {
+            title: getInstitutionalReportTitle(normalized.reportType),
+            subtitle: formatExcelPeriodSubtitle(normalized, rows),
+            headerRow: 11,
+            dataStartRow: 12,
+            autoFilter: true,
+        };
+    }
+
+    return { rows, columns, sheetName, filename, institutional };
+}
+
+async function generateExcelReport(query = {}) {
+    const normalized = normalizeReportQuery(query);
+    const definition = await buildExportDefinition(normalized);
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'SMaRT-PDM';
+    workbook.created = new Date();
+
+    const sheet = workbook.addWorksheet(definition.sheetName);
+    sheet.columns = definition.columns;
+    addRows(sheet, definition.rows || [], definition.columns);
+
+    if (definition.institutional) {
+        // The base table is created at row 1, then shifted to preserve the exact
+        // PDM-style institutional header area shown in the existing OSFA sheets.
+        sheet.spliceRows(1, 0, ...Array.from({ length: 10 }, () => []));
+        if (definition.institutional.sectionLabel) {
+            sheet.spliceRows(12, 0, []);
+        }
+
+        addInstitutionalWorksheetHeader(workbook, sheet, {
+            ...definition.institutional,
+            lastColumn: sheet.getColumn(definition.columns.length).letter,
+        });
+        styleSheet(sheet, {
+            headerRow: definition.institutional.headerRow,
+            dataStartRow: definition.institutional.dataStartRow,
+            freezeRow: 0,
+            alternateRows: false,
+            institutional: true,
+        });
+        styleInstitutionalTable(sheet, {
+            headerRow: definition.institutional.headerRow,
+            dataStartRow: definition.institutional.dataStartRow,
+        });
+        if (definition.institutional.autoFilter) {
+            sheet.autoFilter = {
+                from: { row: definition.institutional.headerRow, column: 1 },
+                to: { row: definition.institutional.headerRow, column: definition.columns.length },
+            };
+        }
+    } else {
+        styleSheet(sheet);
+    }
 
     return {
         workbook,
-        filename,
+        filename: definition.filename,
+        columns: definition.columns,
+        rows: definition.rows,
     };
 }
 
 async function generateCsvReport(query = {}) {
-    const excelResult = await generateExcelReport(query);
-    const sheet = excelResult.workbook.worksheets[0];
-    const headers = (sheet.columns || []).map((column) => column.header);
-    const keys = (sheet.columns || []).map((column) => column.key);
-    const rows = [];
+    const normalized = normalizeReportQuery(query);
+    const definition = await buildExportDefinition(normalized);
+    const lines = [];
 
-    rows.push(headers.map(escapeCsvValue).join(','));
-
-    sheet.eachRow((row, rowNumber) => {
-        if (rowNumber === 1) return;
-
-        const values = keys.map((key) =>
-            escapeCsvValue(row.getCell(key).value ?? '')
-        );
-
-        rows.push(values.join(','));
+    lines.push(definition.columns.map((column) => escapeCsvValue(column.header)).join(','));
+    (definition.rows || []).forEach((row, index) => {
+        const values = definition.columns.map((column) => {
+            const rawValue = column.key === 'row_number' ? index + 1 : row?.[column.key];
+            return escapeCsvValue(normalizeReportDisplayValue(column.key, rawValue) ?? '');
+        });
+        lines.push(values.join(','));
     });
 
     return {
-        filename: excelResult.filename.replace(/\.xlsx$/i, '.csv'),
-        content: rows.join('\n'),
+        filename: definition.filename.replace(/\.xlsx$/i, '.csv'),
+        content: `\uFEFF${lines.join('\n')}`,
     };
 }
 

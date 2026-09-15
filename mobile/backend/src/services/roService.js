@@ -1233,7 +1233,7 @@ async function syncScholarRequestForRo(roId) {
 async function resolveApprovedPlacement(roId, placementId = null) {
   let query = supabase
     .from('ro_placements')
-    .select('placement_id, ro_id, ro_area_id, placement_status')
+    .select('placement_id, ro_id, ro_area_id, coordinator_assignment_id, placement_status')
     .eq('ro_id', roId)
     .eq('placement_status', 'Approved')
     .order('decided_at', { ascending: false });
@@ -1255,6 +1255,68 @@ async function resolveApprovedPlacement(roId, placementId = null) {
   }
 
   return placements[0];
+}
+
+async function sendPicTimeInNotification({
+  placement,
+  student,
+  logId,
+  timedInAt,
+}) {
+  try {
+    if (
+      !placement?.ro_area_id ||
+      typeof notificationService?.createUserNotification !== 'function'
+    ) {
+      return null;
+    }
+
+    const [{ data: coordinator, error: coordinatorError }, { data: area, error: areaError }] =
+      await Promise.all([
+        supabase
+          .from('ro_area_coordinators')
+          .select('user_id')
+          .eq('ro_area_id', placement.ro_area_id)
+          .eq('is_active', true)
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from('ro_departments')
+          .select('department_name')
+          .eq('department_id', placement.ro_area_id)
+          .maybeSingle(),
+      ]);
+
+    if (coordinatorError) throw coordinatorError;
+    if (areaError) throw areaError;
+    if (!coordinator?.user_id) return null;
+
+    const scholarName = [
+      student?.first_name,
+      student?.middle_name,
+      student?.last_name,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim() || student?.pdm_id || 'An assigned scholar';
+    const assignedArea = normalizeValue(area?.department_name) || 'your RO Area';
+
+    return await notificationService.createUserNotification({
+      userId: coordinator.user_id,
+      type: 'RO Attendance',
+      title: 'Scholar timed in for RO',
+      message: `${scholarName} timed in at ${assignedArea}. Open the attendance queue to monitor this session and review the evidence after time-out.`,
+      referenceId: logId,
+      referenceType: 'ro_time_log',
+      createdAt: timedInAt,
+    });
+  } catch (error) {
+    // Attendance is already recorded at this point. A transient notification
+    // failure must not make the scholar retry and create confusing feedback.
+    console.error('RO PIC TIME-IN NOTIFICATION ERROR:', error.message || error);
+    return null;
+  }
 }
 
 function mapLog(row = {}) {
@@ -2544,6 +2606,13 @@ async function timeInMyRo(
     throw updateError;
   }
 
+  const picNotification = await sendPicTimeInNotification({
+    placement,
+    student,
+    logId: insertedLog.log_id,
+    timedInAt: now,
+  });
+
   const result =
     await getMyAssignments(
       userId
@@ -2558,6 +2627,8 @@ async function timeInMyRo(
         : 'Timed in successfully.',
 
     proof,
+
+    picNotification,
 
     realtime: {
       action: 'time-in',

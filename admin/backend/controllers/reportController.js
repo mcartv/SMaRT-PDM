@@ -17,6 +17,9 @@ function getAllowedReportTypes(role, hasRoCoordinatorAccess = false) {
             'scholars_by_benefactor',
             'payouts',
             'endorsements',
+            'ro_compliance',
+            'renewals',
+            'slot_utilization',
         ];
     }
 
@@ -99,6 +102,10 @@ function getReportQueryPayload(req) {
         programId: req.query?.programId || req.query?.program_id || 'all',
         benefactorId: req.query?.benefactorId || req.query?.benefactor_id || 'all',
         reviewResult: req.query?.reviewResult || req.query?.review_result || 'all',
+        courseId: req.query?.courseId || req.query?.course_id || 'all',
+        yearLevel: req.query?.yearLevel || req.query?.year_level || 'all',
+        gender: req.query?.gender || 'all',
+        roAreaId: req.query?.roAreaId || req.query?.ro_area_id || 'all',
         dateFrom: req.query?.dateFrom || req.query?.date_from || '',
         dateTo: req.query?.dateTo || req.query?.date_to || '',
         format: req.query?.format || null,

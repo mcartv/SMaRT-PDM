@@ -68,6 +68,23 @@ const OFFICE_REPORT_FILTERS = {
     { value: 'assigned', label: 'Assigned Scholars' },
     { value: 'completed', label: 'Cleared RO' },
   ],
+  ro_compliance: [
+    { value: 'all', label: 'All Compliance Statuses' },
+    { value: 'finished', label: 'Finished RO' },
+    { value: 'not_fully_complied', label: 'Not Fully Complied' },
+  ],
+  renewals: [
+    { value: 'all', label: 'All Renewal Outcomes' },
+    { value: 'approved', label: 'Renewed' },
+    { value: 'rejected', label: 'Did Not Renew' },
+  ],
+  slot_utilization: [
+    { value: 'all', label: 'All Opening Statuses' },
+    { value: 'draft', label: 'Draft' },
+    { value: 'open', label: 'Open' },
+    { value: 'closed', label: 'Closed' },
+    { value: 'archived', label: 'Archived' },
+  ],
 };
 
 function getAuthHeaders(tokenStorageKey = 'adminToken') {
@@ -136,6 +153,11 @@ function formatHeader(key) {
     scholarship_status: 'Scholarship Status',
     date_awarded: 'Date Awarded',
     ro_status: 'RO Status',
+    assigned_areas: 'Assigned RO Area',
+    personnel_in_charge: 'Personnel-In-Charge',
+    compliance_status: 'Compliance Status',
+    completion_percentage: 'Completion %',
+    clearance_status: 'Clearance Status',
     benefactor_name: 'Benefactor',
   };
 
@@ -169,6 +191,10 @@ export default function ReportGeneration({
   const [academicYears, setAcademicYears] = useState([]);
   const [semesters, setSemesters] = useState([]);
   const [benefactors, setBenefactors] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [roAreas, setRoAreas] = useState([]);
+  const [yearLevels, setYearLevels] = useState([]);
+  const [genders, setGenders] = useState([]);
 
   const [selected, setSelected] = useState('applications');
   const [academicYearId, setAcademicYearId] = useState('all');
@@ -176,11 +202,16 @@ export default function ReportGeneration({
   const [programId, setProgramId] = useState('all');
   const [benefactorId, setBenefactorId] = useState('all');
   const [reviewResult, setReviewResult] = useState('all');
+  const [courseId, setCourseId] = useState('all');
+  const [roAreaId, setRoAreaId] = useState('all');
+  const [yearLevel, setYearLevel] = useState('all');
+  const [gender, setGender] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
   const [previewRows, setPreviewRows] = useState([]);
   const [previewTotal, setPreviewTotal] = useState(0);
+  const [previewSummary, setPreviewSummary] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [hasPreviewed, setHasPreviewed] = useState(false);
   const [feedback, setFeedback] = useState(null);
@@ -196,8 +227,9 @@ export default function ReportGeneration({
   useEffect(() => {
     setPreviewRows([]);
     setPreviewTotal(0);
+    setPreviewSummary(null);
     setHasPreviewed(false);
-  }, [selected, academicYearId, semester, programId, benefactorId, reviewResult, dateFrom, dateTo]);
+  }, [selected, academicYearId, semester, programId, benefactorId, reviewResult, courseId, roAreaId, yearLevel, gender, dateFrom, dateTo]);
 
   useEffect(() => {
     if (!feedback) return undefined;
@@ -219,17 +251,29 @@ export default function ReportGeneration({
     [selected]
   );
 
-  const isOfficeEndorsementReport = useMemo(
-    () => ['endorsements', 'sdo', 'guidance', 'pd', 'ro'].includes(selected),
+  const supportsResultFilter = useMemo(
+    () => ['endorsements', 'sdo', 'guidance', 'pd', 'ro', 'ro_compliance', 'renewals', 'slot_utilization'].includes(selected),
     [selected]
   );
   const isScholarCountReport = useMemo(
     () => selected === 'scholars_by_benefactor',
     [selected]
   );
+  const isRoComplianceReport = selected === 'ro_compliance';
   const supportsPeriodFilters = true;
   const supportsProgramFilter = true;
-  const supportsBenefactorFilter = selected !== 'payouts';
+  const supportsBenefactorFilter = true;
+  const supportsStudentDetailFilters = selected !== 'slot_utilization';
+  const supportsGenderFilter = !['renewals', 'slot_utilization'].includes(selected);
+  const supportsRoAreaFilter = ['ro', 'ro_compliance'].includes(selected);
+  const supportsDateFilters = true;
+  const resultFilterLabel = selected === 'ro_compliance'
+    ? 'Compliance Status'
+    : selected === 'renewals'
+      ? 'Renewal Status'
+      : selected === 'slot_utilization'
+        ? 'Opening Status'
+        : 'Office Result';
 
   const previewColumns = useMemo(() => {
     if (!previewRows.length) return [];
@@ -278,8 +322,13 @@ export default function ReportGeneration({
     const result =
       officeFilterOptions.find((item) => item.value === reviewResult)?.label || 'All Results';
 
-    return { year, term, program, benefactor, result };
-  }, [academicYears, semesters, programs, benefactors, academicYearId, semester, programId, benefactorId, officeFilterOptions, reviewResult]);
+    const course = courses.find((item) => item.course_id === courseId)?.course_code || 'All Courses';
+    const area = roAreas.find((item) => item.department_id === roAreaId)?.department_name || 'All RO Areas';
+    const selectedYearLevel = yearLevels.find((item) => item.value === yearLevel)?.label || 'All Year Levels';
+    const selectedGender = genders.find((item) => item.value === gender)?.label || 'All Genders';
+
+    return { year, term, program, benefactor, result, course, area, yearLevel: selectedYearLevel, gender: selectedGender };
+  }, [academicYears, semesters, programs, benefactors, courses, roAreas, yearLevels, genders, academicYearId, semester, programId, benefactorId, courseId, roAreaId, yearLevel, gender, officeFilterOptions, reviewResult]);
 
   const loadMetadata = useCallback(async () => {
     try {
@@ -301,6 +350,10 @@ export default function ReportGeneration({
       setAcademicYears(data.academicYears || []);
       setSemesters(data.semesters || []);
       setBenefactors(data.benefactors || []);
+      setCourses(data.courses || []);
+      setRoAreas(data.roAreas || []);
+      setYearLevels(data.yearLevels || []);
+      setGenders(data.genders || []);
 
       const allowed =
         Array.isArray(allowedReportTypes) && allowedReportTypes.length > 0
@@ -339,10 +392,14 @@ export default function ReportGeneration({
       programId,
       benefactorId,
       reviewResult,
+      courseId,
+      roAreaId,
+      yearLevel,
+      gender,
       dateFrom,
       dateTo,
     });
-  }, [academicYearId, benefactorId, dateFrom, dateTo, programId, reviewResult, selected, semester]);
+  }, [academicYearId, benefactorId, courseId, dateFrom, dateTo, gender, programId, reviewResult, roAreaId, selected, semester, yearLevel]);
 
   function resetFilters() {
     setAcademicYearId('all');
@@ -350,10 +407,15 @@ export default function ReportGeneration({
     setProgramId('all');
     setBenefactorId('all');
     setReviewResult('all');
+    setCourseId('all');
+    setRoAreaId('all');
+    setYearLevel('all');
+    setGender('all');
     setDateFrom('');
     setDateTo('');
     setPreviewRows([]);
     setPreviewTotal(0);
+    setPreviewSummary(null);
     setHasPreviewed(false);
   }
 
@@ -373,6 +435,7 @@ export default function ReportGeneration({
 
       setPreviewRows(Array.isArray(data.rows) ? data.rows : []);
       setPreviewTotal(Number(data.total || data.rows?.length || 0));
+      setPreviewSummary(data.summary || null);
       setHasPreviewed(true);
       setFeedback(null);
     } catch (error) {
@@ -572,7 +635,10 @@ export default function ReportGeneration({
                 key={report.id}
                 report={report}
                 active={selected === report.id}
-                onClick={setSelected}
+                onClick={(reportId) => {
+                  setSelected(reportId);
+                  setReviewResult('all');
+                }}
                 theme={theme}
               />
             ))}
@@ -677,10 +743,90 @@ export default function ReportGeneration({
                 </Select>
               </div> : null}
 
-              {isOfficeEndorsementReport ? (
+              {supportsRoAreaFilter ? (
                 <div className="space-y-2">
                   <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
-                    Office Result
+                    Assigned RO Area
+                  </label>
+                  <Select value={roAreaId} onValueChange={setRoAreaId}>
+                    <SelectTrigger className="h-11 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {roAreas.map((area) => (
+                        <SelectItem key={area.department_id} value={area.department_id}>
+                          {area.department_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+
+              {supportsStudentDetailFilters ? (
+                <div className="space-y-2">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                    Course
+                  </label>
+                  <Select value={courseId} onValueChange={setCourseId}>
+                    <SelectTrigger className="h-11 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {courses.map((course) => (
+                        <SelectItem key={course.course_id} value={course.course_id}>
+                          {course.course_code}{course.course_name && course.course_name !== course.course_code ? ` — ${course.course_name}` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+
+              {supportsStudentDetailFilters ? (
+                <div className="space-y-2">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                    Year Level
+                  </label>
+                  <Select value={yearLevel} onValueChange={setYearLevel}>
+                    <SelectTrigger className="h-11 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {yearLevels.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+
+              {supportsGenderFilter ? (
+                <div className="space-y-2">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                    Gender
+                  </label>
+                  <Select value={gender} onValueChange={setGender}>
+                    <SelectTrigger className="h-11 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {genders.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+
+              {supportsResultFilter ? (
+                <div className="space-y-2">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                    {resultFilterLabel}
                   </label>
                   <Select value={reviewResult} onValueChange={setReviewResult}>
                     <SelectTrigger className="h-11 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
@@ -697,31 +843,31 @@ export default function ReportGeneration({
                 </div>
               ) : null}
 
-              {isOfficeEndorsementReport ? (
-                <div className="space-y-2">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
-                    Date From
-                  </label>
-                  <Input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(event) => setDateFrom(event.target.value)}
-                    className="h-11 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium"
-                  />
-                </div>
-              ) : null}
+              {supportsDateFilters ? (
+                <div className="grid grid-cols-1 gap-5 md:col-span-2 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                      Date From
+                    </label>
+                    <Input
+                      type="date"
+                      value={dateFrom}
+                      onChange={(event) => setDateFrom(event.target.value)}
+                      className="h-11 w-full rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium"
+                    />
+                  </div>
 
-              {isOfficeEndorsementReport ? (
-                <div className="space-y-2">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
-                    Date To
-                  </label>
-                  <Input
-                    type="date"
-                    value={dateTo}
-                    onChange={(event) => setDateTo(event.target.value)}
-                    className="h-11 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium"
-                  />
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                      Date To
+                    </label>
+                    <Input
+                      type="date"
+                      value={dateTo}
+                      onChange={(event) => setDateTo(event.target.value)}
+                      className="h-11 w-full rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium"
+                    />
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -740,9 +886,14 @@ export default function ReportGeneration({
                     {selectedReport?.name || 'Report'} • {selectedLabels.year} •{' '}
                     {selectedLabels.term} • {selectedLabels.benefactor} •{' '}
                     {selectedLabels.program}
-                    {isOfficeEndorsementReport ? ` • ${selectedLabels.result}` : ''}
+                    {supportsResultFilter ? ` • ${selectedLabels.result}` : ''}
                     {dateFrom ? ` • from ${dateFrom}` : ''}
                     {dateTo ? ` • to ${dateTo}` : ''}
+                    {supportsStudentDetailFilters
+                      ? ` • ${selectedLabels.course} • ${selectedLabels.yearLevel}`
+                      : ''}
+                    {supportsGenderFilter ? ` • ${selectedLabels.gender}` : ''}
+                    {supportsRoAreaFilter ? ` • ${selectedLabels.area}` : ''}
                   </p>
                 </div>
               </div>
@@ -831,6 +982,21 @@ export default function ReportGeneration({
           </div>
 
           <CardContent className="p-0">
+            {isRoComplianceReport && previewSummary ? (
+              <div className="grid grid-cols-2 gap-3 border-b border-stone-100 p-4 md:grid-cols-4">
+                {[
+                  ['Total assigned', previewSummary.total || 0],
+                  ['Finished', previewSummary.finished || 0],
+                  ['Not fully complied', previewSummary.notFullyComplied || 0],
+                  ['Pending validations', previewSummary.pendingValidation || 0],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-xl border border-stone-200 bg-stone-50/70 p-3">
+                    <p className="text-xl font-semibold text-stone-900">{value}</p>
+                    <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-stone-500">{label}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {isScholarCountReport && previewRows.length > 0 ? (
               <div className="border-b border-stone-100 p-4">
                 <div className="mb-4 flex items-center justify-between gap-4">
@@ -879,7 +1045,7 @@ export default function ReportGeneration({
                   No records to preview
                 </p>
                 <p className="mt-1 text-xs text-stone-500">
-                  Try changing the academic year, benefactor, program, or semester.
+                  Try changing the academic year, program, RO Area, course, year level, gender, or status.
                 </p>
               </div>
             ) : (
@@ -934,7 +1100,7 @@ export default function ReportGeneration({
 
         <CardContent className="p-5 text-sm text-stone-500">
           Reports are generated directly from applications, active scholars,
-          payout batches, and endorsement records based on the filters above.
+          payout batches, endorsement records, and RO compliance data based on the filters above.
         </CardContent>
       </Card>
     </div>

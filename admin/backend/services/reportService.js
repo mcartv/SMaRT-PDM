@@ -35,6 +35,9 @@ function normalizeReportType(value) {
         'scholars_by_benefactor',
         'endorsements',
         'ro',
+        'ro_compliance',
+        'renewals',
+        'slot_utilization',
     ];
 
     if (!type) return 'applications';
@@ -62,7 +65,15 @@ function normalizeDate(value, fieldName) {
 }
 
 async function getReportMetadata() {
-    const [programsResult, yearsResult, benefactorsResult] = await Promise.all([
+    const [
+        programsResult,
+        yearsResult,
+        benefactorsResult,
+        coursesResult,
+        roAreasResult,
+        yearLevelsResult,
+        gendersResult,
+    ] = await Promise.all([
         pool.query(`
       SELECT program_id, program_name
       FROM scholarship_program
@@ -79,6 +90,35 @@ async function getReportMetadata() {
       FROM benefactors
       WHERE COALESCE(is_archived, FALSE) = FALSE
       ORDER BY benefactor_name ASC;
+    `),
+        pool.query(`
+      SELECT course_id, course_code, course_name
+      FROM academic_course
+      WHERE COALESCE(is_archived, FALSE) = FALSE
+      ORDER BY course_code ASC;
+    `),
+        pool.query(`
+      SELECT department_id, department_name
+      FROM ro_departments
+      WHERE COALESCE(is_active, TRUE) = TRUE
+      ORDER BY department_name ASC;
+    `),
+        pool.query(`
+      SELECT DISTINCT year_level
+      FROM students
+      WHERE year_level IS NOT NULL
+        AND TRIM(year_level::text) <> ''
+      ORDER BY year_level;
+    `),
+        pool.query(`
+      SELECT DISTINCT gender
+      FROM (
+        SELECT NULLIF(TRIM(COALESCE(st.sex_at_birth, smr.sex_at_birth)), '') AS gender
+        FROM students st
+        LEFT JOIN student_master_records smr ON smr.master_student_id = st.master_student_id
+      ) values_with_gender
+      WHERE gender IS NOT NULL
+      ORDER BY gender;
     `),
     ]);
 
@@ -129,6 +169,21 @@ async function getReportMetadata() {
                 name: 'RO Personnel-In-Charge Report',
                 sub: 'Assigned scholars, placement status, validated hours, and RO progress for your assigned area',
             },
+            {
+                id: 'ro_compliance',
+                name: 'RO Scholar Compliance Report',
+                sub: 'Finished and not fully complied scholars by RO Area, course, year level, and gender',
+            },
+            {
+                id: 'renewals',
+                name: 'Scholarship Renewal Report',
+                sub: 'Renewed and non-renewed scholars by academic period, program, and benefactor',
+            },
+            {
+                id: 'slot_utilization',
+                name: 'Scholarship Slot Utilization Report',
+                sub: 'Allocated, filled, available, and released scholarship slots by program and benefactor',
+            },
         ],
         programs: [
             { program_id: 'all', program_name: 'All Programs' },
@@ -148,7 +203,51 @@ async function getReportMetadata() {
             { benefactor_id: 'all', benefactor_name: 'All Benefactors' },
             ...(benefactorsResult.rows || []),
         ],
+        courses: [
+            { course_id: 'all', course_code: 'All Courses', course_name: 'All Courses' },
+            ...(coursesResult.rows || []),
+        ],
+        roAreas: [
+            { department_id: 'all', department_name: 'All RO Areas' },
+            ...(roAreasResult.rows || []),
+        ],
+        yearLevels: [
+            { value: 'all', label: 'All Year Levels' },
+            ...(yearLevelsResult.rows || []).map((row) => ({
+                value: String(row.year_level),
+                label: `Year ${row.year_level}`,
+            })),
+        ],
+        genders: [
+            { value: 'all', label: 'All Genders' },
+            ...(gendersResult.rows || []).map((row) => ({
+                value: String(row.gender),
+                label: String(row.gender),
+            })),
+        ],
     };
+}
+
+function appendScholarDetailFilters(
+    where,
+    params,
+    { courseId, yearLevel, gender } = {},
+    studentAlias = 'st'
+) {
+    if (courseId && courseId !== 'all') {
+        params.push(courseId);
+        where.push(`${studentAlias}.course_id = $${params.length}`);
+    }
+
+    if (yearLevel && yearLevel !== 'all') {
+        params.push(yearLevel);
+        where.push(`${studentAlias}.year_level::text = $${params.length}`);
+    }
+
+    if (gender && gender !== 'all') {
+        params.push(gender);
+        where.push(`LOWER(TRIM(COALESCE(${studentAlias}.sex_at_birth, ''))) = LOWER(TRIM($${params.length}))`);
+    }
 }
 
 const EXCEL_COLUMN_MAX_WIDTHS = {
@@ -242,6 +341,11 @@ async function getApplicationsRows({
     semester,
     programId,
     benefactorId,
+    courseId,
+    yearLevel,
+    gender,
+    dateFrom,
+    dateTo,
 }) {
     const params = [];
     const where = [`COALESCE(a.is_archived, FALSE) = FALSE`];
@@ -265,6 +369,9 @@ async function getApplicationsRows({
         params.push(benefactorId);
         where.push(`b.benefactor_id = $${params.length}`);
     }
+
+    appendScholarDetailFilters(where, params, { courseId, yearLevel, gender });
+    appendDateRange(where, params, 'a.submission_date', dateFrom, dateTo);
 
     const query = `
     SELECT
@@ -306,6 +413,11 @@ async function getScholarsRows({
     semester,
     programId,
     benefactorId,
+    courseId,
+    yearLevel,
+    gender,
+    dateFrom,
+    dateTo,
 }) {
     const params = [];
     const where = [
@@ -332,6 +444,9 @@ async function getScholarsRows({
         params.push(benefactorId);
         where.push(`b.benefactor_id = $${params.length}`);
     }
+
+    appendScholarDetailFilters(where, params, { courseId, yearLevel, gender });
+    appendDateRange(where, params, 'st.date_awarded', dateFrom, dateTo);
 
     const query = `
     SELECT
@@ -365,6 +480,11 @@ async function getScholarCountRows({
     semester,
     programId,
     benefactorId,
+    courseId,
+    yearLevel,
+    gender,
+    dateFrom,
+    dateTo,
 }) {
     const params = [];
     const where = [
@@ -391,6 +511,9 @@ async function getScholarCountRows({
         params.push(benefactorId);
         where.push(`b.benefactor_id = $${params.length}`);
     }
+
+    appendScholarDetailFilters(where, params, { courseId, yearLevel, gender });
+    appendDateRange(where, params, 'st.date_awarded', dateFrom, dateTo);
 
     const isSpecificBenefactor = benefactorId && benefactorId !== 'all';
 
@@ -422,7 +545,17 @@ async function getScholarCountRows({
     return rows;
 }
 
-async function getPayoutRows({ academicYearId, semester, programId }) {
+async function getPayoutRows({
+    academicYearId,
+    semester,
+    programId,
+    benefactorId,
+    courseId,
+    yearLevel,
+    gender,
+    dateFrom,
+    dateTo,
+}) {
     const params = [];
     const where = [`COALESCE(pb.is_archived, FALSE) = FALSE`];
 
@@ -440,6 +573,14 @@ async function getPayoutRows({ academicYearId, semester, programId }) {
         params.push(programId);
         where.push(`pb.program_id = $${params.length}`);
     }
+
+    if (benefactorId && benefactorId !== 'all') {
+        params.push(benefactorId);
+        where.push(`b.benefactor_id = $${params.length}`);
+    }
+
+    appendScholarDetailFilters(where, params, { courseId, yearLevel, gender });
+    appendDateRange(where, params, 'pb.payout_date', dateFrom, dateTo);
 
     const query = `
     SELECT
@@ -465,6 +606,7 @@ async function getPayoutRows({ academicYearId, semester, programId }) {
       pbs.remarks
     FROM payout_batches pb
     LEFT JOIN scholarship_program sp ON pb.program_id = sp.program_id
+    LEFT JOIN benefactors b ON sp.benefactor_id = b.benefactor_id
     LEFT JOIN academic_years ay ON pb.academic_year_id = ay.academic_year_id
     LEFT JOIN academic_period ap ON pb.period_id = ap.period_id
     LEFT JOIN payout_batch_students pbs ON pb.payout_batch_id = pbs.payout_batch_id
@@ -472,6 +614,220 @@ async function getPayoutRows({ academicYearId, semester, programId }) {
     WHERE ${where.join(' AND ')}
     ORDER BY pb.created_at DESC, st.last_name ASC;
   `;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+}
+
+async function getRenewalRows({
+    academicYearId,
+    semester,
+    programId,
+    benefactorId,
+    reviewResult,
+    courseId,
+    yearLevel,
+    dateFrom,
+    dateTo,
+}) {
+    const params = [];
+    const where = [`r.status IN ('Approved', 'Rejected')`];
+
+    if (academicYearId && academicYearId !== 'all') {
+        params.push(academicYearId);
+        where.push(`COALESCE(r.academic_year_id, renewal_period.academic_year_id) = $${params.length}`);
+    }
+
+    if (semester && semester !== 'all') {
+        params.push(semester);
+        where.push(`renewal_period.term = $${params.length}`);
+    }
+
+    if (programId && programId !== 'all') {
+        params.push(programId);
+        where.push(`r.program_id = $${params.length}`);
+    }
+
+    if (benefactorId && benefactorId !== 'all') {
+        params.push(benefactorId);
+        where.push(`b.benefactor_id = $${params.length}`);
+    }
+
+    appendScholarDetailFilters(where, params, { courseId, yearLevel });
+
+    const normalizedStatus = safeText(reviewResult || 'all').toLowerCase();
+    if (normalizedStatus === 'approved') {
+        where.push(`r.status = 'Approved'`);
+    } else if (normalizedStatus === 'rejected') {
+        where.push(`r.status = 'Rejected'`);
+    } else if (normalizedStatus !== 'all') {
+        throw createHttpError(400, 'Invalid scholarship renewal status filter.');
+    }
+
+    appendDateRange(
+        where,
+        params,
+        'COALESCE(r.reviewed_at, r.submitted_on, r.updated_at, r.created_at)',
+        dateFrom,
+        dateTo
+    );
+
+    const query = `
+      SELECT
+        r.renewal_id,
+        st.pdm_id,
+        CONCAT(st.last_name, ', ', st.first_name, CASE WHEN NULLIF(st.middle_name, '') IS NULL THEN '' ELSE CONCAT(' ', LEFT(st.middle_name, 1), '.') END) AS student_name,
+        sp.program_name,
+        b.benefactor_name,
+        ac.course_code,
+        ac.course_name,
+        st.year_level,
+        source_year.label AS previous_academic_year,
+        source_period.term AS previous_semester,
+        renewal_year.label AS applicable_academic_year,
+        renewal_period.term AS semester,
+        CASE
+          WHEN r.status = 'Approved' THEN 'Renewed'
+          WHEN r.status = 'Rejected' THEN 'Did Not Renew'
+        END AS renewal_status,
+        r.reviewed_at AS renewal_date,
+        r.submitted_on,
+        COALESCE(r.decision_reason, r.flagged_reason) AS remarks
+      FROM renewals r
+      JOIN students st ON st.student_id = r.student_id
+      LEFT JOIN academic_course ac ON ac.course_id = st.course_id
+      LEFT JOIN scholarship_program sp ON sp.program_id = r.program_id
+      LEFT JOIN benefactors b ON b.benefactor_id = sp.benefactor_id
+      LEFT JOIN academic_period renewal_period ON renewal_period.period_id = r.period_id
+      LEFT JOIN academic_years renewal_year
+        ON renewal_year.academic_year_id = COALESCE(r.academic_year_id, renewal_period.academic_year_id)
+      LEFT JOIN applications source_application ON source_application.application_id = r.application_id
+      LEFT JOIN program_openings source_opening ON source_opening.opening_id = source_application.opening_id
+      LEFT JOIN academic_period source_period ON source_period.period_id = source_opening.period_id
+      LEFT JOIN academic_years source_year ON source_year.academic_year_id = source_opening.academic_year_id
+      WHERE ${where.join(' AND ')}
+      ORDER BY COALESCE(r.reviewed_at, r.submitted_on, r.updated_at, r.created_at) DESC;
+    `;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+}
+
+async function getSlotUtilizationRows({
+    academicYearId,
+    semester,
+    programId,
+    benefactorId,
+    reviewResult,
+    dateFrom,
+    dateTo,
+}) {
+    const params = [];
+    const where = [];
+
+    if (academicYearId && academicYearId !== 'all') {
+        params.push(academicYearId);
+        where.push(`po.academic_year_id = $${params.length}`);
+    }
+
+    if (semester && semester !== 'all') {
+        params.push(semester);
+        where.push(`ap.term = $${params.length}`);
+    }
+
+    if (programId && programId !== 'all') {
+        params.push(programId);
+        where.push(`po.program_id = $${params.length}`);
+    }
+
+    if (benefactorId && benefactorId !== 'all') {
+        params.push(benefactorId);
+        where.push(`b.benefactor_id = $${params.length}`);
+    }
+
+    const normalizedStatus = safeText(reviewResult || 'all').toLowerCase();
+    if (normalizedStatus !== 'all') {
+        if (!['draft', 'open', 'closed', 'archived'].includes(normalizedStatus)) {
+            throw createHttpError(400, 'Invalid scholarship opening status filter.');
+        }
+        params.push(normalizedStatus);
+        where.push(`LOWER(CASE WHEN po.is_archived THEN 'archived' ELSE COALESCE(po.posting_status, 'draft') END) = $${params.length}`);
+    }
+
+    // program_openings.created_at is the persisted opening creation date and
+    // provides a stable basis for the optional date range.
+    appendDateRange(where, params, 'po.created_at', dateFrom, dateTo);
+
+    const query = `
+      WITH opening_slot_counts AS (
+        SELECT
+          po_count.opening_id,
+          COUNT(DISTINCT st_active.student_id)::int AS occupied_slots,
+          COUNT(DISTINCT st_removed.student_id)::int AS removed_scholars
+        FROM program_openings po_count
+        LEFT JOIN applications a_active
+          ON a_active.opening_id = po_count.opening_id
+         AND LOWER(COALESCE(a_active.application_status, '')) = 'approved'
+        LEFT JOIN students st_active
+          ON st_active.current_application_id = a_active.application_id
+         AND st_active.student_id = a_active.student_id
+         AND COALESCE(st_active.is_active_scholar, FALSE) = TRUE
+         AND LOWER(COALESCE(st_active.scholarship_status, '')) = 'active'
+         AND COALESCE(st_active.scholar_is_archived, FALSE) = FALSE
+        LEFT JOIN applications a_removed
+          ON a_removed.opening_id = po_count.opening_id
+         AND LOWER(COALESCE(a_removed.application_status, '')) = 'approved'
+        LEFT JOIN students st_removed
+          ON st_removed.current_application_id = a_removed.application_id
+         AND st_removed.student_id = a_removed.student_id
+         AND COALESCE(st_removed.scholar_is_archived, FALSE) = TRUE
+         AND LOWER(COALESCE(st_removed.scholarship_status, '')) = 'removed'
+        GROUP BY po_count.opening_id
+      ), normalized_counts AS (
+        SELECT
+          po_count.opening_id,
+          GREATEST(COALESCE(po_count.allocated_slots, 0), 0)::int AS total_slots,
+          LEAST(
+            GREATEST(COALESCE(po_count.allocated_slots, 0), 0),
+            GREATEST(COALESCE(counts.occupied_slots, 0), 0)
+          )::int AS filled_slots,
+          GREATEST(
+            GREATEST(COALESCE(po_count.allocated_slots, 0), 0) -
+            LEAST(
+              GREATEST(COALESCE(po_count.allocated_slots, 0), 0),
+              GREATEST(COALESCE(counts.occupied_slots, 0), 0)
+            ),
+            0
+          )::int AS available_slots,
+          GREATEST(COALESCE(counts.removed_scholars, 0), 0)::int AS removed_scholars
+        FROM program_openings po_count
+        LEFT JOIN opening_slot_counts counts ON counts.opening_id = po_count.opening_id
+      )
+      SELECT
+        po.opening_id,
+        po.opening_title,
+        sp.program_name,
+        b.benefactor_name,
+        ay.label AS academic_year,
+        ap.term AS semester,
+        counts.total_slots,
+        counts.filled_slots,
+        counts.available_slots,
+        LEAST(counts.available_slots, counts.removed_scholars)::int AS released_slots,
+        CASE
+          WHEN po.is_archived THEN 'Archived'
+          ELSE INITCAP(COALESCE(po.posting_status, 'draft'))
+        END AS opening_status,
+        po.created_at AS opening_created_at
+      FROM program_openings po
+      JOIN normalized_counts counts ON counts.opening_id = po.opening_id
+      LEFT JOIN scholarship_program sp ON sp.program_id = po.program_id
+      LEFT JOIN benefactors b ON b.benefactor_id = sp.benefactor_id
+      LEFT JOIN academic_years ay ON ay.academic_year_id = po.academic_year_id
+      LEFT JOIN academic_period ap ON ap.period_id = po.period_id
+      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+      ORDER BY ay.start_year DESC NULLS LAST, ap.term ASC NULLS LAST, sp.program_name ASC;
+    `;
 
     const { rows } = await pool.query(query, params);
     return rows;
@@ -485,6 +841,9 @@ async function getSdoRows({
     reviewResult,
     dateFrom,
     dateTo,
+    courseId,
+    yearLevel,
+    gender,
 }) {
     const params = [];
     const where = [`COALESCE(a.is_archived, FALSE) = FALSE`];
@@ -512,6 +871,8 @@ async function getSdoRows({
         params.push(benefactorId);
         where.push(`b.benefactor_id = $${params.length}`);
     }
+
+    appendScholarDetailFilters(where, params, { courseId, yearLevel, gender });
 
     if (normalizedReviewResult && normalizedReviewResult !== 'all') {
         if (normalizedReviewResult === 'pending') {
@@ -580,6 +941,9 @@ async function getGuidanceRows({
     reviewResult,
     dateFrom,
     dateTo,
+    courseId,
+    yearLevel,
+    gender,
 }) {
     const params = [];
     const where = [`COALESCE(a.is_archived, FALSE) = FALSE`];
@@ -607,6 +971,8 @@ async function getGuidanceRows({
         params.push(benefactorId);
         where.push(`b.benefactor_id = $${params.length}`);
     }
+
+    appendScholarDetailFilters(where, params, { courseId, yearLevel, gender });
 
     if (normalizedReviewResult && normalizedReviewResult !== 'all') {
         if (normalizedReviewResult === 'pending') {
@@ -674,6 +1040,9 @@ async function getPdRows({
     dateTo,
     pdUserId,
     consolidated = false,
+    courseId,
+    yearLevel,
+    gender,
 }) {
     const params = [];
     const where = [`COALESCE(a.is_archived, FALSE) = FALSE`];
@@ -711,6 +1080,8 @@ async function getPdRows({
         params.push(benefactorId);
         where.push(`b.benefactor_id = $${params.length}`);
     }
+
+    appendScholarDetailFilters(where, params, { courseId, yearLevel, gender });
 
     if (normalizedReviewResult && normalizedReviewResult !== 'all') {
         if (consolidated && normalizedReviewResult === 'pending') {
@@ -792,6 +1163,10 @@ async function getRoRows({
     dateFrom,
     dateTo,
     roUserId,
+    courseId,
+    yearLevel,
+    gender,
+    roAreaId,
 }) {
     if (!roUserId) {
         throw createHttpError(403, 'RO Personnel-In-Charge assignment is required for this report.');
@@ -817,6 +1192,13 @@ async function getRoRows({
     if (programId && programId !== 'all') {
         params.push(programId);
         where.push(`ro.program_id = $${params.length}`);
+    }
+
+    appendScholarDetailFilters(where, params, { courseId, yearLevel, gender });
+
+    if (roAreaId && roAreaId !== 'all') {
+        params.push(roAreaId);
+        where.push(`rp.ro_area_id = $${params.length}`);
     }
 
     const normalizedReviewResult = safeText(reviewResult || 'all').toLowerCase();
@@ -889,6 +1271,176 @@ async function getRoRows({
       ORDER BY
         CASE WHEN rp.placement_status = 'Approved' THEN 0 ELSE 1 END,
         COALESCE(rp.decided_at, rp.requested_at, rp.created_at) ASC;
+    `;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+}
+
+async function getRoComplianceRows({
+    academicYearId,
+    semester,
+    programId,
+    benefactorId,
+    reviewResult,
+    courseId,
+    yearLevel,
+    gender,
+    roAreaId,
+    dateFrom,
+    dateTo,
+}) {
+    const params = [];
+    const where = [
+        `EXISTS (
+            SELECT 1
+            FROM ro_placements rp_assigned
+            WHERE rp_assigned.ro_id = ro.ro_id
+              AND rp_assigned.placement_status = 'Approved'
+        )`,
+    ];
+
+    if (academicYearId && academicYearId !== 'all') {
+        params.push(academicYearId);
+        where.push(`COALESCE(ro.academic_year_id, po.academic_year_id) = $${params.length}`);
+    }
+
+    if (semester && semester !== 'all') {
+        params.push(semester);
+        where.push(`COALESCE(ro_period.term, opening_period.term) = $${params.length}`);
+    }
+
+    if (programId && programId !== 'all') {
+        params.push(programId);
+        where.push(`ro.program_id = $${params.length}`);
+    }
+
+    if (benefactorId && benefactorId !== 'all') {
+        params.push(benefactorId);
+        where.push(`b.benefactor_id = $${params.length}`);
+    }
+
+    if (courseId && courseId !== 'all') {
+        params.push(courseId);
+        where.push(`COALESCE(st.course_id, smr.course_id) = $${params.length}`);
+    }
+
+    if (yearLevel && yearLevel !== 'all') {
+        params.push(yearLevel);
+        where.push(`st.year_level::text = $${params.length}`);
+    }
+
+    if (gender && gender !== 'all') {
+        params.push(gender);
+        where.push(`LOWER(TRIM(COALESCE(st.sex_at_birth, smr.sex_at_birth, ''))) = LOWER(TRIM($${params.length}))`);
+    }
+
+    if (roAreaId && roAreaId !== 'all') {
+        params.push(roAreaId);
+        where.push(`EXISTS (
+            SELECT 1
+            FROM ro_placements rp_area
+            WHERE rp_area.ro_id = ro.ro_id
+              AND rp_area.placement_status = 'Approved'
+              AND rp_area.ro_area_id = $${params.length}
+        )`);
+    }
+
+    const normalizedCompliance = safeText(reviewResult || 'all').toLowerCase();
+    const finishedExpression = `(
+        COALESCE(ro.ro_status, '') = 'Cleared'
+        OR (
+          COALESCE(ro.required_hours, 0) > 0
+          AND COALESCE(ro.validated_minutes, 0) >= COALESCE(ro.required_hours, 0) * 60
+        )
+    )`;
+
+    if (normalizedCompliance === 'finished') {
+        where.push(finishedExpression);
+    } else if (normalizedCompliance === 'not_fully_complied') {
+        where.push(`NOT ${finishedExpression}`);
+    } else if (normalizedCompliance !== 'all') {
+        throw createHttpError(400, 'Invalid RO compliance status filter.');
+    }
+
+    appendDateRange(
+        where,
+        params,
+        `COALESCE(ro.assigned_at, ro.created_at)`,
+        safeText(dateFrom || ''),
+        safeText(dateTo || '')
+    );
+
+    const query = `
+      SELECT
+        ro.ro_id,
+        st.pdm_id,
+        CONCAT(st.last_name, ', ', st.first_name, CASE WHEN NULLIF(st.middle_name, '') IS NULL THEN '' ELSE CONCAT(' ', LEFT(st.middle_name, 1), '.') END) AS student_name,
+        COALESCE(u.email, st.email_address) AS email_address,
+        COALESCE(st.phone_number, u.phone_number) AS phone_number,
+        COALESCE(NULLIF(TRIM(st.sex_at_birth), ''), NULLIF(TRIM(smr.sex_at_birth), ''), 'Not specified') AS gender,
+        ac.course_code,
+        ac.course_name,
+        st.year_level,
+        sp.program_name,
+        b.benefactor_name,
+        COALESCE(ay.label, CONCAT(ay.start_year, '-', ay.end_year)) AS academic_year,
+        COALESCE(ro_period.term, opening_period.term) AS semester,
+        placement_details.assigned_areas,
+        placement_details.personnel_in_charge,
+        ro.required_hours,
+        ROUND(COALESCE(ro.submitted_minutes, 0)::numeric / 60, 2) AS submitted_hours,
+        ROUND(COALESCE(ro.validated_minutes, 0)::numeric / 60, 2) AS validated_hours,
+        ROUND(GREATEST(COALESCE(ro.required_hours, 0) * 60 - COALESCE(ro.validated_minutes, 0), 0)::numeric / 60, 2) AS remaining_hours,
+        CASE
+          WHEN COALESCE(ro.required_hours, 0) <= 0 THEN 0
+          ELSE LEAST(100, ROUND(COALESCE(ro.validated_minutes, 0)::numeric * 100 / (ro.required_hours * 60), 1))
+        END AS completion_percentage,
+        CASE WHEN ${finishedExpression} THEN 'Finished' ELSE 'Not Fully Complied' END AS compliance_status,
+        ro.progress_status,
+        ro.assignment_status,
+        ro.ro_status AS clearance_status,
+        COALESCE((
+          SELECT COUNT(*)
+          FROM ro_time_logs rtl
+          WHERE rtl.ro_id = ro.ro_id
+            AND rtl.log_status = 'Timed Out'
+            AND COALESCE(rtl.department_validation_status, 'Pending') = 'Pending'
+        ), 0)::int AS pending_validation_count,
+        placement_details.assigned_at,
+        ro.cleared_at
+      FROM return_of_obligations ro
+      JOIN students st ON st.student_id = ro.student_id
+      LEFT JOIN users u ON u.user_id = st.user_id
+      LEFT JOIN student_master_records smr ON smr.master_student_id = st.master_student_id
+      LEFT JOIN academic_course ac ON ac.course_id = COALESCE(st.course_id, smr.course_id)
+      LEFT JOIN scholarship_program sp ON sp.program_id = ro.program_id
+      LEFT JOIN benefactors b ON b.benefactor_id = sp.benefactor_id
+      LEFT JOIN program_openings po ON po.opening_id = ro.opening_id
+      LEFT JOIN academic_period opening_period ON opening_period.period_id = po.period_id
+      LEFT JOIN academic_period ro_period ON ro_period.period_id = ro.period_id
+      LEFT JOIN academic_years ay ON ay.academic_year_id = COALESCE(ro.academic_year_id, po.academic_year_id)
+      JOIN LATERAL (
+        SELECT
+          STRING_AGG(DISTINCT rd.department_name, ', ' ORDER BY rd.department_name) AS assigned_areas,
+          STRING_AGG(
+            DISTINCT NULLIF(TRIM(CONCAT_WS(' ', pic.first_name, pic.last_name)), ''),
+            ', '
+          ) AS personnel_in_charge,
+          MIN(COALESCE(rp.decided_at, rp.requested_at, rp.created_at)) AS assigned_at
+        FROM ro_placements rp
+        JOIN ro_departments rd ON rd.department_id = rp.ro_area_id
+        LEFT JOIN ro_area_coordinators rac
+          ON rac.coordinator_assignment_id = rp.coordinator_assignment_id
+        LEFT JOIN admin_profiles pic ON pic.user_id = rac.user_id
+        WHERE rp.ro_id = ro.ro_id
+          AND rp.placement_status = 'Approved'
+      ) placement_details ON placement_details.assigned_areas IS NOT NULL
+      WHERE ${where.join(' AND ')}
+      ORDER BY
+        CASE WHEN ${finishedExpression} THEN 0 ELSE 1 END,
+        st.last_name ASC,
+        st.first_name ASC;
     `;
 
     const { rows } = await pool.query(query, params);
@@ -974,6 +1526,23 @@ function buildOfficeSummary(reportType, rows = []) {
         });
     }
 
+    if (reportType === 'ro_compliance') {
+        summary.finished = 0;
+        summary.notFullyComplied = 0;
+        summary.pendingValidation = 0;
+
+        rows.forEach((row) => {
+            if (safeText(row.compliance_status).toLowerCase() === 'finished') {
+                summary.finished += 1;
+            } else {
+                summary.notFullyComplied += 1;
+            }
+            summary.pendingValidation += Number(row.pending_validation_count || 0);
+        });
+        summary.completed = summary.finished;
+        summary.pending = summary.notFullyComplied;
+    }
+
     return summary;
 }
 
@@ -996,101 +1565,76 @@ async function getRowsByReportType({
     dateTo,
     pdUserId,
     roUserId,
+    courseId,
+    yearLevel,
+    gender,
+    roAreaId,
 }) {
+    const sharedFilters = {
+        academicYearId,
+        semester,
+        programId,
+        benefactorId,
+        reviewResult,
+        dateFrom,
+        dateTo,
+        pdUserId,
+        roUserId,
+        courseId,
+        yearLevel,
+        gender,
+        roAreaId,
+    };
+
     if (reportType === 'applications') {
-        return await getApplicationsRows({
-            academicYearId,
-            semester,
-            programId,
-            benefactorId,
-        });
+        return await getApplicationsRows(sharedFilters);
     }
 
     if (reportType === 'scholars') {
-        return await getScholarsRows({
-            academicYearId,
-            semester,
-            programId,
-            benefactorId,
-        });
+        return await getScholarsRows(sharedFilters);
     }
 
     if (reportType === 'payouts') {
-        return await getPayoutRows({
-            academicYearId,
-            semester,
-            programId,
-        });
+        return await getPayoutRows(sharedFilters);
+    }
+
+    if (reportType === 'renewals') {
+        return await getRenewalRows(sharedFilters);
+    }
+
+    if (reportType === 'slot_utilization') {
+        return await getSlotUtilizationRows(sharedFilters);
     }
 
 
     if (reportType === 'scholars_by_benefactor') {
-        return await getScholarCountRows({
-            academicYearId,
-            semester,
-            programId,
-            benefactorId,
-        });
+        return await getScholarCountRows(sharedFilters);
     }
 
     if (reportType === 'sdo') {
-        return await getSdoRows({
-            academicYearId,
-            semester,
-            programId,
-            benefactorId,
-            reviewResult,
-            dateFrom,
-            dateTo,
-        });
+        return await getSdoRows(sharedFilters);
     }
 
     if (reportType === 'guidance') {
-        return await getGuidanceRows({
-            academicYearId,
-            semester,
-            programId,
-            benefactorId,
-            reviewResult,
-            dateFrom,
-            dateTo,
-        });
+        return await getGuidanceRows(sharedFilters);
     }
 
     if (reportType === 'pd') {
-        return await getPdRows({
-            academicYearId,
-            semester,
-            programId,
-            benefactorId,
-            reviewResult,
-            dateFrom,
-            dateTo,
-            pdUserId,
-        });
+        return await getPdRows(sharedFilters);
     }
 
     if (reportType === 'ro') {
-        return await getRoRows({
-            academicYearId,
-            semester,
-            programId,
-            reviewResult,
-            dateFrom,
-            dateTo,
-            roUserId,
-        });
+        return await getRoRows(sharedFilters);
+    }
+
+
+    if (reportType === 'ro_compliance') {
+        return await getRoComplianceRows(sharedFilters);
     }
 
     if (reportType === 'endorsements') {
         return await getPdRows({
-            academicYearId,
-            semester,
-            programId,
-            benefactorId,
-            reviewResult,
-            dateFrom,
-            dateTo,
+            ...sharedFilters,
             consolidated: true,
         });
     }
@@ -1110,6 +1654,10 @@ function normalizeReportQuery(query = {}) {
         dateTo: normalizeDate(query.dateTo || query.date_to || '', 'dateTo'),
         pdUserId: safeText(query.pdUserId || ''),
         roUserId: safeText(query.roUserId || ''),
+        courseId: safeText(query.courseId || query.course_id || 'all'),
+        yearLevel: safeText(query.yearLevel || query.year_level || 'all'),
+        gender: safeText(query.gender || 'all'),
+        roAreaId: safeText(query.roAreaId || query.ro_area_id || 'all'),
     };
 
     if (normalized.dateFrom && normalized.dateTo && normalized.dateFrom > normalized.dateTo) {
@@ -1127,7 +1675,7 @@ async function previewReport(query = {}) {
         reportType: normalized.reportType,
         total: rows.length,
         rows: rows.slice(0, 50),
-        summary: ['sdo', 'guidance', 'pd', 'ro'].includes(normalized.reportType)
+        summary: ['sdo', 'guidance', 'pd', 'ro', 'ro_compliance'].includes(normalized.reportType)
             ? buildOfficeSummary(normalized.reportType, rows)
             : null,
     };
@@ -1255,6 +1803,50 @@ async function generateExcelReport(query = {}) {
         filename = 'payout_batch_report.xlsx';
     }
 
+    if (normalized.reportType === 'renewals') {
+        sheet = workbook.addWorksheet('Scholarship Renewals');
+        sheet.columns = [
+            { header: 'Renewal ID', key: 'renewal_id' },
+            { header: 'Student Number', key: 'pdm_id' },
+            { header: 'Scholar Name', key: 'student_name' },
+            { header: 'Scholarship Program', key: 'program_name' },
+            { header: 'Benefactor', key: 'benefactor_name' },
+            { header: 'Course', key: 'course_code' },
+            { header: 'Course Name', key: 'course_name' },
+            { header: 'Year Level', key: 'year_level' },
+            { header: 'Previous Academic Year', key: 'previous_academic_year' },
+            { header: 'Previous Semester', key: 'previous_semester' },
+            { header: 'Applicable Academic Year', key: 'applicable_academic_year' },
+            { header: 'Semester', key: 'semester' },
+            { header: 'Renewal Status', key: 'renewal_status' },
+            { header: 'Renewal Date', key: 'renewal_date' },
+            { header: 'Submitted At', key: 'submitted_on' },
+            { header: 'Remarks / Reason', key: 'remarks' },
+        ];
+        rows = await getRenewalRows(normalized);
+        filename = 'scholarship_renewal_report.xlsx';
+    }
+
+    if (normalized.reportType === 'slot_utilization') {
+        sheet = workbook.addWorksheet('Slot Utilization');
+        sheet.columns = [
+            { header: 'Opening ID', key: 'opening_id' },
+            { header: 'Opening', key: 'opening_title' },
+            { header: 'Scholarship Program', key: 'program_name' },
+            { header: 'Benefactor', key: 'benefactor_name' },
+            { header: 'Academic Year', key: 'academic_year' },
+            { header: 'Semester', key: 'semester' },
+            { header: 'Total Slots', key: 'total_slots' },
+            { header: 'Filled Slots', key: 'filled_slots' },
+            { header: 'Available Slots', key: 'available_slots' },
+            { header: 'Released Slots', key: 'released_slots' },
+            { header: 'Opening Status', key: 'opening_status' },
+            { header: 'Opening Created At', key: 'opening_created_at' },
+        ];
+        rows = await getSlotUtilizationRows(normalized);
+        filename = 'scholarship_slot_utilization_report.xlsx';
+    }
+
     if (normalized.reportType === 'sdo') {
         sheet = workbook.addWorksheet('SDO Endorsements');
         sheet.columns = [
@@ -1361,6 +1953,41 @@ async function generateExcelReport(query = {}) {
         ];
         rows = await getRoRows(normalized);
         filename = 'ro_coordinator_report.xlsx';
+    }
+
+    if (normalized.reportType === 'ro_compliance') {
+        sheet = workbook.addWorksheet('RO Scholar Compliance');
+        sheet.columns = [
+            { header: 'RO ID', key: 'ro_id' },
+            { header: 'Student Number', key: 'pdm_id' },
+            { header: 'Student Name', key: 'student_name' },
+            { header: 'Email', key: 'email_address' },
+            { header: 'Mobile Number', key: 'phone_number' },
+            { header: 'Gender', key: 'gender' },
+            { header: 'Course', key: 'course_code' },
+            { header: 'Course Name', key: 'course_name' },
+            { header: 'Year Level', key: 'year_level' },
+            { header: 'Scholarship Program', key: 'program_name' },
+            { header: 'Benefactor', key: 'benefactor_name' },
+            { header: 'Academic Year', key: 'academic_year' },
+            { header: 'Semester', key: 'semester' },
+            { header: 'Assigned RO Area', key: 'assigned_areas' },
+            { header: 'Personnel-In-Charge', key: 'personnel_in_charge' },
+            { header: 'Required Hours', key: 'required_hours' },
+            { header: 'Submitted Hours', key: 'submitted_hours' },
+            { header: 'Validated Hours', key: 'validated_hours' },
+            { header: 'Remaining Hours', key: 'remaining_hours' },
+            { header: 'Completion %', key: 'completion_percentage' },
+            { header: 'Compliance Status', key: 'compliance_status' },
+            { header: 'Progress Status', key: 'progress_status' },
+            { header: 'Assignment Status', key: 'assignment_status' },
+            { header: 'Clearance Status', key: 'clearance_status' },
+            { header: 'Pending Validation', key: 'pending_validation_count' },
+            { header: 'Assigned At', key: 'assigned_at' },
+            { header: 'Cleared At', key: 'cleared_at' },
+        ];
+        rows = await getRoComplianceRows(normalized);
+        filename = 'ro_scholar_compliance_report.xlsx';
     }
 
     if (normalized.reportType === 'endorsements') {

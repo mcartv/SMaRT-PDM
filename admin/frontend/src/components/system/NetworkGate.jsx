@@ -34,52 +34,100 @@ export function PublicLogoLoader({ status, isRetrying, onRetry }) {
 
   return (
     <div
-      className="flex min-h-screen items-center justify-center bg-white px-6"
+      className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-[#f7f6f3] px-4 py-10 sm:px-6"
       role="status"
       aria-live="polite"
       aria-busy={checking}
     >
-      <div className="w-full max-w-sm text-center">
-        <div className="relative mx-auto flex h-28 w-28 items-center justify-center">
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#6f3f24] via-[#d6a800] to-[#6f3f24]"
+        aria-hidden="true"
+      />
+
+      <div className="w-full max-w-[440px]">
+        <div className="rounded-[28px] border border-stone-200/90 bg-white px-6 py-8 text-center shadow-[0_24px_70px_-38px_rgba(75,48,30,0.45)] sm:px-9 sm:py-10">
+          <div className="relative mx-auto flex h-24 w-24 items-center justify-center">
+            {checking ? (
+              <>
+                <span
+                  className="absolute inset-0 rounded-full border border-amber-900/10 bg-amber-50/60"
+                  aria-hidden="true"
+                />
+                <span
+                  className="absolute inset-1 animate-spin rounded-full border-2 border-transparent border-t-[#8a5a38] motion-reduce:animate-none"
+                  aria-hidden="true"
+                />
+              </>
+            ) : (
+              <>
+                <span
+                  className="absolute inset-0 rounded-full border border-amber-900/10 bg-[#fbf6ed]"
+                  aria-hidden="true"
+                />
+                <span
+                  className="absolute inset-2 rounded-full border border-[#d9b567]/35 bg-white shadow-sm"
+                  aria-hidden="true"
+                />
+              </>
+            )}
+
+            <img
+              src={pdmLogo}
+              alt=""
+              className={`relative h-[68px] w-[68px] object-contain ${
+                checking ? 'animate-pulse motion-reduce:animate-none' : ''
+              }`}
+            />
+          </div>
+
           {checking ? (
-            <>
-              <span className="absolute inset-0 animate-ping rounded-full bg-amber-900/10 motion-reduce:animate-none" aria-hidden="true" />
-              <span className="absolute inset-2 animate-pulse rounded-full border border-amber-900/15 bg-white shadow-sm motion-reduce:animate-none" aria-hidden="true" />
-            </>
+            <div className="mt-6">
+              <p className="text-[17px] font-semibold tracking-[-0.01em] text-stone-900">
+                Connecting to SMaRT-PDM
+              </p>
+              <p className="mx-auto mt-2 max-w-xs text-[13px] leading-5 text-stone-500">
+                Checking server availability. This should only take a moment.
+              </p>
+            </div>
           ) : (
-            <span className="absolute inset-2 rounded-full border border-red-200 bg-red-50" aria-hidden="true" />
+            <>
+              <div className="mt-6 inline-flex items-center gap-1.5 rounded-full border border-red-100 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700">
+                <WifiOff className="h-3.5 w-3.5" aria-hidden="true" />
+                Connection unavailable
+              </div>
+
+              <h1 className="mt-4 text-[21px] font-semibold tracking-[-0.02em] text-stone-900 sm:text-[22px]">
+                Connection interrupted
+              </h1>
+              <p className="mx-auto mt-2 max-w-sm text-[13px] leading-5 text-stone-500">
+                SMaRT-PDM cannot reach the server right now. Check your internet connection, then try again.
+              </p>
+
+              <button
+                type="button"
+                onClick={onRetry}
+                className="mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#704127] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#5f351f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b98a58]/40 focus-visible:ring-offset-2 active:bg-[#542f1c]"
+              >
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                Try again
+              </button>
+
+              <p className="mt-3 text-[11px] leading-4 text-stone-400">
+                Your session and saved records are not affected by this connection screen.
+              </p>
+            </>
           )}
-          <img
-            src={pdmLogo}
-            alt=""
-            className={`relative h-20 w-20 object-contain ${checking ? 'animate-pulse motion-reduce:animate-none' : 'opacity-70'}`}
-          />
+
+          <span className="sr-only">
+            {checking
+              ? 'Loading SMaRT-PDM.'
+              : 'The SMaRT-PDM server is currently unreachable.'}
+          </span>
         </div>
 
-        {!checking ? (
-          <>
-            <p className="mt-5 text-sm font-bold tracking-wide text-stone-900">
-              Connection interrupted
-            </p>
-            <p className="mt-1.5 text-xs leading-5 text-stone-500">
-              SMaRT-PDM cannot reach the server right now.
-            </p>
-            <button
-              type="button"
-              onClick={onRetry}
-              className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[var(--portal-base)] px-5 text-xs font-semibold text-white shadow-sm transition hover:bg-[var(--portal-active)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)]/30 focus-visible:ring-offset-2"
-            >
-              <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-              Try again
-            </button>
-          </>
-        ) : null}
-
-        <span className="sr-only">
-          {checking
-            ? 'Loading SMaRT-PDM.'
-            : 'The SMaRT-PDM server is currently unreachable.'}
-        </span>
+        <p className="mt-4 text-center text-[11px] text-stone-400">
+          SMaRT-PDM · Pambayang Dalubhasaan ng Marilao
+        </p>
       </div>
     </div>
   );
@@ -201,6 +249,7 @@ export default function NetworkGate({ children }) {
           <button type="button" onClick={() => setSlowConnection(false)} className="text-xs font-semibold text-amber-800" aria-label="Dismiss slow network message">×</button>
         </div>
       ) : null}
+
       <div ref={contentRef} className={blocked ? 'hidden' : undefined}>
         {children}
       </div>

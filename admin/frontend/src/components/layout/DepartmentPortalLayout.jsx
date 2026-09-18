@@ -88,8 +88,13 @@ export default function DepartmentPortalLayout({
   const [profilePhotoPreviewOpen, setProfilePhotoPreviewOpen] = useState(false);
   const {
     notifications,
+    filteredNotifications,
+    majorNotifications,
     newNotifications,
     earlierNotifications,
+    categoryFilter,
+    setCategoryFilter,
+    notificationCategories,
     unreadCount,
     loading: notificationsLoading,
     markingAll,
@@ -443,9 +448,71 @@ export default function DepartmentPortalLayout({
                       ) : null}
                     </div>
                   </div>
+
+                  <div className="overflow-x-auto border-b border-stone-100 bg-white px-3 py-2.5">
+                    <div className="flex min-w-max items-center gap-1.5">
+                      {notificationCategories.map((option) => {
+                        const active = categoryFilter === option.value;
+                        const critical = option.value === 'disqualification';
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setCategoryFilter(option.value)}
+                            className="rounded-full border px-2.5 py-1 text-[11px] font-semibold transition"
+                            style={active
+                              ? critical
+                                ? {
+                                    borderColor: forceDarkMode ? '#7f1d1d' : '#fecaca',
+                                    background: forceDarkMode
+                                      ? 'color-mix(in srgb, #dc2626 18%, var(--bg-secondary))'
+                                      : '#fef2f2',
+                                    color: forceDarkMode ? '#fca5a5' : '#b91c1c',
+                                  }
+                                : {
+                                    borderColor: forceDarkMode ? 'var(--border-default)' : theme.base,
+                                    background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft,
+                                    color: forceDarkMode ? 'var(--text-main)' : theme.base,
+                                  }
+                              : {
+                                  borderColor: forceDarkMode ? 'var(--border-default)' : '#e7e5e4',
+                                  background: forceDarkMode ? 'var(--bg-secondary)' : '#fff',
+                                  color: forceDarkMode ? 'var(--text-secondary)' : '#57534e',
+                                }}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   <div className="max-h-80 overflow-y-auto">
-                    {notifications.length > 0 ? (
+                    {filteredNotifications.length > 0 ? (
                       <>
+                        {majorNotifications.length > 0 ? (
+                          <>
+                            <div className="border-b px-4 py-2" style={{ borderColor: '#fecaca', background: forceDarkMode ? 'color-mix(in srgb, #dc2626 14%, var(--bg-secondary))' : '#fef2f2' }}>
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: forceDarkMode ? '#fca5a5' : '#b91c1c' }}>Major Priority</p>
+                            </div>
+                            {majorNotifications.map((item) => (
+                              <button
+                                key={item.notification_id}
+                                type="button"
+                                onClick={() => { setNotifOpen(false); openNotification(item, navigate); }}
+                                className="w-full border-b border-l-4 px-4 py-3 text-left transition hover:brightness-[0.98]"
+                                style={{ borderLeftColor: '#dc2626', background: forceDarkMode ? 'color-mix(in srgb, #dc2626 12%, var(--bg-secondary))' : '#fff7f7' }}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <p className="text-[13px] font-semibold leading-[18px] text-stone-900">{item.title || 'Disqualification Notice'}</p>
+                                  <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide" style={{ background: forceDarkMode ? '#7f1d1d' : '#fee2e2', color: forceDarkMode ? '#fecaca' : '#b91c1c' }}>Major</span>
+                                </div>
+                                <p className="mt-1 line-clamp-2 text-xs leading-[18px] text-stone-600">{item.message || 'Open notification'}</p>
+                                <p className="mt-1.5 text-[11px] font-medium text-stone-400">{formatNotificationTime(item.created_at)}</p>
+                              </button>
+                            ))}
+                          </>
+                        ) : null}
                         {newNotifications.length > 0 ? (
                           <div className="border-b border-stone-100 px-4 py-2" style={{ background: forceDarkMode ? 'var(--bg-subtle)' : theme.accentSoft }}>
                             <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: forceDarkMode ? 'var(--text-secondary)' : theme.base }}>
@@ -523,7 +590,7 @@ export default function DepartmentPortalLayout({
                       </>
                     ) : (
                       <div className="p-8 text-center text-sm text-stone-400">
-                        {notificationsLoading ? 'Loading notifications...' : 'No new notifications'}
+                        {notificationsLoading ? 'Loading notifications...' : 'No notifications in this category'}
                       </div>
                     )}
                   </div>

@@ -2,8 +2,55 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buildApiUrl } from '@/config/api';
 import { useSocketListener } from './useSocket';
 
+const NOTIFICATION_CATEGORY_OPTIONS = Object.freeze([
+  { value: 'all', label: 'All' },
+  { value: 'need_review', label: 'Need Review' },
+  { value: 'ro', label: 'RO' },
+  { value: 'disqualification', label: 'Disqualification Notice' },
+]);
+
+const NOTIFICATION_PRIORITY_RANK = Object.freeze({ major: 30, normal: 20, minor: 10 });
+
+function deriveNotificationCategory(notification = {}) {
+  const type = String(notification.type || '').trim().toLowerCase();
+  const title = String(notification.title || '').trim().toLowerCase();
+  const message = String(notification.message || '').trim().toLowerCase();
+  const referenceType = String(notification.reference_type || '').trim().toLowerCase();
+  const combined = [type, title, message, referenceType].filter(Boolean).join(' ');
+
+  if (
+    type === 'disqualification notice' ||
+    combined.includes('disqualif') ||
+    combined.includes('major offense') ||
+    combined.includes('major disciplinary offense') ||
+    combined.includes('endorsement stopped')
+  ) return 'disqualification';
+
+  if (
+    ['return_of_obligation', 'ro_time_log', 'ro_scholar_request'].includes(referenceType) ||
+    type.includes('return of obligation') || /\bro\b/.test(type) || /\bro\b/.test(title)
+  ) return 'ro';
+
+  if (
+    ['application_document', 'document_review', 'profile_photo_review', 'renewal_document'].includes(referenceType) ||
+    combined.includes('review pending') || combined.includes('pending review') ||
+    combined.includes('need review') || combined.includes('needs review') ||
+    combined.includes('review required') ||
+    (combined.includes('ready for') && combined.includes('review')) ||
+    combined.includes('submitted for review')
+  ) return 'need_review';
+
+  return 'other';
+}
+
+function deriveNotificationPriority(category) {
+  if (category === 'disqualification') return 'major';
+  if (category === 'need_review' || category === 'ro') return 'normal';
+  return 'minor';
+}
+
 function normalizeNotification(raw = {}) {
-  return {
+  const normalized = {
     notification_id: raw.notification_id || raw.notificationId || raw.id || '',
     user_id: raw.user_id || raw.userId || '',
     type: raw.type || 'General',
@@ -15,11 +62,17 @@ function normalizeNotification(raw = {}) {
     read_at: raw.read_at || raw.readAt || null,
     created_at: raw.created_at || raw.createdAt || null,
   };
+  const category = deriveNotificationCategory(normalized);
+  return { ...normalized, category, priority: deriveNotificationPriority(category) };
 }
 
-
+// SMART_PDM_NOTIFICATION_CATEGORY_PRIORITY_V2
 function sortNotifications(items = []) {
   return [...items].sort((a, b) => {
+    const priorityDifference =
+      (NOTIFICATION_PRIORITY_RANK[b.priority] || 0) -
+      (NOTIFICATION_PRIORITY_RANK[a.priority] || 0);
+    if (priorityDifference !== 0) return priorityDifference;
     const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
     const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
     return bTime - aTime;
@@ -130,9 +183,10 @@ function buildNotificationTarget(portalRootPath, notification) {
 export default function usePortalNotifications({
   tokenStorageKey,
   portalRootPath,
-  limit = 8,
+  limit = 30,
 }) {
   const [items, setItems] = useState([]);
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [unreadCount, setUnreadCount] = useState(0);
   const knownNotificationIdsRef = useRef(new Set());
   const [loading, setLoading] = useState(true);
@@ -431,14 +485,29 @@ export default function usePortalNotifications({
     },
   });
 
+  const filteredNotifications = useMemo(
+    () => categoryFilter === 'all' ? items : items.filter((item) => item.category === categoryFilter),
+    [categoryFilter, items]
+  );
+
+  const majorNotifications = useMemo(
+    () => filteredNotifications.filter((item) => item.priority === 'major'),
+    [filteredNotifications]
+  );
+
+  const standardNotifications = useMemo(
+    () => filteredNotifications.filter((item) => item.priority !== 'major'),
+    [filteredNotifications]
+  );
+
   const newNotifications = useMemo(
-    () => items.filter((item) => isRecentNotification(item, sectionNow)),
-    [items, sectionNow]
+    () => standardNotifications.filter((item) => isRecentNotification(item, sectionNow)),
+    [sectionNow, standardNotifications]
   );
 
   const earlierNotifications = useMemo(
-    () => items.filter((item) => !isRecentNotification(item, sectionNow)),
-    [items, sectionNow]
+    () => standardNotifications.filter((item) => !isRecentNotification(item, sectionNow)),
+    [sectionNow, standardNotifications]
   );
 
   const openNotification = useCallback(
@@ -472,8 +541,13 @@ export default function usePortalNotifications({
 
   return {
     notifications: items,
+    filteredNotifications,
+    majorNotifications,
     newNotifications,
     earlierNotifications,
+    categoryFilter,
+    setCategoryFilter,
+    notificationCategories: NOTIFICATION_CATEGORY_OPTIONS,
     unreadCount,
     loading,
     markingAll,

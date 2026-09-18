@@ -608,6 +608,120 @@ function FilterModal({
   );
 }
 
+function ProgramHistoryPanel({
+  history = [],
+  currentApplicationId = null,
+  currentPeriodId = null,
+}) {
+  const rows = Array.isArray(history) ? history : [];
+
+  return (
+    <Card className="overflow-hidden border-stone-200 shadow-none">
+      <div className="flex items-center justify-between gap-3 border-b border-stone-100 bg-stone-50/70 px-4 py-3.5">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-stone-600 shadow-sm">
+            <BookOpen className="h-4 w-4" />
+          </div>
+          <div>
+            <h4 className="text-base font-semibold text-stone-800">
+              Scholarship Program History
+            </h4>
+            <p className="mt-1 text-xs leading-5 text-stone-500">
+              Scholarship programs applied for by academic period
+            </p>
+          </div>
+        </div>
+
+        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-stone-500 shadow-sm">
+          {rows.length} record{rows.length === 1 ? '' : 's'}
+        </span>
+      </div>
+
+      <CardContent className="p-4">
+        {rows.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50 px-4 py-6 text-center">
+            <BookOpen className="mx-auto mb-2 h-5 w-5 text-stone-300" />
+            <p className="text-sm font-medium text-stone-500">
+              No scholarship application history has been recorded yet.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {rows.map((item) => {
+              const isCurrent =
+                String(item.application_id || '') ===
+                  String(currentApplicationId || '') ||
+                (
+                  currentPeriodId &&
+                  String(item.period_id || '') === String(currentPeriodId)
+                );
+
+              const period = [
+                item.semester,
+                item.academic_year ? `AY ${item.academic_year}` : '',
+              ].filter(Boolean).join(' · ');
+
+              return (
+                <div
+                  key={item.application_id}
+                  className="rounded-xl border border-stone-200 bg-white px-3.5 py-3"
+                >
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-stone-800">
+                          {item.program_name || 'Scholarship Program'}
+                        </p>
+
+                        {isCurrent ? (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                            Current
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <p className="mt-1 text-xs leading-5 text-stone-500">
+                        {period || 'Academic period not recorded'}
+                      </p>
+
+                      {item.opening_title ? (
+                        <p className="mt-0.5 text-[11px] text-stone-400">
+                          {item.opening_title}
+                        </p>
+                      ) : null}
+
+                      <p className="mt-2 text-xs text-stone-500">
+                        RO Assigned Office:{' '}
+                        <span className="font-medium text-stone-700">
+                          {item.ro_assigned_office || 'No office recorded'}
+                        </span>
+                      </p>
+                    </div>
+
+                    <div className="shrink-0 text-left sm:text-right">
+                      <span className="inline-flex rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-semibold text-stone-600">
+                        {item.history_status ||
+                          item.application_status ||
+                          'Applied'}
+                      </span>
+
+                      <p className="mt-1.5 text-[11px] text-stone-400">
+                        Applied {formatDate(item.applied_at)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// SMART_PDM_SCHOLAR_PROFILE_PROGRAM_HISTORY_V1
+
 function ObligationHistoryPanel({ studentId }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1010,7 +1124,7 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
               Scholar Profile
             </h3>
             <p className="mt-1 text-sm text-stone-500">
-              Scholar information, current standing, and obligation history
+              Scholar information, scholarship history, current standing, and obligation history
             </p>
           </div>
 
@@ -1232,9 +1346,17 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
             </section>
 
             <section className="min-h-0 overflow-y-auto bg-stone-50/45 p-4 sm:p-5 lg:p-6">
-              <ObligationHistoryPanel
-                studentId={s.student_id || s.scholar_id}
-              />
+              <div className="space-y-4">
+                <ProgramHistoryPanel
+                  history={s.program_history}
+                  currentApplicationId={s.application_id}
+                  currentPeriodId={s.period_id}
+                />
+
+                <ObligationHistoryPanel
+                  studentId={s.student_id || s.scholar_id}
+                />
+              </div>
             </section>
           </div>
         )}
@@ -1612,6 +1734,15 @@ export default function ScholarMonitoring() {
       setProfileLoading(false);
     }
   };
+
+  useEffect(() => {
+    const requestedStudentId =
+      new URLSearchParams(location.search).get('student');
+
+    if (!requestedStudentId) return;
+
+    void handleViewScholar(requestedStudentId);
+  }, [location.search]);
 
   const handleArchiveScholar = async (payload) => {
     if (!archiveModalScholar) return;

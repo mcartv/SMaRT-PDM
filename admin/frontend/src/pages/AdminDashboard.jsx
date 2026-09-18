@@ -25,11 +25,14 @@ import {
   CircleDollarSign,
   ClipboardCheck,
   Clock3,
+  Eye,
   FileCheck2,
+  History,
   LayoutDashboard,
   Megaphone,
   RefreshCw,
   UsersRound,
+  X,
 } from 'lucide-react';
 import {
   Bar,
@@ -188,6 +191,146 @@ function ActionRow({ item, onOpen }) {
   );
 }
 
+function StudentHistoryModal({
+  open,
+  rows,
+  loading,
+  error,
+  onClose,
+  onViewProfile,
+}) {
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/35 p-3 backdrop-blur-sm sm:p-5"
+      onClick={onClose}
+    >
+      <Card
+        className="flex max-h-[88vh] w-full max-w-[78rem] flex-col overflow-hidden rounded-2xl border-stone-200 bg-white shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-stone-100 bg-white px-5 py-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <History className="h-4 w-4 text-stone-500" />
+              <h3 className="text-lg font-semibold text-stone-900">
+                Student Scholarship History
+              </h3>
+            </div>
+            <p className="mt-1 text-sm text-stone-500">
+              Quick view of the current scholarship, previous-semester application, and RO office.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-2 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+            aria-label="Close student history"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-auto">
+          {loading ? (
+            <div className="flex min-h-[220px] items-center justify-center text-sm text-stone-500">
+              Loading student history...
+            </div>
+          ) : error ? (
+            <div className="m-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="flex min-h-[220px] flex-col items-center justify-center gap-2 text-center">
+              <History className="h-6 w-6 text-stone-300" />
+              <p className="text-sm font-medium text-stone-500">
+                No active scholar history is available yet.
+              </p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="min-w-[210px] pl-5">Student</TableHead>
+                  <TableHead className="min-w-[210px]">Current Scholarship</TableHead>
+                  <TableHead className="min-w-[250px]">Previous Semester</TableHead>
+                  <TableHead className="min-w-[190px]">RO Assigned Office</TableHead>
+                  <TableHead className="min-w-[120px] pr-5 text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+
+              <TableBody>
+                {rows.map((row) => {
+                  const previousPeriod = [
+                    row.previous_semester,
+                    row.previous_academic_year
+                      ? `AY ${row.previous_academic_year}`
+                      : '',
+                  ].filter(Boolean).join(' · ');
+
+                  return (
+                    <TableRow key={row.student_id || row.scholar_id}>
+                      <TableCell className="py-3 pl-5">
+                        <p className="text-sm font-semibold text-stone-800">
+                          {row.student_name || 'Unknown Scholar'}
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-stone-400">
+                          {row.student_number || 'No Student ID'}
+                        </p>
+                      </TableCell>
+
+                      <TableCell className="py-3">
+                        <p className="text-sm font-medium text-stone-700">
+                          {row.program_name || 'No current program'}
+                        </p>
+                      </TableCell>
+
+                      <TableCell className="py-3">
+                        <p className="text-sm font-medium text-stone-700">
+                          {row.previous_program_name || 'No previous-semester application'}
+                        </p>
+                        {previousPeriod ? (
+                          <p className="mt-0.5 text-[11px] text-stone-400">
+                            {previousPeriod}
+                          </p>
+                        ) : null}
+                      </TableCell>
+
+                      <TableCell className="py-3">
+                        <p className="text-sm text-stone-600">
+                          {row.previous_ro_assigned_office || 'No RO office recorded'}
+                        </p>
+                      </TableCell>
+
+                      <TableCell className="py-3 pr-5 text-right">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-8 rounded-lg border-stone-200 px-2.5 text-[11px] font-semibold"
+                          onClick={() =>
+                            onViewProfile(row.student_id || row.scholar_id)
+                          }
+                        >
+                          <Eye className="mr-1.5 h-3.5 w-3.5" />
+                          View Profile
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// SMART_PDM_DASHBOARD_STUDENT_HISTORY_V1
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const { theme } = usePortalTheme('admin');
@@ -203,6 +346,10 @@ export default function AdminDashboard() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [studentHistoryOpen, setStudentHistoryOpen] = useState(false);
+  const [studentHistoryRows, setStudentHistoryRows] = useState([]);
+  const [studentHistoryLoading, setStudentHistoryLoading] = useState(false);
+  const [studentHistoryError, setStudentHistoryError] = useState('');
 
   const loadDashboard = useCallback(async (options = {}) => {
     const silent = options.silent === true;
@@ -270,6 +417,49 @@ export default function AdminDashboard() {
   useEffect(() => {
     loadDashboard({ audit: true, fresh: true });
   }, [loadDashboard]);
+
+  const openStudentHistory = useCallback(async () => {
+    setStudentHistoryOpen(true);
+    setStudentHistoryLoading(true);
+    setStudentHistoryError('');
+
+    try {
+      const token = sessionStorage.getItem('adminToken') || '';
+      const response = await fetch(buildApiUrl('/api/scholars'), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const payload = await response.json().catch(() => []);
+
+      if (!response.ok) {
+        throw new Error(
+          payload?.message ||
+          payload?.error ||
+          'Failed to load student scholarship history.'
+        );
+      }
+
+      const rows = Array.isArray(payload) ? payload : [];
+
+      setStudentHistoryRows(
+        [...rows].sort((a, b) =>
+          String(a.student_name || '').localeCompare(
+            String(b.student_name || '')
+          )
+        )
+      );
+    } catch (historyError) {
+      console.error('DASHBOARD STUDENT HISTORY ERROR:', historyError);
+      setStudentHistoryError(
+        historyError?.message ||
+        'Failed to load student scholarship history.'
+      );
+    } finally {
+      setStudentHistoryLoading(false);
+    }
+  }, []);
 
   const refreshRealtime = useCallback(() => {
     loadDashboard({ silent: true, fresh: true });
@@ -718,15 +908,29 @@ export default function AdminDashboard() {
             style={{ borderColor: C.border, background: C.surface }}
           >
             <CardHeader className="border-b border-stone-100">
-              <div className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-stone-500" />
-                <CardTitle className="text-base font-semibold">
-                  Active Scholars by Benefactor
-                </CardTitle>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-stone-500" />
+                    <CardTitle className="text-base font-semibold">
+                      Active Scholars by Benefactor
+                    </CardTitle>
+                  </div>
+                  <p className="mt-1 text-sm text-stone-500">
+                    Distribution of currently active scholars across benefactors.
+                  </p>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 shrink-0 rounded-lg border-stone-200 px-2.5 text-[11px] font-semibold"
+                  onClick={openStudentHistory}
+                >
+                  <History className="mr-1.5 h-3.5 w-3.5" />
+                  View Student History
+                </Button>
               </div>
-              <p className="text-sm text-stone-500">
-                Distribution of currently active scholars across benefactors.
-              </p>
             </CardHeader>
 
             <CardContent className="grid min-h-[250px] min-w-0 grid-cols-1 gap-5 p-5 lg:grid-cols-[minmax(0,0.92fr)_minmax(220px,1fr)]">
@@ -944,6 +1148,20 @@ export default function AdminDashboard() {
           </Table>
         </div>
       </Card>
+
+      <StudentHistoryModal
+        open={studentHistoryOpen}
+        rows={studentHistoryRows}
+        loading={studentHistoryLoading}
+        error={studentHistoryError}
+        onClose={() => setStudentHistoryOpen(false)}
+        onViewProfile={(studentId) => {
+          setStudentHistoryOpen(false);
+          navigate(
+            `/admin/scholars?student=${encodeURIComponent(studentId)}`
+          );
+        }}
+      />
     </div>
   );
 }

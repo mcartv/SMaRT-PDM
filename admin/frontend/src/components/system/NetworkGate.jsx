@@ -4,11 +4,15 @@ import { buildApiUrl } from '@/api';
 import pdmLogo from '@/assets/pdm-logo.png';
 
 const CHECK_INTERVAL_MS = 15_000;
-const CHECK_TIMEOUT_MS = 8_000;
+const CHECK_TIMEOUT_MS = 12_000;
+const PUBLIC_CONNECT_GRACE_MS = 90_000;
+const PUBLIC_CONNECT_RETRY_MS = 3_000;
 const SLOW_CONNECTION_MS = 2_500;
+const ENTRY_NETWORK_GATE_MIN_MS = 650;
+const POST_CONNECT_LOGO_LOADER_MS = 900;
 const PUBLIC_REFRESH_LOADER_MIN_MS = 1_500;
-const PUBLIC_VISIT_LOADER_MIN_MS = 250;
-const PUBLIC_ENTRY_PATHS = new Set([
+const PUBLIC_VISIT_LOADER_MIN_MS = 450;
+const PUBLIC_CHECK_PATHS = new Set([
   '/',
   '/landing',
   '/login',
@@ -18,11 +22,32 @@ const PUBLIC_ENTRY_PATHS = new Set([
   '/guidance/login',
   '/sdo/login',
   '/ro-coordinator/login',
+  '/about',
+  '/about/pdm',
+  '/about/smart-pdm',
+  '/about/developers',
+  '/how-to-apply',
+  '/how-to-apply/process',
+  '/how-to-apply/requirements',
+  '/how-to-apply/obligations',
+  '/privacy',
+  '/data-processing-consent',
+  '/terms',
 ]);
 
-function isPublicEntryPath(pathname = window.location.pathname) {
-  const normalized = String(pathname || '/').replace(/\/+$/, '') || '/';
-  return PUBLIC_ENTRY_PATHS.has(normalized);
+function normalizePath(pathname = window.location.pathname) {
+  return String(pathname || '/').replace(/\/+$/, '') || '/';
+}
+
+function isPublicCheckPath(pathname = window.location.pathname) {
+  const normalized = normalizePath(pathname);
+  return PUBLIC_CHECK_PATHS.has(normalized) || normalized.startsWith('/endorsement/verify/');
+}
+
+function isInitialWebsiteEntry(pathname = window.location.pathname) {
+  if (!isPublicCheckPath(pathname)) return false;
+  const navigationEntry = performance.getEntriesByType('navigation')[0];
+  return !navigationEntry || navigationEntry.type === 'navigate';
 }
 
 function wait(milliseconds) {
@@ -34,38 +59,42 @@ export function PublicLogoLoader({ status, isRetrying, onRetry }) {
 
   return (
     <div
-      className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-[#f7f6f3] px-4 py-10 sm:px-6"
+      className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-[#f8f7f4] px-4 py-8 sm:px-6"
       role="status"
       aria-live="polite"
       aria-busy={checking}
     >
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#6f3f24] via-[#d6a800] to-[#6f3f24]"
+        className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-[#6f3f24] via-[#d6a800] to-[#6f3f24]"
         aria-hidden="true"
       />
 
-      <div className="w-full max-w-[440px]">
-        <div className="rounded-[28px] border border-stone-200/90 bg-white px-6 py-8 text-center shadow-[0_24px_70px_-38px_rgba(75,48,30,0.45)] sm:px-9 sm:py-10">
-          <div className="relative mx-auto flex h-24 w-24 items-center justify-center">
+      <div className="w-full max-w-[420px]">
+        <div className="rounded-[26px] border border-stone-200/90 bg-white px-6 py-8 text-center shadow-[0_22px_60px_-34px_rgba(75,48,30,0.38)] sm:px-8 sm:py-9">
+          <div className="relative mx-auto flex h-28 w-28 items-center justify-center">
             {checking ? (
               <>
                 <span
-                  className="absolute inset-0 rounded-full border border-amber-900/10 bg-amber-50/60"
+                  className="absolute inset-[7px] rounded-full border border-[#704127]/[0.08] bg-[#704127]/[0.025]"
                   aria-hidden="true"
                 />
                 <span
-                  className="absolute inset-1 animate-spin rounded-full border-2 border-transparent border-t-[#8a5a38] motion-reduce:animate-none"
+                  className="absolute inset-0 animate-spin rounded-full border-[3px] border-[#704127]/10 border-r-[#704127]/45 border-t-[#704127] motion-reduce:animate-none"
                   aria-hidden="true"
+                  style={{
+                    boxShadow: '0 0 0 1px rgba(112, 65, 39, 0.02), 0 8px 22px rgba(112, 65, 39, 0.08)',
+                    animationDuration: '1.15s',
+                  }}
                 />
               </>
             ) : (
               <>
                 <span
-                  className="absolute inset-0 rounded-full border border-amber-900/10 bg-[#fbf6ed]"
+                  className="absolute inset-[7px] rounded-full border border-[#704127]/[0.08] bg-[#704127]/[0.025]"
                   aria-hidden="true"
                 />
                 <span
-                  className="absolute inset-2 rounded-full border border-[#d9b567]/35 bg-white shadow-sm"
+                  className="absolute inset-[17px] rounded-full border border-stone-200/80 bg-white"
                   aria-hidden="true"
                 />
               </>
@@ -74,33 +103,32 @@ export function PublicLogoLoader({ status, isRetrying, onRetry }) {
             <img
               src={pdmLogo}
               alt=""
-              className={`relative h-[68px] w-[68px] object-contain ${
-                checking ? 'animate-pulse motion-reduce:animate-none' : ''
-              }`}
+              aria-hidden="true"
+              className="relative h-[68px] w-[68px] object-contain"
             />
           </div>
 
           {checking ? (
-            <div className="mt-6">
-              <p className="text-[17px] font-semibold tracking-[-0.01em] text-stone-900">
+            <div className="mt-5">
+              <p className="text-[17px] font-semibold tracking-[-0.015em] text-stone-900">
                 Connecting to SMaRT-PDM
               </p>
-              <p className="mx-auto mt-2 max-w-xs text-[13px] leading-5 text-stone-500">
-                Checking server availability. This should only take a moment.
+              <p className="mx-auto mt-2 max-w-[310px] text-[13px] leading-5 text-stone-500">
+                Establishing a secure connection to the server. This may take a little longer while the server starts.
               </p>
             </div>
           ) : (
             <>
-              <div className="mt-6 inline-flex items-center gap-1.5 rounded-full border border-red-100 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700">
+              <div className="mt-5 inline-flex items-center gap-1.5 rounded-full border border-red-100 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700">
                 <WifiOff className="h-3.5 w-3.5" aria-hidden="true" />
                 Connection unavailable
               </div>
 
-              <h1 className="mt-4 text-[21px] font-semibold tracking-[-0.02em] text-stone-900 sm:text-[22px]">
+              <h1 className="mt-4 text-[20px] font-semibold tracking-[-0.02em] text-stone-900">
                 Connection interrupted
               </h1>
-              <p className="mx-auto mt-2 max-w-sm text-[13px] leading-5 text-stone-500">
-                SMaRT-PDM cannot reach the server right now. Check your internet connection, then try again.
+              <p className="mx-auto mt-2 max-w-[320px] text-[13px] leading-5 text-stone-500">
+                SMaRT-PDM cannot reach the server right now. Check your connection, then try again.
               </p>
 
               <button
@@ -113,14 +141,14 @@ export function PublicLogoLoader({ status, isRetrying, onRetry }) {
               </button>
 
               <p className="mt-3 text-[11px] leading-4 text-stone-400">
-                Your session and saved records are not affected by this connection screen.
+                Your current session and saved records are not affected.
               </p>
             </>
           )}
 
           <span className="sr-only">
             {checking
-              ? 'Loading SMaRT-PDM.'
+              ? 'Connecting to SMaRT-PDM.'
               : 'The SMaRT-PDM server is currently unreachable.'}
           </span>
         </div>
@@ -133,70 +161,196 @@ export function PublicLogoLoader({ status, isRetrying, onRetry }) {
   );
 }
 
+function PlainPdmLogoLoader() {
+  return (
+    <div
+      className="flex min-h-[100dvh] items-center justify-center bg-[#f8f7f4]"
+      role="status"
+      aria-label="Loading SMaRT-PDM"
+      aria-busy="true"
+    >
+      <style>{`
+        @keyframes smartPdmLogoBlink {
+          0%, 100% {
+            opacity: 0.34;
+            transform: scale(0.985);
+          }
+          50% {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+
+        @keyframes smartPdmLoaderCircleBlink {
+          0%, 100% {
+            opacity: 0.42;
+            transform: scale(0.99);
+          }
+          50% {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+      `}</style>
+
+      <div className="relative flex h-[116px] w-[116px] items-center justify-center">
+        <span
+          className="absolute inset-0 rounded-full motion-reduce:!animate-none"
+          aria-hidden="true"
+          style={{
+            background: 'rgba(112, 65, 39, 0.028)',
+            border: '1px solid rgba(112, 65, 39, 0.05)',
+            boxShadow: '0 12px 34px rgba(78, 45, 27, 0.035)',
+            animation: 'smartPdmLoaderCircleBlink 3.2s ease-in-out infinite',
+          }}
+        />
+
+        <img
+          src={pdmLogo}
+          alt=""
+          aria-hidden="true"
+          className="relative h-[72px] w-[72px] object-contain motion-reduce:!animate-none"
+          style={{
+            animation: 'smartPdmLogoBlink 2.8s ease-in-out infinite',
+            willChange: 'opacity, transform',
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function NetworkGate({ children }) {
   const contentRef = useRef(null);
-  const [status, setStatus] = useState(() => (isPublicEntryPath() ? 'checking' : 'online'));
+  const activeCheckRef = useRef(null);
+  const initialEntryRef = useRef(isInitialWebsiteEntry());
+  const [status, setStatus] = useState(() => (isPublicCheckPath() ? 'checking' : 'online'));
   const [isRetrying, setIsRetrying] = useState(false);
   const [slowConnection, setSlowConnection] = useState(false);
+  const [showEntryNetworkGate, setShowEntryNetworkGate] = useState(initialEntryRef.current);
 
   const checkConnection = useCallback(async ({ manual = false } = {}) => {
-    const checkStartedAt = Date.now();
-    setSlowConnection(false);
-    if (manual) setIsRetrying(true);
+    if (activeCheckRef.current) {
+      if (!manual) return activeCheckRef.current;
 
-    if (!navigator.onLine) {
-      setStatus('offline');
-      if (manual) setIsRetrying(false);
-      return false;
+      setIsRetrying(true);
+      try {
+        return await activeCheckRef.current;
+      } finally {
+        setIsRetrying(false);
+      }
     }
 
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(
-      () => controller.abort(),
-      CHECK_TIMEOUT_MS
-    );
+    const runCheck = async () => {
+      const checkStartedAt = Date.now();
+      const publicCheckPath = isPublicCheckPath();
+      setSlowConnection(false);
+      if (manual) setIsRetrying(true);
+
+      try {
+        if (!navigator.onLine) {
+          setStatus('offline');
+          return false;
+        }
+
+        while (navigator.onLine) {
+          const attemptStartedAt = Date.now();
+          const controller = new AbortController();
+          const timeoutId = window.setTimeout(
+            () => controller.abort(),
+            CHECK_TIMEOUT_MS
+          );
+
+          let connected = false;
+
+          try {
+            const response = await fetch(
+              `${buildApiUrl('/api/health')}?networkCheck=${Date.now()}`,
+              {
+                method: 'GET',
+                cache: 'no-store',
+                signal: controller.signal,
+                headers: { Accept: 'application/json' },
+              }
+            );
+            connected = response.ok;
+          } catch {
+            connected = false;
+          } finally {
+            window.clearTimeout(timeoutId);
+          }
+
+          const attemptElapsed = Date.now() - attemptStartedAt;
+
+          if (connected) {
+            setSlowConnection(attemptElapsed >= SLOW_CONNECTION_MS);
+
+            if (publicCheckPath) {
+              const navigationEntry = performance.getEntriesByType('navigation')[0];
+              const entryGateActive = initialEntryRef.current;
+              const minimumDuration = entryGateActive
+                ? ENTRY_NETWORK_GATE_MIN_MS
+                : navigationEntry?.type === 'reload'
+                  ? PUBLIC_REFRESH_LOADER_MIN_MS
+                  : PUBLIC_VISIT_LOADER_MIN_MS;
+
+              const remainingDelay = minimumDuration - (Date.now() - checkStartedAt);
+              if (remainingDelay > 0) await wait(remainingDelay);
+
+              // Initial URL entry deliberately uses two stages:
+              // 1) full connection gate, then 2) the minimal blinking PDM logo.
+              if (entryGateActive) {
+                initialEntryRef.current = false;
+                setShowEntryNetworkGate(false);
+                await wait(POST_CONNECT_LOGO_LOADER_MS);
+              }
+            }
+
+            setStatus('online');
+            return true;
+          }
+
+          const elapsed = Date.now() - checkStartedAt;
+          const shouldKeepWaiting = publicCheckPath
+            && elapsed < PUBLIC_CONNECT_GRACE_MS;
+
+          if (!shouldKeepWaiting) {
+            setStatus('offline');
+            return false;
+          }
+
+          await wait(Math.min(
+            PUBLIC_CONNECT_RETRY_MS,
+            PUBLIC_CONNECT_GRACE_MS - elapsed
+          ));
+        }
+
+        setStatus('offline');
+        return false;
+      } finally {
+        if (manual) setIsRetrying(false);
+      }
+    };
+
+    const checkPromise = runCheck();
+    activeCheckRef.current = checkPromise;
 
     try {
-      const response = await fetch(
-        `${buildApiUrl('/api/health')}?networkCheck=${Date.now()}`,
-        {
-          method: 'GET',
-          cache: 'no-store',
-          signal: controller.signal,
-          headers: { Accept: 'application/json' },
-        }
-      );
-
-      const elapsed = Date.now() - checkStartedAt;
-      const connected = response.ok;
-      setSlowConnection(connected && elapsed >= SLOW_CONNECTION_MS);
-      const publicEntryPath = isPublicEntryPath();
-
-      if (connected && publicEntryPath) {
-        const navigationEntry = performance.getEntriesByType('navigation')[0];
-        const minimumDuration = navigationEntry?.type === 'reload'
-          ? PUBLIC_REFRESH_LOADER_MIN_MS
-          : PUBLIC_VISIT_LOADER_MIN_MS;
-        const remainingDelay = minimumDuration - (Date.now() - checkStartedAt);
-        if (remainingDelay > 0) await wait(remainingDelay);
-      }
-
-      setStatus(connected ? 'online' : 'offline');
-      return connected;
-    } catch {
-      setStatus('offline');
-      return false;
+      return await checkPromise;
     } finally {
-      window.clearTimeout(timeoutId);
-      if (manual) setIsRetrying(false);
+      if (activeCheckRef.current === checkPromise) {
+        activeCheckRef.current = null;
+      }
     }
   }, []);
 
   useEffect(() => {
-    // Public entry pages use the logo loader while the API is checked.
-    // Protected portal routes already validate the session against the backend,
-    // so another blocking health-check loader here would be duplicate loading UI.
-    if (isPublicEntryPath()) checkConnection();
+    // Public pages check the API before rendering. A true browser entry uses
+    // the full connection gate first, then transitions briefly to the minimal
+    // blinking PDM-logo loader before the page is revealed. Reloads and later
+    // public loading checks use only the minimal logo state. Protected routes
+    // keep their own session/connection handling and are not blocked here.
+    if (isPublicCheckPath()) checkConnection();
 
     const handleOnline = () => checkConnection();
     const handleOffline = () => setStatus('offline');
@@ -216,9 +370,9 @@ export default function NetworkGate({ children }) {
     };
   }, [checkConnection]);
 
-  const publicEntryPath = isPublicEntryPath();
-  const blocked = publicEntryPath && status !== 'online';
-  const privateConnectionInterrupted = !publicEntryPath && status === 'offline';
+  const publicCheckPath = isPublicCheckPath();
+  const blocked = publicCheckPath && status !== 'online';
+  const privateConnectionInterrupted = !publicCheckPath && status === 'offline';
 
   useEffect(() => {
     const content = contentRef.current;
@@ -255,11 +409,15 @@ export default function NetworkGate({ children }) {
       </div>
 
       {blocked ? (
-        <PublicLogoLoader
-          status={status}
-          isRetrying={isRetrying}
-          onRetry={() => checkConnection({ manual: true })}
-        />
+        showEntryNetworkGate ? (
+          <PublicLogoLoader
+            status={status}
+            isRetrying={isRetrying}
+            onRetry={() => checkConnection({ manual: true })}
+          />
+        ) : (
+          <PlainPdmLogoLoader />
+        )
       ) : null}
 
       {privateConnectionInterrupted ? (

@@ -1048,7 +1048,6 @@ function AccountEditModal({
         <AccountModalPortal>
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
-            onClick={onClose}
         >
             <div
                 className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-stone-200 bg-white shadow-xl"

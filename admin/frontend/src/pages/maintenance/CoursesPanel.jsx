@@ -47,7 +47,7 @@ function CourseModal({
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
-            onClick={onClose}
+            onClick={isEdit ? onClose : undefined}
         >
             <Card
                 className="w-full max-w-2xl overflow-hidden border-stone-200 shadow-xl"

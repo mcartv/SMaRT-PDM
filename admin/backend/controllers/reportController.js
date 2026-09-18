@@ -74,6 +74,7 @@ function getAllowedReportTypes(role, hasRoCoordinatorAccess = false) {
             'applications',
             'scholars',
             'scholars_by_benefactor',
+            'scholarship_history',
             'payouts',
             'endorsements',
             'ro_compliance',
@@ -157,6 +158,14 @@ function getReportQueryPayload(req) {
     return {
         reportType: req.query?.reportType || req.query?.type || 'applications',
         academicYearId: req.query?.academicYearId || req.query?.academic_year_id || 'all',
+        academicYearFromId:
+            req.query?.academicYearFromId ||
+            req.query?.academic_year_from_id ||
+            'all',
+        academicYearToId:
+            req.query?.academicYearToId ||
+            req.query?.academic_year_to_id ||
+            'all',
         semester: req.query?.semester || 'all',
         programId: req.query?.programId || req.query?.program_id || 'all',
         benefactorId: req.query?.benefactorId || req.query?.benefactor_id || 'all',

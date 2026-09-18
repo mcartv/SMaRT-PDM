@@ -94,7 +94,7 @@ const REPORT_TEMPLATE_GROUPS = [
   },
   {
     label: 'Scholar Management',
-    ids: ['scholars', 'scholars_by_benefactor', 'renewals'],
+    ids: ['scholars', 'scholarship_history', 'scholars_by_benefactor', 'renewals'],
   },
   {
     label: 'Scholar Operations',
@@ -114,6 +114,7 @@ const REPORT_FILTER_FIELDS = {
   ],
   endorsements: ['academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'gender', 'result', 'date'],
   scholars: ['academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'gender', 'date'],
+  scholarship_history: ['academicYearRange', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'gender'],
   scholars_by_benefactor: ['academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'gender', 'date'],
   renewals: ['academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'result', 'date'],
   payouts: [
@@ -225,6 +226,10 @@ function formatHeader(key) {
     completion_percentage: 'Completion %',
     clearance_status: 'Clearance Status',
     benefactor_name: 'Benefactor',
+    history_range: 'History Range',
+    history_records: 'History Records',
+    latest_status: 'Latest Status',
+    history_summary: 'Scholarship History',
   };
 
   if (customLabels[key]) return customLabels[key];
@@ -274,6 +279,8 @@ export default function ReportGeneration({
 
   const [selected, setSelected] = useState('applications');
   const [academicYearId, setAcademicYearId] = useState('all');
+  const [academicYearFromId, setAcademicYearFromId] = useState('all');
+  const [academicYearToId, setAcademicYearToId] = useState('all');
   const [semester, setSemester] = useState('all');
   const [programId, setProgramId] = useState('all');
   const [benefactorId, setBenefactorId] = useState('all');
@@ -328,7 +335,7 @@ export default function ReportGeneration({
     setPreviewTotal(0);
     setHasPreviewed(false);
   }, [
-    selected, academicYearId, semester, programId, benefactorId, reviewResult, courseId,
+    selected, academicYearId, academicYearFromId, academicYearToId, semester, programId, benefactorId, reviewResult, courseId,
     roAreaId, yearLevel, gender, applicationStatus, documentStatus, verificationStatus,
     batchStatus, releaseStatus, paymentMode, dateFrom, dateTo,
   ]);
@@ -359,6 +366,7 @@ export default function ReportGeneration({
     [selected]
   );
   const supportsAcademicYearFilter = activeFilterFields.has('academicYear');
+  const supportsAcademicYearRangeFilter = activeFilterFields.has('academicYearRange');
   const supportsSemesterFilter = activeFilterFields.has('semester');
   const supportsProgramFilter = activeFilterFields.has('program');
   const supportsBenefactorFilter = activeFilterFields.has('benefactor');
@@ -375,7 +383,30 @@ export default function ReportGeneration({
   const supportsPaymentModeFilter = activeFilterFields.has('paymentMode');
   const supportsDateFilters = activeFilterFields.has('date');
   const isScholarCountReport = selected === 'scholars_by_benefactor';
+  const isScholarshipHistoryReport = selected === 'scholarship_history';
+
+  const selectedFromAcademicYear = academicYears.find(
+    (year) => year.academic_year_id === academicYearFromId
+  );
+  const selectedToAcademicYear = academicYears.find(
+    (year) => year.academic_year_id === academicYearToId
+  );
+
+  const isAcademicYearRangeInvalid = Boolean(
+    supportsAcademicYearRangeFilter &&
+    academicYearFromId !== 'all' &&
+    academicYearToId !== 'all' &&
+    Number(selectedFromAcademicYear?.start_year) >
+      Number(selectedToAcademicYear?.start_year)
+  );
+
   const isDateRangeInvalid = Boolean(dateFrom && dateTo && dateFrom > dateTo);
+  const hasInvalidFilterRange =
+    isDateRangeInvalid || isAcademicYearRangeInvalid;
+  const invalidFilterRangeMessage = isAcademicYearRangeInvalid
+    ? 'Starting academic year cannot be later than ending academic year.'
+    : 'Date From cannot be later than Date To.';
+
   const isSelectedReportExportLocked = lockedReports.has(selected);
   const selectedGeneratingFormat = exportState[selected] || null;
 
@@ -476,6 +507,8 @@ export default function ReportGeneration({
     return new URLSearchParams({
       reportType: selected,
       academicYearId: has('academicYear') ? academicYearId : 'all',
+      academicYearFromId: has('academicYearRange') ? academicYearFromId : 'all',
+      academicYearToId: has('academicYearRange') ? academicYearToId : 'all',
       semester: has('semester') ? semester : 'all',
       programId: has('program') ? programId : 'all',
       benefactorId: has('benefactor') ? benefactorId : 'all',
@@ -494,13 +527,15 @@ export default function ReportGeneration({
       dateTo: has('date') ? dateTo : '',
     });
   }, [
-    activeFilterFields, selected, academicYearId, semester, programId, benefactorId,
+    activeFilterFields, selected, academicYearId, academicYearFromId, academicYearToId, semester, programId, benefactorId,
     reviewResult, courseId, roAreaId, yearLevel, gender, applicationStatus, documentStatus,
     verificationStatus, batchStatus, releaseStatus, paymentMode, dateFrom, dateTo,
   ]);
 
   function resetFilters() {
     setAcademicYearId('all');
+    setAcademicYearFromId('all');
+    setAcademicYearToId('all');
     setSemester('all');
     setProgramId('all');
     setBenefactorId('all');
@@ -523,11 +558,11 @@ export default function ReportGeneration({
   }
 
   const handlePreviewReport = useCallback(async () => {
-    if (isDateRangeInvalid) {
+    if (hasInvalidFilterRange) {
       setFeedback({
         tone: 'error',
-        title: 'Invalid date range',
-        message: 'Date From cannot be later than Date To.',
+        title: 'Invalid filter range',
+        message: invalidFilterRangeMessage,
       });
       return;
     }
@@ -555,7 +590,12 @@ export default function ReportGeneration({
     } finally {
       setPreviewLoading(false);
     }
-  }, [buildParams, isDateRangeInvalid, tokenStorageKey]);
+  }, [
+    buildParams,
+    hasInvalidFilterRange,
+    invalidFilterRangeMessage,
+    tokenStorageKey,
+  ]);
 
   const refreshReportData = useCallback(async () => {
     await loadMetadata();
@@ -651,11 +691,11 @@ export default function ReportGeneration({
   }
 
   async function handleDownloadByFormat(format = 'xlsx') {
-    if (isDateRangeInvalid) {
+    if (hasInvalidFilterRange) {
       setFeedback({
         tone: 'error',
-        title: 'Invalid date range',
-        message: 'Date From cannot be later than Date To.',
+        title: 'Invalid filter range',
+        message: invalidFilterRangeMessage,
       });
       return;
     }
@@ -788,6 +828,8 @@ export default function ReportGeneration({
                         active={selected === report.id}
                         onClick={(reportId) => {
                           setSelected(reportId);
+                          setAcademicYearFromId('all');
+                          setAcademicYearToId('all');
                           setReviewResult('all');
                           setApplicationStatus('all');
                           setDocumentStatus('all');
@@ -837,6 +879,52 @@ export default function ReportGeneration({
                 </div>
 
                 <div className="grid min-w-0 grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2">
+                  {supportsAcademicYearRangeFilter ? (
+                    <>
+                      <FilterField label="Academic Year From">
+                        <Select
+                          value={academicYearFromId}
+                          onValueChange={setAcademicYearFromId}
+                        >
+                          <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {academicYears.map((year) => (
+                              <SelectItem
+                                key={`from-${year.academic_year_id}`}
+                                value={year.academic_year_id}
+                              >
+                                {year.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FilterField>
+
+                      <FilterField label="Academic Year To">
+                        <Select
+                          value={academicYearToId}
+                          onValueChange={setAcademicYearToId}
+                        >
+                          <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {academicYears.map((year) => (
+                              <SelectItem
+                                key={`to-${year.academic_year_id}`}
+                                value={year.academic_year_id}
+                              >
+                                {year.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FilterField>
+                    </>
+                  ) : null}
+
                   {supportsAcademicYearFilter ? (
                     <FilterField label="Academic Year">
                       <Select value={academicYearId} onValueChange={setAcademicYearId}>
@@ -1081,17 +1169,17 @@ export default function ReportGeneration({
                   variant="outline"
                   className="report-action-button h-11 w-full rounded-xl text-sm font-semibold sm:w-auto"
                   style={{ borderColor: theme.border, color: theme.base }}
-                  disabled={previewLoading || isDateRangeInvalid}
+                  disabled={previewLoading || hasInvalidFilterRange}
                   onClick={handlePreviewReport}
                 >
                   {previewLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eye className="mr-2 h-4 w-4" />}
-                  Preview
+                  {isScholarshipHistoryReport ? 'View Table' : 'Preview'}
                 </Button>
 
                 <Button
                   className="report-action-button h-11 w-full min-w-0 rounded-xl border-none text-sm font-semibold text-white sm:min-w-[190px] sm:flex-1"
                   style={{ background: theme.base }}
-                  disabled={isSelectedReportExportLocked || isDateRangeInvalid}
+                  disabled={isSelectedReportExportLocked || hasInvalidFilterRange}
                   onClick={handleGenerateReport}
                 >
                   {selectedGeneratingFormat === (isScholarCountReport ? 'pdf' : 'xlsx') ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
@@ -1103,7 +1191,7 @@ export default function ReportGeneration({
                     variant="outline"
                     className="report-action-button h-11 w-full rounded-xl text-sm font-semibold sm:w-auto"
                     style={{ borderColor: theme.border, color: theme.base }}
-                    disabled={isSelectedReportExportLocked || isDateRangeInvalid}
+                    disabled={isSelectedReportExportLocked || hasInvalidFilterRange}
                     onClick={() => handleDownloadByFormat('csv')}
                   >
                     {selectedGeneratingFormat === 'csv' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
@@ -1132,7 +1220,11 @@ export default function ReportGeneration({
           <div className="border-b border-stone-100 bg-stone-50/70 px-4 py-4">
             <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
               <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-stone-800">Report Preview</h2>
+                <h2 className="text-sm font-semibold text-stone-800">
+                  {isScholarshipHistoryReport
+                    ? 'Student Scholarship History Table'
+                    : 'Report Preview'}
+                </h2>
                 <p className="mt-0.5 text-xs text-stone-500">
                   {previewRows.length > 0
                     ? isScholarCountReport
@@ -1208,7 +1300,14 @@ export default function ReportGeneration({
                     {previewRows.map((row, index) => (
                       <tr key={index} className="border-t border-stone-100 hover:bg-stone-50/70">
                         {previewColumns.map((key) => (
-                          <td key={key} className="whitespace-nowrap px-4 py-3 text-stone-600">
+                          <td
+                            key={key}
+                            className={
+                              key === 'history_summary'
+                                ? 'min-w-[420px] max-w-[680px] whitespace-normal px-4 py-3 leading-5 text-stone-600'
+                                : 'whitespace-nowrap px-4 py-3 text-stone-600'
+                            }
+                          >
                             {formatCellValue(row[key])}
                           </td>
                         ))}

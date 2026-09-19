@@ -2,14 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buildApiUrl } from '@/config/api';
 import { useSocketListener } from './useSocket';
 
-const NOTIFICATION_CATEGORY_OPTIONS = Object.freeze([
+const NOTIFICATION_STATUS_OPTIONS = Object.freeze([
   { value: 'all', label: 'All' },
-  { value: 'need_review', label: 'Need Review' },
-  { value: 'ro', label: 'RO' },
-  { value: 'disqualification', label: 'Disqualification Notice' },
+  { value: 'major', label: 'Major' },
 ]);
 
-const NOTIFICATION_PRIORITY_RANK = Object.freeze({ major: 30, normal: 20, minor: 10 });
+const NOTIFICATION_TYPE_OPTIONS = Object.freeze([
+  { value: 'need_review', label: 'Review' },
+  { value: 'ro', label: 'RO' },
+]);
 
 function deriveNotificationCategory(notification = {}) {
   const type = String(notification.type || '').trim().toLowerCase();
@@ -69,23 +70,22 @@ function normalizeNotification(raw = {}) {
 // SMART_PDM_NOTIFICATION_CATEGORY_PRIORITY_V2
 function sortNotifications(items = []) {
   return [...items].sort((a, b) => {
-    const priorityDifference =
-      (NOTIFICATION_PRIORITY_RANK[b.priority] || 0) -
-      (NOTIFICATION_PRIORITY_RANK[a.priority] || 0);
-    if (priorityDifference !== 0) return priorityDifference;
     const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
     const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
     return bTime - aTime;
   });
 }
 
-function isRecentNotification(notification, now = Date.now()) {
+function isTodayNotification(notification, now = Date.now()) {
   if (!notification?.created_at) return false;
 
-  const createdAt = new Date(notification.created_at).getTime();
-  if (Number.isNaN(createdAt)) return false;
+  const createdAt = new Date(notification.created_at);
+  if (Number.isNaN(createdAt.getTime())) return false;
+  const today = new Date(now);
 
-  return now - createdAt < 24 * 60 * 60 * 1000;
+  return createdAt.getFullYear() === today.getFullYear() &&
+    createdAt.getMonth() === today.getMonth() &&
+    createdAt.getDate() === today.getDate();
 }
 
 function formatNotificationTime(value) {
@@ -186,10 +186,14 @@ export default function usePortalNotifications({
   limit = 30,
 }) {
   const [items, setItems] = useState([]);
-  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
   const knownNotificationIdsRef = useRef(new Set());
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
   const [sectionNow, setSectionNow] = useState(() => Date.now());
 
@@ -247,6 +251,7 @@ export default function usePortalNotifications({
       setItems([]);
       knownNotificationIdsRef.current = new Set();
       setUnreadCount(0);
+      setTotalCount(0);
       setLoading(false);
       return;
     }
@@ -268,6 +273,7 @@ export default function usePortalNotifications({
       const rows = Array.isArray(payload?.items) ? payload.items : [];
       const normalized = rows.map(normalizeNotification);
       syncItems(normalized);
+      setTotalCount(Math.max(normalized.length, Number(payload?.total) || 0));
 
       const exactUnreadCount = await loadUnreadCount();
       if (exactUnreadCount === null) {
@@ -289,6 +295,44 @@ export default function usePortalNotifications({
   useEffect(() => {
     loadNotifications();
   }, [loadNotifications]);
+
+  const loadMore = useCallback(async () => {
+    const token = sessionStorage.getItem(tokenStorageKey);
+    if (!token || loadingMore || items.length >= totalCount) return;
+
+    try {
+      setLoadingMore(true);
+      const response = await fetch(
+        buildApiUrl(`/api/notifications?limit=${limit}&offset=${items.length}`),
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error || payload?.message || 'Failed to load more notifications.');
+      }
+
+      const additional = (Array.isArray(payload?.items) ? payload.items : [])
+        .map(normalizeNotification);
+      syncItems((current) => {
+        const knownIds = new Set(current.map((item) => item.notification_id));
+        return [
+          ...current,
+          ...additional.filter((item) => !knownIds.has(item.notification_id)),
+        ];
+      });
+      setTotalCount((current) => Math.max(current, Number(payload?.total) || 0));
+    } catch (error) {
+      console.error('LOAD MORE NOTIFICATIONS ERROR:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [items.length, limit, loadingMore, syncItems, tokenStorageKey, totalCount]);
 
   const markAsRead = useCallback(
     async (notificationId) => {
@@ -441,9 +485,10 @@ export default function usePortalNotifications({
       }
 
       syncItems((current) =>
-        [next, ...current.filter((item) => item.notification_id !== next.notification_id)].slice(0, limit)
+        [next, ...current.filter((item) => item.notification_id !== next.notification_id)]
       );
 
+      if (!wasKnown) setTotalCount((current) => current + 1);
       if (!wasKnown && next.is_read !== true) {
         setUnreadCount((current) => current + 1);
       }
@@ -457,9 +502,10 @@ export default function usePortalNotifications({
       }
 
       syncItems((current) =>
-        [next, ...current.filter((item) => item.notification_id !== next.notification_id)].slice(0, limit)
+        [next, ...current.filter((item) => item.notification_id !== next.notification_id)]
       );
 
+      if (!wasKnown) setTotalCount((current) => current + 1);
       if (!wasKnown && next.is_read !== true) {
         setUnreadCount((current) => current + 1);
       }
@@ -479,15 +525,28 @@ export default function usePortalNotifications({
     },
     'notification:deleted': (raw) => {
       const targetId = raw?.notificationId || raw?.notification_id;
+      const wasKnown = knownNotificationIdsRef.current.has(targetId);
       knownNotificationIdsRef.current.delete(targetId);
       syncItems((current) => current.filter((item) => item.notification_id !== targetId));
+      if (wasKnown) setTotalCount((current) => Math.max(0, current - 1));
       void loadUnreadCount();
     },
   });
 
   const filteredNotifications = useMemo(
-    () => categoryFilter === 'all' ? items : items.filter((item) => item.category === categoryFilter),
-    [categoryFilter, items]
+    () => {
+      return items.filter((item) => {
+        const matchesStatus =
+          statusFilter === 'all' ||
+          (statusFilter === 'major' && item.priority === 'major');
+        const matchesType =
+          typeFilter === 'all' || item.category === typeFilter;
+        const matchesReadState = !unreadOnly || item.is_read !== true;
+
+        return matchesStatus && matchesType && matchesReadState;
+      });
+    },
+    [items, statusFilter, typeFilter, unreadOnly]
   );
 
   const majorNotifications = useMemo(
@@ -495,19 +554,14 @@ export default function usePortalNotifications({
     [filteredNotifications]
   );
 
-  const standardNotifications = useMemo(
-    () => filteredNotifications.filter((item) => item.priority !== 'major'),
-    [filteredNotifications]
-  );
-
   const newNotifications = useMemo(
-    () => standardNotifications.filter((item) => isRecentNotification(item, sectionNow)),
-    [sectionNow, standardNotifications]
+    () => filteredNotifications.filter((item) => isTodayNotification(item, sectionNow)),
+    [filteredNotifications, sectionNow]
   );
 
   const earlierNotifications = useMemo(
-    () => standardNotifications.filter((item) => !isRecentNotification(item, sectionNow)),
-    [sectionNow, standardNotifications]
+    () => filteredNotifications.filter((item) => !isTodayNotification(item, sectionNow)),
+    [filteredNotifications, sectionNow]
   );
 
   const openNotification = useCallback(
@@ -545,13 +599,21 @@ export default function usePortalNotifications({
     majorNotifications,
     newNotifications,
     earlierNotifications,
-    categoryFilter,
-    setCategoryFilter,
-    notificationCategories: NOTIFICATION_CATEGORY_OPTIONS,
+    statusFilter,
+    setStatusFilter,
+    typeFilter,
+    setTypeFilter,
+    unreadOnly,
+    setUnreadOnly,
+    notificationStatusOptions: NOTIFICATION_STATUS_OPTIONS,
+    notificationTypeOptions: NOTIFICATION_TYPE_OPTIONS,
     unreadCount,
     loading,
+    loadingMore,
+    hasMore: items.length < totalCount,
     markingAll,
     reloadNotifications: loadNotifications,
+    loadMore,
     markAsRead,
     markAsUnread,
     markAllAsRead,

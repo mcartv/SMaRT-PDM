@@ -161,7 +161,7 @@ export default function OfficeProfilePage({
           <Card className="relative overflow-hidden rounded-2xl border-[var(--portal-border)] bg-white shadow-sm before:absolute before:inset-x-0 before:top-0 before:h-1 before:bg-[var(--portal-base)]">
             <CardContent className="p-5">
               <h3 className="text-sm font-bold text-stone-900">Role responsibilities</h3>
-              <p className="mt-1 text-xs text-stone-500">Primary tasks available in this portal.</p>
+              <p className="mt-1 text-xs text-stone-500">Primary tasks assigned to this role.</p>
               <ul className="mt-4 space-y-3">
                 {responsibilities.map((item) => (
                   <li key={item} className="flex items-start gap-3 text-sm leading-5 text-stone-600">
@@ -175,7 +175,7 @@ export default function OfficeProfilePage({
 
           <Link to={maintenancePath} className="group flex items-center justify-between rounded-2xl border border-[var(--portal-base)] bg-[var(--portal-base)] p-5 text-white shadow-sm transition hover:brightness-95">
             <div>
-              <p className="text-sm font-bold">Portal Settings</p>
+              <p className="text-sm font-bold">Account Settings</p>
               <p className="mt-1 text-xs text-stone-300">Manage theme and account security.</p>
             </div>
             <ChevronRight className="h-5 w-5 transition-transform group-hover:translate-x-1" aria-hidden="true" />

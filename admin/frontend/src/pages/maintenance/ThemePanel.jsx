@@ -112,7 +112,7 @@ function ThemePreviewCard({ portalKey, presetKey, customColors = null }) {
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-80">{PORTAL_LABELS[portalKey]}</p>
-            <p className="mt-1 text-sm font-semibold">Portal Preview</p>
+            <p className="mt-1 text-sm font-semibold">Theme Preview</p>
           </div>
           <div className="rounded-xl bg-white/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]">
             Charts Included
@@ -656,7 +656,7 @@ export default function ThemePanel({
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-stone-900">Dark Mode</p>
                       <p className="mt-0.5 text-xs leading-5 text-stone-500">
-                        Uses a native dark palette for this portal on your account. Images, icons, and brand colors stay unchanged.
+                        Uses a native dark palette for your account. Images, icons, and brand colors stay unchanged.
                       </p>
                     </div>
                   </div>

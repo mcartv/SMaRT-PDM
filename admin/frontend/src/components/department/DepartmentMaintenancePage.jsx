@@ -683,7 +683,7 @@ export function DepartmentAccountPanel({
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-stone-800">Profile Photo</p>
                 <p className="mt-1 text-xs text-stone-500">
-                  Upload a real photo for the portal header and profile page. Initials will remain as the fallback when no image is set.
+                  Upload a real photo for the account header and profile page. Initials will remain as the fallback when no image is set.
                 </p>
               </div>
             </div>

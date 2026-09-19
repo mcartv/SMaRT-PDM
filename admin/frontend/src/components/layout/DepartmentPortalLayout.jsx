@@ -89,15 +89,22 @@ export default function DepartmentPortalLayout({
   const {
     notifications,
     filteredNotifications,
-    majorNotifications,
     newNotifications,
     earlierNotifications,
-    categoryFilter,
-    setCategoryFilter,
-    notificationCategories,
+    statusFilter,
+    setStatusFilter,
+    typeFilter,
+    setTypeFilter,
+    unreadOnly,
+    setUnreadOnly,
+    notificationStatusOptions,
+    notificationTypeOptions,
     unreadCount,
     loading: notificationsLoading,
+    loadingMore,
+    hasMore,
     markingAll,
+    loadMore,
     markAllAsRead,
     openNotification,
     formatNotificationTime,
@@ -443,7 +450,7 @@ export default function DepartmentPortalLayout({
                           className="rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide"
                           style={{ background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft, color: forceDarkMode ? 'var(--text-main)' : theme.base }}
                         >
-                          {unreadCount} New
+                          {unreadCount} Unread
                         </span>
                       ) : null}
                     </div>
@@ -451,14 +458,25 @@ export default function DepartmentPortalLayout({
 
                   <div className="overflow-x-auto border-b border-stone-100 bg-white px-3 py-2.5">
                     <div className="flex min-w-max items-center gap-1.5">
-                      {notificationCategories.map((option) => {
-                        const active = categoryFilter === option.value;
-                        const critical = option.value === 'disqualification';
+                      {notificationStatusOptions.map((option) => {
+                        const isAll = option.value === 'all';
+                        const active = isAll
+                          ? statusFilter === 'all' && typeFilter === 'all'
+                          : statusFilter === option.value;
+                        const critical = option.value === 'major';
                         return (
                           <button
                             key={option.value}
                             type="button"
-                            onClick={() => setCategoryFilter(option.value)}
+                            onClick={() => {
+                              if (isAll) {
+                                setStatusFilter('all');
+                                setTypeFilter('all');
+                                return;
+                              }
+                              setTypeFilter('all');
+                              setStatusFilter(active ? 'all' : option.value);
+                            }}
                             className="rounded-full border px-2.5 py-1 text-[11px] font-semibold transition"
                             style={active
                               ? critical
@@ -484,39 +502,61 @@ export default function DepartmentPortalLayout({
                           </button>
                         );
                       })}
+                      <div className="flex items-center gap-1.5" aria-label="Filter notifications by type">
+                        {notificationTypeOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => {
+                              setStatusFilter('all');
+                              setTypeFilter(typeFilter === option.value ? 'all' : option.value);
+                            }}
+                            className="rounded-full border px-2.5 py-1 text-[11px] font-semibold transition"
+                            style={typeFilter === option.value
+                              ? {
+                                  borderColor: forceDarkMode ? 'var(--border-default)' : theme.base,
+                                  background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft,
+                                  color: forceDarkMode ? 'var(--text-main)' : theme.base,
+                                }
+                              : {
+                                  borderColor: forceDarkMode ? 'var(--border-default)' : '#e7e5e4',
+                                  background: forceDarkMode ? 'var(--bg-secondary)' : '#fff',
+                                  color: forceDarkMode ? 'var(--text-secondary)' : '#57534e',
+                                }}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                      <span className="mx-0.5 h-5 w-px shrink-0 bg-stone-200" aria-hidden="true" />
+                      <button
+                        type="button"
+                        onClick={() => setUnreadOnly((current) => !current)}
+                        className="rounded-full border px-2.5 py-1 text-[11px] font-semibold transition"
+                        style={unreadOnly
+                          ? {
+                              borderColor: forceDarkMode ? 'var(--border-default)' : theme.base,
+                              background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft,
+                              color: forceDarkMode ? 'var(--text-main)' : theme.base,
+                            }
+                          : {
+                              borderColor: forceDarkMode ? 'var(--border-default)' : '#e7e5e4',
+                              background: forceDarkMode ? 'var(--bg-secondary)' : '#fff',
+                              color: forceDarkMode ? 'var(--text-secondary)' : '#57534e',
+                            }}
+                      >
+                        Unread{unreadCount > 0 ? ` ${unreadCount > 99 ? '99+' : unreadCount}` : ''}
+                      </button>
                     </div>
                   </div>
 
                   <div className="max-h-80 overflow-y-auto">
                     {filteredNotifications.length > 0 ? (
                       <>
-                        {majorNotifications.length > 0 ? (
-                          <>
-                            <div className="border-b px-4 py-2" style={{ borderColor: '#fecaca', background: forceDarkMode ? 'color-mix(in srgb, #dc2626 14%, var(--bg-secondary))' : '#fef2f2' }}>
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: forceDarkMode ? '#fca5a5' : '#b91c1c' }}>Major Priority</p>
-                            </div>
-                            {majorNotifications.map((item) => (
-                              <button
-                                key={item.notification_id}
-                                type="button"
-                                onClick={() => { setNotifOpen(false); openNotification(item, navigate); }}
-                                className="w-full border-b border-l-4 px-4 py-3 text-left transition hover:brightness-[0.98]"
-                                style={{ borderLeftColor: '#dc2626', background: forceDarkMode ? 'color-mix(in srgb, #dc2626 12%, var(--bg-secondary))' : '#fff7f7' }}
-                              >
-                                <div className="flex items-start justify-between gap-3">
-                                  <p className="text-[13px] font-semibold leading-[18px] text-stone-900">{item.title || 'Disqualification Notice'}</p>
-                                  <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide" style={{ background: forceDarkMode ? '#7f1d1d' : '#fee2e2', color: forceDarkMode ? '#fecaca' : '#b91c1c' }}>Major</span>
-                                </div>
-                                <p className="mt-1 line-clamp-2 text-xs leading-[18px] text-stone-600">{item.message || 'Open notification'}</p>
-                                <p className="mt-1.5 text-[11px] font-medium text-stone-400">{formatNotificationTime(item.created_at)}</p>
-                              </button>
-                            ))}
-                          </>
-                        ) : null}
                         {newNotifications.length > 0 ? (
                           <div className="border-b border-stone-100 px-4 py-2" style={{ background: forceDarkMode ? 'var(--bg-subtle)' : theme.accentSoft }}>
                             <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: forceDarkMode ? 'var(--text-secondary)' : theme.base }}>
-                              New
+                              Today
                             </p>
                           </div>
                         ) : null}
@@ -528,16 +568,25 @@ export default function DepartmentPortalLayout({
                               setNotifOpen(false);
                               openNotification(item, navigate);
                             }}
-                            className={`w-full border-b border-stone-100 px-4 py-3 text-left transition hover:brightness-[0.98] ${item.is_read !== true ? 'border-l-4' : ''}`}
-                            style={item.is_read !== true
-                              ? { borderLeftColor: forceDarkMode ? 'var(--accent-primary)' : theme.base, background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft }
-                              : { background: forceDarkMode ? 'var(--bg-secondary)' : '#fff' }}
+                            className={`w-full border-b border-stone-100 px-4 py-3 text-left transition hover:brightness-[0.98] ${(item.priority === 'major' || item.is_read !== true) ? 'border-l-4' : ''}`}
+                            style={item.priority === 'major'
+                              ? { borderLeftColor: '#dc2626', background: forceDarkMode ? 'color-mix(in srgb, #dc2626 12%, var(--bg-secondary))' : '#fff7f7' }
+                              : item.is_read !== true
+                                ? { borderLeftColor: forceDarkMode ? 'var(--accent-primary)' : theme.base, background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft }
+                                : { background: forceDarkMode ? 'var(--bg-secondary)' : '#fff' }}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <p className="text-[13px] font-semibold leading-[18px] text-stone-900">
                                 {item.title || 'Notification'}
                               </p>
-                              {item.is_read !== true ? (
+                              {item.priority === 'major' ? (
+                                <span
+                                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                  style={{ background: forceDarkMode ? '#7f1d1d' : '#fee2e2', color: forceDarkMode ? '#fecaca' : '#b91c1c' }}
+                                >
+                                  Major
+                                </span>
+                              ) : item.is_read !== true ? (
                                 <span
                                   className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
                                   style={{ background: theme.base, color: '#fff' }}
@@ -569,15 +618,25 @@ export default function DepartmentPortalLayout({
                               setNotifOpen(false);
                               openNotification(item, navigate);
                             }}
-                            className={`w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:brightness-[0.98] ${item.is_read !== true ? 'border-l-4' : ''}`}
-                            style={item.is_read !== true
-                              ? { borderLeftColor: forceDarkMode ? 'var(--accent-primary)' : theme.base, background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft }
-                              : { background: forceDarkMode ? 'var(--bg-secondary)' : '#fff' }}
+                            className={`w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:brightness-[0.98] ${(item.priority === 'major' || item.is_read !== true) ? 'border-l-4' : ''}`}
+                            style={item.priority === 'major'
+                              ? { borderLeftColor: '#dc2626', background: forceDarkMode ? 'color-mix(in srgb, #dc2626 12%, var(--bg-secondary))' : '#fff7f7' }
+                              : item.is_read !== true
+                                ? { borderLeftColor: forceDarkMode ? 'var(--accent-primary)' : theme.base, background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft }
+                                : { background: forceDarkMode ? 'var(--bg-secondary)' : '#fff' }}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <p className="text-[13px] font-medium leading-[18px] text-stone-800">
                                 {item.title || 'Notification'}
                               </p>
+                              {item.priority === 'major' ? (
+                                <span
+                                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                  style={{ background: forceDarkMode ? '#7f1d1d' : '#fee2e2', color: forceDarkMode ? '#fecaca' : '#b91c1c' }}
+                                >
+                                  Major
+                                </span>
+                              ) : null}
                             </div>
                             <p className="mt-1 line-clamp-2 text-xs leading-[18px] text-stone-600">
                               {item.message || 'Open notification'}
@@ -595,7 +654,17 @@ export default function DepartmentPortalLayout({
                     )}
                   </div>
                   {notifications.length > 0 ? (
-                    <div className="flex justify-end border-t border-stone-100 bg-stone-50/80 px-4 py-3">
+                    <div className="flex items-center justify-between gap-2 border-t border-stone-100 bg-stone-50/80 px-4 py-3">
+                      {hasMore ? (
+                        <button
+                          type="button"
+                          onClick={loadMore}
+                          disabled={loadingMore}
+                          className="rounded-lg px-2 py-1.5 text-xs font-semibold text-stone-500 transition hover:bg-stone-100 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {loadingMore ? 'Loading...' : 'Load more'}
+                        </button>
+                      ) : <span />}
                       <button
                         type="button"
                         onClick={markAllAsRead}

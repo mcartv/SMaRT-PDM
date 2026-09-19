@@ -13,8 +13,8 @@ const STALE_PAGE_SECONDS = Number(
     process.env.ADMIN_SESSION_STALE_PAGE_SECONDS || 300
 );
 const MAX_ACTIVE_DEVICES = Math.min(
-    Math.max(Number(process.env.ADMIN_MAX_ACTIVE_DEVICES || 3) || 3, 1),
-    10
+    Math.max(Number(process.env.ADMIN_MAX_ACTIVE_DEVICES || 5) || 5, 1),
+    5
 );
 
 const ADMIN_ROLE = 'admin';
@@ -266,7 +266,7 @@ async function createAdminSession({
 
         // The same device was replaced above before counting. This means a
         // delayed/failed logout from this browser never consumes another slot.
-        // Only other currently valid devices count toward the three-device cap.
+        // Only other currently valid devices count toward the five-device cap.
         const activeDeviceResult = await client.query(
             `
             SELECT COUNT(DISTINCT device_id)::int AS active_device_count
@@ -698,7 +698,7 @@ async function logoutAdminSession({ decoded }) {
         });
     }
 
-    // Free the device slot first. The three-device limit only counts rows in
+    // Free the device slot first. The five-device limit only counts rows in
     // admin_sessions, so this update must not wait for tab/page cleanup.
     // It is intentionally idempotent so a normal logout request and a beacon
     // may safely arrive in either order.

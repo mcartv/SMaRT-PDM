@@ -13,7 +13,7 @@ const LOGIN_ERROR_MESSAGES = {
   ADMIN_ACTIVE_SESSION_CONFLICT:
     'An Admin session is already active on this device. Refresh the page and try again.',
   ADMIN_DEVICE_LIMIT_REACHED:
-    'This Admin account is already active on 3 devices. Log out from one device and try again.',
+    'This Admin account is already active on 5 devices. Log out from one device and try again.',
   TURNSTILE_REQUIRED:
     'Complete the security verification and try again.',
   TURNSTILE_FAILED:

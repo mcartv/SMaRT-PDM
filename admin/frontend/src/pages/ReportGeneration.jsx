@@ -807,31 +807,21 @@ export default function ReportGeneration({
         </div>
       ) : null}
 
-      <div
-        className="
-          grid
-          grid-cols-1
-          gap-5
-          xl:h-[calc(100dvh-7rem)]
-          xl:min-h-[640px]
-          xl:grid-cols-12
-          xl:items-stretch
-        "
-      >
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-12 xl:items-start">
         {/* LEFT: REPORT TEMPLATE LIST */}
         <Card
           className="
-            flex
-            min-h-0
-            min-w-0
-            flex-col
-            overflow-hidden
-            border-stone-200
-            bg-white
-            shadow-none
-            xl:col-span-4
-            xl:h-full
-          "
+    flex
+    min-h-0
+    min-w-0
+    flex-col
+    overflow-hidden
+    border-stone-200
+    bg-white
+    shadow-none
+    xl:col-span-4
+    xl:h-[calc(100dvh-7rem)]
+  "
         >
           <div className="shrink-0 border-b border-stone-100 bg-stone-50/70 px-4 py-4">
             <h2 className="report-section-title text-sm font-semibold text-stone-800">
@@ -895,7 +885,6 @@ export default function ReportGeneration({
         <Card
           className="
             flex
-            min-h-0
             min-w-0
             flex-col
             overflow-hidden
@@ -903,7 +892,7 @@ export default function ReportGeneration({
             bg-white
             shadow-none
             xl:col-span-8
-            xl:h-full
+            xl:min-h-[calc(100dvh-7rem)]
           "
         >
           <div className="shrink-0 border-b border-stone-100 bg-stone-50/70 px-4 py-4 sm:px-5">
@@ -925,16 +914,7 @@ export default function ReportGeneration({
             </div>
           </div>
 
-          <CardContent
-            className="
-              min-h-0
-              flex-1
-              overflow-y-auto
-              overscroll-contain
-              p-4
-              sm:p-5
-            "
-          >
+          <CardContent className="p-4 sm:p-5">
             <div className="mx-auto w-full max-w-4xl space-y-6">
               <section className="min-w-0">
                 <div className="mb-4 flex items-start gap-3">

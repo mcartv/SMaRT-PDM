@@ -1048,10 +1048,11 @@ function AccountEditModal({
         <AccountModalPortal>
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
         >
             <div
                 className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-stone-200 bg-white shadow-xl"
-                onClick={(event) => event.stopPropagation()}
             >
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
                     <h3 className="text-sm font-semibold text-stone-800">

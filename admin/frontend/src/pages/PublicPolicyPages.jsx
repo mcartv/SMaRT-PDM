@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
 import {
   Database,
   FileText,
@@ -46,6 +46,15 @@ function usePublicPolicyContent() {
 function PublicPolicyLayout({ title, intro, sections, iconName, effectiveDate, children }) {
   const { theme } = useLandingTheme();
   const Icon = policyIcons[iconName] || ShieldCheck;
+
+  useLayoutEffect(() => {
+    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+    });
+  }, [title]);
 
   useEffect(() => {
     document.title = `${title} | SMaRT-PDM`;

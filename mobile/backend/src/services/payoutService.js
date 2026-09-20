@@ -78,7 +78,6 @@ async function getMyPayouts(userId) {
       pbs.amount_received,
       pbs.release_status,
       pbs.released_at,
-      pbs.check_number,
       pbs.remarks AS entry_remarks,
       pbs.created_at,
 
@@ -91,6 +90,7 @@ async function getMyPayouts(userId) {
       pp.rejection_reason AS proof_rejection_reason,
 
       pb.payout_title,
+      pb.payout_code,
       pb.payout_date,
       pb.payment_mode,
       pb.payment_mode_other,
@@ -147,10 +147,7 @@ async function getMyPayouts(userId) {
         amount_per_scholar: Number(row.amount_per_scholar || 0),
 
         payout_date: row.payout_date || null,
-        payment_mode:
-            row.payment_mode === 'Other' && row.payment_mode_other
-                ? `Other - ${row.payment_mode_other}`
-                : row.payment_mode || '-',
+        payment_mode: row.payment_mode || '-',
         payment_mode_other: row.payment_mode_other || '',
         batch_status: row.batch_status || 'Pending',
         release_status: row.release_status || 'Pending',
@@ -164,7 +161,8 @@ async function getMyPayouts(userId) {
 
         semester: row.semester || '-',
 
-        reference: row.check_number || row.payout_entry_id,
+        payout_code: row.payout_code || '',
+        reference: row.payout_code || '',
         remarks: row.entry_remarks || row.batch_remarks || '',
         released_at: row.released_at || null,
         created_at: row.created_at,

@@ -394,7 +394,6 @@ function StudentHistoryModal({
                       ? `AY ${row.previous_academic_year}`
                       : '',
                   ].filter(Boolean).join(' · ');
-
                   return (
                     <article
                       key={row.student_id || row.scholar_id}
@@ -479,7 +478,6 @@ function StudentHistoryModal({
                           ? `AY ${row.previous_academic_year}`
                           : '',
                       ].filter(Boolean).join(' · ');
-
                       return (
                         <TableRow key={row.student_id || row.scholar_id}>
                           <TableCell className="py-3 pl-5">

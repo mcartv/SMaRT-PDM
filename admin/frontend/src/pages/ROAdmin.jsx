@@ -5,6 +5,7 @@ import ROScholarRequestsPanel from './ROScholarRequestsPanel';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
 import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
+import ScholarIdentity from '@/components/profile/ScholarIdentity';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -127,16 +128,6 @@ function getScholarName(scholar) {
       .join(' ') ||
     'Unknown Scholar'
   );
-}
-
-function getInitials(name = '') {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
 }
 
 function formatYearLevel(value) {
@@ -713,7 +704,7 @@ function AssignModal({
       <Card className="relative w-full max-w-xl overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-5 py-4">
           <h3 className="text-sm font-semibold text-stone-900">
-            {hasAssignment ? 'Add RO Placement' : 'Send RO Request'}
+            {hasAssignment ? 'Add RO Area' : 'Send RO Request'}
           </h3>
 
           <button
@@ -727,11 +718,22 @@ function AssignModal({
         </div>
 
         <CardContent className="space-y-4 p-5">
-          <div className="rounded-xl border border-stone-200 bg-stone-50/70 px-4 py-3">
-            <p className="text-xl font-semibold text-stone-900">{name}</p>
-            <p className="mt-1 text-sm text-stone-500">
-              {scholar.program_name || 'Scholarship Program'}
-            </p>
+          <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-stone-50/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <ScholarIdentity
+              scholar={scholar}
+              name={name}
+              studentNumber={scholar.pdm_id}
+              className="flex-1"
+            />
+
+            <div className="min-w-0 sm:max-w-[190px] sm:text-right">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+                Scholarship Program
+              </p>
+              <p className="mt-1 truncate text-xs font-medium text-stone-600">
+                {scholar.program_name || 'Not available'}
+              </p>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1232,56 +1234,61 @@ function RoDetailsModal({
     isCleared,
     canMarkCleared,
     clearanceBlockedReason,
-    progressSummary,
   } = getRoMetrics(scholar);
+  const statusCapsule = getMainStatusCapsule(scholar);
+  const approvedPlacementCount = placements.filter(
+    (placement) => normalizeStatus(placement.placement_status) === 'approved'
+  ).length;
+  const remainingMinutes = Math.max(0, requiredMinutes - validatedMinutes);
 
   return (
-    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/35 p-4 font-sans backdrop-blur-sm">
+    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/40 p-2 font-sans backdrop-blur-sm sm:p-4">
       <div className="absolute inset-0" onClick={loading ? undefined : onClose} />
 
-      <Card className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
-        <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-5 py-4">
-          <div>
-            <h3 className="text-lg font-semibold text-stone-800">RO Details</h3>
-            <p className="mt-1 text-sm text-stone-500">{name}</p>
+      <Card
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ro-details-title"
+        className="relative flex max-h-[calc(100dvh-1rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border-stone-200 bg-white shadow-2xl sm:max-h-[92vh]"
+      >
+        <div
+          className="flex items-start justify-between gap-4 border-b px-5 py-4 sm:px-6"
+          style={{ background: C.brownSoft, borderColor: C.line }}
+        >
+          <div className="min-w-0">
+            <h3 id="ro-details-title" className="text-lg font-semibold text-stone-900">Return of Obligation</h3>
+            <p className="mt-1 text-sm text-stone-500">
+              Review service areas, logged hours, and clearance readiness.
+            </p>
           </div>
 
           <button
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-50"
+            className="-mr-1 rounded-lg p-2 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700 disabled:opacity-50"
+            aria-label="Close RO details"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <CardContent className="flex-1 space-y-4 overflow-y-auto p-5 sm:p-6">
-          <div className="flex items-start gap-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
-            <PreviewableProfileAvatar
-              src={scholar.profile_photo_url || scholar.avatarUrl || scholar.avatar_url || ''}
-              name={`${name} profile photo`}
-              fallback={getInitials(name)}
-              avatarClassName="h-14 w-14 shrink-0 rounded-full border border-stone-200 shadow-sm"
-              fallbackClassName="bg-blue-900 text-sm font-medium text-white"
-              buttonClassName="rounded-full"
-            />
+        <CardContent className="grid flex-1 grid-cols-1 gap-4 overflow-y-auto bg-stone-50/50 p-4 sm:p-6 lg:grid-cols-3">
+          <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5 lg:col-span-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <ScholarIdentity
+                scholar={scholar}
+                name={name}
+                studentNumber={scholar.pdm_id}
+                className="flex-1 items-start"
+                nameClassName="text-base sm:text-lg"
+              />
+              <StatusChip tone={statusCapsule.tone}>
+                {statusCapsule.label}
+              </StatusChip>
+            </div>
 
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-xl font-semibold text-stone-900">{name}</p>
-                  <p className="mt-1 font-mono text-xs text-stone-400">
-                    {scholar.pdm_id || 'No PDM ID'}
-                  </p>
-                </div>
-
-                <StatusChip tone={getMainStatusCapsule(scholar).tone}>
-                  {getMainStatusCapsule(scholar).label}
-                </StatusChip>
-              </div>
-
-              <div className="mt-3 grid grid-cols-1 gap-2 text-sm text-stone-600 sm:grid-cols-2">
+              <div className="mt-4 grid grid-cols-1 gap-3 border-t border-stone-100 pt-4 text-sm text-stone-600 sm:grid-cols-2">
                 <p>
                   <span className="font-medium text-stone-700">Program:</span>{' '}
                   {scholar.program_name || 'N/A'}
@@ -1292,49 +1299,62 @@ function RoDetailsModal({
                   {scholar.course_code || 'N/A'} · {formatYearLevel(scholar.year_level)}
                 </p>
               </div>
-            </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+          <div className={`rounded-2xl border border-stone-200 bg-white p-4 ${hasAssignment
+            ? 'lg:col-start-3 lg:row-start-2'
+            : 'lg:col-span-3'
+            }`}>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-stone-900">Activity</p>
+              <span className="h-2 w-2 rounded-full" style={{ background: C.brownMid }} />
+            </div>
+
+            <div className="divide-y divide-stone-100">
+            <div className="flex items-center justify-between gap-4 py-3">
               <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
                 RO Areas
               </p>
-              <p className="mt-1.5 text-sm font-medium text-stone-900">
+              <p className="text-sm font-semibold text-stone-900">
                 {placements.length || (hasAssignment ? 1 : 0)}
               </p>
             </div>
 
-            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+            <div className="flex items-center justify-between gap-4 py-3">
               <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
-                Progress
+                Pending Logs
               </p>
-              <p className="mt-1.5 text-sm font-medium text-stone-900">
-                {hasAssignment ? progressSummary : 'N/A'}
+              <p className="text-sm font-semibold text-stone-900">
+                {pendingLogCount}
               </p>
             </div>
 
-            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+            <div className="flex items-center justify-between gap-4 py-3">
               <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
-                Logs
+                Uploaded Proofs
               </p>
-              <p className="mt-1.5 text-sm font-medium text-stone-900">
-                {pendingLogCount > 0 ? `${pendingLogCount} pending` : 'No pending'}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-stone-200 bg-white p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
-                Proofs
-              </p>
-              <p className="mt-1.5 text-sm font-medium text-stone-900">
+              <p className="text-sm font-semibold text-stone-900">
                 {proofCount || 0}
               </p>
             </div>
+            </div>
+
+            {hasAssignment ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onLogs}
+                disabled={loading}
+                className="mt-4 h-9 w-full rounded-xl border-stone-200 text-xs font-medium"
+              >
+                <Eye className="mr-2 h-3.5 w-3.5" />
+                View Logs &amp; Proofs
+              </Button>
+            ) : null}
           </div>
 
           {scholar.remarks ? (
-            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+            <div className="rounded-2xl border border-stone-200 bg-white p-4 lg:col-span-3">
               <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
                 Remarks
               </p>
@@ -1345,23 +1365,23 @@ function RoDetailsModal({
           ) : null}
 
           {hasAssignment ? (
-            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+            <div className="rounded-2xl border border-stone-200 bg-white p-4 lg:col-span-3">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
-                    Placement Requests
+                  <p className="text-sm font-semibold text-stone-900">
+                    RO Areas
                   </p>
-                  <p className="mt-1 text-sm text-stone-500">
-                    Service hours may be completed in one or more approved RO Areas.
+                  <p className="mt-1 text-xs text-stone-500">
+                    Approved locations where service hours may be completed.
                   </p>
                 </div>
-                <StatusChip tone="blue">
-                  {placements.length} {placements.length === 1 ? 'area' : 'areas'}
-                </StatusChip>
+                <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600">
+                  {approvedPlacementCount} approved
+                </span>
               </div>
 
               {placements.length > 0 ? (
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="space-y-2">
                   {placements.map((placement) => {
                     const status = placement.placement_status || 'Pending';
                     const statusKey = normalizeStatus(status);
@@ -1401,42 +1421,63 @@ function RoDetailsModal({
           ) : null}
 
           {hasAssignment ? (
-            <div className="rounded-2xl border border-stone-200 bg-white p-4">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="rounded-2xl border border-stone-200 bg-white p-4 sm:p-5 lg:col-span-2 lg:col-start-1 lg:row-start-2">
+              <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
-                    Hours
+                  <p className="text-sm font-semibold text-stone-900">
+                    Service Hour Progress
                   </p>
-                  <p className="mt-1.5 text-sm font-medium text-stone-900">
-                    {progressSummary}
+                  <p className="mt-1 text-xs text-stone-500">
+                    Submitted time must be validated before clearance.
                   </p>
                 </div>
 
-                <StatusChip tone={getMainStatusCapsule(scholar).tone}>
-                  {getMainStatusCapsule(scholar).label}
-                </StatusChip>
+                <div className="text-left sm:text-right">
+                  <p className="text-lg font-semibold text-stone-900">
+                    {formatMinutes(validatedMinutes)}{' '}
+                    <span className="text-sm font-normal text-stone-400">
+                      of {formatMinutes(requiredMinutes)}
+                    </span>
+                  </p>
+                  <p className="text-xs text-stone-500">validated</p>
+                </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="mb-5 grid grid-cols-3 gap-2 rounded-xl bg-stone-50 p-3">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">Submitted</p>
+                  <p className="mt-1 text-sm font-semibold text-stone-800">{formatMinutes(submittedMinutes)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">Validated</p>
+                  <p className="mt-1 text-sm font-semibold text-green-700">{formatMinutes(validatedMinutes)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">Remaining</p>
+                  <p className="mt-1 text-sm font-semibold text-amber-700">{formatMinutes(remainingMinutes)}</p>
+                </div>
+              </div>
+
+              <div className="space-y-5">
                 <ProgressLine
-                  label="Submitted"
+                  label="Submitted by scholar"
                   value={submittedProgress}
                   color={C.amber}
-                  caption={`${formatMinutes(submittedMinutes)} submitted of ${formatMinutes(requiredMinutes)}`}
+                  caption={`${formatMinutes(submittedMinutes)} submitted of ${formatMinutes(requiredMinutes)} required`}
                 />
 
                 <ProgressLine
-                  label="Validated"
+                  label="Validated by department"
                   value={validatedProgress}
                   color={C.green}
-                  caption={`${formatMinutes(validatedMinutes)} validated of ${formatMinutes(requiredMinutes)}`}
+                  caption={`${formatMinutes(validatedMinutes)} validated of ${formatMinutes(requiredMinutes)} required`}
                 />
               </div>
             </div>
           ) : null}
 
           {scholar.conflict_reason || scholar.conflictReason ? (
-            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3">
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 lg:col-span-3">
               <p className="text-xs font-medium uppercase tracking-wide text-red-500">
                 Conflict Reported
               </p>
@@ -1445,14 +1486,9 @@ function RoDetailsModal({
               </p>
             </div>
           ) : null}
-          {hasAssignment && !isCleared && !canMarkCleared ? (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-normal text-amber-800">
-              Mark Cleared is locked: {clearanceBlockedReason}
-            </div>
-          ) : null}
         </CardContent>
 
-        <div className="flex flex-col gap-2 border-t border-stone-100 bg-stone-50/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-end">
+        <div className="flex flex-col-reverse gap-2 border-t border-stone-100 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-6">
           <Button
             type="button"
             variant="outline"
@@ -1461,21 +1497,8 @@ function RoDetailsModal({
             className="h-9 rounded-xl border-stone-200 px-4 text-xs font-medium"
           >
             <Send className="mr-2 h-3.5 w-3.5" />
-            {hasAssignment ? 'Add Placement' : 'Assign'}
+            {hasAssignment ? 'Add RO Area' : 'Assign RO Area'}
           </Button>
-
-          {hasAssignment ? (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onLogs}
-              disabled={loading}
-              className="h-9 rounded-xl border-stone-200 px-4 text-xs font-medium"
-            >
-              <Eye className="mr-2 h-3.5 w-3.5" />
-              Logs & Proofs
-            </Button>
-          ) : null}
 
           {hasAssignment && !isCleared ? (
             <Button
@@ -1484,7 +1507,7 @@ function RoDetailsModal({
               disabled={loading || !canMarkCleared}
               title={clearanceBlockedReason || 'All required hours were validated by the department head.'}
               className="h-9 rounded-xl border-none px-4 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ background: C.green }}
+              style={{ background: C.brownMid }}
             >
               <ShieldCheck className="mr-2 h-3.5 w-3.5" />
               Mark Cleared
@@ -2320,25 +2343,13 @@ export default function ROAdmin() {
                         ) : null}
 
                         <td className="px-3 py-4 align-top">
-                          <div className="flex items-start gap-3">
-                            <PreviewableProfileAvatar
-                              src={scholar.profile_photo_url || scholar.avatarUrl || scholar.avatar_url || ''}
-                              name={`${name} profile photo`}
-                              fallback={getInitials(name)}
-                              avatarClassName="h-10 w-10 shrink-0 rounded-full border border-stone-200 shadow-sm"
-                              fallbackClassName="bg-blue-900 text-xs font-bold text-white"
-                              buttonClassName="rounded-full"
-                            />
-
-                            <div className="min-w-0">
-                              <p className="max-w-[220px] truncate text-sm font-semibold leading-5 text-stone-900">
-                                {name}
-                              </p>
-                              <p className="mt-0.5 text-xs font-mono text-stone-400">
-                                {scholar.pdm_id || 'No PDM ID'}
-                              </p>
-                            </div>
-                          </div>
+                          <ScholarIdentity
+                            scholar={scholar}
+                            name={name}
+                            studentNumber={scholar.pdm_id}
+                            className="items-start"
+                            nameClassName="max-w-[220px]"
+                          />
                         </td>
 
                         <td className="px-3 py-4 align-top">

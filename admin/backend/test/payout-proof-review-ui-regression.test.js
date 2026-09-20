@@ -19,3 +19,12 @@ test('payout proof review remains usable as a mobile bottom sheet', () => {
   assert.match(panel, /max-h-\[100dvh\]/);
   assert.match(panel, /overflow-y-auto/);
 });
+
+test('reviewed payout proofs are view-only in the admin UI', () => {
+  assert.match(panel, /function isPendingReview/);
+  assert.match(panel, /selectedIsPending/);
+  assert.match(panel, /View Details/);
+  assert.match(panel, /This decision is finalized/);
+  assert.match(panel, /reviewer_name/);
+  assert.match(panel, /reviewed_at/);
+});

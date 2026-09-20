@@ -11,6 +11,7 @@ import {
   Loader2,
   RefreshCw,
   Search,
+  X,
   XCircle,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
@@ -74,6 +75,10 @@ function proofReviewKey(item) {
   ].join(':');
 }
 
+function isPendingReview(item) {
+  return String(item?.proof_status || 'Pending Review').trim() === 'Pending Review';
+}
+
 export default function PayoutProofReviewPanel() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -89,6 +94,8 @@ export default function PayoutProofReviewPanel() {
   const hasOpenedSelectedProof = Boolean(
     selectedProofKey && openedProofKeys.has(selectedProofKey)
   );
+  const selectedIsPending = isPendingReview(selected);
+  const selectedStatusMeta = STATUS_META[selected?.proof_status] || STATUS_META['Pending Review'];
 
   const closeReview = () => {
     if (saving) return;
@@ -164,6 +171,10 @@ export default function PayoutProofReviewPanel() {
 
   const review = async (nextStatus) => {
     if (!selected?.payout_proof_id) return;
+    if (!selectedIsPending) {
+      setError('This payout proof has already been reviewed and is now read-only.');
+      return;
+    }
     if (nextStatus === 'Verified' && !hasOpenedSelectedProof) {
       setError('Open the submitted proof before verifying it.');
       return;
@@ -258,6 +269,7 @@ export default function PayoutProofReviewPanel() {
           <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
             {filtered.map((item) => {
               const meta = STATUS_META[item.proof_status] || STATUS_META['Pending Review'];
+              const pending = isPendingReview(item);
               return (
                 <Card key={item.payout_proof_id} className="border-stone-200 shadow-none">
                   <CardContent className="space-y-3 p-4">
@@ -294,7 +306,7 @@ export default function PayoutProofReviewPanel() {
                         View File
                       </Button>
                       <Button
-                        className="flex-1 rounded-xl bg-[var(--portal-base)] text-white hover:brightness-95"
+                        className="flex-1 rounded-xl bg-[var(--portal-base)] text-white hover:bg-[var(--portal-active)] hover:brightness-95"
                         onClick={() => {
                           setSelected(item);
                           setComment(item.admin_comment || '');
@@ -302,7 +314,7 @@ export default function PayoutProofReviewPanel() {
                         }}
                       >
                         <FileCheck2 className="mr-2 h-4 w-4" />
-                        Review
+                        {pending ? 'Review' : 'View Details'}
                       </Button>
                     </div>
                   </CardContent>
@@ -318,12 +330,31 @@ export default function PayoutProofReviewPanel() {
           className="fixed inset-0 z-[80] flex items-end justify-center bg-black/40 p-0 backdrop-blur-sm sm:items-center sm:p-4"
           onClick={closeReview}
         >
-          <Card className="max-h-[100dvh] w-full max-w-lg overflow-y-auto rounded-b-none border-stone-200 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="border-b border-stone-100 px-5 py-4">
-              <h3 className="font-semibold text-stone-900">Review Payout Proof</h3>
-              <p className="mt-1 text-xs text-stone-500">
-                {proofName(selected)} {MIDDLE_DOT} {selected.payout_title || 'Scholarship Payout'}
-              </p>
+          <Card
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="payout-proof-dialog-title"
+            className="max-h-[100dvh] w-full max-w-lg overflow-y-auto rounded-b-none border-stone-200 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-stone-100 px-5 py-4">
+              <div className="min-w-0">
+                <h3 id="payout-proof-dialog-title" className="font-semibold text-stone-900">
+                  {selectedIsPending ? 'Review Payout Proof' : 'Payout Proof Details'}
+                </h3>
+                <p className="mt-1 truncate text-xs text-stone-500">
+                  {proofName(selected)} {MIDDLE_DOT} {selected.payout_title || 'Scholarship Payout'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeReview}
+                disabled={saving}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-700 disabled:opacity-50"
+                aria-label="Close payout proof details"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
             <CardContent className="space-y-4 p-5">
               <Button
@@ -340,49 +371,96 @@ export default function PayoutProofReviewPanel() {
                 <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
                   {error}
                 </p>
-              ) : !hasOpenedSelectedProof ? (
-                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                  Step 1: open and inspect the submitted proof. Verification stays locked until the file is opened.
-                </p>
+              ) : null}
+
+              {selectedIsPending ? (
+                <>
+                  {!error ? (
+                    !hasOpenedSelectedProof ? (
+                      <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                        Step 1: open and inspect the submitted proof. Verification stays locked until the file is opened.
+                      </p>
+                    ) : (
+                      <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+                        Proof opened. You can now verify it or request a resubmission.
+                      </p>
+                    )
+                  ) : null}
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-stone-600">Review comment</label>
+                    <Textarea
+                      value={comment}
+                      onChange={(event) => setComment(event.target.value)}
+                      placeholder="Required when requesting resubmission."
+                      className="min-h-28 rounded-xl border-stone-200"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button
+                      variant="outline"
+                      className="flex-1 rounded-xl border-red-200 text-red-700 hover:bg-red-50"
+                      onClick={() => review('Resubmission Required')}
+                      disabled={saving}
+                    >
+                      <XCircle className="mr-2 h-4 w-4" />
+                      Request Resubmission
+                    </Button>
+                    <Button
+                      className="flex-1 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
+                      onClick={() => review('Verified')}
+                      disabled={saving || !hasOpenedSelectedProof}
+                    >
+                      {saving ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                      )}
+                      Verify Proof
+                    </Button>
+                  </div>
+                </>
               ) : (
-                <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
-                  Proof opened. You can now verify it or request a resubmission.
-                </p>
+                <div className="space-y-4">
+                  <div className={`rounded-xl border px-4 py-3 ${selectedStatusMeta.className}`}>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      <p className="text-sm font-semibold">
+                        Review completed: {selected.proof_status}
+                      </p>
+                    </div>
+                    <p className="mt-1 text-xs opacity-80">
+                      This decision is finalized. The proof remains available for viewing only.
+                    </p>
+                  </div>
+
+                  <dl className="grid grid-cols-1 gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4 sm:grid-cols-2">
+                    <div>
+                      <dt className="text-[11px] font-semibold uppercase tracking-wide text-stone-400">Reviewed by</dt>
+                      <dd className="mt-1 text-sm font-medium text-stone-800">
+                        {selected.reviewer_name || selected.reviewer_username || 'OSFA administrator'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] font-semibold uppercase tracking-wide text-stone-400">Reviewed on</dt>
+                      <dd className="mt-1 text-sm font-medium text-stone-800">
+                        {formatDate(selected.reviewed_at)}
+                      </dd>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <dt className="text-[11px] font-semibold uppercase tracking-wide text-stone-400">Review comment</dt>
+                      <dd className="mt-1 whitespace-pre-wrap text-sm leading-6 text-stone-700">
+                        {selected.admin_comment || selected.rejection_reason || 'No review comment was added.'}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <Button variant="outline" className="w-full rounded-xl" onClick={closeReview}>
+                    Close
+                  </Button>
+                </div>
               )}
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-stone-600">Review comment</label>
-                <Textarea
-                  value={comment}
-                  onChange={(event) => setComment(event.target.value)}
-                  placeholder="Required when requesting resubmission."
-                  className="min-h-28 rounded-xl border-stone-200"
-                />
-              </div>
-
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Button
-                  variant="outline"
-                  className="flex-1 rounded-xl border-red-200 text-red-700 hover:bg-red-50"
-                  onClick={() => review('Resubmission Required')}
-                  disabled={saving}
-                >
-                  <XCircle className="mr-2 h-4 w-4" />
-                  Request Resubmission
-                </Button>
-                <Button
-                  className="flex-1 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
-                  onClick={() => review('Verified')}
-                  disabled={saving || !hasOpenedSelectedProof}
-                >
-                  {saving ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                  )}
-                  Verify Proof
-                </Button>
-              </div>
             </CardContent>
           </Card>
         </div>

@@ -59,6 +59,7 @@ function normalizeReportType(value) {
         'applications',
         'scholars',
         'payouts',
+        'payout_proofs',
         'sdo',
         'guidance',
         'pd',
@@ -223,6 +224,11 @@ async function getReportMetadata() {
                 sub: 'Payout batches, release status, amount, and recipients',
             },
             {
+                id: 'payout_proofs',
+                name: 'Payout Proof Upload Report',
+                sub: 'Scholars who uploaded payout proof with submission and review details',
+            },
+            {
                 id: 'endorsements',
                 name: 'Endorsement Report',
                 sub: 'Consolidated SDO, Guidance, and Program Director endorsement results',
@@ -308,7 +314,7 @@ async function getReportMetadata() {
         verificationStatuses: buildMetadataOptions(verificationStatusesResult.rows, 'value', 'All Verification Statuses'),
         payoutBatchStatuses: buildMetadataOptions(payoutBatchStatusesResult.rows, 'value', 'All Batch Statuses'),
         payoutReleaseStatuses: buildMetadataOptions(payoutReleaseStatusesResult.rows, 'value', 'All Release Statuses'),
-        payoutPaymentModes: buildMetadataOptions(payoutPaymentModesResult.rows, 'value', 'All Payment Modes'),
+        payoutPaymentModes: buildMetadataOptions(payoutPaymentModesResult.rows, 'value', 'All Payout Modes'),
     };
 }
 
@@ -494,6 +500,7 @@ function getInstitutionalReportTitle(reportType) {
         scholars_by_benefactor: 'SCHOLAR COUNT BY BENEFACTOR',
         scholarship_history: 'SCHOLARSHIP PROGRAM HISTORY',
         payouts: 'PAYOUT BATCH REPORT',
+        payout_proofs: 'PAYOUT PROOF UPLOAD REPORT',
         renewals: 'SCHOLARSHIP RENEWAL REPORT',
         slot_utilization: 'SCHOLARSHIP SLOT REPORT',
         sdo: 'SDO ENDORSEMENT REPORT',
@@ -1410,6 +1417,96 @@ async function getPayoutRows({
     LEFT JOIN students st ON pbs.student_id = st.student_id
     WHERE ${where.join(' AND ')}
     ORDER BY pb.created_at DESC, st.last_name ASC;
+  `;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+}
+
+// SMART_PDM_PAYOUT_PROOF_UPLOAD_REPORT_V1
+async function getPayoutProofRows({
+    academicYearId,
+    semester,
+    programId,
+    benefactorId,
+    reviewResult,
+    courseId,
+    yearLevel,
+    dateFrom,
+    dateTo,
+}) {
+    const params = [];
+    // Proof uploads are historical records, so completed/archived payout batches
+    // must remain visible in this report.
+    const where = ['1 = 1'];
+
+    if (academicYearId && academicYearId !== 'all') {
+        params.push(academicYearId);
+        where.push(`pb.academic_year_id = $${params.length}`);
+    }
+
+    if (semester && semester !== 'all') {
+        params.push(semester);
+        where.push(`period.term = $${params.length}`);
+    }
+
+    if (programId && programId !== 'all') {
+        params.push(programId);
+        where.push(`pb.program_id = $${params.length}`);
+    }
+
+    if (benefactorId && benefactorId !== 'all') {
+        params.push(benefactorId);
+        where.push(`b.benefactor_id = $${params.length}`);
+    }
+
+    if (courseId && courseId !== 'all') {
+        params.push(courseId);
+        where.push(`COALESCE(st.course_id, smr.course_id) = $${params.length}`);
+    }
+
+    appendScholarDetailFilters(where, params, { yearLevel });
+    appendTextEqualityFilter(where, params, 'pp.proof_status', reviewResult);
+    appendDateRange(where, params, 'pp.submitted_at', dateFrom, dateTo);
+
+    const query = `
+    SELECT
+      st.pdm_id,
+      CONCAT(st.last_name, ', ', st.first_name) AS student_name,
+      course.course_code,
+      st.year_level,
+      sp.program_name,
+      b.benefactor_name,
+      ay.label AS academic_year,
+      period.term AS semester,
+      pb.payout_title,
+      pb.payout_date,
+      pbs.amount_received,
+      pbs.release_status,
+      pp.file_name,
+      pp.submitted_at,
+      pp.proof_status,
+      COALESCE(
+        NULLIF(TRIM(CONCAT_WS(' ', reviewer_profile.first_name, reviewer_profile.last_name)), ''),
+        reviewer.username,
+        ''
+      ) AS reviewed_by,
+      pp.reviewed_at,
+      COALESCE(pp.admin_comment, pp.rejection_reason, '') AS review_comment
+    FROM payout_proofs pp
+    INNER JOIN payout_batch_students pbs ON pbs.payout_entry_id = pp.payout_entry_id
+    INNER JOIN payout_batches pb ON pb.payout_batch_id = pp.payout_batch_id
+    INNER JOIN students st ON st.student_id = pp.student_id
+    LEFT JOIN student_master_records smr ON smr.master_student_id = st.master_student_id
+    LEFT JOIN academic_course course ON course.course_id = COALESCE(st.course_id, smr.course_id)
+    LEFT JOIN scholarship_program sp ON sp.program_id = pb.program_id
+    LEFT JOIN benefactors b ON b.benefactor_id = sp.benefactor_id
+    LEFT JOIN academic_years ay ON ay.academic_year_id = pb.academic_year_id
+    LEFT JOIN academic_period period ON period.period_id = pb.period_id
+    LEFT JOIN users reviewer ON reviewer.user_id = pp.reviewed_by
+    LEFT JOIN admin_profiles reviewer_profile ON reviewer_profile.user_id = reviewer.user_id
+    WHERE ${where.join(' AND ')}
+    ORDER BY pp.submitted_at DESC, st.last_name ASC, st.first_name ASC;
   `;
 
     const { rows } = await pool.query(query, params);
@@ -2466,6 +2563,9 @@ async function getRowsByReportType({
     if (reportType === 'payouts') {
         return await getPayoutRows(sharedFilters);
     }
+    if (reportType === 'payout_proofs') {
+        return await getPayoutProofRows(sharedFilters);
+    }
     if (reportType === 'renewals') {
         return await getRenewalRows(sharedFilters);
     }
@@ -2692,7 +2792,7 @@ async function buildExportDefinition(normalized) {
             { header: 'Academic Year', key: 'academic_year' },
             { header: 'Semester', key: 'semester' },
             { header: 'Payout Date', key: 'payout_date' },
-            { header: 'Payment Mode', key: 'payment_mode' },
+            { header: 'Payout Mode', key: 'payment_mode' },
             { header: 'Amount Per Scholar', key: 'amount_per_scholar' },
             { header: 'Batch Total', key: 'total_amount' },
             { header: 'Batch Status', key: 'batch_status' },
@@ -2703,6 +2803,30 @@ async function buildExportDefinition(normalized) {
             { header: 'Release Status', key: 'release_status' },
             { header: 'Released At', key: 'released_at' },
             { header: 'Remarks', key: 'remarks' },
+        ];
+    } else if (normalized.reportType === 'payout_proofs') {
+        rows = await getPayoutProofRows(normalized);
+        sheetName = 'Payout Proof Uploads';
+        filename = 'payout_proof_upload_report.xlsx';
+        columns = [
+            { header: 'Student Number', key: 'pdm_id' },
+            { header: 'Student Name', key: 'student_name' },
+            { header: 'Course', key: 'course_code' },
+            { header: 'Year Level', key: 'year_level' },
+            { header: 'Scholarship Program', key: 'program_name' },
+            { header: 'Benefactor', key: 'benefactor_name' },
+            { header: 'Academic Year', key: 'academic_year' },
+            { header: 'Semester', key: 'semester' },
+            { header: 'Payout Title', key: 'payout_title' },
+            { header: 'Payout Date', key: 'payout_date' },
+            { header: 'Amount Received', key: 'amount_received' },
+            { header: 'Release Status', key: 'release_status' },
+            { header: 'Proof File', key: 'file_name' },
+            { header: 'Uploaded At', key: 'submitted_at' },
+            { header: 'Proof Status', key: 'proof_status' },
+            { header: 'Reviewed By', key: 'reviewed_by' },
+            { header: 'Reviewed At', key: 'reviewed_at' },
+            { header: 'Review Comment', key: 'review_comment' },
         ];
     } else if (normalized.reportType === 'renewals') {
         rows = await getRenewalRows(normalized);

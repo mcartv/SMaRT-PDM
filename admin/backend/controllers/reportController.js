@@ -76,6 +76,7 @@ function getAllowedReportTypes(role, hasRoCoordinatorAccess = false) {
             'scholars_by_benefactor',
             'scholarship_history',
             'payouts',
+            'payout_proofs',
             'endorsements',
             'ro_compliance',
             'renewals',

@@ -7,6 +7,7 @@ const { read } = require('./_current-system-test-utils');
 const page = read('frontend/src/pages/PayoutManagement.jsx');
 const service = read('backend/services/payoutService.js');
 const reportService = read('backend/services/reportService.js');
+const reportPage = read('frontend/src/pages/ReportGeneration.jsx');
 const openingService = read('backend/services/programOpeningService.js');
 
 test('payout amount remains read-only and is not submitted by the client', () => {
@@ -36,12 +37,14 @@ test('opening create and update persist the calculated allocation per scholar', 
   );
 });
 
-test('payout payment modes match the database constraint and are validated server-side', () => {
+test('payout modes match the database constraint and are validated server-side', () => {
   assert.match(page, /<option value="Cash">Cash<\/option>/);
   assert.match(page, /<option value="Other">Other<\/option>/);
   assert.doesNotMatch(page, /<option value="Bank">Bank<\/option>/);
   assert.doesNotMatch(page, /<option value="Cheque">Cheque<\/option>/);
-  assert.match(page, /form\.payment_mode === 'Other'[\s\S]*Specify Payment Type/);
+  assert.match(page, /form\.payment_mode === 'Other'[\s\S]*Specify Payout Type/);
+  assert.match(page, /placeholder="Example: Check"/);
+  assert.doesNotMatch(page, /GCash|Maya|bank transfer/i);
   assert.match(page, /payment_mode_other: form\.payment_mode_other/);
   assert.match(service, /const PAYOUT_PAYMENT_MODES = Object\.freeze\(\[\s*'Cash',\s*'Other'/);
   assert.match(service, /const normalizedPaymentMode = validatePaymentMode\(payment_mode\)/);
@@ -54,6 +57,16 @@ test('payout payment modes match the database constraint and are validated serve
   assert.match(migration, /payment_mode = 'Other'[\s\S]*char_length\(trim\(payment_mode_other\)\)/);
 });
 
+
+test('payout report UI and exports use payout terminology', () => {
+  assert.match(reportPage, /<FilterField label="Payout Mode">/);
+  assert.doesNotMatch(reportPage, /<FilterField label="Payment Mode">/);
+  assert.match(reportService, /'All Payout Modes'/);
+  assert.match(reportService, /header: 'Payout Mode', key: 'payment_mode'/);
+  assert.doesNotMatch(reportService, /'All Payment Modes'/);
+  assert.doesNotMatch(reportService, /header: 'Payment Mode', key: 'payment_mode'/);
+});
+
 test('RO completion proof type is included in the database constraint', () => {
   const migration = read('../supabase/migrations/20260909001724_allow_ro_completion_proofs.sql');
   const mobileRoService = read('../mobile/backend/src/services/roService.js');
@@ -63,3 +76,36 @@ test('RO completion proof type is included in the database constraint', () => {
   assert.match(mobileRoService, /const RO_PROOF_TYPES = new Set\(\[[\s\S]*'completion'/);
   assert.match(mobileRoService, /RO_PROOF_TYPES\.has\(proofType\)/);
 });
+
+test('payout release UX uses payout terminology and no manual reference field', () => {
+  assert.match(page, /Confirm Payout Release/);
+  assert.match(page, /Confirm Release/);
+  assert.match(page, /Payout Mode/);
+  assert.match(page, /Payout Type/);
+  assert.doesNotMatch(page, /Check \/ Reference Number/);
+  assert.doesNotMatch(page, /Enter check or reference number/);
+  assert.match(page, /Release Selected/);
+  assert.match(page, /I confirm that these payouts have been released/);
+});
+
+test('payout code migration creates immutable SPP codes and services expose them', () => {
+  const payoutCodeMigration = read(
+    '../supabase/migrations/20260920070000_add_payout_code.sql'
+  );
+  const mobilePayoutService = read('../mobile/backend/src/services/payoutService.js');
+  const mobilePayoutScreen = read(
+    '../mobile/frontend/lib/features/scholar/presentation/screens/payout_schedule_screen.dart'
+  );
+
+  assert.match(payoutCodeMigration, /ADD COLUMN IF NOT EXISTS payout_code varchar\(10\)/i);
+  assert.match(payoutCodeMigration, /'SPP-'[\s\S]*generate_series\(1, 6\)/);
+  assert.match(payoutCodeMigration, /CREATE UNIQUE INDEX IF NOT EXISTS payout_batches_payout_code_uidx/);
+  assert.match(payoutCodeMigration, /prevent_payout_code_change/);
+  assert.match(service, /pb\.payout_code/);
+  assert.match(mobilePayoutService, /payout_code: row\.payout_code/);
+  assert.match(mobilePayoutScreen, /'Payout Code'/);
+  assert.match(mobilePayoutScreen, /'Proof of Payout Required'/);
+  assert.doesNotMatch(mobilePayoutScreen, /'Payment Mode'/);
+  assert.doesNotMatch(mobilePayoutScreen, /'Reference'/);
+});
+

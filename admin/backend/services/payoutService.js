@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const notificationService = require('./notificationService');
+const { resolveAvatarUrl } = require('./avatarService');
 
 const PAYOUT_PAYMENT_MODES = Object.freeze([
   'Cash',
@@ -32,11 +33,11 @@ function validatePayoutDate(value) {
 }
 
 function validatePaymentMode(value) {
-  const normalized = normalizeRequiredText(value, 'Payment mode', 60);
+  const normalized = normalizeRequiredText(value, 'Payout mode', 60);
   if (!PAYOUT_PAYMENT_MODES.includes(normalized)) {
     throw payoutError(
       400,
-      `Payment mode must be one of: ${PAYOUT_PAYMENT_MODES.join(', ')}.`
+      `Payout mode must be one of: ${PAYOUT_PAYMENT_MODES.join(', ')}.`
     );
   }
   return normalized;
@@ -44,7 +45,7 @@ function validatePaymentMode(value) {
 
 function validateOtherPaymentMode(paymentMode, value) {
   if (paymentMode !== 'Other') return null;
-  return normalizeRequiredText(value, 'Other payment type', 60);
+  return normalizeRequiredText(value, 'Other payout type', 60);
 }
 
 function validateMoney(value, field) {
@@ -62,6 +63,7 @@ async function fetchPayoutBatches() {
   const query = `
     SELECT
       pb.payout_batch_id,
+      pb.payout_code,
       pb.opening_id,
       pb.program_id,
       pb.academic_year_id,
@@ -101,6 +103,9 @@ async function fetchPayoutBatches() {
             'semester', sap.term,
             'status', st.scholarship_status,
             'pdm_id', st.pdm_id,
+            'course_code', ac.course_code,
+            'course_name', ac.course_name,
+            'profile_photo_url', st.profile_photo_url,
             'student_name', CONCAT(st.last_name, ', ', st.first_name)
           )
         ) FILTER (WHERE pbs.payout_entry_id IS NOT NULL),
@@ -120,6 +125,10 @@ async function fetchPayoutBatches() {
       ON pb.payout_batch_id = pbs.payout_batch_id
     LEFT JOIN students st
       ON pbs.student_id = st.student_id
+    LEFT JOIN student_master_records smr
+      ON smr.master_student_id = st.master_student_id
+    LEFT JOIN academic_course ac
+      ON ac.course_id = COALESCE(st.course_id, smr.course_id)
     LEFT JOIN academic_years say
       ON st.active_academic_year_id = say.academic_year_id
     LEFT JOIN academic_period sap
@@ -127,6 +136,7 @@ async function fetchPayoutBatches() {
 
     GROUP BY
       pb.payout_batch_id,
+      pb.payout_code,
       pb.opening_id,
       pb.program_id,
       pb.academic_year_id,
@@ -154,7 +164,18 @@ async function fetchPayoutBatches() {
   `;
 
   const { rows } = await pool.query(query);
-  return rows;
+
+  return Promise.all(
+    rows.map(async (batch) => ({
+      ...batch,
+      scholars: await Promise.all(
+        (Array.isArray(batch.scholars) ? batch.scholars : []).map(async (scholar) => ({
+          ...scholar,
+          avatar_url: await resolveAvatarUrl(scholar.profile_photo_url),
+        }))
+      ),
+    }))
+  );
 }
 
 // =========================
@@ -269,10 +290,16 @@ async function fetchEligibleScholarsByOpening(openingId) {
       st.scholarship_status AS status,
       a.opening_id,
       st.pdm_id,
+      ac.course_code,
+      ac.course_name,
       CONCAT(st.last_name, ', ', st.first_name) AS student_name
     FROM students st
     INNER JOIN applications a
       ON st.current_application_id = a.application_id
+    LEFT JOIN student_master_records smr
+      ON smr.master_student_id = st.master_student_id
+    LEFT JOIN academic_course ac
+      ON ac.course_id = COALESCE(st.course_id, smr.course_id)
     LEFT JOIN academic_years say
       ON st.active_academic_year_id = say.academic_year_id
     LEFT JOIN academic_period sap
@@ -669,7 +696,7 @@ async function updateScholarPayoutStatus({
           userId: user.user_id,
           type: 'payout_released',
           title: 'Payout Released',
-          message: `Your scholarship payout of ${amount} has been released.`,
+          message: `Your scholarship payout of ${amount} has been released. Please upload your Proof of Payout in the Payout page for OSFA verification.`,
           referenceId: String(updated.payout_batch_id),
           referenceType: 'payout_batch',
         });
@@ -872,6 +899,7 @@ async function fetchMyPayouts(userId) {
       pbs.remarks AS entry_remarks,
       pbs.created_at,
       pb.payout_title,
+      pb.payout_code,
       pb.payout_date,
       pb.payment_mode,
       pb.payment_mode_other,
@@ -912,7 +940,8 @@ async function fetchMyPayouts(userId) {
       payment_mode_other: row.payment_mode_other || '',
       batch_status: row.batch_status || 'Pending',
       program_name: row.program_name || 'Scholarship Program',
-      reference: row.check_number || row.payout_entry_id,
+      payout_code: row.payout_code || '',
+      reference: row.payout_code || '',
       remarks: row.entry_remarks || row.batch_remarks || '',
       released_at: row.released_at || null,
       created_at: row.created_at,
@@ -1014,6 +1043,29 @@ async function reviewPayoutProof({ proofId, status, comment = '', actorUserId = 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    const existingResult = await client.query(
+      `
+        SELECT proof_status
+        FROM payout_proofs
+        WHERE payout_proof_id = $1::uuid
+        FOR UPDATE
+      `,
+      [proofId]
+    );
+
+    if (!existingResult.rows.length) {
+      const error = new Error('Payout proof not found.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (existingResult.rows[0].proof_status !== 'Pending Review') {
+      const error = new Error('This payout proof has already been reviewed and is read-only.');
+      error.statusCode = 409;
+      throw error;
+    }
+
     const result = await client.query(
       `
         UPDATE payout_proofs pp

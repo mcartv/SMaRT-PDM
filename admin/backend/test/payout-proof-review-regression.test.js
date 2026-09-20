@@ -21,3 +21,10 @@ test('payout proof review casts reused PostgreSQL parameters explicitly', () => 
 test('verified proof still clears any previous rejection reason', () => {
   assert.match(source, /ELSE NULL[\s\S]*?END,[\s\S]*?updated_at = now\(\)/);
 });
+
+test('a finalized payout proof cannot be reviewed twice', () => {
+  assert.match(source, /SELECT proof_status[\s\S]*?FOR UPDATE/);
+  assert.match(source, /proof_status !== 'Pending Review'/);
+  assert.match(source, /already been reviewed and is read-only/);
+  assert.match(source, /error\.statusCode = 409/);
+});

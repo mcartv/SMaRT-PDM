@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import ScholarIdentity from '@/components/profile/ScholarIdentity';
 import {
   Table,
   TableBody,
@@ -616,8 +617,8 @@ function ProgramHistoryPanel({
   const rows = Array.isArray(history) ? history : [];
 
   return (
-    <Card className="overflow-hidden border-stone-200 shadow-none">
-      <div className="flex items-center justify-between gap-3 border-b border-stone-100 bg-stone-50/70 px-4 py-3.5">
+    <Card className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-sm">
+      <div className="flex flex-col items-start gap-3 border-b border-stone-100 bg-stone-50/70 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-stone-600 shadow-sm">
             <BookOpen className="h-4 w-4" />
@@ -637,7 +638,7 @@ function ProgramHistoryPanel({
         </span>
       </div>
 
-      <CardContent className="p-4">
+      <CardContent className="p-3 sm:p-4">
         {rows.length === 0 ? (
           <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50 px-4 py-6 text-center">
             <BookOpen className="mx-auto mb-2 h-5 w-5 text-stone-300" />
@@ -664,7 +665,10 @@ function ProgramHistoryPanel({
               return (
                 <div
                   key={item.application_id}
-                  className="rounded-xl border border-stone-200 bg-white px-3.5 py-3"
+                  className={`rounded-xl border px-3.5 py-3 transition ${isCurrent
+                    ? 'border-amber-200 bg-amber-50/40'
+                    : 'border-stone-200 bg-white'
+                    }`}
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
@@ -783,8 +787,8 @@ function ObligationHistoryPanel({ studentId }) {
   }, [studentId]);
 
   return (
-    <Card className="overflow-hidden border-stone-200 shadow-none">
-      <div className="flex items-center justify-between gap-3 border-b border-stone-100 bg-stone-50/70 px-4 py-3.5">
+    <Card className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-sm">
+      <div className="flex flex-col items-start gap-3 border-b border-stone-100 bg-stone-50/70 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-stone-600 shadow-sm">
             <History className="h-4 w-4" />
@@ -806,7 +810,7 @@ function ObligationHistoryPanel({ studentId }) {
         ) : null}
       </div>
 
-      <CardContent className="p-4">
+      <CardContent className="p-3 sm:p-4">
         {loading ? (
           <div className="flex min-h-[120px] items-center justify-center gap-2 text-sm text-stone-500">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -888,10 +892,12 @@ function ObligationHistoryPanel({ studentId }) {
                 >
                   <button
                     type="button"
+                    aria-expanded={expanded}
+                    aria-controls={`obligation-history-${roId}`}
                     onClick={() =>
                       setExpandedRoId(expanded ? null : roId)
                     }
-                    className="flex w-full items-center gap-3 px-3.5 py-3 text-left transition hover:bg-stone-50"
+                    className="flex w-full flex-wrap items-center gap-3 px-3.5 py-3 text-left transition hover:bg-stone-50 sm:flex-nowrap"
                   >
                     <div
                       className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
@@ -923,7 +929,7 @@ function ObligationHistoryPanel({ studentId }) {
                       </p>
                     </div>
 
-                    <div className="shrink-0 text-right">
+                    <div className="order-4 ml-12 flex w-[calc(100%-3rem)] shrink-0 items-center justify-between gap-2 text-left sm:order-none sm:ml-0 sm:block sm:w-auto sm:text-right">
                       <StatusPill meta={meta} compact />
                       <p className="mt-1.5 text-xs font-medium text-stone-500">
                         {progress}% · {formatMinutes(validatedMinutes)} /{' '}
@@ -939,7 +945,7 @@ function ObligationHistoryPanel({ studentId }) {
                   </button>
 
                   {expanded ? (
-                    <div className="border-t border-stone-100 bg-stone-50/60 p-3.5">
+                    <div id={`obligation-history-${roId}`} className="border-t border-stone-100 bg-stone-50/60 p-3.5">
                       <div className="grid grid-cols-2 gap-2.5">
                         <HistoryMetric
                           label="Required"
@@ -1107,23 +1113,42 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
     return value;
   })();
 
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
   if (!scholar && !loading) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/35 p-3 backdrop-blur-sm sm:p-4"
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 p-0 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={onClose}
     >
       <Card
-        className="flex h-[90vh] w-full max-w-[68rem] flex-col overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="scholar-profile-title"
+        aria-describedby="scholar-profile-description"
+        className="flex h-[100dvh] max-h-[100dvh] w-full max-w-[76rem] flex-col overflow-hidden rounded-none border-stone-200 bg-white shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-stone-100 bg-white px-5 py-4">
-          <div>
-            <h3 className="text-lg font-semibold text-stone-800">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-stone-100 bg-white px-4 py-3 sm:items-center sm:px-5 sm:py-4">
+          <div className="min-w-0">
+            <h3 id="scholar-profile-title" className="text-base font-semibold text-stone-900 sm:text-lg">
               Scholar Profile
             </h3>
-            <p className="mt-1 text-sm text-stone-500">
+            <p id="scholar-profile-description" className="mt-1 text-xs leading-5 text-stone-500 sm:text-sm">
               Scholar information, scholarship history, current standing, and obligation history
             </p>
           </div>
@@ -1131,22 +1156,24 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-2 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-300"
+            aria-label="Close scholar profile"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {loading ? (
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
+          <div className="flex min-h-[22rem] flex-1 flex-col items-center justify-center gap-3">
             <Loader2 className="h-7 w-7 animate-spin text-stone-300" />
             <p className="text-xs font-semibold text-stone-400">
               Loading scholar profile...
             </p>
           </div>
         ) : (
-          <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
-            <section className="min-h-0 overflow-y-auto border-b border-stone-100 bg-white p-4 sm:p-5 lg:border-b-0 lg:border-r lg:p-6">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-stone-50/45 pb-[env(safe-area-inset-bottom)]">
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+            <section className="border-b border-stone-200 bg-white p-4 sm:p-5 lg:border-b-0 lg:border-r lg:p-6">
               <div className="space-y-5">
                 {s.scholar_is_archived ? (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
@@ -1162,6 +1189,7 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
                     </div>
                   </div>
                 ) : null}
+                <div className="rounded-2xl border border-stone-200 bg-gradient-to-br from-white to-stone-50/80 p-4 shadow-sm">
                 <div className="flex items-start gap-4">
                   <button
                     type="button"
@@ -1204,7 +1232,7 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2 border-y border-stone-100 py-3">
+                <div className="mt-4 flex flex-wrap gap-2 border-t border-stone-200 pt-3">
                   <StatusPill meta={scholarshipMeta} compact />
 
                   <StatusPill meta={standingMeta} compact />
@@ -1231,11 +1259,12 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
                     SDO {sdoMeta.shortLabel}
                   </span>
                 </div>
+                </div>
 
                 <div>
                   <div className="mb-3">
                     <h5 className="text-base font-semibold text-stone-800">
-                      Important Information
+                      Scholar Details
                     </h5>
                     <p className="mt-1 text-sm text-stone-500">
                       Core scholarship and contact details
@@ -1292,60 +1321,10 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
                   </div>
                 </div>
 
-                <div
-                  className="overflow-hidden rounded-xl border"
-                  style={{ borderColor: sdoMeta.border }}
-                >
-                  <div
-                    className="flex items-center justify-between gap-3 px-3.5 py-3"
-                    style={{ background: sdoMeta.bg }}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/80"
-                        style={{ color: sdoMeta.color }}
-                      >
-                        <SdoIcon className="h-4 w-4" />
-                      </div>
-
-                      <div>
-                        <p
-                          className="text-sm font-semibold"
-                          style={{ color: sdoMeta.color }}
-                        >
-                          Student Welfare and Development Office
-                        </p>
-                        <p
-                          className="mt-0.5 text-xs font-medium"
-                          style={{ color: sdoMeta.color }}
-                        >
-                          {sdoMeta.label}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-white px-3.5 py-3">
-                    <p className="text-sm leading-6 text-stone-600">
-                      {sdoMeta.description}
-                    </p>
-
-                    {s.student_profile?.disciplinary_details ? (
-                      <div className="mt-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2.5">
-                        <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
-                          Disciplinary Details
-                        </p>
-                        <p className="mt-1 text-sm leading-6 text-stone-700">
-                          {s.student_profile.disciplinary_details}
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
               </div>
             </section>
 
-            <section className="min-h-0 overflow-y-auto bg-stone-50/45 p-4 sm:p-5 lg:p-6">
+            <section className="bg-stone-50/45 p-4 sm:p-5 lg:p-6">
               <div className="space-y-4">
                 <ProgramHistoryPanel
                   history={s.program_history}
@@ -1358,6 +1337,7 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
                 />
               </div>
             </section>
+            </div>
           </div>
         )}
       </Card>
@@ -2411,8 +2391,6 @@ export default function ScholarMonitoring() {
 }
 
 function ScholarRegistryTable({ rows, onView, onRemove, removedMode = false }) {
-  const [photoPreview, setPhotoPreview] = useState(null);
-
   return (
     <div className="w-full min-w-0 overflow-hidden">
       <div className="hidden grid-cols-12 gap-2 border-b border-stone-200 bg-stone-50 px-3 py-3 xl:grid">
@@ -2439,42 +2417,12 @@ function ScholarRegistryTable({ rows, onView, onRemove, removedMode = false }) {
               className="grid min-w-0 grid-cols-1 gap-3 px-3 py-3 transition hover:bg-stone-50/70 sm:grid-cols-2 xl:grid-cols-12 xl:items-center xl:gap-2"
             >
               <div className="min-w-0 sm:col-span-2 xl:col-span-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (scholar.avatar_url) {
-                        setPhotoPreview({
-                          src: scholar.avatar_url,
-                          name: scholar.student_name || 'Scholar',
-                        });
-                      }
-                    }}
-                    disabled={!scholar.avatar_url}
-                    className="shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--portal-base)] focus:ring-offset-2 disabled:cursor-default"
-                    aria-label={scholar.avatar_url ? `Enlarge ${scholar.student_name || 'scholar'} profile photo` : 'No profile photo available'}
-                  >
-                    <Avatar className={`h-10 w-10 rounded-full border border-stone-200 ${scholar.avatar_url ? 'cursor-zoom-in' : ''}`}>
-                      <AvatarImage
-                        src={scholar.avatar_url || undefined}
-                        alt={scholar.student_name}
-                        className="rounded-full"
-                      />
-                      <AvatarFallback className="rounded-full text-xs font-bold">
-                        {getInitials(scholar.student_name)}
-                      </AvatarFallback>
-                    </Avatar>
-                  </button>
-
-                  <div className="min-w-0 flex-1">
-                    <p className="break-words text-sm font-semibold leading-5 text-stone-900">
-                      {scholar.student_name}
-                    </p>
-                    <p className="mt-0.5 break-all font-mono text-xs text-stone-400">
-                      {scholar.student_number}
-                    </p>
-                  </div>
-                </div>
+                <ScholarIdentity
+                  scholar={scholar}
+                  name={scholar.student_name}
+                  studentNumber={scholar.student_number}
+                  nameClassName="xl:max-w-[240px]"
+                />
               </div>
 
               <div className="min-w-0 xl:col-span-2">
@@ -2537,14 +2485,6 @@ function ScholarRegistryTable({ rows, onView, onRemove, removedMode = false }) {
         })}
       </div>
 
-      <ProfilePhotoPreviewDialog
-        open={Boolean(photoPreview?.src)}
-        onOpenChange={(open) => {
-          if (!open) setPhotoPreview(null);
-        }}
-        src={photoPreview?.src || ''}
-        name={photoPreview?.name || 'Scholar'}
-      />
     </div>
   );
 }

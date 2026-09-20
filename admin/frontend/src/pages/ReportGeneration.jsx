@@ -37,6 +37,13 @@ import usePortalTheme from '@/hooks/usePortalTheme';
 const API_BASE = buildApiUrl('/api');
 
 const OFFICE_REPORT_FILTERS = {
+  payout_proofs: [
+    { value: 'all', label: 'All Proof Statuses' },
+    { value: 'Pending Review', label: 'Pending Review' },
+    { value: 'Verified', label: 'Verified' },
+    { value: 'Resubmission Required', label: 'Resubmission Required' },
+    { value: 'Rejected', label: 'Rejected' },
+  ],
   endorsements: [
     { value: 'all', label: 'All Endorsements' },
     { value: 'pending', label: 'Pending' },
@@ -98,7 +105,7 @@ const REPORT_TEMPLATE_GROUPS = [
   },
   {
     label: 'Scholar Operations',
-    ids: ['payouts', 'ro_compliance'],
+    ids: ['payouts', 'payout_proofs', 'ro_compliance'],
   },
   {
     label: 'Office Reports',
@@ -120,6 +127,9 @@ const REPORT_FILTER_FIELDS = {
   payouts: [
     'academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'gender',
     'batchStatus', 'releaseStatus', 'paymentMode', 'date',
+  ],
+  payout_proofs: [
+    'academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'result', 'date',
   ],
   ro_compliance: ['academicYear', 'semester', 'benefactor', 'program', 'roArea', 'course', 'yearLevel', 'gender', 'result', 'date'],
   sdo: ['academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'gender', 'result', 'date'],
@@ -410,13 +420,15 @@ export default function ReportGeneration({
 
   const resultFilterLabel = selected === 'ro_compliance'
     ? 'Compliance Status'
-    : selected === 'renewals'
-      ? 'Renewal Status'
-      : selected === 'slot_utilization'
-        ? 'Opening Status'
-        : selected === 'endorsements'
-          ? 'Endorsement Result'
-          : 'Office Result';
+    : selected === 'payout_proofs'
+      ? 'Proof Status'
+      : selected === 'renewals'
+        ? 'Renewal Status'
+        : selected === 'slot_utilization'
+          ? 'Opening Status'
+          : selected === 'endorsements'
+            ? 'Endorsement Result'
+            : 'Office Result';
 
   const previewColumns = useMemo(() => {
     if (!previewRows.length) return [];
@@ -622,6 +634,12 @@ export default function ReportGeneration({
     refreshReportData();
   }, [refreshReportData]);
   useSocketEvent('application-document:reviewed', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+  useSocketEvent('payout:proof-uploaded', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+  useSocketEvent('payout:proof-reviewed', () => {
     refreshReportData();
   }, [refreshReportData]);
   useSocketEvent('scholar:created', () => {
@@ -1323,7 +1341,7 @@ export default function ReportGeneration({
                   ) : null}
 
                   {supportsPaymentModeFilter ? (
-                    <FilterField label="Payment Mode">
+                    <FilterField label="Payout Mode">
                       <Select
                         value={paymentMode}
                         onValueChange={setPaymentMode}

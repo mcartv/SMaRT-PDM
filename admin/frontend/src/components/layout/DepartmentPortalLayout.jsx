@@ -20,6 +20,7 @@ import { useSocketEvent } from '../../hooks/useSocket';
 import usePortalTheme from '../../hooks/usePortalTheme';
 import useForceDarkMode from '../../hooks/useForceDarkMode';
 import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
+import useResizableSidebar from '../../hooks/useResizableSidebar';
 import AdminMessages from '../../pages/AdminMessages';
 import { buildApiUrl } from '../../api';
 import { authService } from '../../services/authService';
@@ -78,6 +79,18 @@ export default function DepartmentPortalLayout({
   const { theme, forceDarkMode } = usePortalTheme(portalKey, colors);
   useForceDarkMode(forceDarkMode);
   const portalRootPath = `/${portalKey.replaceAll('_', '-')}`;
+
+  const {
+    width: sidebarWidth,
+    resizing: sidebarResizing,
+    minWidth: sidebarMinWidth,
+    maxWidth: sidebarMaxWidth,
+    startResize: handleSidebarResizeStart,
+    moveResize: handleSidebarResizeMove,
+    stopResize: stopSidebarResize,
+    resizeWithKeyboard: handleSidebarResizeKeyDown,
+    resetWidth: resetSidebarWidth,
+  } = useResizableSidebar({ storageKey: `smartpdm:${portalKey}-sidebar-width` });
 
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -316,10 +329,16 @@ export default function DepartmentPortalLayout({
       ) : null}
 
       <aside
-        className={`portal-responsive-sidebar flex h-full min-h-0 shrink-0 flex-col border-r border-black/10 transition-all duration-300 ${
+        className={`department-resizable-sidebar portal-responsive-sidebar relative flex h-full min-h-0 shrink-0 flex-col border-r border-black/10 ${sidebarResizing ? 'transition-none' : 'transition-[width] duration-300'} ${
           mobileNavOpen ? 'portal-responsive-sidebar--mobile-open' : ''
         }`}
-        style={{ width: collapsed ? '76px' : '248px', background: theme.base }}
+        style={{
+          width: collapsed ? '76px' : `${sidebarWidth}px`,
+          '--department-sidebar-width': collapsed ? '76px' : `${sidebarWidth}px`,
+          '--department-sidebar-min-width': collapsed ? '76px' : `${sidebarMinWidth}px`,
+          '--department-sidebar-max-width': collapsed ? '76px' : `${sidebarMaxWidth}px`,
+          background: theme.base,
+        }}
         aria-label="Department navigation"
       >
         <div className="relative flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-4">
@@ -402,6 +421,28 @@ export default function DepartmentPortalLayout({
             </span>
           </button>
         </div>
+
+        {!collapsed ? (
+          <div
+            role="separator"
+            aria-label="Resize department navigation sidebar"
+            aria-orientation="vertical"
+            aria-valuemin={sidebarMinWidth}
+            aria-valuemax={sidebarMaxWidth}
+            aria-valuenow={Math.round(sidebarWidth)}
+            tabIndex={0}
+            onPointerDown={handleSidebarResizeStart}
+            onPointerMove={handleSidebarResizeMove}
+            onPointerUp={stopSidebarResize}
+            onPointerCancel={stopSidebarResize}
+            onDoubleClick={resetSidebarWidth}
+            onKeyDown={handleSidebarResizeKeyDown}
+            className="group absolute inset-y-0 -right-1 z-20 hidden w-2 cursor-col-resize touch-none outline-none min-[901px]:block"
+            title="Drag to resize · Double-click to reset"
+          >
+            <span className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${sidebarResizing ? 'bg-white/70' : 'bg-transparent group-hover:bg-white/45 group-focus:bg-white/70'}`} />
+          </div>
+        ) : null}
       </aside>
 
       <div className="portal-responsive-frame flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

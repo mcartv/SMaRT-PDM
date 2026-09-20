@@ -247,15 +247,18 @@ export default function ThemePanel({
   const [loading, setLoading] = useState(() => !cachedSnapshot.hasAny);
   const [feedback, setFeedback] = useState({ type: '', message: '' });
 
-  const presetOptions = useMemo(() => {
-    const seen = new Set();
-    return getThemePresetOptions().filter((preset) => {
-      const key = String(preset?.key || '').trim().toLowerCase();
-      if (!key || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }, []);
+  const presetOptionsByPortal = useMemo(() => Object.fromEntries(
+    normalizedPortals.map((portalKey) => {
+      const seen = new Set();
+      const options = getThemePresetOptions(portalKey).filter((preset) => {
+        const key = String(preset?.key || '').trim().toLowerCase();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      return [portalKey, options];
+    })
+  ), [normalizedPortals]);
   const loadSettings = useCallback(async ({ showLoading = false } = {}) => {
     if (showLoading) setLoading(true);
 
@@ -672,7 +675,7 @@ export default function ThemePanel({
                 <ThemePreviewCard portalKey={portalKey} presetKey={savedPresetKey} customColors={savedCustomColors} />
 
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {presetOptions.map((preset) => {
+                  {(presetOptionsByPortal[portalKey] || []).map((preset) => {
                     const isSelected = savedPresetKey === preset.key;
                     return (
                       <button

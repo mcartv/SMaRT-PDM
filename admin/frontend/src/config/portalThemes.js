@@ -349,9 +349,9 @@ export function resolvePortalTheme(portalKey, presetKey = 'default', customColor
   };
 }
 
-export function getThemePresetOptions() {
+export function getThemePresetOptions(portalKey = 'admin') {
   return THEME_PRESET_KEYS.map((presetKey) => {
-    const sample = resolvePortalTheme('admin', presetKey);
+    const sample = resolvePortalTheme(portalKey, presetKey);
     return {
       key: presetKey,
       label: sample.label,

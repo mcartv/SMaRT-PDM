@@ -19,6 +19,7 @@ import { useSocketEvent } from '../../hooks/useSocket';
 import usePortalTheme from '../../hooks/usePortalTheme';
 import useForceDarkMode from '../../hooks/useForceDarkMode';
 import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
+import useResizableSidebar from '../../hooks/useResizableSidebar';
 import AdminMessages from '../../pages/AdminMessages';
 import { buildApiUrl } from '../../api';
 import { authService } from '../../services/authService';
@@ -53,6 +54,17 @@ export default function SDOLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const notifRef = useRef(null);
+  const {
+    width: sidebarWidth,
+    resizing: sidebarResizing,
+    minWidth: sidebarMinWidth,
+    maxWidth: sidebarMaxWidth,
+    startResize: handleSidebarResizeStart,
+    moveResize: handleSidebarResizeMove,
+    stopResize: stopSidebarResize,
+    resizeWithKeyboard: handleSidebarResizeKeyDown,
+    resetWidth: resetSidebarWidth,
+  } = useResizableSidebar({ storageKey: 'smartpdm:sdo-sidebar-width' });
 
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -319,8 +331,14 @@ export default function SDOLayout() {
     >
       {/* Sidebar */}
       <aside
-        className="portal-responsive-sidebar flex flex-col h-full shrink-0 transition-all duration-300 border-r border-black/10"
-        style={{ width: collapsed ? '76px' : '248px', background: theme.base }}
+        className={`department-resizable-sidebar portal-responsive-sidebar relative flex h-full shrink-0 flex-col border-r border-black/10 ${sidebarResizing ? 'transition-none' : 'transition-[width] duration-300'}`}
+        style={{
+          width: collapsed ? '76px' : `${sidebarWidth}px`,
+          '--department-sidebar-width': collapsed ? '76px' : `${sidebarWidth}px`,
+          '--department-sidebar-min-width': collapsed ? '76px' : `${sidebarMinWidth}px`,
+          '--department-sidebar-max-width': collapsed ? '76px' : `${sidebarMaxWidth}px`,
+          background: theme.base,
+        }}
       >
         {/* Logo Section */}
         <div className="flex items-center gap-3 px-4 h-16 border-b border-white/10 shrink-0">
@@ -392,6 +410,28 @@ export default function SDOLayout() {
             {!collapsed && <span className="portal-responsive-sidebar-label font-medium">Logout</span>}
           </button>
         </div>
+
+        {!collapsed ? (
+          <div
+            role="separator"
+            aria-label="Resize department navigation sidebar"
+            aria-orientation="vertical"
+            aria-valuemin={sidebarMinWidth}
+            aria-valuemax={sidebarMaxWidth}
+            aria-valuenow={Math.round(sidebarWidth)}
+            tabIndex={0}
+            onPointerDown={handleSidebarResizeStart}
+            onPointerMove={handleSidebarResizeMove}
+            onPointerUp={stopSidebarResize}
+            onPointerCancel={stopSidebarResize}
+            onDoubleClick={resetSidebarWidth}
+            onKeyDown={handleSidebarResizeKeyDown}
+            className="group absolute inset-y-0 -right-1 z-20 hidden w-2 cursor-col-resize touch-none outline-none min-[901px]:block"
+            title="Drag to resize · Double-click to reset"
+          >
+            <span className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${sidebarResizing ? 'bg-white/70' : 'bg-transparent group-hover:bg-white/45 group-focus:bg-white/70'}`} />
+          </div>
+        ) : null}
       </aside>
 
       {/* Main Content Area */}

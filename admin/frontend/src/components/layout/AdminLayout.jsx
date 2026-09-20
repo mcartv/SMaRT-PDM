@@ -58,12 +58,32 @@ const navItems = [
   { path: '/admin/maintenance', icon: Settings, label: 'Maintenance' },
 ];
 
+const ADMIN_SIDEBAR_WIDTH_KEY = 'smartpdm:admin-sidebar-width';
+const ADMIN_SIDEBAR_DEFAULT_WIDTH = 248;
+const ADMIN_SIDEBAR_MIN_WIDTH = 190;
+const ADMIN_SIDEBAR_MAX_WIDTH = 360;
+
+function clampAdminSidebarWidth(value) {
+  return Math.min(
+    ADMIN_SIDEBAR_MAX_WIDTH,
+    Math.max(ADMIN_SIDEBAR_MIN_WIDTH, Number(value) || ADMIN_SIDEBAR_DEFAULT_WIDTH)
+  );
+}
+
+function getStoredAdminSidebarWidth() {
+  if (typeof window === 'undefined') return ADMIN_SIDEBAR_DEFAULT_WIDTH;
+  return clampAdminSidebarWidth(localStorage.getItem(ADMIN_SIDEBAR_WIDTH_KEY));
+}
+
 export default function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const notifRef = useRef(null);
+  const sidebarResizeRef = useRef(null);
 
   const [collapsed, setCollapsed] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(getStoredAdminSidebarWidth);
+  const [sidebarResizing, setSidebarResizing] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [adminData, setAdminData] = useState(null);
   const [profilePhotoPreviewOpen, setProfilePhotoPreviewOpen] = useState(false);
@@ -222,6 +242,83 @@ export default function AdminLayout() {
     await authService.logout();
   };
 
+  const persistSidebarWidth = (width) => {
+    localStorage.setItem(ADMIN_SIDEBAR_WIDTH_KEY, String(clampAdminSidebarWidth(width)));
+  };
+
+  const stopSidebarResize = (event) => {
+    const resize = sidebarResizeRef.current;
+    if (!resize || (event && event.pointerId !== resize.pointerId)) return;
+
+    if (resize.handle?.hasPointerCapture?.(resize.pointerId)) {
+      resize.handle.releasePointerCapture(resize.pointerId);
+    }
+
+    persistSidebarWidth(resize.lastWidth);
+    document.body.style.cursor = resize.previousCursor;
+    document.body.style.userSelect = resize.previousUserSelect;
+    sidebarResizeRef.current = null;
+    setSidebarResizing(false);
+  };
+
+  const handleSidebarResizeStart = (event) => {
+    if (collapsed || event.button !== 0 || window.innerWidth <= 900) return;
+
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    sidebarResizeRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: sidebarWidth,
+      lastWidth: sidebarWidth,
+      handle: event.currentTarget,
+      previousCursor: document.body.style.cursor,
+      previousUserSelect: document.body.style.userSelect,
+    };
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    setSidebarResizing(true);
+  };
+
+  const handleSidebarResizeMove = (event) => {
+    const resize = sidebarResizeRef.current;
+    if (!resize || event.pointerId !== resize.pointerId) return;
+
+    const nextWidth = clampAdminSidebarWidth(
+      resize.startWidth + event.clientX - resize.startX
+    );
+    resize.lastWidth = nextWidth;
+    setSidebarWidth(nextWidth);
+  };
+
+  const handleSidebarResizeKeyDown = (event) => {
+    if (collapsed) return;
+
+    let nextWidth = sidebarWidth;
+    if (event.key === 'ArrowLeft') nextWidth -= 8;
+    else if (event.key === 'ArrowRight') nextWidth += 8;
+    else if (event.key === 'Home') nextWidth = ADMIN_SIDEBAR_MIN_WIDTH;
+    else if (event.key === 'End') nextWidth = ADMIN_SIDEBAR_MAX_WIDTH;
+    else return;
+
+    event.preventDefault();
+    const clampedWidth = clampAdminSidebarWidth(nextWidth);
+    setSidebarWidth(clampedWidth);
+    persistSidebarWidth(clampedWidth);
+  };
+
+  const resetSidebarWidth = () => {
+    setSidebarWidth(ADMIN_SIDEBAR_DEFAULT_WIDTH);
+    persistSidebarWidth(ADMIN_SIDEBAR_DEFAULT_WIDTH);
+  };
+
+  useEffect(() => () => {
+    const resize = sidebarResizeRef.current;
+    if (!resize) return;
+    document.body.style.cursor = resize.previousCursor;
+    document.body.style.userSelect = resize.previousUserSelect;
+  }, []);
+
   useEffect(() => {
     function handleClick(e) {
       if (notifRef.current && !notifRef.current.contains(e.target)) {
@@ -300,9 +397,12 @@ export default function AdminLayout() {
     >
       {/* Sidebar */}
       <aside
-        className="portal-responsive-sidebar flex h-full min-h-0 shrink-0 flex-col border-r border-black/10 transition-all duration-300"
+        className={`admin-resizable-sidebar portal-responsive-sidebar relative flex h-full min-h-0 shrink-0 flex-col border-r border-black/10 ${sidebarResizing ? 'transition-none' : 'transition-[width] duration-300'}`}
         style={{
-          width: collapsed ? '76px' : 'clamp(218px, 18vw, 248px)',
+          width: collapsed ? '76px' : `${sidebarWidth}px`,
+          '--admin-sidebar-width': collapsed ? '76px' : `${sidebarWidth}px`,
+          '--admin-sidebar-min-width': collapsed ? '76px' : `${ADMIN_SIDEBAR_MIN_WIDTH}px`,
+          '--admin-sidebar-max-width': collapsed ? '76px' : `${ADMIN_SIDEBAR_MAX_WIDTH}px`,
           background: theme.base,
         }}
       >
@@ -377,6 +477,28 @@ export default function AdminLayout() {
             {!collapsed && <span className="portal-responsive-sidebar-label font-medium">Logout</span>}
           </button>
         </div>
+
+        {!collapsed ? (
+          <div
+            role="separator"
+            aria-label="Resize navigation sidebar"
+            aria-orientation="vertical"
+            aria-valuemin={ADMIN_SIDEBAR_MIN_WIDTH}
+            aria-valuemax={ADMIN_SIDEBAR_MAX_WIDTH}
+            aria-valuenow={Math.round(sidebarWidth)}
+            tabIndex={0}
+            onPointerDown={handleSidebarResizeStart}
+            onPointerMove={handleSidebarResizeMove}
+            onPointerUp={stopSidebarResize}
+            onPointerCancel={stopSidebarResize}
+            onDoubleClick={resetSidebarWidth}
+            onKeyDown={handleSidebarResizeKeyDown}
+            className="group absolute inset-y-0 -right-1 z-20 hidden w-2 cursor-col-resize touch-none outline-none min-[901px]:block"
+            title="Drag to resize · Double-click to reset"
+          >
+            <span className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${sidebarResizing ? 'bg-white/70' : 'bg-transparent group-hover:bg-white/45 group-focus:bg-white/70'}`} />
+          </div>
+        ) : null}
       </aside>
 
       {/* Main Content */}

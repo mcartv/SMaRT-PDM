@@ -23,16 +23,6 @@ const SETTINGS_TABS = [
   { key: 'security', label: 'Security', icon: ShieldCheck },
 ];
 
-function roleLabel(role) {
-  const labels = {
-    sdo: 'Student Discipline Officer',
-    guidance: 'Guidance Counselor',
-    pd: 'Program Director',
-    ro_coordinator: 'RO Personnel-In-Charge',
-  };
-  return labels[role] || role || 'User';
-}
-
 function SettingsNav({ activeTab, onChange }) {
   return (
     <div className="sticky top-0 z-20 overflow-hidden rounded-2xl border border-stone-200 bg-white">
@@ -65,7 +55,7 @@ function SectionHeader({ icon, title, description }) {
   return (
     <div className="border-b border-stone-100 bg-stone-50/70 px-5 py-4">
       <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-700">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--portal-border)] bg-[var(--portal-accent-soft)] text-[var(--portal-base)]">
           {createElement(icon, { size: 18 })}
         </div>
         <div className="min-w-0">
@@ -216,14 +206,14 @@ export default function DepartmentSettingsPage({
       <SectionHeader
         icon={UserRound}
         title="Account"
-        description="View your sign-in identity and office account information."
+        description="View your username, contact email, and office access."
       />
       <CardContent className="p-5">
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-medium text-stone-900">Account Information</p>
             <p className="mt-1 text-xs text-stone-500">
-              Profile details such as your name, photo, and contact information remain in Profile.
+              Use your username to sign in. Your email remains your profile contact address.
             </p>
           </div>
           {profilePath ? (
@@ -247,16 +237,18 @@ export default function DepartmentSettingsPage({
         ) : profile ? (
           <div className="grid overflow-hidden rounded-2xl border border-stone-200 sm:grid-cols-2 xl:grid-cols-4">
             {[
-              ['Sign-in email', profile.email || '—'],
-              ['Role', profileDisplay.accountRole || roleLabel(profile.role)],
-              ['Position', profileDisplay.position],
-              ['Department', profileDisplay.organizationalUnit],
+              ['Sign-in username', profile.username || 'Not assigned'],
+              ['Contact email', profile.email || 'Not provided'],
+              ['Position', profileDisplay.position || 'Not provided'],
+              ['Office', profileDisplay.organizationalUnit],
             ].map(([label, value], index) => (
               <div
                 key={label}
-                className={`min-w-0 p-4 ${index > 0 ? 'border-t border-stone-100 sm:border-t-0' : ''} ${
-                  index % 2 === 1 ? 'sm:border-l' : ''
-                } ${index >= 2 ? 'xl:border-l xl:border-t-0' : ''}`}
+                className={`min-w-0 border-stone-100 p-4 ${index > 0 ? 'border-t' : ''} ${
+                  index % 2 === 1 ? 'sm:border-l' : 'sm:border-l-0'
+                } ${index >= 2 ? 'sm:border-t' : 'sm:border-t-0'} ${
+                  index > 0 ? 'xl:border-l' : 'xl:border-l-0'
+                } xl:border-t-0`}
               >
                 <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-stone-400">{label}</p>
                 <p className="mt-1.5 break-words text-sm font-medium text-stone-900">{value}</p>
@@ -433,7 +425,7 @@ export default function DepartmentSettingsPage({
             {currentPasswordVerified ? (
               <Button
                 type="submit"
-                className="w-full"
+                className="w-full bg-[var(--portal-base)] text-white hover:brightness-95"
                 disabled={
                   savingPassword ||
                   !passwords.new_password ||

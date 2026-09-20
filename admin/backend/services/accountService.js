@@ -87,6 +87,16 @@ const staffEmailSchema = z
     .refine((value) => !COMMON_GMAIL_TYPO_DOMAINS.has(value.split('@')[1] || ''), {
         message: GMAIL_TYPO_ERROR,
     });
+const usernameSchema = z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(5, 'Username must be at least 5 characters.')
+    .max(50, 'Username must not exceed 50 characters.')
+    .regex(
+        /^[a-z0-9](?:[a-z0-9._@-]*[a-z0-9])?$/,
+        'Username may use lowercase letters, numbers, periods, underscores, hyphens, and @.'
+    );
 const optionalPhoneNumberSchema = z
     .string()
     .trim()
@@ -103,6 +113,7 @@ const staffAccountSchema = z
     .object({
         first_name: z.string().trim().min(1, 'First name is required.'),
         last_name: z.string().trim().min(1, 'Last name is required.'),
+        username: usernameSchema,
         email: staffEmailSchema,
         phone_number: optionalPhoneNumberSchema,
         role: z.enum(OPERATIONAL_ROLE_VALUES, {
@@ -151,12 +162,15 @@ function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
 }
 
-async function assertUniqueStaffIdentity({ firstName, lastName, email, excludedUserId = null, client = db }) {
+async function assertUniqueStaffIdentity({ firstName, lastName, email, username = '', excludedUserId = null, client = db }) {
     const result = await client.query(
         `SELECT
             EXISTS (
               SELECT 1 FROM users
-              WHERE LOWER(TRIM(email)) = LOWER(TRIM($1))
+              WHERE (
+                    LOWER(TRIM(email)) = LOWER(TRIM($1))
+                 OR LOWER(TRIM(username)) = LOWER(TRIM($1))
+              )
                 AND ($4::uuid IS NULL OR user_id <> $4::uuid)
             ) AS email_exists,
             EXISTS (
@@ -164,15 +178,27 @@ async function assertUniqueStaffIdentity({ firstName, lastName, email, excludedU
               WHERE LOWER(TRIM(first_name)) = LOWER(TRIM($2))
                 AND LOWER(TRIM(last_name)) = LOWER(TRIM($3))
                 AND ($4::uuid IS NULL OR user_id <> $4::uuid)
-            ) AS full_name_exists`,
-        [email, firstName, lastName, excludedUserId]
+            ) AS full_name_exists,
+            EXISTS (
+              SELECT 1 FROM users
+              WHERE (
+                    LOWER(TRIM(username)) = LOWER(TRIM($5))
+                 OR LOWER(TRIM(email)) = LOWER(TRIM($5))
+              )
+                AND NULLIF(TRIM($5), '') IS NOT NULL
+                AND ($4::uuid IS NULL OR user_id <> $4::uuid)
+            ) AS username_exists`,
+        [email, firstName, lastName, excludedUserId, username]
     );
 
     if (result.rows[0]?.email_exists) {
-        throw createHttpError(409, 'Another account is already using this email address.');
+        throw createHttpError(409, 'Another account is already using this email as an email or username.');
     }
     if (result.rows[0]?.full_name_exists) {
         throw createHttpError(409, 'Another account already uses this full name.');
+    }
+    if (result.rows[0]?.username_exists) {
+        throw createHttpError(409, 'Another account is already using this username as an email or username.');
     }
 }
 
@@ -549,6 +575,7 @@ async function createAccountFromParsedData(parsedData, rawPayload = {}, actorUse
         first_name: firstName,
         last_name: lastName,
         email,
+        username: requestedUsername,
         phone_number: phoneNumberInput = '',
         role,
         password,
@@ -575,9 +602,11 @@ async function createAccountFromParsedData(parsedData, rawPayload = {}, actorUse
             await assertRoCoordinatorAreaAvailable(department, null, client);
         }
 
-        await assertUniqueStaffIdentity({ firstName, lastName, email, client });
+        const username = role === 'admin'
+            ? await buildUniqueUsername(client, email)
+            : requestedUsername;
 
-        const username = await buildUniqueUsername(client, email);
+        await assertUniqueStaffIdentity({ firstName, lastName, email, username, client });
 
         const userResult = await client.query(
             `
@@ -784,6 +813,12 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             ? safeText(payload.email).toLowerCase()
             : safeText(current.email).toLowerCase();
 
+        const username = nextRole === 'admin'
+            ? safeText(current.username).toLowerCase()
+            : payload.username !== undefined
+                ? safeText(payload.username).toLowerCase()
+                : safeText(current.username).toLowerCase();
+
         const phoneNumber = payload.phone_number !== undefined
             ? validateOptionalPhoneNumber(payload.phone_number)
             : safeText(current.phone_number) || null;
@@ -805,7 +840,10 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             : current.is_archived === true;
 
         const sessionIdentityChanged =
-            roleChanged || nextIsArchived !== (current.is_archived === true);
+            roleChanged ||
+            nextIsArchived !== (current.is_archived === true) ||
+            email !== safeText(current.email).toLowerCase() ||
+            username !== safeText(current.username).toLowerCase();
 
         if (
             currentRole === 'ro_coordinator' &&
@@ -840,10 +878,18 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             throw createHttpError(400, parsedEmail.error.issues[0]?.message || EMAIL_FORMAT_ERROR);
         }
 
+        if (nextRole !== 'admin') {
+            const parsedUsername = usernameSchema.safeParse(username);
+            if (!parsedUsername.success) {
+                throw createHttpError(400, parsedUsername.error.issues[0]?.message || 'Enter a valid username.');
+            }
+        }
+
         await assertUniqueStaffIdentity({
             firstName,
             lastName,
             email,
+            username,
             excludedUserId: userId,
             client,
         });
@@ -881,10 +927,11 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
                     email = $2,
                     phone_number = $3,
                     role = $4,
-                    password_hash = $5
+                    password_hash = $5,
+                    username = $6
                 WHERE user_id = $1
                 `,
-                [userId, email, phoneNumber, config.dbRole, passwordHash]
+                [userId, email, phoneNumber, config.dbRole, passwordHash, username]
             );
         } else {
             await client.query(
@@ -893,10 +940,11 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
                 SET
                     email = $2,
                     phone_number = $3,
-                    role = $4
+                    role = $4,
+                    username = $5
                 WHERE user_id = $1
                 `,
-                [userId, email, phoneNumber, config.dbRole]
+                [userId, email, phoneNumber, config.dbRole, username]
             );
         }
 
@@ -1106,7 +1154,6 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
     const lastName = safeText(payload.last_name);
     const email = safeText(payload.email).toLowerCase();
     const phoneNumber = validateOptionalPhoneNumber(payload.phone_number);
-    const position = safeText(payload.position);
 
     if (!firstName) {
         throw createHttpError(400, 'First name is required.');
@@ -1145,12 +1192,11 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
             client,
         });
 
-        // Department/office ownership remains an administrative assignment.
-        // Self-service profile updates may change personal identity/contact
-        // details and position text, but must never move an account between
-        // departments or RO areas.
+        // Office and position ownership remain administrative assignments.
+        // Self-service profile updates may change only personal identity and
+        // contact details, never the account's assigned office or position.
         const nextDepartment = currentProfile.department || '';
-        const nextPosition = position || currentProfile.position || '';
+        const nextPosition = currentProfile.position || '';
 
         await client.query(
             `

@@ -276,7 +276,7 @@ function useDepartmentAccountManager({
   const hasAccountChanges = useMemo(() => {
     if (!initialAccount) return false;
 
-    const editableFields = ['first_name', 'last_name', 'email', 'phone_number', 'position'];
+    const editableFields = ['first_name', 'last_name', 'email', 'phone_number'];
     return editableFields.some((field) =>
       String(account?.[field] ?? '').trim() !== String(initialAccount?.[field] ?? '').trim()
     );
@@ -447,12 +447,10 @@ function useDepartmentAccountManager({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ...account,
           first_name: account.first_name.trim(),
           last_name: account.last_name.trim(),
           email: account.email.trim().toLowerCase(),
           phone_number: account.phone_number.trim(),
-          position: account.position.trim(),
         }),
       });
 
@@ -614,7 +612,6 @@ export function DepartmentAccountPanel({
   onProfileUpdated,
 }) {
   const [photoPreviewOpen, setPhotoPreviewOpen] = useState(false);
-  const [editingPosition, setEditingPosition] = useState(false);
   const {
     loadingProfile,
     savingAccount,
@@ -820,23 +817,22 @@ export function DepartmentAccountPanel({
             <div className="space-y-1.5">
               <FieldLabel>Position</FieldLabel>
               <Input
-                value={editingPosition ? account.position : display.position}
-                onFocus={() => setEditingPosition(true)}
-                onBlur={() => setEditingPosition(false)}
-                onChange={(e) => handleFieldChange('position', e.target.value)}
-                className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
-                disabled={loadingProfile || savingAccount || config.lockIdentityFields === true}
+                value={display.position}
+                className="h-10 rounded-lg border-stone-200 bg-stone-100 text-sm text-stone-500"
+                disabled
+                aria-readonly="true"
+                title="Position assignments are managed by Admin."
               />
             </div>
 
             <div className="space-y-1.5">
-              <FieldLabel>Organizational Unit</FieldLabel>
+              <FieldLabel>Office</FieldLabel>
               <Input
                 value={display.organizationalUnit}
                 className="h-10 rounded-lg border-stone-200 bg-stone-100 text-sm text-stone-500"
                 disabled
                 aria-readonly="true"
-                title="Organizational unit assignments are managed by Admin."
+                title="Office assignments are managed by Admin."
               />
             </div>
           </div>

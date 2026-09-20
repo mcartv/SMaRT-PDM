@@ -279,7 +279,7 @@ export default function AdminProfile() {
                             <InfoRow icon={Shield} label="Account Status" value={adminData.status} />
                             <InfoRow icon={BadgeCheck} label="Account Role" value={display.accountRole} />
                             <InfoRow icon={BadgeCheck} label="Position" value={display.position} />
-                            <InfoRow icon={Building2} label="Organizational Unit" value={display.organizationalUnit} />
+                            <InfoRow icon={Building2} label="Office" value={display.organizationalUnit} />
                         </div>
                     </SectionCard>
 

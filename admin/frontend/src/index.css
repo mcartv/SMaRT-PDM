@@ -4210,3 +4210,20 @@ html.smartpdm-admin-active .portal-shell
   z-index: 20 !important;
   touch-action: manipulation;
 }
+
+/* The Admin navigation can be resized on desktop and laptop screens. These
+ * variables intentionally override the older viewport caps while preserving
+ * the automatic icon-only sidebar at 900px and below. */
+@media (min-width: 901px) {
+  .admin-responsive-shell > aside.admin-resizable-sidebar {
+    width: var(--admin-sidebar-width) !important;
+    min-width: var(--admin-sidebar-min-width) !important;
+    max-width: var(--admin-sidebar-max-width) !important;
+  }
+
+  .portal-responsive-shell > aside.department-resizable-sidebar {
+    width: var(--department-sidebar-width) !important;
+    min-width: var(--department-sidebar-min-width) !important;
+    max-width: var(--department-sidebar-max-width) !important;
+  }
+}

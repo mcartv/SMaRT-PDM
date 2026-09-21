@@ -47,11 +47,11 @@ function CourseModal({
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
-            onClick={onClose}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
         >
             <Card
                 className="w-full max-w-2xl overflow-hidden border-stone-200 shadow-xl"
-                onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
                     <div>

@@ -410,14 +410,12 @@ async function applyActiveSettingToPending() {
 }
 
 async function getDepartments() {
-    const { data, error } = await supabase
+    const [departmentResult, coordinatorResult, candidateResult] = await Promise.all([
+      supabase
         .from('ro_departments')
         .select('department_id, department_name, is_active, created_at, updated_at')
-        .order('department_name', { ascending: true });
-
-    if (error) throw error;
-
-    const coordinatorResult = await db.query(
+        .order('department_name', { ascending: true }),
+      db.query(
         `
         SELECT
           rac.coordinator_assignment_id,
@@ -432,20 +430,8 @@ async function getDepartments() {
         WHERE rac.is_active = true
           AND COALESCE(ap.is_archived, false) = false
         `
-    );
-    const coordinators = new Map(
-        coordinatorResult.rows.map((row) => [
-            String(row.ro_area_id),
-            {
-                coordinator_assignment_id: row.coordinator_assignment_id,
-                user_id: row.user_id,
-                name: [row.first_name, row.last_name].filter(Boolean).join(' '),
-                department: row.department,
-                position: row.position,
-            },
-        ])
-    );
-    const candidateResult = await db.query(
+      ),
+      db.query(
         `
         SELECT
           ap.user_id,
@@ -459,8 +445,22 @@ async function getDepartments() {
         WHERE COALESCE(ap.is_archived, false) = false
         ORDER BY ap.first_name, ap.last_name
         `
+      ),
+    ]);
+    const { data, error } = departmentResult;
+    if (error) throw error;
+    const coordinators = new Map(
+        coordinatorResult.rows.map((row) => [
+            String(row.ro_area_id),
+            {
+                coordinator_assignment_id: row.coordinator_assignment_id,
+                user_id: row.user_id,
+                name: [row.first_name, row.last_name].filter(Boolean).join(' '),
+                department: row.department,
+                position: row.position,
+            },
+        ])
     );
-
     return {
         items: (Array.isArray(data) ? data : []).map((row) => {
             const department = getDepartmentPayload(row);

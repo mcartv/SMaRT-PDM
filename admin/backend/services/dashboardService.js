@@ -1006,16 +1006,8 @@ exports.getAdminDashboard = async (options = {}) => {
         return dashboardCache;
     }
 
-    if (!bypassCache && dashboardInFlight) {
+    if (dashboardInFlight) {
         return dashboardInFlight;
-    }
-
-    if (bypassCache) {
-        const result = await buildAdminDashboard();
-        dashboardCache = result;
-        dashboardCacheExpiresAt =
-            Date.now() + DASHBOARD_CACHE_TTL_MS;
-        return result;
     }
 
     dashboardInFlight = buildAdminDashboard();

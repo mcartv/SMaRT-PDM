@@ -218,7 +218,8 @@ async function listAuditLogs({
 
     const whereSql = where.length ? `where ${where.join(' and ')}` : '';
 
-    const [countResult, moduleResult] = await Promise.all([
+    const pageValues = [...values, safeLimit, safeOffset];
+    const [countResult, moduleResult, result] = await Promise.all([
         db.query(
             `
             select count(*)::int as total
@@ -237,12 +238,7 @@ async function listAuditLogs({
             order by a.module asc
             `
         ),
-    ]);
-
-    values.push(safeLimit);
-    values.push(safeOffset);
-
-    const result = await db.query(
+      db.query(
         `
         select
             a.log_id,
@@ -261,11 +257,12 @@ async function listAuditLogs({
         left join users u on u.user_id = a.user_id
         ${whereSql}
         order by a.timestamp desc
-        limit $${values.length - 1}
-        offset $${values.length}
+        limit $${pageValues.length - 1}
+        offset $${pageValues.length}
         `,
-        values
-    );
+        pageValues
+      ),
+    ]);
 
     return {
         total: countResult.rows[0]?.total || 0,

@@ -948,40 +948,47 @@ async function notifyNextStage({ slipId, queueKey, studentName, courseId = null 
     return created;
 }
 
-async function notifyAdminOfEndorsementOutcome({
+// SMART_PDM_MAJOR_DISQUALIFICATION_NOTIFICATION_V1
+async function notifyStaffOfEndorsementOutcome({
     slipId,
     studentName,
     overallStatus,
+    courseId = null,
+    actorUserId = null,
 }) {
     const status = safeText(overallStatus).toLowerCase();
     const outcomes = {
         completed: {
+            roles: ['admin'],
+            type: 'Endorsement Update',
             title: 'Endorsement completed',
             message: `${studentName} completed all endorsement reviews.`,
+            excludeActor: false,
         },
         disqualified_major: {
-            title: `Endorsement stopped for ${studentName}`,
-            message: 'The endorsement stopped after SDO recorded a major offense.',
+            roles: ['admin', 'sdo', 'guidance', 'pd'],
+            type: 'Disqualification Notice',
+            title: `Disqualification notice: ${studentName}`,
+            message: 'Major disciplinary offense recorded by SDO. The endorsement process has been stopped and no further endorsement review is required.',
+            excludeActor: true,
         },
     };
     const outcome = outcomes[status];
-
     if (!outcome) return [];
 
     try {
         return await notificationService.createStaffNotifications({
-            roles: ['admin'],
-            type: 'Endorsement Update',
+            roles: outcome.roles,
+            type: outcome.type,
             title: outcome.title,
             message: outcome.message,
             referenceId: slipId,
             referenceType: 'endorsement_slip',
+            courseId: status === 'disqualified_major' ? courseId : null,
+            excludeUserIds: outcome.excludeActor && actorUserId ? [actorUserId] : [],
         });
     } catch (error) {
-        console.error(
-            'ENDORSEMENT ADMIN NOTIFICATION ERROR:',
-            error.message || error
-        );
+        console.error('ENDORSEMENT STAFF OUTCOME NOTIFICATION ERROR:', error.message || error);
         return [];
     }
 }
@@ -1595,14 +1602,16 @@ async function applyStageAction(queueKey, slipId, payload, actor) {
             courseId: currentSlip.course_id,
         });
 
-        const adminNotifications = await notifyAdminOfEndorsementOutcome({
+        const outcomeNotifications = await notifyStaffOfEndorsementOutcome({
             slipId,
             studentName: currentSlip.student_name || 'A student',
             overallStatus: updated.rows[0].overall_status,
+            courseId: currentSlip.course_id,
+            actorUserId,
         });
         const notifications = [
             ...(nextStageNotifications || []),
-            ...(adminNotifications || []),
+            ...(outcomeNotifications || []),
         ];
 
         let finalizedDetail = await fetchSlipDetail(slipId, actor);

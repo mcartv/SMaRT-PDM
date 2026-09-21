@@ -98,10 +98,10 @@ function invalidateIfStillCurrent(active, error) {
 }
 
 export const authService = {
-  login: async ({ email, password, stayLoggedIn = false, turnstileToken = '' }) => {
+  login: async ({ identifier, password, stayLoggedIn = false, turnstileToken = '' }) => {
     return requestJson('/api/auth/login', {
       body: {
-        email: String(email || '').trim().toLowerCase(),
+        identifier: String(identifier || '').trim().toLowerCase(),
         password,
         stayLoggedIn: Boolean(stayLoggedIn),
         deviceId: getAdminDeviceId(),

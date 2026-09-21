@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,10 +23,12 @@ import {
   Megaphone,
   ChevronLeft,
   ChevronRight,
+  Info,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import PayoutProofReviewPanel from '@/components/payout/PayoutProofReviewPanel';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
+import ScholarIdentity from '@/components/profile/ScholarIdentity';
 
 const API_BASE = buildApiUrl('/api');
 const PAGE_SIZE = 6;
@@ -113,6 +116,15 @@ function getAuthHeaders(json = true) {
   };
 }
 
+async function fetchPayoutBatches() {
+  const response = await fetch(`${API_BASE}/payouts`, {
+    headers: getAuthHeaders(false),
+  });
+  if (!response.ok) throw new Error('Failed to load payout batches');
+  const data = await response.json();
+  return Array.isArray(data) ? data : [];
+}
+
 function normalizeId(value) {
   return value == null ? '' : String(value).trim();
 }
@@ -121,6 +133,33 @@ function formatPaymentMode(paymentMode, otherPaymentMode = '') {
   const mode = String(paymentMode || '').trim();
   const other = String(otherPaymentMode || '').trim();
   return mode === 'Other' && other ? `Other - ${other}` : mode;
+}
+
+function formatProgramBenefactor(programName, benefactorName) {
+  const program = String(programName || '').trim();
+  const benefactor = String(benefactorName || '').trim();
+
+  if (!program && !benefactor) return 'No Program';
+  if (!program) return benefactor;
+  if (!benefactor || program.toLowerCase() === benefactor.toLowerCase()) {
+    return program;
+  }
+
+  return `${program} ${BULLET} ${benefactor}`;
+}
+
+function formatOpeningStatus(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return EM_DASH;
+  if (/^(open|closed)$/i.test(raw)) {
+    return `${raw.charAt(0).toUpperCase()}${raw.slice(1).toLowerCase()}`;
+  }
+  return raw;
+}
+
+function isBulkReleaseEligible(status) {
+  const normalized = normalizeReleaseStatus(status);
+  return normalized === 'Pending' || normalized === 'On Hold';
 }
 
 function normalizeReleaseStatus(value) {
@@ -232,7 +271,7 @@ function getPayoutCounts(batch) {
 function SmallMetric({ label, value }) {
   return (
     <div className="rounded-lg bg-stone-50 px-3 py-2">
-      <p className="text-[10px] uppercase tracking-wide text-stone-500">
+      <p className="text-[11px] uppercase tracking-wide text-stone-500">
         {label}
       </p>
       <p className="mt-0.5 text-sm font-semibold text-stone-900">{value}</p>
@@ -339,8 +378,7 @@ function PostPayoutCreatePrompt({
               {payout.opening_title || payout.payout_title || 'Scholarship Payout'}
             </p>
             <p className="mt-1 text-xs text-stone-500">
-              {payout.program_name || 'No Program'}
-              {payout.benefactor_name ? ` ${BULLET} ${payout.benefactor_name}` : ''}
+              {formatProgramBenefactor(payout.program_name, payout.benefactor_name)}
             </p>
             <p className="mt-1 text-xs text-stone-500">
               {payout.scholar_count || 0} scholar(s) selected
@@ -452,11 +490,9 @@ function ArchiveBatchModal({
 function PayoutStatusModal({
   candidate,
   remarks,
-  checkNumber,
   error,
   working,
   onRemarksChange,
-  onCheckNumberChange,
   onCancel,
   onConfirm,
 }) {
@@ -466,6 +502,13 @@ function PayoutStatusModal({
   const isOnHold = nextStatus === 'On Hold';
   const isReleased = nextStatus === 'Released';
   const scholarName = candidate.entry?.student_name || 'Selected scholar';
+  const scholarPdmId = String(candidate.entry?.pdm_id || '').trim();
+  const scholarCourse = String(
+    candidate.entry?.course_code || candidate.entry?.course_name || ''
+  ).trim();
+  const scholarMeta = [scholarPdmId, scholarCourse].filter(Boolean).join(' · ');
+  const payoutMode = candidate.batch?.payment_mode || candidate.entry?.payment_mode || '';
+  const payoutType = candidate.batch?.payment_mode_other || candidate.entry?.payment_mode_other || '';
   const canSubmit = !working && (!isOnHold || remarks.trim().length > 0);
 
   return (
@@ -481,27 +524,40 @@ function PayoutStatusModal({
       >
         <div className="border-b border-stone-100 px-5 py-4">
           <h3 className="text-base font-semibold text-stone-900">
-            Update payout status
+            {isReleased ? 'Confirm Payout Release' : 'Update payout status'}
           </h3>
           <p className="mt-1 text-sm leading-5 text-stone-500">
-            {scholarName} will be marked as {nextStatus}.
+            {isReleased
+              ? 'Confirm the payout release before saving.'
+              : `${scholarName} will be marked as ${nextStatus}.`}
           </p>
         </div>
 
-        <CardContent className="space-y-4 p-5">
+        <CardContent className="space-y-3.5 p-5">
           {isReleased ? (
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-stone-700">
-                Check / Reference Number <span className="font-normal text-stone-400">(optional)</span>
-              </label>
-              <Input
-                value={checkNumber}
-                onChange={(event) => onCheckNumberChange(event.target.value)}
-                maxLength={100}
-                placeholder="Enter check or reference number"
-                className="h-10 rounded-xl border-stone-200"
-                disabled={working}
-              />
+            <div>
+              <p className="text-sm font-semibold text-stone-900">{scholarName}</p>
+              {scholarMeta ? (
+                <p className="mt-1 text-xs font-medium text-stone-500">{scholarMeta}</p>
+              ) : null}
+              <div className="mt-3 space-y-2 border-y border-stone-100 py-3 text-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-stone-500">Amount</span>
+                  <span className="font-semibold text-stone-900">
+                    {formatMoney(candidate.entry?.amount_received)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-stone-500">Payout Mode</span>
+                  <span className="font-medium text-stone-800">{payoutMode || EM_DASH}</span>
+                </div>
+                {String(payoutMode).trim() === 'Other' && payoutType ? (
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-stone-500">Payout Type</span>
+                    <span className="font-medium text-stone-800">{payoutType}</span>
+                  </div>
+                ) : null}
+              </div>
             </div>
           ) : null}
 
@@ -513,8 +569,8 @@ function PayoutStatusModal({
               value={remarks}
               onChange={(event) => onRemarksChange(event.target.value)}
               maxLength={500}
-              rows={4}
-              placeholder={isOnHold ? 'Reason for placing this payout on hold' : 'Add a note for this status update'}
+              rows={3}
+              placeholder={isOnHold ? 'Reason for placing this payout on hold' : isReleased ? 'Add a note for this payout release...' : 'Add a note for this status update'}
               className="w-full resize-none rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-stone-400 disabled:cursor-not-allowed disabled:bg-stone-50"
               disabled={working}
             />
@@ -523,6 +579,15 @@ function PayoutStatusModal({
               <span>{remarks.length}/500</span>
             </div>
           </div>
+
+          {isReleased ? (
+            <div className="flex items-start gap-2 rounded-lg bg-stone-50 px-3 py-2.5 text-xs leading-5 text-stone-600">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-stone-400" />
+              <span>
+                After release, the scholar will be notified and asked to upload Proof of Payout in the mobile app.
+              </span>
+            </div>
+          ) : null}
 
           {error ? (
             <div role="alert" className="rounded-xl border border-red-100 bg-red-50 px-3 py-2.5 text-xs font-medium text-red-700">
@@ -549,7 +614,141 @@ function PayoutStatusModal({
             style={{ background: C.brownMid }}
           >
             {working ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-            Confirm {nextStatus}
+            {isReleased ? 'Confirm Release' : `Confirm ${nextStatus}`}
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function BulkReleaseModal({
+  open,
+  entries,
+  batch,
+  remarks,
+  confirmed,
+  error,
+  working,
+  onRemarksChange,
+  onConfirmedChange,
+  onCancel,
+  onConfirm,
+}) {
+  if (!open) return null;
+
+  const totalAmount = entries.reduce(
+    (sum, entry) => sum + Number(entry?.amount_received || 0),
+    0
+  );
+  const payoutMode = batch?.payment_mode || '';
+  const payoutType = batch?.payment_mode_other || '';
+
+  return (
+    <div
+      className="fixed inset-0 z-[95] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
+      onClick={() => {
+        if (!working) onCancel();
+      }}
+    >
+      <Card
+        className="w-full max-w-lg overflow-hidden rounded-2xl border-stone-200 shadow-xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="border-b border-stone-100 px-5 py-4">
+          <h3 className="text-base font-semibold text-stone-900">
+            Confirm Payout Release
+          </h3>
+          <p className="mt-1 text-sm leading-5 text-stone-500">
+            You are about to release payouts for {entries.length} scholar{entries.length === 1 ? '' : 's'}.
+          </p>
+        </div>
+
+        <CardContent className="space-y-4 p-5">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <ReadOnlyField label="Scholars" value={entries.length} />
+            <ReadOnlyField label="Total Amount" value={formatMoney(totalAmount)} />
+            <ReadOnlyField label="Payout Mode" value={payoutMode || EM_DASH} />
+          </div>
+
+          {String(payoutMode).trim() === 'Other' && payoutType ? (
+            <ReadOnlyField label="Payout Type" value={payoutType} />
+          ) : null}
+
+          <div className="max-h-40 overflow-auto rounded-xl border border-stone-200 bg-stone-50">
+            {entries.map((entry) => (
+              <div
+                key={getEntryId(entry)}
+                className="flex items-center justify-between gap-3 border-b border-stone-200 px-3 py-2.5 last:border-b-0"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-semibold text-stone-800">
+                    {entry.student_name || 'Scholar'}
+                  </p>
+                  <p className="text-[11px] text-stone-500">{entry.pdm_id || EM_DASH}</p>
+                </div>
+                <span className="shrink-0 text-xs font-semibold text-stone-700">
+                  {formatMoney(entry.amount_received)}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-stone-700">
+              Remarks <span className="font-normal text-stone-400">(optional)</span>
+            </label>
+            <textarea
+              value={remarks}
+              onChange={(event) => onRemarksChange(event.target.value)}
+              maxLength={500}
+              rows={3}
+              placeholder="Add one note for the selected payout releases"
+              className="w-full resize-none rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-stone-400 disabled:cursor-not-allowed disabled:bg-stone-50"
+              disabled={working}
+            />
+            <div className="text-right text-[11px] text-stone-400">{remarks.length}/500</div>
+          </div>
+
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-stone-200 bg-stone-50 px-3 py-3 text-xs leading-5 text-stone-700">
+            <input
+              type="checkbox"
+              checked={confirmed}
+              onChange={(event) => onConfirmedChange(event.target.checked)}
+              disabled={working}
+              className="mt-0.5"
+            />
+            <span>
+              I confirm that these payouts have been released. Each scholar will be notified and asked to upload Proof of Payout.
+            </span>
+          </label>
+
+          {error ? (
+            <div role="alert" className="rounded-xl border border-red-100 bg-red-50 px-3 py-2.5 text-xs font-medium text-red-700">
+              {error}
+            </div>
+          ) : null}
+        </CardContent>
+
+        <div className="flex justify-end gap-2 border-t border-stone-100 px-5 py-4">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={working}
+            onClick={onCancel}
+            className="h-9 rounded-lg border-stone-200 text-xs"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            disabled={working || !confirmed || entries.length === 0}
+            onClick={onConfirm}
+            className="h-9 rounded-lg border-none text-xs text-white"
+            style={{ background: C.brownMid }}
+          >
+            {working ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+            Confirm {entries.length} Release{entries.length === 1 ? '' : 's'}
           </Button>
         </div>
       </Card>
@@ -575,8 +774,13 @@ export default function PayoutManagement() {
   const [archiveCandidate, setArchiveCandidate] = useState(null);
   const [statusCandidate, setStatusCandidate] = useState(null);
   const [statusRemarks, setStatusRemarks] = useState('');
-  const [statusCheckNumber, setStatusCheckNumber] = useState('');
   const [statusError, setStatusError] = useState('');
+  const [selectedReleaseIds, setSelectedReleaseIds] = useState([]);
+  const [bulkReleaseOpen, setBulkReleaseOpen] = useState(false);
+  const [bulkReleaseRemarks, setBulkReleaseRemarks] = useState('');
+  const [bulkReleaseConfirmed, setBulkReleaseConfirmed] = useState(false);
+  const [bulkReleaseError, setBulkReleaseError] = useState('');
+  const [bulkReleaseWorking, setBulkReleaseWorking] = useState(false);
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -589,30 +793,53 @@ export default function PayoutManagement() {
   const [newPayoutForPrompt, setNewPayoutForPrompt] = useState(null);
 
   const [form, setForm] = useState(EMPTY_FORM);
+  const realtimeRefreshTimer = useRef(null);
+
+  const scheduleRealtimeRefresh = () => {
+    if (realtimeRefreshTimer.current) clearTimeout(realtimeRefreshTimer.current);
+    realtimeRefreshTimer.current = setTimeout(() => {
+      realtimeRefreshTimer.current = null;
+      fetchPayoutBatches()
+        .then(setBatches)
+        .catch((error) => console.error('PAYOUT BATCH REFRESH ERROR:', error));
+    }, 200);
+  };
+
+  useEffect(() => () => {
+    if (realtimeRefreshTimer.current) clearTimeout(realtimeRefreshTimer.current);
+  }, []);
 
   useEffect(() => {
     loadAll();
   }, []);
 
   useSocketEvent('payout:created', () => {
-    loadAll();
+    scheduleRealtimeRefresh();
   }, []);
 
   useSocketEvent('payout:updated', () => {
-    loadAll();
+    scheduleRealtimeRefresh();
   }, []);
 
   useSocketEvent('payout:archived', () => {
-    loadAll();
+    scheduleRealtimeRefresh();
   }, []);
 
   useSocketEvent('payout:restored', () => {
-    loadAll();
+    scheduleRealtimeRefresh();
   }, []);
 
   useEffect(() => {
     setPage(1);
   }, [activeSection, search]);
+
+  useEffect(() => {
+    setSelectedReleaseIds([]);
+    setBulkReleaseOpen(false);
+    setBulkReleaseRemarks('');
+    setBulkReleaseConfirmed(false);
+    setBulkReleaseError('');
+  }, [selectedBatch?.payout_batch_id]);
 
   useEffect(() => {
     if (!form.opening_id) {
@@ -636,21 +863,19 @@ export default function PayoutManagement() {
     try {
       setLoading(true);
 
-      const [batchRes, openingRes, academicYearRes] = await Promise.all([
-        fetch(`${API_BASE}/payouts`, { headers: getAuthHeaders(false) }),
+      const [batchData, openingRes, academicYearRes] = await Promise.all([
+        fetchPayoutBatches(),
         fetch(`${API_BASE}/payouts/openings`, { headers: getAuthHeaders(false) }),
         fetch(`${API_BASE}/academic-years`, { headers: getAuthHeaders(false) }),
       ]);
 
-      if (!batchRes.ok) throw new Error('Failed to load payout batches');
       if (!openingRes.ok) throw new Error('Failed to load openings');
       if (!academicYearRes.ok) throw new Error('Failed to load academic years');
 
-      const batchData = await batchRes.json();
       const openingData = await openingRes.json();
       const academicYearData = await academicYearRes.json();
 
-      setBatches(Array.isArray(batchData) ? batchData : []);
+      setBatches(batchData);
 
       setOpenings(
         (Array.isArray(openingData) ? openingData : []).filter(
@@ -806,6 +1031,22 @@ export default function PayoutManagement() {
     return selectedBatch.scholars || [];
   }, [selectedBatch]);
 
+
+  const bulkReleaseEligibleEntries = useMemo(
+    () =>
+      filteredSelectedBatchScholars.filter((entry) =>
+        isBulkReleaseEligible(entry.release_status)
+      ),
+    [filteredSelectedBatchScholars]
+  );
+
+  const selectedBulkReleaseEntries = useMemo(() => {
+    const selectedIds = new Set(selectedReleaseIds.map(String));
+    return bulkReleaseEligibleEntries.filter((entry) =>
+      selectedIds.has(String(getEntryId(entry)))
+    );
+  }, [bulkReleaseEligibleEntries, selectedReleaseIds]);
+
   const sectionMeta = useMemo(() => {
     const map = {
       batches: {
@@ -881,7 +1122,7 @@ export default function PayoutManagement() {
       `Please be informed that the payout batch for ${openingTitle} has been created.`,
       '',
       `Payout Date: ${payoutDate}`,
-      `Payment Mode: ${formatPaymentMode(
+      `Payout Mode: ${formatPaymentMode(
         newPayoutForPrompt.payment_mode,
         newPayoutForPrompt.payment_mode_other
       ) || 'Cash'}`,
@@ -1022,9 +1263,17 @@ export default function PayoutManagement() {
       return;
     }
 
-    setStatusCandidate({ entry, nextStatus: normalizeReleaseStatus(nextStatus) });
+    setStatusCandidate({
+      entry,
+      nextStatus: normalizeReleaseStatus(nextStatus),
+      batch: selectedBatch
+        ? {
+            payment_mode: selectedBatch.payment_mode,
+            payment_mode_other: selectedBatch.payment_mode_other,
+          }
+        : null,
+    });
     setStatusRemarks('');
-    setStatusCheckNumber('');
     setStatusError('');
   };
 
@@ -1032,8 +1281,31 @@ export default function PayoutManagement() {
     if (workingEntryId) return;
     setStatusCandidate(null);
     setStatusRemarks('');
-    setStatusCheckNumber('');
     setStatusError('');
+  };
+
+  const requestStatusUpdate = async (entry, finalStatus, remarks = '') => {
+    const entryId = getEntryId(entry);
+    if (!entryId) throw new Error('Missing payout entry ID.');
+
+    const res = await fetch(`${API_BASE}/payouts/entries/${entryId}/status`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(true),
+      body: JSON.stringify({
+        release_status: finalStatus,
+        status: finalStatus,
+        remarks: remarks || null,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(
+        data?.message || data?.error || 'Failed to update payout status'
+      );
+    }
+
+    return { entryId, data };
   };
 
   const submitStatusUpdate = async () => {
@@ -1041,7 +1313,6 @@ export default function PayoutManagement() {
     const entryId = getEntryId(entry);
     const finalStatus = normalizeReleaseStatus(statusCandidate?.nextStatus);
     const remarks = statusRemarks.trim();
-    const checkNumber = statusCheckNumber.trim();
 
     if (!entryId) {
       setStatusError('Missing payout entry ID.');
@@ -1056,27 +1327,7 @@ export default function PayoutManagement() {
     try {
       setStatusError('');
       setWorkingEntryId(entryId);
-
-      const res = await fetch(`${API_BASE}/payouts/entries/${entryId}/status`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(true),
-        body: JSON.stringify({
-          release_status: finalStatus,
-          status: finalStatus,
-          remarks: remarks || null,
-          check_number: finalStatus === 'Released' ? checkNumber || null : null,
-        }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        throw new Error(
-          data?.message ||
-          data?.error ||
-          'Failed to update payout status'
-        );
-      }
+      await requestStatusUpdate(entry, finalStatus, remarks);
 
       setSelectedBatch((prev) => {
         if (!prev) return prev;
@@ -1091,7 +1342,6 @@ export default function PayoutManagement() {
                   ...scholar,
                   release_status: finalStatus,
                   remarks: remarks || null,
-                  check_number: finalStatus === 'Released' ? checkNumber || null : null,
                 }
               : scholar;
           }),
@@ -1101,13 +1351,136 @@ export default function PayoutManagement() {
       await loadAll();
       setStatusCandidate(null);
       setStatusRemarks('');
-      setStatusCheckNumber('');
       setStatusError('');
+
+      if (finalStatus === 'Released') {
+        toast.success('Payout released successfully.', {
+          description: `${entry?.student_name || 'Scholar'} can now upload Proof of Payout.`,
+        });
+      }
     } catch (err) {
       console.error('UPDATE PAYOUT STATUS ERROR:', err);
       setStatusError(err.message || 'Failed to update payout status');
     } finally {
       setWorkingEntryId(null);
+    }
+  };
+
+  const openBulkRelease = () => {
+    if (!selectedBulkReleaseEntries.length) return;
+    setBulkReleaseRemarks('');
+    setBulkReleaseConfirmed(false);
+    setBulkReleaseError('');
+    setBulkReleaseOpen(true);
+  };
+
+  const closeBulkRelease = () => {
+    if (bulkReleaseWorking) return;
+    setBulkReleaseOpen(false);
+    setBulkReleaseRemarks('');
+    setBulkReleaseConfirmed(false);
+    setBulkReleaseError('');
+  };
+
+  const submitBulkRelease = async () => {
+    const entries = selectedBulkReleaseEntries;
+    if (!entries.length) {
+      setBulkReleaseError('Select at least one eligible scholar.');
+      return;
+    }
+    if (!bulkReleaseConfirmed) {
+      setBulkReleaseError('Confirm that the selected payouts have been released.');
+      return;
+    }
+
+    const remarks = bulkReleaseRemarks.trim();
+
+    try {
+      setBulkReleaseWorking(true);
+      setBulkReleaseError('');
+
+      const results = await Promise.allSettled(
+        entries.map((entry) => requestStatusUpdate(entry, 'Released', remarks))
+      );
+
+      const successfulIds = [];
+      const failedEntries = [];
+
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          successfulIds.push(String(getEntryId(entries[index])));
+        } else {
+          failedEntries.push({
+            entry: entries[index],
+            reason: result.reason?.message || 'Failed to release payout',
+          });
+        }
+      });
+
+      if (successfulIds.length) {
+        const successfulSet = new Set(successfulIds);
+        setSelectedBatch((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            scholars: (prev.scholars || []).map((scholar) =>
+              successfulSet.has(String(getEntryId(scholar)))
+                ? {
+                    ...scholar,
+                    release_status: 'Released',
+                    remarks: remarks || null,
+                  }
+                : scholar
+            ),
+          };
+        });
+      }
+
+      await loadAll();
+
+      if (!failedEntries.length) {
+        toast.success(
+          `${successfulIds.length} payout${successfulIds.length === 1 ? '' : 's'} released successfully.`,
+          { description: 'Each scholar can now upload Proof of Payout.' }
+        );
+        setSelectedReleaseIds([]);
+        setBulkReleaseOpen(false);
+        setBulkReleaseRemarks('');
+        setBulkReleaseConfirmed(false);
+        setBulkReleaseError('');
+        return;
+      }
+
+      const failedIds = failedEntries.map(({ entry }) => String(getEntryId(entry)));
+      setSelectedReleaseIds(failedIds);
+      const failedNames = failedEntries
+        .map(({ entry }) => entry?.student_name)
+        .filter(Boolean)
+        .slice(0, 3)
+        .join(', ');
+
+      if (successfulIds.length) {
+        toast.warning(
+          `${successfulIds.length} of ${entries.length} payouts released.`,
+          {
+            description: `${failedEntries.length} payout${failedEntries.length === 1 ? '' : 's'} could not be updated${failedNames ? `: ${failedNames}` : '.'}`,
+          }
+        );
+        setBulkReleaseError(
+          `${failedEntries.length} payout${failedEntries.length === 1 ? '' : 's'} could not be released. The failed scholar${failedEntries.length === 1 ? ' remains' : 's remain'} selected so you can retry.`
+        );
+      } else {
+        const firstReason = failedEntries[0]?.reason;
+        toast.error('Payout release failed.', {
+          description: firstReason || 'No selected payouts were updated.',
+        });
+        setBulkReleaseError(firstReason || 'No selected payouts were updated.');
+      }
+    } catch (err) {
+      console.error('BULK PAYOUT RELEASE ERROR:', err);
+      setBulkReleaseError(err.message || 'Failed to release selected payouts');
+    } finally {
+      setBulkReleaseWorking(false);
     }
   };
 
@@ -1225,7 +1598,7 @@ export default function PayoutManagement() {
 
     return (
       <Badge
-        className="inline-flex items-center rounded-full border-none text-[10px]"
+        className="inline-flex items-center rounded-full border-none text-[11px]"
         style={{ background: current.bg, color: current.color }}
       >
         {current.icon}
@@ -1297,12 +1670,15 @@ export default function PayoutManagement() {
                 </h3>
 
                 <p className="mt-1 text-sm text-stone-500">
-                  {b.program_name || 'No Program'}
-                  {b.benefactor_name ? ` ${BULLET} ${b.benefactor_name}` : ''}
+                  {formatProgramBenefactor(b.program_name, b.benefactor_name)}
                 </p>
 
                 <p className="mt-1 text-xs text-stone-400">
                   {b.school_year || b.academic_year || EM_DASH} {BULLET} {formatPayoutDate(b.payout_date)}
+                </p>
+
+                <p className="mt-1 text-xs text-stone-400">
+                  Payout Code: <span className="font-semibold text-stone-600">{b.payout_code || EM_DASH}</span>
                 </p>
               </div>
 
@@ -1410,19 +1786,34 @@ export default function PayoutManagement() {
       <PayoutStatusModal
         candidate={statusCandidate}
         remarks={statusRemarks}
-        checkNumber={statusCheckNumber}
         error={statusError}
         working={Boolean(workingEntryId)}
         onRemarksChange={(value) => {
           setStatusRemarks(value);
           if (statusError) setStatusError('');
         }}
-        onCheckNumberChange={(value) => {
-          setStatusCheckNumber(value);
-          if (statusError) setStatusError('');
-        }}
         onCancel={closeStatusUpdate}
         onConfirm={submitStatusUpdate}
+      />
+
+      <BulkReleaseModal
+        open={bulkReleaseOpen}
+        entries={selectedBulkReleaseEntries}
+        batch={selectedBatch}
+        remarks={bulkReleaseRemarks}
+        confirmed={bulkReleaseConfirmed}
+        error={bulkReleaseError}
+        working={bulkReleaseWorking}
+        onRemarksChange={(value) => {
+          setBulkReleaseRemarks(value);
+          if (bulkReleaseError) setBulkReleaseError('');
+        }}
+        onConfirmedChange={(value) => {
+          setBulkReleaseConfirmed(value);
+          if (bulkReleaseError) setBulkReleaseError('');
+        }}
+        onCancel={closeBulkRelease}
+        onConfirm={submitBulkRelease}
       />
 
       <PayoutProofReviewPanel />
@@ -1612,11 +2003,10 @@ export default function PayoutManagement() {
                       />
                       <ReadOnlyField
                         label="Opening Status"
-                        value={
+                        value={formatOpeningStatus(
                           selectedOpeningDetails?.status ||
-                          selectedOpeningDetails?.posting_status ||
-                          EM_DASH
-                        }
+                            selectedOpeningDetails?.posting_status
+                        )}
                       />
                       <ReadOnlyField
                         label="Amount per Scholar"
@@ -1718,7 +2108,7 @@ export default function PayoutManagement() {
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-sm font-medium">Payment Mode</label>
+                        <label className="text-sm font-medium">Payout Mode</label>
                         <select
                           className="h-11 w-full rounded-md border px-3"
                           value={form.payment_mode}
@@ -1740,7 +2130,7 @@ export default function PayoutManagement() {
                     {form.payment_mode === 'Other' ? (
                       <div className="space-y-1">
                         <label className="text-sm font-medium" htmlFor="other-payment-type">
-                          Specify Payment Type
+                          Specify Payout Type
                         </label>
                         <input
                           id="other-payment-type"
@@ -1754,7 +2144,7 @@ export default function PayoutManagement() {
                           }
                           maxLength={60}
                           required
-                          placeholder="Example: GCash, Maya, bank transfer"
+                          placeholder="Example: Check"
                         />
                       </div>
                     ) : null}
@@ -1867,13 +2257,26 @@ export default function PayoutManagement() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
           <div className="max-h-[92vh] w-full max-w-5xl overflow-auto rounded-2xl border bg-white shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4">
-              <div>
-                <h2 className="text-xl font-semibold text-stone-900">
-                  {selectedBatch.payout_title || 'Payout Batch'}
-                </h2>
-                <p className="text-sm text-stone-500">
-                  {selectedBatch.program_name || 'No Program'} {BULLET}{' '}
-                  {selectedBatch.benefactor_name || 'No Benefactor'} {BULLET}{' '}
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="truncate text-xl font-semibold text-stone-900">
+                    {selectedBatch.payout_title || 'Payout Batch'}
+                  </h2>
+                  {selectedBatch.payout_code ? (
+                    <Badge
+                      variant="outline"
+                      className="rounded-full border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-medium text-stone-600"
+                    >
+                      Payout Code: {selectedBatch.payout_code}
+                    </Badge>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-sm text-stone-500">
+                  {formatProgramBenefactor(
+                    selectedBatch.program_name,
+                    selectedBatch.benefactor_name
+                  )}{' '}
+                  {BULLET}{' '}
                   {formatPayoutDate(selectedBatch.payout_date)}
                 </p>
               </div>
@@ -1917,7 +2320,10 @@ export default function PayoutManagement() {
 
                 <Button
                   variant="outline"
-                  onClick={() => setSelectedBatch(null)}
+                  onClick={() => {
+                    setSelectedBatch(null);
+                    setSelectedReleaseIds([]);
+                  }}
                   className="rounded-xl"
                 >
                   Close
@@ -1942,6 +2348,59 @@ export default function PayoutManagement() {
                 })()}
               </div>
 
+              {!selectedBatch.is_archived && bulkReleaseEligibleEntries.length > 0 ? (
+                <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-stone-700">
+                    <input
+                      type="checkbox"
+                      checked={
+                        bulkReleaseEligibleEntries.length > 0 &&
+                        selectedBulkReleaseEntries.length === bulkReleaseEligibleEntries.length
+                      }
+                      onChange={(event) => {
+                        setSelectedReleaseIds(
+                          event.target.checked
+                            ? bulkReleaseEligibleEntries.map((entry) => String(getEntryId(entry)))
+                            : []
+                        );
+                      }}
+                      disabled={bulkReleaseWorking}
+                    />
+                    Select all eligible ({bulkReleaseEligibleEntries.length})
+                  </label>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {selectedBulkReleaseEntries.length > 0 ? (
+                      <span className="text-xs font-semibold text-stone-600">
+                        {selectedBulkReleaseEntries.length} selected
+                      </span>
+                    ) : null}
+                    {selectedBulkReleaseEntries.length > 0 ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 rounded-lg text-xs"
+                        disabled={bulkReleaseWorking}
+                        onClick={() => setSelectedReleaseIds([])}
+                      >
+                        Clear
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-8 rounded-lg text-xs text-white"
+                      style={{ background: C.brownMid }}
+                      disabled={selectedBulkReleaseEntries.length === 0 || bulkReleaseWorking}
+                      onClick={openBulkRelease}
+                    >
+                      Release Selected
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
               {filteredSelectedBatchScholars.length === 0 ? (
                 <Card className="border-stone-200 shadow-none">
                   <CardContent className="p-6 text-sm text-stone-400">
@@ -1961,18 +2420,36 @@ export default function PayoutManagement() {
                       key={entryId || entry.scholar_id || entry.student_id}
                       className="border-stone-200 shadow-none"
                     >
-                      <CardContent className="flex flex-col gap-4 p-4 xl:flex-row xl:items-center xl:justify-between">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-sm font-semibold text-stone-900">
-                              {entry.student_name}
-                            </h3>
-                            {renderStatusBadge(status)}
-                          </div>
+                      <CardContent className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-3 p-4 lg:grid-cols-[auto_minmax(0,1fr)_110px_auto]">
+                        <input
+                          type="checkbox"
+                          className="self-center"
+                          checked={selectedReleaseIds.includes(String(entryId))}
+                          disabled={
+                            isLocked ||
+                            bulkReleaseWorking ||
+                            !isBulkReleaseEligible(status)
+                          }
+                          aria-label={`Select ${entry.student_name || 'scholar'} for payout release`}
+                          onChange={(event) => {
+                            const id = String(entryId);
+                            setSelectedReleaseIds((previous) =>
+                              event.target.checked
+                                ? previous.includes(id)
+                                  ? previous
+                                  : [...previous, id]
+                                : previous.filter((value) => value !== id)
+                            );
+                          }}
+                        />
 
-                          <p className="mt-1 text-xs text-stone-500">
-                            {entry.pdm_id || EM_DASH} {BULLET} {formatMoney(entry.amount_received)}
-                          </p>
+                        <div className="min-w-0">
+                          <ScholarIdentity
+                            scholar={entry}
+                            name={entry.student_name}
+                            studentNumber={`${entry.pdm_id || EM_DASH} ${BULLET} ${formatMoney(entry.amount_received)}`}
+                            compact
+                          />
 
                           <div className="mt-2 flex flex-wrap gap-2">
                             {entry.payment_mode ? (
@@ -1983,15 +2460,14 @@ export default function PayoutManagement() {
                                 )}
                               </Badge>
                             ) : null}
-                            {entry.check_number ? (
-                              <Badge variant="outline">
-                                Check #{entry.check_number}
-                              </Badge>
-                            ) : null}
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap justify-end gap-2">
+                        <div className="col-start-2 justify-self-start lg:col-start-3">
+                          {renderStatusBadge(status)}
+                        </div>
+
+                        <div className="col-span-2 flex flex-wrap justify-end gap-2 lg:col-span-1 lg:col-start-4">
                           {status === 'Released' ? (
                             <span className="text-xs font-medium text-stone-500">
                               Status already marked as Released
@@ -2011,7 +2487,7 @@ export default function PayoutManagement() {
                                 size="sm"
                                 variant="outline"
                                 className={`h-8 rounded-lg text-xs ${getActionButtonClass(action.tone)}`}
-                                disabled={isWorking}
+                                disabled={isWorking || bulkReleaseWorking}
                                 onClick={() => openStatusUpdate(entry, action.status)}
                               >
                                 {isWorking ? (

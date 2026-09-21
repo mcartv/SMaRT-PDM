@@ -20,6 +20,7 @@ import { useSocketEvent } from '../../hooks/useSocket';
 import usePortalTheme from '../../hooks/usePortalTheme';
 import useForceDarkMode from '../../hooks/useForceDarkMode';
 import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
+import useResizableSidebar from '../../hooks/useResizableSidebar';
 import AdminMessages from '../../pages/AdminMessages';
 import { buildApiUrl } from '../../api';
 import { authService } from '../../services/authService';
@@ -79,6 +80,18 @@ export default function DepartmentPortalLayout({
   useForceDarkMode(forceDarkMode);
   const portalRootPath = `/${portalKey.replaceAll('_', '-')}`;
 
+  const {
+    width: sidebarWidth,
+    resizing: sidebarResizing,
+    minWidth: sidebarMinWidth,
+    maxWidth: sidebarMaxWidth,
+    startResize: handleSidebarResizeStart,
+    moveResize: handleSidebarResizeMove,
+    stopResize: stopSidebarResize,
+    resizeWithKeyboard: handleSidebarResizeKeyDown,
+    resetWidth: resetSidebarWidth,
+  } = useResizableSidebar({ storageKey: `smartpdm:${portalKey}-sidebar-width` });
+
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -88,11 +101,23 @@ export default function DepartmentPortalLayout({
   const [profilePhotoPreviewOpen, setProfilePhotoPreviewOpen] = useState(false);
   const {
     notifications,
+    filteredNotifications,
     newNotifications,
     earlierNotifications,
+    statusFilter,
+    setStatusFilter,
+    typeFilter,
+    setTypeFilter,
+    unreadOnly,
+    setUnreadOnly,
+    notificationStatusOptions,
+    notificationTypeOptions,
     unreadCount,
     loading: notificationsLoading,
+    loadingMore,
+    hasMore,
     markingAll,
+    loadMore,
     markAllAsRead,
     openNotification,
     formatNotificationTime,
@@ -304,10 +329,16 @@ export default function DepartmentPortalLayout({
       ) : null}
 
       <aside
-        className={`portal-responsive-sidebar flex h-full min-h-0 shrink-0 flex-col border-r border-black/10 transition-all duration-300 ${
+        className={`department-resizable-sidebar portal-responsive-sidebar relative flex h-full min-h-0 shrink-0 flex-col border-r border-black/10 ${sidebarResizing ? 'transition-none' : 'transition-[width] duration-300'} ${
           mobileNavOpen ? 'portal-responsive-sidebar--mobile-open' : ''
         }`}
-        style={{ width: collapsed ? '76px' : '248px', background: theme.base }}
+        style={{
+          width: collapsed ? '76px' : `${sidebarWidth}px`,
+          '--department-sidebar-width': collapsed ? '76px' : `${sidebarWidth}px`,
+          '--department-sidebar-min-width': collapsed ? '76px' : `${sidebarMinWidth}px`,
+          '--department-sidebar-max-width': collapsed ? '76px' : `${sidebarMaxWidth}px`,
+          background: theme.base,
+        }}
         aria-label="Department navigation"
       >
         <div className="relative flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-4">
@@ -390,6 +421,28 @@ export default function DepartmentPortalLayout({
             </span>
           </button>
         </div>
+
+        {!collapsed ? (
+          <div
+            role="separator"
+            aria-label="Resize department navigation sidebar"
+            aria-orientation="vertical"
+            aria-valuemin={sidebarMinWidth}
+            aria-valuemax={sidebarMaxWidth}
+            aria-valuenow={Math.round(sidebarWidth)}
+            tabIndex={0}
+            onPointerDown={handleSidebarResizeStart}
+            onPointerMove={handleSidebarResizeMove}
+            onPointerUp={stopSidebarResize}
+            onPointerCancel={stopSidebarResize}
+            onDoubleClick={resetSidebarWidth}
+            onKeyDown={handleSidebarResizeKeyDown}
+            className="group absolute inset-y-0 -right-1 z-20 hidden w-2 cursor-col-resize touch-none outline-none min-[901px]:block"
+            title="Drag to resize · Double-click to reset"
+          >
+            <span className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${sidebarResizing ? 'bg-white/70' : 'bg-transparent group-hover:bg-white/45 group-focus:bg-white/70'}`} />
+          </div>
+        ) : null}
       </aside>
 
       <div className="portal-responsive-frame flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -438,18 +491,113 @@ export default function DepartmentPortalLayout({
                           className="rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide"
                           style={{ background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft, color: forceDarkMode ? 'var(--text-main)' : theme.base }}
                         >
-                          {unreadCount} New
+                          {unreadCount} Unread
                         </span>
                       ) : null}
                     </div>
                   </div>
+
+                  <div className="overflow-x-auto border-b border-stone-100 bg-white px-3 py-2.5">
+                    <div className="flex min-w-max items-center gap-1.5">
+                      {notificationStatusOptions.map((option) => {
+                        const isAll = option.value === 'all';
+                        const active = isAll
+                          ? statusFilter === 'all' && typeFilter === 'all'
+                          : statusFilter === option.value;
+                        const critical = option.value === 'major';
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => {
+                              if (isAll) {
+                                setStatusFilter('all');
+                                setTypeFilter('all');
+                                return;
+                              }
+                              setTypeFilter('all');
+                              setStatusFilter(active ? 'all' : option.value);
+                            }}
+                            className="rounded-full border px-2.5 py-1 text-[11px] font-semibold transition"
+                            style={active
+                              ? critical
+                                ? {
+                                    borderColor: forceDarkMode ? '#7f1d1d' : '#fecaca',
+                                    background: forceDarkMode
+                                      ? 'color-mix(in srgb, #dc2626 18%, var(--bg-secondary))'
+                                      : '#fef2f2',
+                                    color: forceDarkMode ? '#fca5a5' : '#b91c1c',
+                                  }
+                                : {
+                                    borderColor: forceDarkMode ? 'var(--border-default)' : theme.base,
+                                    background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft,
+                                    color: forceDarkMode ? 'var(--text-main)' : theme.base,
+                                  }
+                              : {
+                                  borderColor: forceDarkMode ? 'var(--border-default)' : '#e7e5e4',
+                                  background: forceDarkMode ? 'var(--bg-secondary)' : '#fff',
+                                  color: forceDarkMode ? 'var(--text-secondary)' : '#57534e',
+                                }}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                      <div className="flex items-center gap-1.5" aria-label="Filter notifications by type">
+                        {notificationTypeOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => {
+                              setStatusFilter('all');
+                              setTypeFilter(typeFilter === option.value ? 'all' : option.value);
+                            }}
+                            className="rounded-full border px-2.5 py-1 text-[11px] font-semibold transition"
+                            style={typeFilter === option.value
+                              ? {
+                                  borderColor: forceDarkMode ? 'var(--border-default)' : theme.base,
+                                  background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft,
+                                  color: forceDarkMode ? 'var(--text-main)' : theme.base,
+                                }
+                              : {
+                                  borderColor: forceDarkMode ? 'var(--border-default)' : '#e7e5e4',
+                                  background: forceDarkMode ? 'var(--bg-secondary)' : '#fff',
+                                  color: forceDarkMode ? 'var(--text-secondary)' : '#57534e',
+                                }}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                      <span className="mx-0.5 h-5 w-px shrink-0 bg-stone-200" aria-hidden="true" />
+                      <button
+                        type="button"
+                        onClick={() => setUnreadOnly((current) => !current)}
+                        className="rounded-full border px-2.5 py-1 text-[11px] font-semibold transition"
+                        style={unreadOnly
+                          ? {
+                              borderColor: forceDarkMode ? 'var(--border-default)' : theme.base,
+                              background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft,
+                              color: forceDarkMode ? 'var(--text-main)' : theme.base,
+                            }
+                          : {
+                              borderColor: forceDarkMode ? 'var(--border-default)' : '#e7e5e4',
+                              background: forceDarkMode ? 'var(--bg-secondary)' : '#fff',
+                              color: forceDarkMode ? 'var(--text-secondary)' : '#57534e',
+                            }}
+                      >
+                        Unread{unreadCount > 0 ? ` ${unreadCount > 99 ? '99+' : unreadCount}` : ''}
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="max-h-80 overflow-y-auto">
-                    {notifications.length > 0 ? (
+                    {filteredNotifications.length > 0 ? (
                       <>
                         {newNotifications.length > 0 ? (
                           <div className="border-b border-stone-100 px-4 py-2" style={{ background: forceDarkMode ? 'var(--bg-subtle)' : theme.accentSoft }}>
                             <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: forceDarkMode ? 'var(--text-secondary)' : theme.base }}>
-                              New
+                              Today
                             </p>
                           </div>
                         ) : null}
@@ -461,16 +609,25 @@ export default function DepartmentPortalLayout({
                               setNotifOpen(false);
                               openNotification(item, navigate);
                             }}
-                            className={`w-full border-b border-stone-100 px-4 py-3 text-left transition hover:brightness-[0.98] ${item.is_read !== true ? 'border-l-4' : ''}`}
-                            style={item.is_read !== true
-                              ? { borderLeftColor: forceDarkMode ? 'var(--accent-primary)' : theme.base, background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft }
-                              : { background: forceDarkMode ? 'var(--bg-secondary)' : '#fff' }}
+                            className={`w-full border-b border-stone-100 px-4 py-3 text-left transition hover:brightness-[0.98] ${(item.priority === 'major' || item.is_read !== true) ? 'border-l-4' : ''}`}
+                            style={item.priority === 'major'
+                              ? { borderLeftColor: '#dc2626', background: forceDarkMode ? 'color-mix(in srgb, #dc2626 12%, var(--bg-secondary))' : '#fff7f7' }
+                              : item.is_read !== true
+                                ? { borderLeftColor: forceDarkMode ? 'var(--accent-primary)' : theme.base, background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft }
+                                : { background: forceDarkMode ? 'var(--bg-secondary)' : '#fff' }}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <p className="text-[13px] font-semibold leading-[18px] text-stone-900">
                                 {item.title || 'Notification'}
                               </p>
-                              {item.is_read !== true ? (
+                              {item.priority === 'major' ? (
+                                <span
+                                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                  style={{ background: forceDarkMode ? '#7f1d1d' : '#fee2e2', color: forceDarkMode ? '#fecaca' : '#b91c1c' }}
+                                >
+                                  Major
+                                </span>
+                              ) : item.is_read !== true ? (
                                 <span
                                   className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
                                   style={{ background: theme.base, color: '#fff' }}
@@ -502,15 +659,25 @@ export default function DepartmentPortalLayout({
                               setNotifOpen(false);
                               openNotification(item, navigate);
                             }}
-                            className={`w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:brightness-[0.98] ${item.is_read !== true ? 'border-l-4' : ''}`}
-                            style={item.is_read !== true
-                              ? { borderLeftColor: forceDarkMode ? 'var(--accent-primary)' : theme.base, background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft }
-                              : { background: forceDarkMode ? 'var(--bg-secondary)' : '#fff' }}
+                            className={`w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:brightness-[0.98] ${(item.priority === 'major' || item.is_read !== true) ? 'border-l-4' : ''}`}
+                            style={item.priority === 'major'
+                              ? { borderLeftColor: '#dc2626', background: forceDarkMode ? 'color-mix(in srgb, #dc2626 12%, var(--bg-secondary))' : '#fff7f7' }
+                              : item.is_read !== true
+                                ? { borderLeftColor: forceDarkMode ? 'var(--accent-primary)' : theme.base, background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft }
+                                : { background: forceDarkMode ? 'var(--bg-secondary)' : '#fff' }}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <p className="text-[13px] font-medium leading-[18px] text-stone-800">
                                 {item.title || 'Notification'}
                               </p>
+                              {item.priority === 'major' ? (
+                                <span
+                                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                  style={{ background: forceDarkMode ? '#7f1d1d' : '#fee2e2', color: forceDarkMode ? '#fecaca' : '#b91c1c' }}
+                                >
+                                  Major
+                                </span>
+                              ) : null}
                             </div>
                             <p className="mt-1 line-clamp-2 text-xs leading-[18px] text-stone-600">
                               {item.message || 'Open notification'}
@@ -523,12 +690,22 @@ export default function DepartmentPortalLayout({
                       </>
                     ) : (
                       <div className="p-8 text-center text-sm text-stone-400">
-                        {notificationsLoading ? 'Loading notifications...' : 'No new notifications'}
+                        {notificationsLoading ? 'Loading notifications...' : 'No notifications in this category'}
                       </div>
                     )}
                   </div>
                   {notifications.length > 0 ? (
-                    <div className="flex justify-end border-t border-stone-100 bg-stone-50/80 px-4 py-3">
+                    <div className="flex items-center justify-between gap-2 border-t border-stone-100 bg-stone-50/80 px-4 py-3">
+                      {hasMore ? (
+                        <button
+                          type="button"
+                          onClick={loadMore}
+                          disabled={loadingMore}
+                          className="rounded-lg px-2 py-1.5 text-xs font-semibold text-stone-500 transition hover:bg-stone-100 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {loadingMore ? 'Loading...' : 'Load more'}
+                        </button>
+                      ) : <span />}
                       <button
                         type="button"
                         onClick={markAllAsRead}

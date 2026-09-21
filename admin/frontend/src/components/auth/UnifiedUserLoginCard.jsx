@@ -5,8 +5,8 @@ import {
   Loader2,
   LockKeyhole,
   LogIn,
-  Mail,
   ShieldCheck,
+  UserRound,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '@/services/authService';
@@ -32,7 +32,7 @@ function consumeAnyPortalFeedback() {
 
 export default function UnifiedUserLoginCard({ theme }) {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [capsLockOn, setCapsLockOn] = useState(false);
@@ -44,12 +44,12 @@ export default function UnifiedUserLoginCard({ theme }) {
   );
   const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
   const [sessionFeedback] = useState(consumeAnyPortalFeedback);
-  const emailInputRef = useRef(null);
+  const identifierInputRef = useRef(null);
   const loginRequestRef = useRef(false);
-  const loginTooltip = !email.trim() && !password
-    ? 'Enter your email and password to continue.'
-    : !email.trim()
-      ? 'Enter your email to continue.'
+  const loginTooltip = !identifier.trim() && !password
+    ? 'Enter your sign-in account and password to continue.'
+    : !identifier.trim()
+      ? 'Enter your sign-in account to continue.'
       : !password
         ? 'Enter your password to continue.'
         : !turnstileToken
@@ -66,7 +66,7 @@ export default function UnifiedUserLoginCard({ theme }) {
     }
 
     if (window.matchMedia?.('(pointer: fine)').matches) {
-      const frameId = window.requestAnimationFrame(() => emailInputRef.current?.focus());
+      const frameId = window.requestAnimationFrame(() => identifierInputRef.current?.focus());
       return () => window.cancelAnimationFrame(frameId);
     }
 
@@ -92,7 +92,7 @@ export default function UnifiedUserLoginCard({ theme }) {
 
     try {
       const data = await authService.login({
-        email: email.trim(),
+        identifier: identifier.trim(),
         password,
         stayLoggedIn: false,
         turnstileToken,
@@ -206,32 +206,31 @@ export default function UnifiedUserLoginCard({ theme }) {
             ) : null}
 
             <div>
-              <label htmlFor="unified-user-email" className="mb-1.5 block text-xs font-bold text-stone-700">
-                Email
+              <label htmlFor="unified-user-identifier" className="mb-1.5 block text-xs font-bold text-stone-700">
+                Sign-in account
               </label>
               <div className="relative">
-                <Mail
+                <UserRound
                   size={16}
                   className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400"
                 />
                 <input
-                  ref={emailInputRef}
-                  id="unified-user-email"
-                  type="email"
+                  ref={identifierInputRef}
+                  id="unified-user-identifier"
+                  type="text"
                   required
                   disabled={isLoading}
                   autoComplete="username"
-                  inputMode="email"
-                  placeholder="Enter your email"
-                  value={email}
+                  placeholder="Admin email or department username"
+                  value={identifier}
                   onChange={(event) => {
-                    setEmail(event.target.value);
+                    setIdentifier(event.target.value);
                     if (error) setError('');
                   }}
                   className="smartpdm-login-input h-[52px] w-full rounded-xl border border-stone-200 bg-white pl-10 pr-4 text-sm font-medium text-stone-900 outline-none transition placeholder:font-normal placeholder:text-stone-400 focus:ring-2 disabled:cursor-wait disabled:opacity-60"
                   style={{
                     '--tw-ring-color': `${theme.base}1c`,
-                    borderColor: email ? `${theme.base}38` : undefined,
+                    borderColor: identifier ? `${theme.base}38` : undefined,
                   }}
                 />
               </div>
@@ -244,7 +243,9 @@ export default function UnifiedUserLoginCard({ theme }) {
                 </label>
                 <button
                   type="button"
-                  onClick={() => navigate('/admin/forgot-password', { state: { email } })}
+                  onClick={() => navigate('/admin/forgot-password', {
+                    state: { email: identifier.includes('@') ? identifier : '' },
+                  })}
                   disabled={isLoading}
                   className="cursor-pointer text-[11px] font-bold transition hover:opacity-80 hover:underline disabled:cursor-wait disabled:opacity-50 disabled:no-underline"
                   style={{ color: theme.base }}

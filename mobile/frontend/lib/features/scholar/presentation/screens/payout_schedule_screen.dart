@@ -255,7 +255,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
             children: [
               Expanded(
                 child: Text(
-                  'Proof of Receipt',
+                  proof == null ? 'Proof of Payout Required' : 'Proof of Payout',
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: titleColor,
@@ -273,7 +273,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
           const SizedBox(height: 6),
           Text(
             proof == null
-                ? 'Upload proof after receiving this payout.'
+                ? 'Your payout has been released. Please upload your proof of payout for verification by OSFA.'
                 : (proof.fileName?.trim().isNotEmpty == true
                       ? proof.fileName!
                       : 'Proof submitted'),
@@ -369,6 +369,32 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     return 'PHP ${value.toStringAsFixed(0)}';
   }
 
+
+  String _formatPayoutDate(String value) {
+    final raw = value.trim();
+    if (raw.isEmpty) return 'TBA';
+
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return raw;
+
+    const months = <String>[
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+
+    return '${months[parsed.month - 1]} ${parsed.day}, ${parsed.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final titleColor = AppSurfacePalette.text(context);
@@ -419,7 +445,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
               AppSectionHeading(
                 title: 'Payout Schedule',
                 subtitle:
-                    'Track payout dates, release status, and proof-of-receipt review.',
+                    'Track payout dates, release status, and Proof of Payout review.',
               ),
               const SizedBox(height: AppSpacing.md),
 
@@ -567,9 +593,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                             const SizedBox(height: 10),
                             _infoRow(
                               'Payout Date',
-                              payout.payoutDate.isEmpty
-                                  ? 'TBA'
-                                  : payout.payoutDate,
+                              _formatPayoutDate(payout.payoutDate),
                               subtitleColor,
                             ),
                             _infoRow(
@@ -585,12 +609,20 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                               subtitleColor,
                             ),
                             _infoRow(
-                              'Payment Mode',
+                              'Payout Mode',
                               payout.paymentMode.isEmpty
                                   ? '-'
                                   : payout.paymentMode,
                               subtitleColor,
                             ),
+                            if (payout.paymentMode.trim().toLowerCase() ==
+                                    'other' &&
+                                payout.payoutType.trim().isNotEmpty)
+                              _infoRow(
+                                'Payout Type',
+                                payout.payoutType,
+                                subtitleColor,
+                              ),
                             _infoRow(
                               'Batch Status',
                               payout.batchStatus.isEmpty
@@ -599,8 +631,8 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                               subtitleColor,
                             ),
                             _infoRow(
-                              'Reference',
-                              payout.reference.isEmpty ? '-' : payout.reference,
+                              'Payout Code',
+                              payout.payoutCode.isEmpty ? '-' : payout.payoutCode,
                               subtitleColor,
                             ),
                             _buildProofSection(

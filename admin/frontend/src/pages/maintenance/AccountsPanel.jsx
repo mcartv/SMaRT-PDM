@@ -29,6 +29,7 @@ import {
     RefreshCw,
     Save,
     Search,
+    UserRound,
     UsersRound,
     X,
 } from 'lucide-react';
@@ -144,6 +145,7 @@ const PHONE_NUMBER_PATTERN = /^09\d{9}$/;
 const REPEATING_PHONE_NUMBER_PATTERN = /^09(\d)\1{8}$/;
 const PHONE_NUMBER_ERROR = 'Phone number must be 11 digits and start with 09.';
 const REPEATING_PHONE_NUMBER_ERROR = 'Enter a valid phone number. Repeating placeholder numbers are not allowed.';
+const USERNAME_PATTERN = /^[a-z0-9](?:[a-z0-9._@-]*[a-z0-9])?$/;
 const COMMON_GMAIL_TYPO_DOMAINS = new Set([
     'gmai.com',
     'gamil.com',
@@ -183,12 +185,28 @@ function validateAccountIdentity(form, accounts = [], excludedUserId = null) {
 
     const firstName = String(form.first_name || '').trim().toLowerCase();
     const lastName = String(form.last_name || '').trim().toLowerCase();
+    const username = String(form.username || '').trim().toLowerCase();
+    const requiresUsername = Boolean(form.role && form.role !== 'admin');
     const otherAccounts = accounts.filter(
         (account) => String(account.user_id) !== String(excludedUserId || '')
     );
 
-    if (otherAccounts.some((account) => String(account.email || '').trim().toLowerCase() === email)) {
-        return 'Another account is already using this email address.';
+    if (requiresUsername) {
+        if (username.length < 5 || username.length > 50) {
+            return 'Username must contain between 5 and 50 characters.';
+        }
+        if (!USERNAME_PATTERN.test(username)) {
+            return 'Username may use lowercase letters, numbers, periods, underscores, hyphens, and @.';
+        }
+        if (otherAccounts.some((account) => [account.username, account.email]
+            .some((value) => String(value || '').trim().toLowerCase() === username))) {
+            return 'Another account is already using this username as an email or username.';
+        }
+    }
+
+    if (otherAccounts.some((account) => [account.email, account.username]
+        .some((value) => String(value || '').trim().toLowerCase() === email))) {
+        return 'Another account is already using this email as an email or username.';
     }
     if (otherAccounts.some((account) =>
         String(account.first_name || '').trim().toLowerCase() === firstName
@@ -203,6 +221,7 @@ function validateAccountIdentity(form, accounts = [], excludedUserId = null) {
 const DEFAULT_FORM = {
     first_name: '',
     last_name: '',
+    username: '',
     email: '',
     phone_number: '',
     role: DEFAULT_OPERATIONAL_ROLE.value,
@@ -263,6 +282,7 @@ function DepartmentField({
     disabled = false,
     roAreas = [],
     showPdCourseGroup = true,
+    triggerClassName = 'h-9',
 }) {
     const options = role === 'ro_coordinator'
         ? roAreas
@@ -279,10 +299,10 @@ function DepartmentField({
 
     return (
         <div className="min-w-0">
-            <FieldLabel>Organizational Unit</FieldLabel>
+            <FieldLabel>Office</FieldLabel>
             <Select value={value ?? ''} onValueChange={onChange} disabled={disabled}>
                 <SelectTrigger
-                    className="h-9 w-full min-w-0 rounded-lg border-stone-200 text-sm [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
+                    className={`${triggerClassName} w-full min-w-0 rounded-lg border-stone-200 text-sm [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate`}
                     title={selectedOption?.value || ''}
                 >
                     <SelectValue placeholder="Select department or office" />
@@ -525,8 +545,8 @@ function validatePasswordFields(password, confirmPassword, required = true) {
 }
 
 function validateCreateForm(form, roAreas = [], accounts = []) {
-    if (!form.first_name.trim() || !form.last_name.trim() || !form.email.trim()) {
-        return 'First name, last name, and email are required.';
+    if (!form.first_name.trim() || !form.last_name.trim() || !form.username.trim() || !form.email.trim()) {
+        return 'First name, last name, username, and email are required.';
     }
 
     const identityError = validateAccountIdentity(form, accounts);
@@ -565,8 +585,10 @@ function validateAdminCreateForm(form, accounts = []) {
 }
 
 function validateEditForm(form, roAreas = [], accounts = [], excludedUserId = null) {
-    if (!form.first_name.trim() || !form.last_name.trim() || !form.email.trim()) {
-        return 'First name, last name, and email are required.';
+    if (!form.first_name.trim() || !form.last_name.trim() || (form.role !== 'admin' && !form.username.trim()) || !form.email.trim()) {
+        return form.role === 'admin'
+            ? 'First name, last name, and email are required.'
+            : 'First name, last name, username, and email are required.';
     }
 
     const identityError = validateAccountIdentity(form, accounts, excludedUserId);
@@ -732,6 +754,23 @@ function AccountCreateModal({
 
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div>
+                            <FieldLabel>Sign-in Username</FieldLabel>
+                            <div className="relative">
+                                <UserRound className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
+                                <Input
+                                    type="text"
+                                    autoComplete="username"
+                                    value={form.username}
+                                    onChange={(event) => setField('username', event.target.value.toLowerCase())}
+                                    placeholder="e.g. guidance.office"
+                                    className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
+                                    disabled={saving}
+                                />
+                            </div>
+                            <p className="mt-1 text-[11px] text-stone-500">5–50 characters; @, ., _, and - are allowed.</p>
+                        </div>
+
+                        <div>
                             <FieldLabel>Email Address</FieldLabel>
                             <div className="relative">
                                 <Mail className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
@@ -745,8 +784,11 @@ function AccountCreateModal({
                                     disabled={saving}
                                 />
                             </div>
+                            <p className="mt-1 text-[11px] text-stone-500">Kept for the profile and account contact.</p>
                         </div>
+                    </div>
 
+                    <div className="sm:max-w-[calc(50%-0.375rem)]">
                         <div>
                             <FieldLabel>Mobile / Contact Number</FieldLabel>
                             <div className="relative">
@@ -1022,6 +1064,7 @@ function AccountEditModal({
     const editRoleOptions = form.role === 'admin'
         ? ROLE_OPTIONS.filter((option) => option.value === 'admin')
         : OPERATIONAL_ROLE_OPTIONS;
+    const usernameTooShort = form.role !== 'admin' && form.username.trim().length < 5;
 
     const setField = (field, value) => {
         setForm((current) => ({
@@ -1047,177 +1090,155 @@ function AccountEditModal({
     return (
         <AccountModalPortal>
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
-            onClick={onClose}
+            className="fixed inset-0 z-50 flex h-[100dvh] items-center justify-center bg-black/45 p-0 backdrop-blur-[3px] sm:p-4"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
         >
             <div
-                className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-stone-200 bg-white shadow-xl"
-                onClick={(event) => event.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="update-account-title"
+                className="flex h-full max-h-[100dvh] w-full max-w-3xl flex-col overflow-hidden rounded-none border border-stone-200 bg-white shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
             >
-                <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
-                    <h3 className="text-sm font-semibold text-stone-800">
-                        Update Account
-                    </h3>
+                <div className="flex shrink-0 items-center justify-between gap-4 border-b border-stone-200 bg-stone-50/80 px-5 py-4">
+                    <div className="flex min-w-0 items-center gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[var(--portal-base,#6f4b33)] shadow-sm ring-1 ring-stone-200">
+                            <UserRound className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0">
+                            <h3 id="update-account-title" className="text-base font-semibold text-stone-900">
+                                Update Account
+                            </h3>
+                            <p className="mt-0.5 text-xs text-stone-500">
+                                Manage profile, sign-in access, and account security.
+                            </p>
+                        </div>
+                    </div>
 
                     <button
                         type="button"
                         onClick={onClose}
                         disabled={saving}
-                        className="rounded-md p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
+                        aria-label="Close Update Account"
+                        title="Close"
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-500 transition hover:border-stone-300 hover:bg-stone-100 hover:text-stone-800 disabled:opacity-50"
                     >
-                        <X size={14} />
+                        <X className="h-4 w-4" />
                     </button>
                 </div>
 
-                <div className="space-y-3 p-4">
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+                    <div className="grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-2">
                         <div>
                             <FieldLabel>First Name</FieldLabel>
-                            <Input
-                                value={form.first_name}
-                                onChange={(event) => setField('first_name', event.target.value)}
-                                className="h-9 rounded-lg border-stone-200 text-sm"
-                                disabled={saving}
-                            />
+                            <Input value={form.first_name} onChange={(event) => setField('first_name', event.target.value)} className="h-9 rounded-lg border-stone-200 text-sm" disabled={saving} />
                         </div>
-
                         <div>
                             <FieldLabel>Last Name</FieldLabel>
-                            <Input
-                                value={form.last_name}
-                                onChange={(event) => setField('last_name', event.target.value)}
-                                className="h-9 rounded-lg border-stone-200 text-sm"
-                                disabled={saving}
-                            />
+                            <Input value={form.last_name} onChange={(event) => setField('last_name', event.target.value)} className="h-9 rounded-lg border-stone-200 text-sm" disabled={saving} />
                         </div>
-                    </div>
 
-                    <div>
-                        <FieldLabel>Email Address</FieldLabel>
-                        <div className="relative">
-                            <Mail className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
-                            <Input
-                                type="email"
-                                autoComplete="email"
-                                value={form.email}
-                                onChange={(event) => setField('email', event.target.value)}
-                                placeholder="name@example.com"
-                                className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
-                                disabled={saving}
-                            />
+                        {form.role !== 'admin' ? (
+                            <div>
+                                <FieldLabel>Sign-in Username</FieldLabel>
+                                <div className="relative">
+                                    <UserRound className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
+                                    <Input
+                                        type="text"
+                                        autoComplete="username"
+                                        value={form.username}
+                                        onChange={(event) => setField('username', event.target.value.toLowerCase())}
+                                        placeholder="e.g. guidance.office"
+                                        aria-invalid={usernameTooShort}
+                                        className={`h-9 rounded-lg pl-8 text-sm ${usernameTooShort ? 'border-red-300 focus-visible:ring-red-100' : 'border-stone-200'}`}
+                                        disabled={saving}
+                                    />
+                                </div>
+                                <p className={`mt-1 text-[11px] ${usernameTooShort ? 'font-medium text-red-600' : 'text-stone-500'}`}>
+                                    {usernameTooShort ? 'Username must be at least 5 characters.' : '5–50 characters; @, ., _, and - are allowed.'}
+                                </p>
+                            </div>
+                        ) : null}
+
+                        <div>
+                            <FieldLabel>Email Address</FieldLabel>
+                            <div className="relative">
+                                <Mail className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
+                                <Input type="email" autoComplete="email" value={form.email} onChange={(event) => setField('email', event.target.value)} placeholder="name@example.com" className="h-9 rounded-lg border-stone-200 pl-8 text-sm" disabled={saving} />
+                            </div>
+                            {form.role !== 'admin' ? <p className="mt-1 text-[11px] text-stone-500">Profile contact email.</p> : null}
                         </div>
-                    </div>
 
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div>
                             <FieldLabel>Role</FieldLabel>
-                            <Select
-                                value={form.role}
-                                onValueChange={handleRoleChange}
-                                disabled={saving || form.role === 'admin'}
-                            >
-                                <SelectTrigger className="h-9 w-full rounded-lg border-stone-200 text-sm">
-                                    <SelectValue />
-                                </SelectTrigger>
-
+                            <Select value={form.role} onValueChange={handleRoleChange} disabled={saving || form.role === 'admin'}>
+                                <SelectTrigger className="h-9 w-full rounded-lg border-stone-200 text-sm"><SelectValue /></SelectTrigger>
                                 <SelectContent>
-                                    {editRoleOptions.map((option) => (
-                                        <SelectItem key={option.value} value={option.value}>
-                                            {option.label}
-                                        </SelectItem>
-                                    ))}
+                                    {editRoleOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
                                 </SelectContent>
                             </Select>
-                            <p className="mt-1 text-[11px] text-stone-500">
-                                {form.role === 'admin'
-                                    ? 'Admin accounts stay Admin. Archive and create a department account instead of converting it.'
-                                    : 'Department roles can change among Program Director, Student Discipline Officer, Guidance Counselor, and RO Personnel-In-Charge, but cannot become OSFA Coordinator.'}
-                            </p>
                         </div>
+
+                        <DepartmentField role={form.role} value={form.department} onChange={(value) => setField('department', value)} disabled={saving} roAreas={roAreas} />
 
                         <div>
                             <FieldLabel>Phone Number</FieldLabel>
                             <div className="relative">
                                 <Phone className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
-                                <Input
-                                    type="tel"
-                                    inputMode="numeric"
-                                    maxLength={11}
-                                    value={form.phone_number}
-                                    onChange={(event) =>
-                                        setField('phone_number', sanitizePhoneNumberInput(event.target.value))
-                                    }
-                                    placeholder="09XXXXXXXXX"
-                                    className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
-                                    disabled={saving}
-                                />
+                                <Input type="tel" inputMode="numeric" maxLength={11} value={form.phone_number} onChange={(event) => setField('phone_number', sanitizePhoneNumberInput(event.target.value))} placeholder="09XXXXXXXXX" className="h-9 rounded-lg border-stone-200 pl-8 text-sm" disabled={saving} />
                             </div>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-                        <DepartmentField
-                            role={form.role}
-                            value={form.department}
-                            onChange={(value) => setField('department', value)}
-                            disabled={saving}
-                            roAreas={roAreas}
-                        />
+                    <p className="mt-3 rounded-lg bg-stone-50 px-3 py-2 text-[11px] leading-4 text-stone-500">
+                        {form.role === 'admin'
+                            ? 'OSFA Admin accounts cannot be converted to department accounts.'
+                            : 'Department roles can be changed, but cannot be converted to OSFA Admin.'}
+                    </p>
 
-                    </div>
+                    {form.role === 'pd' ? (
+                        <div className="mt-3">
+                            <CourseAssignmentField form={form} setField={setField} courses={courses} currentUserId={currentUserId} disabled={saving} />
+                        </div>
+                    ) : null}
 
-                    <CourseAssignmentField form={form} setField={setField} courses={courses} currentUserId={currentUserId} disabled={saving} />
-
-                    <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
-                        <p className="mb-2 text-xs font-semibold text-stone-700">
-                            Password Reset
-                        </p>
-
+                    <div className="mt-4 border-t border-stone-200 pt-4">
+                        <div className="mb-2 flex flex-wrap items-baseline justify-between gap-1">
+                            <h4 className="text-sm font-semibold text-stone-800">Password Reset</h4>
+                            <p className="text-[11px] text-stone-500">Optional — leave blank to keep the current password.</p>
+                        </div>
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <PasswordInput
-                                label="New Password"
-                                value={form.password}
-                                onChange={(event) => setField('password', event.target.value)}
-                                placeholder="Leave blank to keep current"
-                                disabled={saving}
-                                optional
-                            />
-
+                            <PasswordInput label="New Password" value={form.password} onChange={(event) => setField('password', event.target.value)} placeholder="Enter a new password" disabled={saving} optional />
                             <div>
                                 <FieldLabel>Confirm New Password</FieldLabel>
-                                <Input
-                                    type="password"
-                                    value={form.confirm_password}
-                                    onChange={(event) => setField('confirm_password', event.target.value)}
-                                    className="h-9 rounded-lg border-stone-200 text-sm"
-                                    placeholder="Leave blank to keep current"
-                                    disabled={saving}
-                                />
+                                <Input type="password" value={form.confirm_password} onChange={(event) => setField('confirm_password', event.target.value)} className="h-9 rounded-lg border-stone-200 text-sm" placeholder="Repeat new password" disabled={saving} />
                             </div>
                         </div>
-                        {error ? (
-                            <p className="mt-2 flex items-start gap-1.5 text-xs font-medium text-red-600">
-                                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                                <span>{error}</span>
-                            </p>
-                        ) : null}
                     </div>
+
+                    {error ? (
+                        <p className="mt-3 flex items-start gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
+                            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                            <span>{error}</span>
+                        </p>
+                    ) : null}
                 </div>
 
-                <div className="flex items-center justify-end gap-2 border-t border-stone-100 bg-stone-50 px-4 py-3">
+                <div className="flex shrink-0 items-center justify-end gap-2 border-t border-stone-200 bg-white px-5 py-3.5">
                     <Button
                         variant="outline"
                         onClick={onClose}
                         disabled={saving}
-                        className="h-8 rounded-lg border-stone-200 text-xs"
+                        className="h-9 rounded-lg border-stone-200 px-4 text-sm"
                     >
                         Cancel
                     </Button>
 
                     <Button
                         onClick={onSave}
-                        disabled={saving}
-                        className="h-8 rounded-lg border-none px-3 text-xs font-medium text-white hover:brightness-95 disabled:opacity-60"
+                        disabled={saving || usernameTooShort}
+                        title={usernameTooShort ? 'Enter a username with at least 5 characters.' : 'Save account changes'}
+                        className="h-9 rounded-lg border-none px-4 text-sm font-medium text-white hover:brightness-95 disabled:opacity-60"
                         style={{ background: 'var(--portal-base, #6f4b33)' }}
                     >
                         {saving ? (
@@ -1282,6 +1303,9 @@ function AccountProfileModal({ account, onClose, onEdit }) {
                                 </span>
                             </div>
                             <p className="mt-1 truncate text-sm text-stone-500">{account.email}</p>
+                            {account.role !== 'admin' ? (
+                                <p className="mt-1 text-xs font-medium text-stone-700">@{account.username}</p>
+                            ) : null}
                             <p className="mt-1 flex items-center gap-1.5 text-[11px] text-stone-400">
                                 <CalendarDays className="h-3.5 w-3.5" />
                                 <span>Date Created: {formatAccountCreatedDate(account.created_at)}</span>
@@ -1296,7 +1320,7 @@ function AccountProfileModal({ account, onClose, onEdit }) {
                         <div className="rounded-lg border border-stone-200 bg-stone-50/70 p-3">
                             <div className="flex items-center gap-2 text-stone-400">
                                 <Building2 className="h-3.5 w-3.5" />
-                                <span className="text-[10px] font-semibold uppercase tracking-wide">Organizational Unit</span>
+                                <span className="text-[10px] font-semibold uppercase tracking-wide">Office</span>
                             </div>
                             <p className="mt-1.5 text-sm font-medium text-stone-800">{accountDepartmentLabel(account)}</p>
                         </div>
@@ -1311,6 +1335,15 @@ function AccountProfileModal({ account, onClose, onEdit }) {
                             </div>
                             <p className="mt-1.5 break-all text-sm font-medium text-stone-800">{account.email}</p>
                         </div>
+                        {account.role !== 'admin' ? (
+                            <div className="rounded-lg border border-stone-200 bg-stone-50/70 p-3">
+                                <div className="flex items-center gap-2 text-stone-400">
+                                    <UserRound className="h-3.5 w-3.5" />
+                                    <span className="text-[10px] font-semibold uppercase tracking-wide">Sign-in Username</span>
+                                </div>
+                                <p className="mt-1.5 break-all text-sm font-medium text-stone-800">{account.username}</p>
+                            </div>
+                        ) : null}
                         <div className="rounded-lg border border-stone-200 bg-stone-50/70 p-3">
                             <div className="flex items-center gap-2 text-stone-400">
                                 <Phone className="h-3.5 w-3.5" />
@@ -1417,6 +1450,7 @@ export default function AccountsPanel() {
                 String(account.name || '').toLowerCase().includes(q) ||
                 String(account.first_name || '').toLowerCase().includes(q) ||
                 String(account.last_name || '').toLowerCase().includes(q) ||
+                String(account.username || '').toLowerCase().includes(q) ||
                 String(account.email || '').toLowerCase().includes(q) ||
                 String(account.department || '').toLowerCase().includes(q) ||
                 String(account.position || '').toLowerCase().includes(q) ||
@@ -1578,6 +1612,7 @@ export default function AccountsPanel() {
         setEditForm({
             first_name: account.first_name || '',
             last_name: account.last_name || '',
+            username: account.username || '',
             email: account.email || '',
             phone_number: account.phone_number || '',
             role: account.role || 'admin',
@@ -2127,7 +2162,9 @@ export default function AccountsPanel() {
                                                             <span className="rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700">Archived</span>
                                                         ) : null}
                                                     </div>
-                                                    <p className="mt-0.5 truncate text-xs text-stone-500">{account.email}</p>
+                                                    <p className="mt-0.5 truncate text-xs text-stone-500">
+                                                        {account.email || 'No email provided'}
+                                                    </p>
                                                     <p className="mt-1 flex items-center gap-1.5 text-[11px] text-stone-400">
                                                         <CalendarDays className="h-3 w-3" />
                                                         <span>Date Created: {formatAccountCreatedDate(account.created_at)}</span>

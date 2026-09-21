@@ -59,10 +59,12 @@ function normalizeReportType(value) {
         'applications',
         'scholars',
         'payouts',
+        'payout_proofs',
         'sdo',
         'guidance',
         'pd',
         'scholars_by_benefactor',
+        'scholarship_history',
         'endorsements',
         'ro',
         'ro_compliance',
@@ -212,9 +214,19 @@ async function getReportMetadata() {
                 sub: 'Active scholar totals grouped by benefactor or program for the selected benefactor',
             },
             {
+                id: 'scholarship_history',
+                name: 'Scholarship Program History',
+                sub: 'Student history by scholarship program across an academic-year range',
+            },
+            {
                 id: 'payouts',
                 name: 'Payout Batch Report',
                 sub: 'Payout batches, release status, amount, and recipients',
+            },
+            {
+                id: 'payout_proofs',
+                name: 'Payout Proof Upload Report',
+                sub: 'Scholars who uploaded payout proof with submission and review details',
             },
             {
                 id: 'endorsements',
@@ -302,7 +314,7 @@ async function getReportMetadata() {
         verificationStatuses: buildMetadataOptions(verificationStatusesResult.rows, 'value', 'All Verification Statuses'),
         payoutBatchStatuses: buildMetadataOptions(payoutBatchStatusesResult.rows, 'value', 'All Batch Statuses'),
         payoutReleaseStatuses: buildMetadataOptions(payoutReleaseStatusesResult.rows, 'value', 'All Release Statuses'),
-        payoutPaymentModes: buildMetadataOptions(payoutPaymentModesResult.rows, 'value', 'All Payment Modes'),
+        payoutPaymentModes: buildMetadataOptions(payoutPaymentModesResult.rows, 'value', 'All Payout Modes'),
     };
 }
 
@@ -348,6 +360,9 @@ const EXCEL_COLUMN_MAX_WIDTHS = {
     course_name: 32,
     year_level: 11,
     program_name: 34,
+    history_range: 18,
+    history_summary: 78,
+    latest_status: 20,
     benefactor_name: 30,
     opening_title: 34,
     academic_year: 18,
@@ -483,7 +498,9 @@ function getInstitutionalReportTitle(reportType) {
         applications: 'APPLICATION REGISTRY REPORT',
         scholars: 'FINANCIAL ASSISTANCE BENEFICIARIES',
         scholars_by_benefactor: 'SCHOLAR COUNT BY BENEFACTOR',
+        scholarship_history: 'SCHOLARSHIP PROGRAM HISTORY',
         payouts: 'PAYOUT BATCH REPORT',
+        payout_proofs: 'PAYOUT PROOF UPLOAD REPORT',
         renewals: 'SCHOLARSHIP RENEWAL REPORT',
         slot_utilization: 'SCHOLARSHIP SLOT REPORT',
         sdo: 'SDO ENDORSEMENT REPORT',
@@ -925,6 +942,336 @@ async function getScholarsRows({
     return rows;
 }
 
+
+async function resolveAcademicYearHistoryRange(
+    academicYearFromId = 'all',
+    academicYearToId = 'all'
+) {
+    const ids = [
+        academicYearFromId,
+        academicYearToId,
+    ].filter((value) => value && value !== 'all');
+
+    if (!ids.length) {
+        return {
+            fromStartYear: null,
+            toStartYear: null,
+        };
+    }
+
+    const result = await pool.query(
+        `
+        SELECT academic_year_id::text AS academic_year_id, start_year
+        FROM academic_years
+        WHERE academic_year_id::text = ANY($1::text[]);
+        `,
+        [ids]
+    );
+
+    const yearMap = new Map(
+        (result.rows || []).map((row) => [
+            String(row.academic_year_id),
+            Number(row.start_year),
+        ])
+    );
+
+    const fromStartYear =
+        academicYearFromId && academicYearFromId !== 'all'
+            ? yearMap.get(String(academicYearFromId))
+            : null;
+
+    const toStartYear =
+        academicYearToId && academicYearToId !== 'all'
+            ? yearMap.get(String(academicYearToId))
+            : null;
+
+    if (
+        academicYearFromId !== 'all' &&
+        !Number.isFinite(fromStartYear)
+    ) {
+        throw createHttpError(400, 'Invalid starting academic year.');
+    }
+
+    if (
+        academicYearToId !== 'all' &&
+        !Number.isFinite(toStartYear)
+    ) {
+        throw createHttpError(400, 'Invalid ending academic year.');
+    }
+
+    if (
+        Number.isFinite(fromStartYear) &&
+        Number.isFinite(toStartYear) &&
+        fromStartYear > toStartYear
+    ) {
+        throw createHttpError(
+            400,
+            'Starting academic year cannot be later than ending academic year.'
+        );
+    }
+
+    return {
+        fromStartYear:
+            Number.isFinite(fromStartYear) ? fromStartYear : null,
+        toStartYear:
+            Number.isFinite(toStartYear) ? toStartYear : null,
+    };
+}
+
+async function getScholarshipHistoryRows({
+    academicYearFromId,
+    academicYearToId,
+    semester,
+    programId,
+    benefactorId,
+    courseId,
+    yearLevel,
+    gender,
+}) {
+    const {
+        fromStartYear,
+        toStartYear,
+    } = await resolveAcademicYearHistoryRange(
+        academicYearFromId,
+        academicYearToId
+    );
+
+    const params = [];
+    const where = [
+        `COALESCE(st.is_archived, FALSE) = FALSE`,
+        `a.program_id IS NOT NULL`,
+    ];
+
+    if (Number.isFinite(fromStartYear)) {
+        params.push(fromStartYear);
+        where.push(`ay.start_year >= $${params.length}`);
+    }
+
+    if (Number.isFinite(toStartYear)) {
+        params.push(toStartYear);
+        where.push(`ay.start_year <= $${params.length}`);
+    }
+
+    if (semester && semester !== 'all') {
+        params.push(semester);
+        where.push(`ap.term = $${params.length}`);
+    }
+
+    if (programId && programId !== 'all') {
+        params.push(programId);
+        where.push(`a.program_id = $${params.length}`);
+    }
+
+    if (benefactorId && benefactorId !== 'all') {
+        params.push(benefactorId);
+        where.push(`b.benefactor_id = $${params.length}`);
+    }
+
+    appendScholarDetailFilters(
+        where,
+        params,
+        { courseId, yearLevel, gender },
+        'st'
+    );
+
+    const query = `
+      WITH ranked_history AS (
+        SELECT
+          a.student_id,
+          a.application_id,
+          a.program_id,
+          po.academic_year_id,
+          po.period_id,
+          ay.start_year,
+          ay.end_year,
+          ay.label AS academic_year,
+          ap.term AS semester,
+          sp.program_name,
+          b.benefactor_name,
+          CASE
+            WHEN a.is_disqualified = TRUE THEN 'Disqualified'
+            WHEN LOWER(COALESCE(a.application_status, '')) = 'rejected'
+              THEN 'Rejected'
+            WHEN LOWER(COALESCE(a.activation_status, '')) = 'activated'
+              OR a.activated_at IS NOT NULL
+              THEN 'Activated'
+            WHEN LOWER(COALESCE(a.application_status, '')) = 'approved'
+              THEN 'Approved'
+            WHEN LOWER(COALESCE(a.selection_status, '')) = 'promoted'
+              THEN 'Promoted'
+            WHEN LOWER(COALESCE(a.selection_status, '')) = 'reserved'
+              THEN 'Reserved'
+            WHEN LOWER(COALESCE(a.selection_status, '')) = 'selected'
+              THEN 'Selected'
+            ELSE COALESCE(
+              NULLIF(TRIM(a.application_status), ''),
+              'Applied'
+            )
+          END AS history_status,
+          COALESCE(
+            placement.department_name,
+            NULLIF(TRIM(ro.assigned_area), '')
+          ) AS ro_assigned_office,
+          COALESCE(
+            a.activated_at,
+            a.selected_at,
+            a.finalized_at,
+            a.submission_date,
+            a.created_at
+          ) AS event_at,
+          ROW_NUMBER() OVER (
+            PARTITION BY
+              a.student_id,
+              a.program_id,
+              po.academic_year_id,
+              po.period_id
+            ORDER BY
+              CASE
+                WHEN st.current_application_id = a.application_id THEN 0
+                ELSE 1
+              END,
+              COALESCE(
+                a.activated_at,
+                a.selected_at,
+                a.finalized_at,
+                a.submission_date,
+                a.created_at
+              ) DESC NULLS LAST,
+              a.application_id DESC
+          ) AS history_rank
+        FROM applications a
+        JOIN students st
+          ON st.student_id = a.student_id
+        JOIN program_openings po
+          ON po.opening_id = a.opening_id
+        JOIN academic_years ay
+          ON ay.academic_year_id = po.academic_year_id
+        LEFT JOIN academic_period ap
+          ON ap.period_id = po.period_id
+        LEFT JOIN scholarship_program sp
+          ON sp.program_id = a.program_id
+        LEFT JOIN benefactors b
+          ON b.benefactor_id = sp.benefactor_id
+        LEFT JOIN LATERAL (
+          SELECT ro_row.*
+          FROM return_of_obligations ro_row
+          WHERE ro_row.student_id = a.student_id
+            AND (
+              ro_row.application_id = a.application_id
+              OR (
+                ro_row.period_id = po.period_id
+                AND (
+                  ro_row.program_id = a.program_id
+                  OR ro_row.program_id IS NULL
+                )
+              )
+            )
+          ORDER BY
+            CASE
+              WHEN ro_row.application_id = a.application_id THEN 0
+              ELSE 1
+            END,
+            ro_row.created_at DESC NULLS LAST
+          LIMIT 1
+        ) ro ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT rd.department_name
+          FROM ro_placements rp
+          JOIN ro_departments rd
+            ON rd.department_id = rp.ro_area_id
+          WHERE rp.ro_id = ro.ro_id
+          ORDER BY
+            CASE
+              WHEN LOWER(COALESCE(rp.placement_status, '')) = 'approved'
+                THEN 0
+              WHEN LOWER(COALESCE(rp.placement_status, '')) = 'pending'
+                THEN 1
+              ELSE 2
+            END,
+            rp.created_at DESC
+          LIMIT 1
+        ) placement ON TRUE
+        WHERE ${where.join(' AND ')}
+      ),
+      canonical_history AS (
+        SELECT *
+        FROM ranked_history
+        WHERE history_rank = 1
+      )
+      SELECT
+        st.pdm_id,
+        CONCAT(st.last_name, ', ', st.first_name) AS student_name,
+        COALESCE(NULLIF(TRIM(st.sex_at_birth), ''), 'Not specified') AS gender,
+        ac.course_code,
+        st.year_level,
+        h.program_name,
+        h.benefactor_name,
+        CASE
+          WHEN MIN(h.start_year) = MAX(h.start_year)
+            THEN MIN(h.academic_year)
+          ELSE CONCAT(MIN(h.start_year), '-', MAX(h.end_year))
+        END AS history_range,
+        COUNT(*)::int AS history_records,
+        (
+          ARRAY_AGG(
+            h.history_status
+            ORDER BY
+              h.start_year DESC,
+              h.event_at DESC NULLS LAST
+          )
+        )[1] AS latest_status,
+        STRING_AGG(
+          CONCAT(
+            h.academic_year,
+            ' · ',
+            COALESCE(h.semester, 'Semester not set'),
+            ' · ',
+            h.history_status,
+            CASE
+              WHEN h.ro_assigned_office IS NOT NULL
+                THEN CONCAT(' · RO: ', h.ro_assigned_office)
+              ELSE ''
+            END
+          ),
+          ' | '
+          ORDER BY
+            h.start_year ASC,
+            CASE
+              WHEN LOWER(COALESCE(h.semester, '')) LIKE '%first%' THEN 1
+              WHEN LOWER(COALESCE(h.semester, '')) LIKE '%second%' THEN 2
+              WHEN LOWER(COALESCE(h.semester, '')) LIKE '%summer%' THEN 3
+              ELSE 4
+            END,
+            h.event_at ASC NULLS LAST
+        ) AS history_summary
+      FROM canonical_history h
+      JOIN students st
+        ON st.student_id = h.student_id
+      LEFT JOIN academic_course ac
+        ON ac.course_id = st.course_id
+      GROUP BY
+        st.student_id,
+        st.pdm_id,
+        st.last_name,
+        st.first_name,
+        st.sex_at_birth,
+        ac.course_code,
+        st.year_level,
+        h.program_id,
+        h.program_name,
+        h.benefactor_name
+      ORDER BY
+        h.program_name ASC NULLS LAST,
+        st.last_name ASC,
+        st.first_name ASC;
+    `;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+}
+
+// SMART_PDM_SCHOLARSHIP_HISTORY_REPORT_V1
+
 async function getScholarCountRows({
     academicYearId,
     semester,
@@ -1070,6 +1417,96 @@ async function getPayoutRows({
     LEFT JOIN students st ON pbs.student_id = st.student_id
     WHERE ${where.join(' AND ')}
     ORDER BY pb.created_at DESC, st.last_name ASC;
+  `;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+}
+
+// SMART_PDM_PAYOUT_PROOF_UPLOAD_REPORT_V1
+async function getPayoutProofRows({
+    academicYearId,
+    semester,
+    programId,
+    benefactorId,
+    reviewResult,
+    courseId,
+    yearLevel,
+    dateFrom,
+    dateTo,
+}) {
+    const params = [];
+    // Proof uploads are historical records, so completed/archived payout batches
+    // must remain visible in this report.
+    const where = ['1 = 1'];
+
+    if (academicYearId && academicYearId !== 'all') {
+        params.push(academicYearId);
+        where.push(`pb.academic_year_id = $${params.length}`);
+    }
+
+    if (semester && semester !== 'all') {
+        params.push(semester);
+        where.push(`period.term = $${params.length}`);
+    }
+
+    if (programId && programId !== 'all') {
+        params.push(programId);
+        where.push(`pb.program_id = $${params.length}`);
+    }
+
+    if (benefactorId && benefactorId !== 'all') {
+        params.push(benefactorId);
+        where.push(`b.benefactor_id = $${params.length}`);
+    }
+
+    if (courseId && courseId !== 'all') {
+        params.push(courseId);
+        where.push(`COALESCE(st.course_id, smr.course_id) = $${params.length}`);
+    }
+
+    appendScholarDetailFilters(where, params, { yearLevel });
+    appendTextEqualityFilter(where, params, 'pp.proof_status', reviewResult);
+    appendDateRange(where, params, 'pp.submitted_at', dateFrom, dateTo);
+
+    const query = `
+    SELECT
+      st.pdm_id,
+      CONCAT(st.last_name, ', ', st.first_name) AS student_name,
+      course.course_code,
+      st.year_level,
+      sp.program_name,
+      b.benefactor_name,
+      ay.label AS academic_year,
+      period.term AS semester,
+      pb.payout_title,
+      pb.payout_date,
+      pbs.amount_received,
+      pbs.release_status,
+      pp.file_name,
+      pp.submitted_at,
+      pp.proof_status,
+      COALESCE(
+        NULLIF(TRIM(CONCAT_WS(' ', reviewer_profile.first_name, reviewer_profile.last_name)), ''),
+        reviewer.username,
+        ''
+      ) AS reviewed_by,
+      pp.reviewed_at,
+      COALESCE(pp.admin_comment, pp.rejection_reason, '') AS review_comment
+    FROM payout_proofs pp
+    INNER JOIN payout_batch_students pbs ON pbs.payout_entry_id = pp.payout_entry_id
+    INNER JOIN payout_batches pb ON pb.payout_batch_id = pp.payout_batch_id
+    INNER JOIN students st ON st.student_id = pp.student_id
+    LEFT JOIN student_master_records smr ON smr.master_student_id = st.master_student_id
+    LEFT JOIN academic_course course ON course.course_id = COALESCE(st.course_id, smr.course_id)
+    LEFT JOIN scholarship_program sp ON sp.program_id = pb.program_id
+    LEFT JOIN benefactors b ON b.benefactor_id = sp.benefactor_id
+    LEFT JOIN academic_years ay ON ay.academic_year_id = pb.academic_year_id
+    LEFT JOIN academic_period period ON period.period_id = pb.period_id
+    LEFT JOIN users reviewer ON reviewer.user_id = pp.reviewed_by
+    LEFT JOIN admin_profiles reviewer_profile ON reviewer_profile.user_id = reviewer.user_id
+    WHERE ${where.join(' AND ')}
+    ORDER BY pp.submitted_at DESC, st.last_name ASC, st.first_name ASC;
   `;
 
     const { rows } = await pool.query(query, params);
@@ -2084,6 +2521,8 @@ async function getRowsByReportType({
     batchStatus,
     releaseStatus,
     paymentMode,
+    academicYearFromId,
+    academicYearToId,
 }) {
     const sharedFilters = {
         academicYearId,
@@ -2105,6 +2544,8 @@ async function getRowsByReportType({
         batchStatus,
         releaseStatus,
         paymentMode,
+        academicYearFromId,
+        academicYearToId,
     };
 
     if (reportType === 'applications') {
@@ -2115,8 +2556,15 @@ async function getRowsByReportType({
         return await getScholarsRows(sharedFilters);
     }
 
+    if (reportType === 'scholarship_history') {
+        return await getScholarshipHistoryRows(sharedFilters);
+    }
+
     if (reportType === 'payouts') {
         return await getPayoutRows(sharedFilters);
+    }
+    if (reportType === 'payout_proofs') {
+        return await getPayoutProofRows(sharedFilters);
     }
     if (reportType === 'renewals') {
         return await getRenewalRows(sharedFilters);
@@ -2184,6 +2632,16 @@ function normalizeReportQuery(query = {}) {
         batchStatus: safeText(query.batchStatus || query.batch_status || 'all'),
         releaseStatus: safeText(query.releaseStatus || query.release_status || 'all'),
         paymentMode: safeText(query.paymentMode || query.payment_mode || 'all'),
+        academicYearFromId: safeText(
+            query.academicYearFromId ||
+            query.academic_year_from_id ||
+            'all'
+        ),
+        academicYearToId: safeText(
+            query.academicYearToId ||
+            query.academic_year_to_id ||
+            'all'
+        ),
     };
 
     if (normalized.dateFrom && normalized.dateTo && normalized.dateFrom > normalized.dateTo) {
@@ -2298,6 +2756,23 @@ async function buildExportDefinition(normalized) {
             headerRow: 11,
             dataStartRow: 12,
         };
+    } else if (normalized.reportType === 'scholarship_history') {
+        rows = await getScholarshipHistoryRows(normalized);
+        sheetName = 'Program History';
+        filename = 'scholarship_program_history_report.xlsx';
+        columns = [
+            { header: 'Student Number', key: 'pdm_id' },
+            { header: 'Student Name', key: 'student_name' },
+            { header: 'Gender', key: 'gender' },
+            { header: 'Course', key: 'course_code' },
+            { header: 'Year Level', key: 'year_level' },
+            { header: 'Scholarship Program', key: 'program_name' },
+            { header: 'Benefactor', key: 'benefactor_name' },
+            { header: 'History Range', key: 'history_range' },
+            { header: 'History Records', key: 'history_records' },
+            { header: 'Latest Status', key: 'latest_status' },
+            { header: 'History', key: 'history_summary' },
+        ];
     } else if (normalized.reportType === 'scholars_by_benefactor') {
         rows = await getScholarCountRows(normalized);
         sheetName = 'Scholar Counts';
@@ -2317,7 +2792,7 @@ async function buildExportDefinition(normalized) {
             { header: 'Academic Year', key: 'academic_year' },
             { header: 'Semester', key: 'semester' },
             { header: 'Payout Date', key: 'payout_date' },
-            { header: 'Payment Mode', key: 'payment_mode' },
+            { header: 'Payout Mode', key: 'payment_mode' },
             { header: 'Amount Per Scholar', key: 'amount_per_scholar' },
             { header: 'Batch Total', key: 'total_amount' },
             { header: 'Batch Status', key: 'batch_status' },
@@ -2328,6 +2803,30 @@ async function buildExportDefinition(normalized) {
             { header: 'Release Status', key: 'release_status' },
             { header: 'Released At', key: 'released_at' },
             { header: 'Remarks', key: 'remarks' },
+        ];
+    } else if (normalized.reportType === 'payout_proofs') {
+        rows = await getPayoutProofRows(normalized);
+        sheetName = 'Payout Proof Uploads';
+        filename = 'payout_proof_upload_report.xlsx';
+        columns = [
+            { header: 'Student Number', key: 'pdm_id' },
+            { header: 'Student Name', key: 'student_name' },
+            { header: 'Course', key: 'course_code' },
+            { header: 'Year Level', key: 'year_level' },
+            { header: 'Scholarship Program', key: 'program_name' },
+            { header: 'Benefactor', key: 'benefactor_name' },
+            { header: 'Academic Year', key: 'academic_year' },
+            { header: 'Semester', key: 'semester' },
+            { header: 'Payout Title', key: 'payout_title' },
+            { header: 'Payout Date', key: 'payout_date' },
+            { header: 'Amount Received', key: 'amount_received' },
+            { header: 'Release Status', key: 'release_status' },
+            { header: 'Proof File', key: 'file_name' },
+            { header: 'Uploaded At', key: 'submitted_at' },
+            { header: 'Proof Status', key: 'proof_status' },
+            { header: 'Reviewed By', key: 'reviewed_by' },
+            { header: 'Reviewed At', key: 'reviewed_at' },
+            { header: 'Review Comment', key: 'review_comment' },
         ];
     } else if (normalized.reportType === 'renewals') {
         rows = await getRenewalRows(normalized);

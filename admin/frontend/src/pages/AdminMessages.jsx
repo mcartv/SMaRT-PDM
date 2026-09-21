@@ -1742,28 +1742,28 @@ function GroupInfoModal({
               : 'No members in this group.'}
           </div>
         )}
-      </div>
 
-      <div className="shrink-0 border-t border-stone-100 bg-stone-50/70 px-4 py-4">
-        <button
-          type="button"
-          onClick={onLeave}
-          disabled={mustAssignAdminBeforeLeaving}
-          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-white text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-50 disabled:text-stone-400"
-          title={
-            mustAssignAdminBeforeLeaving
+        <div className="mt-5 border-t border-stone-100 pt-4">
+          <button
+            type="button"
+            onClick={onLeave}
+            disabled={mustAssignAdminBeforeLeaving}
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-white text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-50 disabled:text-stone-400"
+            title={
+              mustAssignAdminBeforeLeaving
+                ? 'Assign another group admin before leaving.'
+                : 'Leave group'
+            }
+          >
+            <LogOut className="h-4 w-4" /> Leave group
+          </button>
+
+          <p className="mt-2 text-center text-xs leading-5 text-stone-400">
+            {mustAssignAdminBeforeLeaving
               ? 'Assign another group admin before leaving.'
-              : 'Leave group'
-          }
-        >
-          <LogOut className="h-4 w-4" /> Leave group
-        </button>
-
-        <p className="mt-2 text-center text-xs leading-5 text-stone-400">
-          {mustAssignAdminBeforeLeaving
-            ? 'Assign another group admin before leaving.'
-            : 'Leaving moves this conversation to your Archived Messages.'}
-        </p>
+              : 'Leaving moves this conversation to your Archived Messages.'}
+          </p>
+        </div>
       </div>
     </section>
   )

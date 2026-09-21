@@ -37,6 +37,13 @@ import usePortalTheme from '@/hooks/usePortalTheme';
 const API_BASE = buildApiUrl('/api');
 
 const OFFICE_REPORT_FILTERS = {
+  payout_proofs: [
+    { value: 'all', label: 'All Proof Statuses' },
+    { value: 'Pending Review', label: 'Pending Review' },
+    { value: 'Verified', label: 'Verified' },
+    { value: 'Resubmission Required', label: 'Resubmission Required' },
+    { value: 'Rejected', label: 'Rejected' },
+  ],
   endorsements: [
     { value: 'all', label: 'All Endorsements' },
     { value: 'pending', label: 'Pending' },
@@ -94,11 +101,11 @@ const REPORT_TEMPLATE_GROUPS = [
   },
   {
     label: 'Scholar Management',
-    ids: ['scholars', 'scholars_by_benefactor', 'renewals'],
+    ids: ['scholars', 'scholarship_history', 'scholars_by_benefactor', 'renewals'],
   },
   {
     label: 'Scholar Operations',
-    ids: ['payouts', 'ro_compliance'],
+    ids: ['payouts', 'payout_proofs', 'ro_compliance'],
   },
   {
     label: 'Office Reports',
@@ -114,11 +121,15 @@ const REPORT_FILTER_FIELDS = {
   ],
   endorsements: ['academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'gender', 'result', 'date'],
   scholars: ['academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'gender', 'date'],
+  scholarship_history: ['academicYearRange', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'gender'],
   scholars_by_benefactor: ['academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'gender', 'date'],
   renewals: ['academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'result', 'date'],
   payouts: [
     'academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'gender',
     'batchStatus', 'releaseStatus', 'paymentMode', 'date',
+  ],
+  payout_proofs: [
+    'academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'result', 'date',
   ],
   ro_compliance: ['academicYear', 'semester', 'benefactor', 'program', 'roArea', 'course', 'yearLevel', 'gender', 'result', 'date'],
   sdo: ['academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'gender', 'result', 'date'],
@@ -142,19 +153,17 @@ function TemplateRow({ report, active, onClick, theme }) {
     <button
       type="button"
       onClick={() => onClick(report.id)}
-      className={`report-template-card group flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${
-        active
-          ? ''
-          : 'border-stone-200/60 bg-transparent hover:border-stone-300/90 hover:bg-stone-50'
-      }`}
+      className={`report-template-card group flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${active
+        ? ''
+        : 'border-stone-200/60 bg-transparent hover:border-stone-300/90 hover:bg-stone-50'
+        }`}
       style={active ? { borderColor: theme.base, background: theme.accentSoft } : undefined}
     >
       <div
-        className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-colors ${
-          active
-            ? 'text-white'
-            : 'border-stone-200 bg-white text-stone-500 group-hover:border-stone-300'
-        }`}
+        className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-colors ${active
+          ? 'text-white'
+          : 'border-stone-200 bg-white text-stone-500 group-hover:border-stone-300'
+          }`}
         style={active ? { borderColor: theme.base, background: theme.base } : undefined}
       >
         <FileText className="h-4 w-4" />
@@ -225,6 +234,10 @@ function formatHeader(key) {
     completion_percentage: 'Completion %',
     clearance_status: 'Clearance Status',
     benefactor_name: 'Benefactor',
+    history_range: 'History Range',
+    history_records: 'History Records',
+    latest_status: 'Latest Status',
+    history_summary: 'Scholarship History',
   };
 
   if (customLabels[key]) return customLabels[key];
@@ -274,6 +287,8 @@ export default function ReportGeneration({
 
   const [selected, setSelected] = useState('applications');
   const [academicYearId, setAcademicYearId] = useState('all');
+  const [academicYearFromId, setAcademicYearFromId] = useState('all');
+  const [academicYearToId, setAcademicYearToId] = useState('all');
   const [semester, setSemester] = useState('all');
   const [programId, setProgramId] = useState('all');
   const [benefactorId, setBenefactorId] = useState('all');
@@ -328,7 +343,7 @@ export default function ReportGeneration({
     setPreviewTotal(0);
     setHasPreviewed(false);
   }, [
-    selected, academicYearId, semester, programId, benefactorId, reviewResult, courseId,
+    selected, academicYearId, academicYearFromId, academicYearToId, semester, programId, benefactorId, reviewResult, courseId,
     roAreaId, yearLevel, gender, applicationStatus, documentStatus, verificationStatus,
     batchStatus, releaseStatus, paymentMode, dateFrom, dateTo,
   ]);
@@ -359,6 +374,7 @@ export default function ReportGeneration({
     [selected]
   );
   const supportsAcademicYearFilter = activeFilterFields.has('academicYear');
+  const supportsAcademicYearRangeFilter = activeFilterFields.has('academicYearRange');
   const supportsSemesterFilter = activeFilterFields.has('semester');
   const supportsProgramFilter = activeFilterFields.has('program');
   const supportsBenefactorFilter = activeFilterFields.has('benefactor');
@@ -375,19 +391,44 @@ export default function ReportGeneration({
   const supportsPaymentModeFilter = activeFilterFields.has('paymentMode');
   const supportsDateFilters = activeFilterFields.has('date');
   const isScholarCountReport = selected === 'scholars_by_benefactor';
+  const isScholarshipHistoryReport = selected === 'scholarship_history';
+
+  const selectedFromAcademicYear = academicYears.find(
+    (year) => year.academic_year_id === academicYearFromId
+  );
+  const selectedToAcademicYear = academicYears.find(
+    (year) => year.academic_year_id === academicYearToId
+  );
+
+  const isAcademicYearRangeInvalid = Boolean(
+    supportsAcademicYearRangeFilter &&
+    academicYearFromId !== 'all' &&
+    academicYearToId !== 'all' &&
+    Number(selectedFromAcademicYear?.start_year) >
+    Number(selectedToAcademicYear?.start_year)
+  );
+
   const isDateRangeInvalid = Boolean(dateFrom && dateTo && dateFrom > dateTo);
+  const hasInvalidFilterRange =
+    isDateRangeInvalid || isAcademicYearRangeInvalid;
+  const invalidFilterRangeMessage = isAcademicYearRangeInvalid
+    ? 'Starting academic year cannot be later than ending academic year.'
+    : 'Date From cannot be later than Date To.';
+
   const isSelectedReportExportLocked = lockedReports.has(selected);
   const selectedGeneratingFormat = exportState[selected] || null;
 
   const resultFilterLabel = selected === 'ro_compliance'
     ? 'Compliance Status'
-    : selected === 'renewals'
-      ? 'Renewal Status'
-      : selected === 'slot_utilization'
-        ? 'Opening Status'
-        : selected === 'endorsements'
-          ? 'Endorsement Result'
-          : 'Office Result';
+    : selected === 'payout_proofs'
+      ? 'Proof Status'
+      : selected === 'renewals'
+        ? 'Renewal Status'
+        : selected === 'slot_utilization'
+          ? 'Opening Status'
+          : selected === 'endorsements'
+            ? 'Endorsement Result'
+            : 'Office Result';
 
   const previewColumns = useMemo(() => {
     if (!previewRows.length) return [];
@@ -476,6 +517,8 @@ export default function ReportGeneration({
     return new URLSearchParams({
       reportType: selected,
       academicYearId: has('academicYear') ? academicYearId : 'all',
+      academicYearFromId: has('academicYearRange') ? academicYearFromId : 'all',
+      academicYearToId: has('academicYearRange') ? academicYearToId : 'all',
       semester: has('semester') ? semester : 'all',
       programId: has('program') ? programId : 'all',
       benefactorId: has('benefactor') ? benefactorId : 'all',
@@ -494,13 +537,15 @@ export default function ReportGeneration({
       dateTo: has('date') ? dateTo : '',
     });
   }, [
-    activeFilterFields, selected, academicYearId, semester, programId, benefactorId,
+    activeFilterFields, selected, academicYearId, academicYearFromId, academicYearToId, semester, programId, benefactorId,
     reviewResult, courseId, roAreaId, yearLevel, gender, applicationStatus, documentStatus,
     verificationStatus, batchStatus, releaseStatus, paymentMode, dateFrom, dateTo,
   ]);
 
   function resetFilters() {
     setAcademicYearId('all');
+    setAcademicYearFromId('all');
+    setAcademicYearToId('all');
     setSemester('all');
     setProgramId('all');
     setBenefactorId('all');
@@ -523,11 +568,11 @@ export default function ReportGeneration({
   }
 
   const handlePreviewReport = useCallback(async () => {
-    if (isDateRangeInvalid) {
+    if (hasInvalidFilterRange) {
       setFeedback({
         tone: 'error',
-        title: 'Invalid date range',
-        message: 'Date From cannot be later than Date To.',
+        title: 'Invalid filter range',
+        message: invalidFilterRangeMessage,
       });
       return;
     }
@@ -555,67 +600,89 @@ export default function ReportGeneration({
     } finally {
       setPreviewLoading(false);
     }
-  }, [buildParams, isDateRangeInvalid, tokenStorageKey]);
+  }, [
+    buildParams,
+    hasInvalidFilterRange,
+    invalidFilterRangeMessage,
+    tokenStorageKey,
+  ]);
 
   const refreshReportData = useCallback(async () => {
     await loadMetadata();
     if (hasPreviewed) await handlePreviewReport();
   }, [handlePreviewReport, hasPreviewed, loadMetadata]);
 
+  const reportRefreshTimerRef = useRef(null);
+  const scheduleReportRefresh = useCallback(() => {
+    clearTimeout(reportRefreshTimerRef.current);
+    reportRefreshTimerRef.current = setTimeout(() => {
+      reportRefreshTimerRef.current = null;
+      refreshReportData();
+    }, 200);
+  }, [refreshReportData]);
+
+  useEffect(() => () => clearTimeout(reportRefreshTimerRef.current), []);
+
   useSocketEvent('maintenance:updated', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('report:updated', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('application:created', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('application:updated', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('application:approved', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('application:rejected', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('application:disqualified', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('application-document:reviewed', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
+  useSocketEvent('payout:proof-uploaded', () => {
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
+  useSocketEvent('payout:proof-reviewed', () => {
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('scholar:created', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('scholar:updated', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('endorsement:updated', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('ro:updated', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('announcement:created', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('announcement:updated', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('announcement:archived', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('announcement:restored', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('opening:archived', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('opening:restored', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
 
   function acquireClientExportLock(reportId) {
     if (exportLocksRef.current.has(reportId)) return false;
@@ -651,11 +718,11 @@ export default function ReportGeneration({
   }
 
   async function handleDownloadByFormat(format = 'xlsx') {
-    if (isDateRangeInvalid) {
+    if (hasInvalidFilterRange) {
       setFeedback({
         tone: 'error',
-        title: 'Invalid date range',
-        message: 'Date From cannot be later than Date To.',
+        title: 'Invalid filter range',
+        message: invalidFilterRangeMessage,
       });
       return;
     }
@@ -745,11 +812,18 @@ export default function ReportGeneration({
               <div className="rounded-2xl bg-red-100 p-2 text-red-700">
                 <FileText className="h-5 w-5" />
               </div>
+
               <div className="min-w-0">
-                <p className="text-sm font-semibold">{feedback.title}</p>
-                <p className="mt-1 break-words text-sm opacity-90">{feedback.message}</p>
+                <p className="text-sm font-semibold">
+                  {feedback.title}
+                </p>
+
+                <p className="mt-1 break-words text-sm opacity-90">
+                  {feedback.message}
+                </p>
               </div>
             </div>
+
             <button
               type="button"
               onClick={() => setFeedback(null)}
@@ -762,24 +836,52 @@ export default function ReportGeneration({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
-        <Card className="min-w-0 overflow-hidden border-stone-200 bg-white shadow-none xl:col-span-4">
-          <div className="border-b border-stone-100 bg-stone-50/70 px-4 py-4">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-12 xl:items-start">
+        {/* LEFT: REPORT TEMPLATE LIST */}
+        <Card
+          className="
+    flex
+    min-h-0
+    min-w-0
+    flex-col
+    overflow-hidden
+    border-stone-200
+    bg-white
+    shadow-none
+    xl:col-span-4
+    xl:h-[calc(100dvh-7rem)]
+  "
+        >
+          <div className="shrink-0 border-b border-stone-100 bg-stone-50/70 px-4 py-4">
             <h2 className="report-section-title text-sm font-semibold text-stone-800">
               Report Templates
             </h2>
+
             <p className="mt-0.5 text-xs text-stone-500">
               Reports are generated from live SMaRT-PDM records.
             </p>
           </div>
 
-          <CardContent className="p-3 sm:p-4">
-            <div className="space-y-5">
+          <CardContent
+            className="
+              min-h-0
+              flex-1
+              overflow-y-auto
+              overscroll-contain
+              p-3
+              sm:p-4
+            "
+          >
+            <div className="space-y-5 pb-1">
               {groupedReportTypes.map((group) => (
-                <section key={group.label} className="min-w-0">
+                <section
+                  key={group.label}
+                  className="min-w-0"
+                >
                   <p className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-400">
                     {group.label}
                   </p>
+
                   <div className="space-y-1">
                     {group.reports.map((report) => (
                       <TemplateRow
@@ -788,6 +890,8 @@ export default function ReportGeneration({
                         active={selected === report.id}
                         onClick={(reportId) => {
                           setSelected(reportId);
+                          setAcademicYearFromId('all');
+                          setAcademicYearToId('all');
                           setReviewResult('all');
                           setApplicationStatus('all');
                           setDocumentStatus('all');
@@ -806,18 +910,34 @@ export default function ReportGeneration({
           </CardContent>
         </Card>
 
-        <Card className="min-w-0 overflow-hidden border-stone-200 bg-white shadow-none xl:col-span-8">
-          <div className="border-b border-stone-100 bg-stone-50/70 px-4 py-4 sm:px-5">
+        {/* RIGHT: SELECTED REPORT */}
+        <Card
+          className="
+            flex
+            min-w-0
+            flex-col
+            overflow-hidden
+            border-stone-200
+            bg-white
+            shadow-none
+            xl:col-span-8
+            xl:min-h-[calc(100dvh-7rem)]
+          "
+        >
+          <div className="shrink-0 border-b border-stone-100 bg-stone-50/70 px-4 py-4 sm:px-5">
             <div className="flex min-w-0 items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-600">
                 <FileText className="h-4 w-4" />
               </div>
+
               <div className="min-w-0">
                 <h2 className="report-section-title break-words text-base font-semibold text-stone-900">
                   {selectedReport?.name || 'Report'}
                 </h2>
+
                 <p className="mt-0.5 max-w-2xl text-xs leading-5 text-stone-500">
-                  {selectedReport?.sub || 'Set the filters below to generate this report.'}
+                  {selectedReport?.sub ||
+                    'Set the filters below to generate this report.'}
                 </p>
               </div>
             </div>
@@ -830,22 +950,83 @@ export default function ReportGeneration({
                   <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-stone-600">
                     <Filter className="h-4 w-4" />
                   </div>
+
                   <div>
-                    <h3 className="text-sm font-semibold text-stone-800">Filters</h3>
-                    <p className="mt-0.5 text-xs text-stone-500">Set the parameters for the report.</p>
+                    <h3 className="text-sm font-semibold text-stone-800">
+                      Filters
+                    </h3>
+
+                    <p className="mt-0.5 text-xs text-stone-500">
+                      Set the parameters for the report.
+                    </p>
                   </div>
                 </div>
 
                 <div className="grid min-w-0 grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2">
+                  {supportsAcademicYearRangeFilter ? (
+                    <>
+                      <FilterField label="Academic Year From">
+                        <Select
+                          value={academicYearFromId}
+                          onValueChange={setAcademicYearFromId}
+                        >
+                          <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
+                            <SelectValue />
+                          </SelectTrigger>
+
+                          <SelectContent>
+                            {academicYears.map((year) => (
+                              <SelectItem
+                                key={`from-${year.academic_year_id}`}
+                                value={year.academic_year_id}
+                              >
+                                {year.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FilterField>
+
+                      <FilterField label="Academic Year To">
+                        <Select
+                          value={academicYearToId}
+                          onValueChange={setAcademicYearToId}
+                        >
+                          <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
+                            <SelectValue />
+                          </SelectTrigger>
+
+                          <SelectContent>
+                            {academicYears.map((year) => (
+                              <SelectItem
+                                key={`to-${year.academic_year_id}`}
+                                value={year.academic_year_id}
+                              >
+                                {year.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FilterField>
+                    </>
+                  ) : null}
+
                   {supportsAcademicYearFilter ? (
                     <FilterField label="Academic Year">
-                      <Select value={academicYearId} onValueChange={setAcademicYearId}>
+                      <Select
+                        value={academicYearId}
+                        onValueChange={setAcademicYearId}
+                      >
                         <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
                           <SelectValue />
                         </SelectTrigger>
+
                         <SelectContent>
                           {academicYears.map((year) => (
-                            <SelectItem key={year.academic_year_id} value={year.academic_year_id}>
+                            <SelectItem
+                              key={year.academic_year_id}
+                              value={year.academic_year_id}
+                            >
                               {year.label}
                             </SelectItem>
                           ))}
@@ -856,13 +1037,22 @@ export default function ReportGeneration({
 
                   {supportsSemesterFilter ? (
                     <FilterField label="Semester">
-                      <Select value={semester} onValueChange={setSemester}>
+                      <Select
+                        value={semester}
+                        onValueChange={setSemester}
+                      >
                         <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
                           <SelectValue />
                         </SelectTrigger>
+
                         <SelectContent>
                           {semesters.map((item) => (
-                            <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                            <SelectItem
+                              key={item.value}
+                              value={item.value}
+                            >
+                              {item.label}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -871,13 +1061,20 @@ export default function ReportGeneration({
 
                   {supportsBenefactorFilter ? (
                     <FilterField label="Benefactor">
-                      <Select value={benefactorId} onValueChange={setBenefactorId}>
+                      <Select
+                        value={benefactorId}
+                        onValueChange={setBenefactorId}
+                      >
                         <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
                           <SelectValue />
                         </SelectTrigger>
+
                         <SelectContent>
                           {benefactors.map((benefactor) => (
-                            <SelectItem key={benefactor.benefactor_id} value={benefactor.benefactor_id}>
+                            <SelectItem
+                              key={benefactor.benefactor_id}
+                              value={benefactor.benefactor_id}
+                            >
                               {benefactor.benefactor_name}
                             </SelectItem>
                           ))}
@@ -888,13 +1085,20 @@ export default function ReportGeneration({
 
                   {supportsProgramFilter ? (
                     <FilterField label="Program">
-                      <Select value={programId} onValueChange={setProgramId}>
+                      <Select
+                        value={programId}
+                        onValueChange={setProgramId}
+                      >
                         <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
                           <SelectValue />
                         </SelectTrigger>
+
                         <SelectContent>
                           {programs.map((program) => (
-                            <SelectItem key={program.program_id} value={program.program_id}>
+                            <SelectItem
+                              key={program.program_id}
+                              value={program.program_id}
+                            >
                               {program.program_name}
                             </SelectItem>
                           ))}
@@ -905,14 +1109,25 @@ export default function ReportGeneration({
 
                   {supportsCourseFilter ? (
                     <FilterField label="Course">
-                      <Select value={courseId} onValueChange={setCourseId}>
+                      <Select
+                        value={courseId}
+                        onValueChange={setCourseId}
+                      >
                         <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
                           <SelectValue />
                         </SelectTrigger>
+
                         <SelectContent>
                           {courses.map((course) => (
-                            <SelectItem key={course.course_id} value={course.course_id}>
-                              {course.course_code}{course.course_name && course.course_name !== course.course_code ? ` — ${course.course_name}` : ''}
+                            <SelectItem
+                              key={course.course_id}
+                              value={course.course_id}
+                            >
+                              {course.course_code}
+                              {course.course_name &&
+                                course.course_name !== course.course_code
+                                ? ` — ${course.course_name}`
+                                : ''}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -922,13 +1137,22 @@ export default function ReportGeneration({
 
                   {supportsYearLevelFilter ? (
                     <FilterField label="Year Level">
-                      <Select value={yearLevel} onValueChange={setYearLevel}>
+                      <Select
+                        value={yearLevel}
+                        onValueChange={setYearLevel}
+                      >
                         <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
                           <SelectValue />
                         </SelectTrigger>
+
                         <SelectContent>
                           {yearLevels.map((item) => (
-                            <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                            <SelectItem
+                              key={item.value}
+                              value={item.value}
+                            >
+                              {item.label}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -937,13 +1161,22 @@ export default function ReportGeneration({
 
                   {supportsGenderFilter ? (
                     <FilterField label="Gender">
-                      <Select value={gender} onValueChange={setGender}>
+                      <Select
+                        value={gender}
+                        onValueChange={setGender}
+                      >
                         <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
                           <SelectValue />
                         </SelectTrigger>
+
                         <SelectContent>
                           {genders.map((item) => (
-                            <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                            <SelectItem
+                              key={item.value}
+                              value={item.value}
+                            >
+                              {item.label}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -952,13 +1185,20 @@ export default function ReportGeneration({
 
                   {supportsRoAreaFilter ? (
                     <FilterField label="Assigned RO Area">
-                      <Select value={roAreaId} onValueChange={setRoAreaId}>
+                      <Select
+                        value={roAreaId}
+                        onValueChange={setRoAreaId}
+                      >
                         <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
                           <SelectValue />
                         </SelectTrigger>
+
                         <SelectContent>
                           {roAreas.map((area) => (
-                            <SelectItem key={area.department_id} value={area.department_id}>
+                            <SelectItem
+                              key={area.department_id}
+                              value={area.department_id}
+                            >
                               {area.department_name}
                             </SelectItem>
                           ))}
@@ -969,13 +1209,22 @@ export default function ReportGeneration({
 
                   {supportsResultFilter ? (
                     <FilterField label={resultFilterLabel}>
-                      <Select value={reviewResult} onValueChange={setReviewResult}>
+                      <Select
+                        value={reviewResult}
+                        onValueChange={setReviewResult}
+                      >
                         <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
                           <SelectValue />
                         </SelectTrigger>
+
                         <SelectContent>
                           {officeFilterOptions.map((item) => (
-                            <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                            <SelectItem
+                              key={item.value}
+                              value={item.value}
+                            >
+                              {item.label}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -984,54 +1233,144 @@ export default function ReportGeneration({
 
                   {supportsApplicationStatusFilter ? (
                     <FilterField label="Application Status">
-                      <Select value={applicationStatus} onValueChange={setApplicationStatus}>
-                        <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium"><SelectValue /></SelectTrigger>
-                        <SelectContent>{applicationStatuses.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+                      <Select
+                        value={applicationStatus}
+                        onValueChange={setApplicationStatus}
+                      >
+                        <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
+                          <SelectValue />
+                        </SelectTrigger>
+
+                        <SelectContent>
+                          {applicationStatuses.map((item) => (
+                            <SelectItem
+                              key={item.value}
+                              value={item.value}
+                            >
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
                       </Select>
                     </FilterField>
                   ) : null}
 
                   {supportsDocumentStatusFilter ? (
                     <FilterField label="Document Status">
-                      <Select value={documentStatus} onValueChange={setDocumentStatus}>
-                        <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium"><SelectValue /></SelectTrigger>
-                        <SelectContent>{documentStatuses.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+                      <Select
+                        value={documentStatus}
+                        onValueChange={setDocumentStatus}
+                      >
+                        <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
+                          <SelectValue />
+                        </SelectTrigger>
+
+                        <SelectContent>
+                          {documentStatuses.map((item) => (
+                            <SelectItem
+                              key={item.value}
+                              value={item.value}
+                            >
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
                       </Select>
                     </FilterField>
                   ) : null}
 
                   {supportsVerificationStatusFilter ? (
                     <FilterField label="Verification Status">
-                      <Select value={verificationStatus} onValueChange={setVerificationStatus}>
-                        <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium"><SelectValue /></SelectTrigger>
-                        <SelectContent>{verificationStatuses.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+                      <Select
+                        value={verificationStatus}
+                        onValueChange={setVerificationStatus}
+                      >
+                        <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
+                          <SelectValue />
+                        </SelectTrigger>
+
+                        <SelectContent>
+                          {verificationStatuses.map((item) => (
+                            <SelectItem
+                              key={item.value}
+                              value={item.value}
+                            >
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
                       </Select>
                     </FilterField>
                   ) : null}
 
                   {supportsBatchStatusFilter ? (
                     <FilterField label="Batch Status">
-                      <Select value={batchStatus} onValueChange={setBatchStatus}>
-                        <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium"><SelectValue /></SelectTrigger>
-                        <SelectContent>{payoutBatchStatuses.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+                      <Select
+                        value={batchStatus}
+                        onValueChange={setBatchStatus}
+                      >
+                        <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
+                          <SelectValue />
+                        </SelectTrigger>
+
+                        <SelectContent>
+                          {payoutBatchStatuses.map((item) => (
+                            <SelectItem
+                              key={item.value}
+                              value={item.value}
+                            >
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
                       </Select>
                     </FilterField>
                   ) : null}
 
                   {supportsReleaseStatusFilter ? (
                     <FilterField label="Release Status">
-                      <Select value={releaseStatus} onValueChange={setReleaseStatus}>
-                        <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium"><SelectValue /></SelectTrigger>
-                        <SelectContent>{payoutReleaseStatuses.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+                      <Select
+                        value={releaseStatus}
+                        onValueChange={setReleaseStatus}
+                      >
+                        <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
+                          <SelectValue />
+                        </SelectTrigger>
+
+                        <SelectContent>
+                          {payoutReleaseStatuses.map((item) => (
+                            <SelectItem
+                              key={item.value}
+                              value={item.value}
+                            >
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
                       </Select>
                     </FilterField>
                   ) : null}
 
                   {supportsPaymentModeFilter ? (
-                    <FilterField label="Payment Mode">
-                      <Select value={paymentMode} onValueChange={setPaymentMode}>
-                        <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium"><SelectValue /></SelectTrigger>
-                        <SelectContent>{payoutPaymentModes.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+                    <FilterField label="Payout Mode">
+                      <Select
+                        value={paymentMode}
+                        onValueChange={setPaymentMode}
+                      >
+                        <SelectTrigger className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
+                          <SelectValue />
+                        </SelectTrigger>
+
+                        <SelectContent>
+                          {payoutPaymentModes.map((item) => (
+                            <SelectItem
+                              key={item.value}
+                              value={item.value}
+                            >
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
                       </Select>
                     </FilterField>
                   ) : null}
@@ -1044,9 +1383,15 @@ export default function ReportGeneration({
                     <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-stone-600">
                       <Calendar className="h-4 w-4" />
                     </div>
+
                     <div>
-                      <h3 className="text-sm font-semibold text-stone-800">Date Range</h3>
-                      <p className="mt-0.5 text-xs text-stone-500">Limit the report to a specific date range.</p>
+                      <h3 className="text-sm font-semibold text-stone-800">
+                        Date Range
+                      </h3>
+
+                      <p className="mt-0.5 text-xs text-stone-500">
+                        Limit the report to a specific date range.
+                      </p>
                     </div>
                   </div>
 
@@ -1055,19 +1400,25 @@ export default function ReportGeneration({
                       <Input
                         type="date"
                         value={dateFrom}
-                        onChange={(event) => setDateFrom(event.target.value)}
+                        onChange={(event) =>
+                          setDateFrom(event.target.value)
+                        }
                         className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium"
                       />
                     </FilterField>
+
                     <FilterField label="Date To">
                       <Input
                         type="date"
                         value={dateTo}
-                        onChange={(event) => setDateTo(event.target.value)}
+                        onChange={(event) =>
+                          setDateTo(event.target.value)
+                        }
                         className="h-11 w-full min-w-0 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium"
                       />
                     </FilterField>
                   </div>
+
                   {isDateRangeInvalid ? (
                     <p className="mt-2 text-xs font-medium text-red-600">
                       Date From cannot be later than Date To.
@@ -1080,33 +1431,72 @@ export default function ReportGeneration({
                 <Button
                   variant="outline"
                   className="report-action-button h-11 w-full rounded-xl text-sm font-semibold sm:w-auto"
-                  style={{ borderColor: theme.border, color: theme.base }}
-                  disabled={previewLoading || isDateRangeInvalid}
+                  style={{
+                    borderColor: theme.border,
+                    color: theme.base,
+                  }}
+                  disabled={
+                    previewLoading ||
+                    hasInvalidFilterRange
+                  }
                   onClick={handlePreviewReport}
                 >
-                  {previewLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eye className="mr-2 h-4 w-4" />}
-                  Preview
+                  {previewLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Eye className="mr-2 h-4 w-4" />
+                  )}
+
+                  {isScholarshipHistoryReport
+                    ? 'View Table'
+                    : 'Preview'}
                 </Button>
 
                 <Button
                   className="report-action-button h-11 w-full min-w-0 rounded-xl border-none text-sm font-semibold text-white sm:min-w-[190px] sm:flex-1"
-                  style={{ background: theme.base }}
-                  disabled={isSelectedReportExportLocked || isDateRangeInvalid}
+                  style={{
+                    background: theme.base,
+                  }}
+                  disabled={
+                    isSelectedReportExportLocked ||
+                    hasInvalidFilterRange
+                  }
                   onClick={handleGenerateReport}
                 >
-                  {selectedGeneratingFormat === (isScholarCountReport ? 'pdf' : 'xlsx') ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                  {isScholarCountReport ? 'Download PDF' : 'Download Excel'}
+                  {selectedGeneratingFormat ===
+                    (isScholarCountReport ? 'pdf' : 'xlsx') ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="mr-2 h-4 w-4" />
+                  )}
+
+                  {isScholarCountReport
+                    ? 'Download PDF'
+                    : 'Download Excel'}
                 </Button>
 
                 {!isScholarCountReport ? (
                   <Button
                     variant="outline"
                     className="report-action-button h-11 w-full rounded-xl text-sm font-semibold sm:w-auto"
-                    style={{ borderColor: theme.border, color: theme.base }}
-                    disabled={isSelectedReportExportLocked || isDateRangeInvalid}
-                    onClick={() => handleDownloadByFormat('csv')}
+                    style={{
+                      borderColor: theme.border,
+                      color: theme.base,
+                    }}
+                    disabled={
+                      isSelectedReportExportLocked ||
+                      hasInvalidFilterRange
+                    }
+                    onClick={() =>
+                      handleDownloadByFormat('csv')
+                    }
                   >
-                    {selectedGeneratingFormat === 'csv' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                    {selectedGeneratingFormat === 'csv' ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="mr-2 h-4 w-4" />
+                    )}
+
                     Download CSV
                   </Button>
                 ) : null}
@@ -1114,7 +1504,10 @@ export default function ReportGeneration({
                 <Button
                   variant="outline"
                   className="report-action-button h-11 w-full rounded-xl text-sm font-semibold sm:w-auto"
-                  style={{ borderColor: theme.border, color: theme.base }}
+                  style={{
+                    borderColor: theme.border,
+                    color: theme.base,
+                  }}
                   disabled={previewLoading}
                   onClick={resetFilters}
                 >
@@ -1132,15 +1525,24 @@ export default function ReportGeneration({
           <div className="border-b border-stone-100 bg-stone-50/70 px-4 py-4">
             <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
               <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-stone-800">Report Preview</h2>
+                <h2 className="text-sm font-semibold text-stone-800">
+                  {isScholarshipHistoryReport
+                    ? 'Student Scholarship History Table'
+                    : 'Report Preview'}
+                </h2>
+
                 <p className="mt-0.5 text-xs text-stone-500">
                   {previewRows.length > 0
                     ? isScholarCountReport
-                      ? `${previewTotal} active scholar(s) across ${previewRows.length} ${benefactorId === 'all' ? 'benefactor(s)' : 'program(s)'}.`
+                      ? `${previewTotal} active scholar(s) across ${previewRows.length} ${benefactorId === 'all'
+                        ? 'benefactor(s)'
+                        : 'program(s)'
+                      }.`
                       : `Showing ${previewRows.length} of ${previewTotal} matching records.`
                     : 'No matching records found for the selected filters.'}
                 </p>
               </div>
+
               {previewRows.length > 0 ? (
                 <span className="w-fit rounded-full border border-stone-200 bg-white px-3 py-1 text-[11px] font-medium text-stone-500">
                   Preview only
@@ -1150,29 +1552,76 @@ export default function ReportGeneration({
           </div>
 
           <CardContent className="p-0">
-            {isScholarCountReport && previewRows.length > 0 ? (
+            {isScholarCountReport &&
+              previewRows.length > 0 ? (
               <div className="border-b border-stone-100 p-4">
                 <div className="mb-4">
-                  <p className="text-sm font-semibold text-stone-900">Scholar Count Chart</p>
+                  <p className="text-sm font-semibold text-stone-900">
+                    Scholar Count Chart
+                  </p>
+
                   <p className="text-xs text-stone-500">
                     {benefactorId === 'all'
                       ? 'Counting active scholars for each benefactor.'
                       : 'Counting active scholars by program for the selected benefactor.'}
                   </p>
                 </div>
+
                 <div className="max-h-[520px] overflow-auto">
-                  <div style={{ height: `${scholarCountChartHeight}px`, minWidth: '560px' }}>
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
+                  <div
+                    style={{
+                      height: `${scholarCountChartHeight}px`,
+                      minWidth: '560px',
+                    }}
+                  >
+                    <ResponsiveContainer
+                      width="100%"
+                      height="100%"
+                      minWidth={0}
+                      minHeight={1}
+                    >
                       <BarChart
                         data={scholarCountChartData}
                         layout="vertical"
-                        margin={{ top: 8, right: 24, left: 8, bottom: 8 }}
+                        margin={{
+                          top: 8,
+                          right: 24,
+                          left: 8,
+                          bottom: 8,
+                        }}
                       >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
-                        <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
-                        <YAxis type="category" dataKey="name" width={180} tick={{ fontSize: 12 }} interval={0} />
-                        <Tooltip formatter={(value) => [Number(value || 0), 'Scholars']} />
-                        <Bar dataKey="count" fill={theme.base} radius={[0, 4, 4, 0]} />
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="#E5E7EB"
+                          horizontal={false}
+                        />
+
+                        <XAxis
+                          type="number"
+                          allowDecimals={false}
+                          tick={{ fontSize: 12 }}
+                        />
+
+                        <YAxis
+                          type="category"
+                          dataKey="name"
+                          width={180}
+                          tick={{ fontSize: 12 }}
+                          interval={0}
+                        />
+
+                        <Tooltip
+                          formatter={(value) => [
+                            Number(value || 0),
+                            'Scholars',
+                          ]}
+                        />
+
+                        <Bar
+                          dataKey="count"
+                          fill={theme.base}
+                          radius={[0, 4, 4, 0]}
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1187,7 +1636,11 @@ export default function ReportGeneration({
             ) : previewRows.length === 0 ? (
               <div className="flex h-[180px] flex-col items-center justify-center px-4 text-center">
                 <FileText className="mb-2 h-7 w-7 text-stone-300" />
-                <p className="text-sm font-medium text-stone-700">No records to preview</p>
+
+                <p className="text-sm font-medium text-stone-700">
+                  No records to preview
+                </p>
+
                 <p className="mt-1 max-w-lg text-xs text-stone-500">
                   Try adjusting the selected report filters.
                 </p>
@@ -1198,17 +1651,31 @@ export default function ReportGeneration({
                   <thead className="sticky top-0 z-10 bg-stone-50 text-stone-500">
                     <tr>
                       {previewColumns.map((key) => (
-                        <th key={key} className="whitespace-nowrap border-b border-stone-100 px-4 py-3 font-semibold">
+                        <th
+                          key={key}
+                          className="whitespace-nowrap border-b border-stone-100 px-4 py-3 font-semibold"
+                        >
                           {formatHeader(key)}
                         </th>
                       ))}
                     </tr>
                   </thead>
+
                   <tbody>
                     {previewRows.map((row, index) => (
-                      <tr key={index} className="border-t border-stone-100 hover:bg-stone-50/70">
+                      <tr
+                        key={index}
+                        className="border-t border-stone-100 hover:bg-stone-50/70"
+                      >
                         {previewColumns.map((key) => (
-                          <td key={key} className="whitespace-nowrap px-4 py-3 text-stone-600">
+                          <td
+                            key={key}
+                            className={
+                              key === 'history_summary'
+                                ? 'min-w-[420px] max-w-[680px] whitespace-normal px-4 py-3 leading-5 text-stone-600'
+                                : 'whitespace-nowrap px-4 py-3 text-stone-600'
+                            }
+                          >
                             {formatCellValue(row[key])}
                           </td>
                         ))}
@@ -1224,14 +1691,20 @@ export default function ReportGeneration({
 
       <Card className="overflow-hidden border-stone-200 bg-white shadow-none">
         <div className="border-b border-stone-100 bg-stone-50/70 px-4 py-4">
-          <h2 className="text-sm font-semibold text-stone-800">Report Notes</h2>
+          <h2 className="text-sm font-semibold text-stone-800">
+            Report Notes
+          </h2>
+
           <p className="mt-0.5 text-xs text-stone-500">
-            Recent report history can be added later by storing generated report logs.
+            Recent report history can be added later by storing generated
+            report logs.
           </p>
         </div>
+
         <CardContent className="p-5 text-sm text-stone-500">
           Reports are generated directly from applications, active scholars,
-          payout batches, endorsement records, and RO compliance data based on the filters above.
+          payout batches, endorsement records, and RO compliance data based
+          on the filters above.
         </CardContent>
       </Card>
     </div>

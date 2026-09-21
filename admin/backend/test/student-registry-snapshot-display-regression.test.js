@@ -12,7 +12,7 @@ test('registry exposes raw snapshot fields expected by the frontend',()=>{
   assert.match(service,/weight_kg:\s*getSnapshotValue/);
   assert.match(service,/nationality:\s*getSnapshotValue/);
   assert.match(service,/suffix:\s*getSnapshotValue/);
-  assert.match(service,/items:\s*\(data \|\| \[\]\)\.map\(hydrateRegistryRowFromSnapshot\)/);
+  assert.match(service,/items:\s*pageResult\.rows\.map\(hydrateRegistryRowFromSnapshot\)/);
 });
 
 test('same student number still upserts corrected names instead of duplicating',()=>{

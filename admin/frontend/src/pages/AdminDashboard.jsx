@@ -1,9 +1,17 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSocketEvent } from '@/hooks/useSocket';
 import usePortalTheme from '@/hooks/usePortalTheme';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Card,
   CardContent,
@@ -25,11 +33,15 @@ import {
   CircleDollarSign,
   ClipboardCheck,
   Clock3,
+  Eye,
   FileCheck2,
+  History,
   LayoutDashboard,
   Megaphone,
   RefreshCw,
+  Search,
   UsersRound,
+  X,
 } from 'lucide-react';
 import {
   Bar,
@@ -188,6 +200,347 @@ function ActionRow({ item, onOpen }) {
   );
 }
 
+function StudentHistoryModal({
+  open,
+  rows,
+  loading,
+  error,
+  onClose,
+  onViewProfile,
+}) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [programFilter, setProgramFilter] = useState('all');
+
+  const programOptions = useMemo(
+    () =>
+      [...new Set(rows.map((row) => row.program_name).filter(Boolean))].sort(
+        (a, b) => String(a).localeCompare(String(b))
+      ),
+    [rows]
+  );
+
+  const filteredRows = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+
+    return rows.filter((row) => {
+      const matchesProgram =
+        programFilter === 'all' || row.program_name === programFilter;
+      const searchableText = [
+        row.student_name,
+        row.student_number,
+        row.program_name,
+        row.previous_program_name,
+        row.previous_semester,
+        row.previous_academic_year,
+        row.previous_ro_assigned_office,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return matchesProgram &&
+        (!normalizedQuery || searchableText.includes(normalizedQuery));
+    });
+  }, [programFilter, rows, searchQuery]);
+
+  useEffect(() => {
+    if (open) {
+      setSearchQuery('');
+      setProgramFilter('all');
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose, open]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-black/35 p-0 backdrop-blur-sm sm:items-center sm:p-4 lg:p-5"
+      onClick={onClose}
+    >
+      <Card
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="student-history-title"
+        aria-describedby="student-history-description"
+        className="flex h-[100dvh] max-h-[100dvh] w-full max-w-[78rem] flex-col overflow-hidden rounded-none border-stone-200 bg-white shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl lg:max-h-[88dvh]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-stone-100 bg-white px-4 py-3 sm:items-center sm:gap-4 sm:px-5 sm:py-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <History className="h-4 w-4 shrink-0 text-stone-500" />
+              <h3
+                id="student-history-title"
+                className="text-base font-semibold leading-6 text-stone-900 sm:text-lg"
+              >
+                Student Scholarship History
+              </h3>
+            </div>
+            <p
+              id="student-history-description"
+              className="mt-1 text-xs leading-5 text-stone-500 sm:text-sm"
+            >
+              Quick view of the current scholarship, previous-semester application, and RO office.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+            aria-label="Close student history"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {!loading && !error && rows.length > 0 ? (
+          <div className="flex shrink-0 flex-col gap-2.5 border-b border-stone-100 bg-stone-50/60 px-4 py-3 md:flex-row md:items-center md:justify-between md:gap-3 md:px-5">
+            <div className="relative w-full md:max-w-md">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+              <Input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search student, ID, scholarship, or office"
+                className="h-10 rounded-lg border-stone-200 bg-white pl-9 text-sm md:h-9"
+                aria-label="Search student scholarship history"
+              />
+            </div>
+
+            <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 md:w-auto">
+              <Select value={programFilter} onValueChange={setProgramFilter}>
+                <SelectTrigger
+                  className="h-10 min-w-0 w-full rounded-lg border-stone-200 bg-white text-sm md:h-9 md:w-[240px]"
+                  aria-label="Filter by current scholarship"
+                >
+                  <SelectValue placeholder="All scholarships" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All scholarships</SelectItem>
+                  {programOptions.map((program) => (
+                    <SelectItem key={program} value={program}>
+                      {program}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <span className="shrink-0 text-xs text-stone-500" aria-live="polite">
+                {filteredRows.length} {filteredRows.length === 1 ? 'result' : 'results'}
+              </span>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="min-h-0 flex-1 overflow-auto overscroll-contain pb-[env(safe-area-inset-bottom)]">
+          {loading ? (
+            <div className="flex min-h-[220px] items-center justify-center text-sm text-stone-500">
+              Loading student history...
+            </div>
+          ) : error ? (
+            <div className="m-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="flex min-h-[220px] flex-col items-center justify-center gap-2 text-center">
+              <History className="h-6 w-6 text-stone-300" />
+              <p className="text-sm font-medium text-stone-500">
+                No active scholar history is available yet.
+              </p>
+            </div>
+          ) : filteredRows.length === 0 ? (
+            <div className="flex min-h-[220px] flex-col items-center justify-center gap-2 px-5 text-center">
+              <Search className="h-6 w-6 text-stone-300" />
+              <p className="text-sm font-medium text-stone-600">
+                No student history matches your search.
+              </p>
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-8 text-xs text-stone-500"
+                onClick={() => {
+                  setSearchQuery('');
+                  setProgramFilter('all');
+                }}
+              >
+                Clear search and filter
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-3 p-3 sm:p-4 xl:hidden">
+                {filteredRows.map((row) => {
+                  const previousPeriod = [
+                    row.previous_semester,
+                    row.previous_academic_year
+                      ? `AY ${row.previous_academic_year}`
+                      : '',
+                  ].filter(Boolean).join(' · ');
+                  return (
+                    <article
+                      key={row.student_id || row.scholar_id}
+                      className="min-w-0 rounded-xl border border-stone-200 bg-white p-4 shadow-sm"
+                    >
+                      <div className="min-w-0 border-b border-stone-100 pb-3">
+                        <p className="break-words text-sm font-semibold text-stone-900">
+                          {row.student_name || 'Unknown Scholar'}
+                        </p>
+                        <p className="mt-0.5 break-all text-xs text-stone-400">
+                          {row.student_number || 'No Student ID'}
+                        </p>
+                      </div>
+
+                      <dl className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
+                        <div className="min-w-0">
+                          <dt className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+                            Current Scholarship
+                          </dt>
+                          <dd className="mt-1 break-words text-sm font-medium text-stone-700">
+                            {row.program_name || 'No current program'}
+                          </dd>
+                        </div>
+
+                        <div className="min-w-0">
+                          <dt className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+                            Previous Semester
+                          </dt>
+                          <dd className="mt-1 break-words text-sm font-medium text-stone-700">
+                            {row.previous_program_name || 'No previous-semester application'}
+                          </dd>
+                          {previousPeriod ? (
+                            <dd className="mt-0.5 text-xs text-stone-400">
+                              {previousPeriod}
+                            </dd>
+                          ) : null}
+                        </div>
+
+                        <div className="min-w-0 sm:col-span-2">
+                          <dt className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+                            RO Assigned Office
+                          </dt>
+                          <dd className="mt-1 break-words text-sm text-stone-600">
+                            {row.previous_ro_assigned_office || 'No RO office recorded'}
+                          </dd>
+                        </div>
+                      </dl>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="mt-4 h-10 w-full rounded-lg border-stone-200 text-xs font-semibold sm:w-auto"
+                        onClick={() =>
+                          onViewProfile(row.student_id || row.scholar_id)
+                        }
+                      >
+                        <Eye className="mr-1.5 h-4 w-4" />
+                        View Profile
+                      </Button>
+                    </article>
+                  );
+                })}
+              </div>
+
+              <div className="hidden min-w-0 overflow-x-auto xl:block">
+                <Table className="min-w-[1000px]">
+                  <TableHeader className="sticky top-0 z-10 bg-white">
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="min-w-[210px] pl-5">Student</TableHead>
+                      <TableHead className="min-w-[210px]">Current Scholarship</TableHead>
+                      <TableHead className="min-w-[250px]">Previous Semester</TableHead>
+                      <TableHead className="min-w-[190px]">RO Assigned Office</TableHead>
+                      <TableHead className="min-w-[120px] pr-5 text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+
+                  <TableBody>
+                    {filteredRows.map((row) => {
+                      const previousPeriod = [
+                        row.previous_semester,
+                        row.previous_academic_year
+                          ? `AY ${row.previous_academic_year}`
+                          : '',
+                      ].filter(Boolean).join(' · ');
+                      return (
+                        <TableRow key={row.student_id || row.scholar_id}>
+                          <TableCell className="py-3 pl-5">
+                            <p className="text-sm font-semibold text-stone-800">
+                              {row.student_name || 'Unknown Scholar'}
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-stone-400">
+                              {row.student_number || 'No Student ID'}
+                            </p>
+                          </TableCell>
+
+                          <TableCell className="py-3">
+                            <p className="text-sm font-medium text-stone-700">
+                              {row.program_name || 'No current program'}
+                            </p>
+                          </TableCell>
+
+                          <TableCell className="py-3">
+                            <p className="text-sm font-medium text-stone-700">
+                              {row.previous_program_name || 'No previous-semester application'}
+                            </p>
+                            {previousPeriod ? (
+                              <p className="mt-0.5 text-[11px] text-stone-400">
+                                {previousPeriod}
+                              </p>
+                            ) : null}
+                          </TableCell>
+
+                          <TableCell className="py-3">
+                            <p className="text-sm text-stone-600">
+                              {row.previous_ro_assigned_office || 'No RO office recorded'}
+                            </p>
+                          </TableCell>
+
+                          <TableCell className="py-3 pr-5 text-right">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="h-8 rounded-lg border-stone-200 px-2.5 text-[11px] font-semibold"
+                              onClick={() =>
+                                onViewProfile(row.student_id || row.scholar_id)
+                              }
+                            >
+                              <Eye className="mr-1.5 h-3.5 w-3.5" />
+                              View Profile
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// SMART_PDM_DASHBOARD_STUDENT_HISTORY_V1
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const { theme } = usePortalTheme('admin');
@@ -203,6 +556,10 @@ export default function AdminDashboard() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [studentHistoryOpen, setStudentHistoryOpen] = useState(false);
+  const [studentHistoryRows, setStudentHistoryRows] = useState([]);
+  const [studentHistoryLoading, setStudentHistoryLoading] = useState(false);
+  const [studentHistoryError, setStudentHistoryError] = useState('');
 
   const loadDashboard = useCallback(async (options = {}) => {
     const silent = options.silent === true;
@@ -271,9 +628,61 @@ export default function AdminDashboard() {
     loadDashboard({ audit: true, fresh: true });
   }, [loadDashboard]);
 
+  const openStudentHistory = useCallback(async () => {
+    setStudentHistoryOpen(true);
+    setStudentHistoryLoading(true);
+    setStudentHistoryError('');
+
+    try {
+      const token = sessionStorage.getItem('adminToken') || '';
+      const response = await fetch(buildApiUrl('/api/scholars'), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const payload = await response.json().catch(() => []);
+
+      if (!response.ok) {
+        throw new Error(
+          payload?.message ||
+          payload?.error ||
+          'Failed to load student scholarship history.'
+        );
+      }
+
+      const rows = Array.isArray(payload) ? payload : [];
+
+      setStudentHistoryRows(
+        [...rows].sort((a, b) =>
+          String(a.student_name || '').localeCompare(
+            String(b.student_name || '')
+          )
+        )
+      );
+    } catch (historyError) {
+      console.error('DASHBOARD STUDENT HISTORY ERROR:', historyError);
+      setStudentHistoryError(
+        historyError?.message ||
+        'Failed to load student scholarship history.'
+      );
+    } finally {
+      setStudentHistoryLoading(false);
+    }
+  }, []);
+
+  const refreshTimerRef = useRef(null);
   const refreshRealtime = useCallback(() => {
-    loadDashboard({ silent: true, fresh: true });
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      refreshTimerRef.current = null;
+      loadDashboard({ silent: true, fresh: true });
+    }, 200);
   }, [loadDashboard]);
+
+  useEffect(() => () => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+  }, []);
 
   useSocketEvent('dashboard:updated', refreshRealtime, [refreshRealtime]);
 
@@ -718,15 +1127,29 @@ export default function AdminDashboard() {
             style={{ borderColor: C.border, background: C.surface }}
           >
             <CardHeader className="border-b border-stone-100">
-              <div className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-stone-500" />
-                <CardTitle className="text-base font-semibold">
-                  Active Scholars by Benefactor
-                </CardTitle>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-stone-500" />
+                    <CardTitle className="text-base font-semibold">
+                      Active Scholars by Benefactor
+                    </CardTitle>
+                  </div>
+                  <p className="mt-1 text-sm text-stone-500">
+                    Distribution of currently active scholars across benefactors.
+                  </p>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 shrink-0 rounded-lg border-stone-200 px-2.5 text-[11px] font-semibold"
+                  onClick={openStudentHistory}
+                >
+                  <History className="mr-1.5 h-3.5 w-3.5" />
+                  View Student History
+                </Button>
               </div>
-              <p className="text-sm text-stone-500">
-                Distribution of currently active scholars across benefactors.
-              </p>
             </CardHeader>
 
             <CardContent className="grid min-h-[250px] min-w-0 grid-cols-1 gap-5 p-5 lg:grid-cols-[minmax(0,0.92fr)_minmax(220px,1fr)]">
@@ -944,6 +1367,20 @@ export default function AdminDashboard() {
           </Table>
         </div>
       </Card>
+
+      <StudentHistoryModal
+        open={studentHistoryOpen}
+        rows={studentHistoryRows}
+        loading={studentHistoryLoading}
+        error={studentHistoryError}
+        onClose={() => setStudentHistoryOpen(false)}
+        onViewProfile={(studentId) => {
+          setStudentHistoryOpen(false);
+          navigate(
+            `/admin/scholars?student=${encodeURIComponent(studentId)}`
+          );
+        }}
+      />
     </div>
   );
 }

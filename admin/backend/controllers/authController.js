@@ -38,7 +38,11 @@ async function hasAdminProfilePhotoColumn() {
     return result.rows.length > 0;
 }
 
-function buildAdminUserQuery(photoEnabled = false) {
+function buildStaffUserQuery(photoEnabled = false, lookup = 'email') {
+    const identityCondition = lookup === 'identifier'
+        ? '(LOWER(u.email) = LOWER($1) OR LOWER(u.username) = LOWER($1))'
+        : 'LOWER(u.email) = LOWER($1)';
+
     return `
         SELECT
             u.user_id,
@@ -57,13 +61,17 @@ function buildAdminUserQuery(photoEnabled = false) {
             ${photoEnabled ? 'a.profile_photo_url' : 'NULL::text AS profile_photo_url'}
         FROM users u
         LEFT JOIN admin_profiles a ON u.user_id = a.user_id
-        WHERE LOWER(u.email) = LOWER($1)
+        WHERE ${identityCondition}
         LIMIT 1
     `;
 }
 
+function normalizeLoginIdentifier(identifier) {
+    return String(identifier || '').trim().toLowerCase();
+}
+
 function normalizeEmail(email) {
-    return String(email || '').trim().toLowerCase();
+    return normalizeLoginIdentifier(email);
 }
 
 function buildToken(profile, role) {
@@ -123,7 +131,19 @@ async function findStaffByEmail(email) {
     const normalizedEmail = normalizeEmail(email);
     const photoEnabled = await hasAdminProfilePhotoColumn();
 
-    const result = await db.query(buildAdminUserQuery(photoEnabled), [normalizedEmail]);
+    const result = await db.query(buildStaffUserQuery(photoEnabled), [normalizedEmail]);
+
+    return result.rows[0] || null;
+}
+
+async function findStaffByIdentifier(identifier) {
+    const normalizedIdentifier = normalizeLoginIdentifier(identifier);
+    const photoEnabled = await hasAdminProfilePhotoColumn();
+
+    const result = await db.query(
+        buildStaffUserQuery(photoEnabled, 'identifier'),
+        [normalizedIdentifier]
+    );
 
     return result.rows[0] || null;
 }
@@ -149,27 +169,43 @@ async function findAuthorizedAdminForReset(email) {
 
 async function loginUnified(req, res) {
     const {
+        identifier,
         email,
         password,
         stayLoggedIn = false,
         deviceId = '',
         pageId = '',
     } = req.body || {};
-    const normalizedEmail = normalizeEmail(email);
+    // `email` remains as a compatibility fallback for older clients. The web
+    // client now sends `identifier`: Admins use email, department users use
+    // their username.
+    const normalizedIdentifier = normalizeLoginIdentifier(identifier || email);
 
     try {
-        if (!normalizedEmail || !password) {
+        if (!normalizedIdentifier || !password) {
             return res.status(400).json({
-                message: 'Email and password are required',
+                message: 'Sign-in account and password are required',
             });
         }
 
-        const user = await findStaffByEmail(normalizedEmail);
+        const user = await findStaffByIdentifier(normalizedIdentifier);
 
         if (!user) {
             return res.status(401).json({
                 code: 'INVALID_CREDENTIALS',
-                message: 'The email or password is incorrect.',
+                message: 'The sign-in account or password is incorrect.',
+            });
+        }
+
+        const resolvedRole = resolveStaffRole(user);
+        const expectedIdentifier = resolvedRole === 'admin'
+            ? normalizeLoginIdentifier(user.email)
+            : normalizeLoginIdentifier(user.username);
+
+        if (normalizedIdentifier !== expectedIdentifier) {
+            return res.status(401).json({
+                code: 'INVALID_CREDENTIALS',
+                message: 'The sign-in account or password is incorrect.',
             });
         }
 
@@ -185,11 +221,10 @@ async function loginUnified(req, res) {
         if (!isMatch) {
             return res.status(401).json({
                 code: 'INVALID_CREDENTIALS',
-                message: 'The email or password is incorrect.',
+                message: 'The sign-in account or password is incorrect.',
             });
         }
 
-        const resolvedRole = resolveStaffRole(user);
         const tokenRole = resolvedRole;
         const allowedAccessRoles = new Set([
             'admin',

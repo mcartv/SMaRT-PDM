@@ -14,9 +14,10 @@ class MobilePayoutItem {
     required this.semester,
     required this.schoolYear,
     required this.paymentMode,
+    required this.payoutType,
+    required this.payoutCode,
     required this.batchStatus,
     required this.programName,
-    required this.reference,
     this.benefactorName,
     this.proof,
   });
@@ -30,9 +31,10 @@ class MobilePayoutItem {
   final String semester;
   final String schoolYear;
   final String paymentMode;
+  final String payoutType;
+  final String payoutCode;
   final String batchStatus;
   final String programName;
-  final String reference;
   final String? benefactorName;
   final PayoutProof? proof;
 
@@ -53,10 +55,14 @@ class MobilePayoutItem {
           json['school_year']?.toString() ??
           '',
       paymentMode: json['payment_mode']?.toString() ?? '',
+      payoutType: json['payment_mode_other']?.toString() ?? '',
+      payoutCode:
+          json['payout_code']?.toString() ??
+          json['reference']?.toString() ??
+          '',
       batchStatus: json['batch_status']?.toString() ?? '',
       programName: json['program_name']?.toString() ?? 'Scholarship Program',
       benefactorName: json['benefactor_name']?.toString(),
-      reference: json['reference']?.toString() ?? '',
       proof: json['proof'] is Map
           ? PayoutProof.fromJson(Map<String, dynamic>.from(json['proof'] as Map))
           : null,

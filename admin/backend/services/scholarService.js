@@ -131,6 +131,11 @@ function normalizeScholarRow(row) {
 
     program_name: row.program_name || 'N/A',
 
+    previous_program_name: row.previous_program_name || null,
+    previous_academic_year: row.previous_academic_year || null,
+    previous_semester: row.previous_semester || null,
+    previous_ro_assigned_office: row.previous_ro_assigned_office || null,
+
     scholar_is_archived: row.scholar_is_archived === true || row.is_archived === true,
     scholar_archived_at: row.scholar_archived_at || null,
     scholar_removal_reason: row.scholar_removal_reason || null,
@@ -305,7 +310,11 @@ exports.fetchAllScholars = async () => {
 
       st.profile_photo_url,
 
-      sp.program_name
+      sp.program_name,
+      previous_application.previous_program_name,
+      previous_application.previous_academic_year,
+      previous_application.previous_semester,
+      previous_ro.previous_ro_assigned_office
 
     FROM students st
 
@@ -329,6 +338,69 @@ exports.fetchAllScholars = async () => {
     LEFT JOIN academic_period ap
       ON ap.period_id =
         st.active_period_id
+
+    LEFT JOIN LATERAL (
+      SELECT
+        a_prev.application_id,
+        po_prev.period_id,
+        sp_prev.program_name AS previous_program_name,
+        ay_prev.label AS previous_academic_year,
+        ap_prev.term AS previous_semester
+      FROM applications a_prev
+      LEFT JOIN program_openings po_prev
+        ON po_prev.opening_id = a_prev.opening_id
+      LEFT JOIN scholarship_program sp_prev
+        ON sp_prev.program_id = a_prev.program_id
+      LEFT JOIN academic_years ay_prev
+        ON ay_prev.academic_year_id = po_prev.academic_year_id
+      LEFT JOIN academic_period ap_prev
+        ON ap_prev.period_id = po_prev.period_id
+      WHERE a_prev.student_id = st.student_id
+        AND a_prev.program_id IS NOT NULL
+        AND po_prev.period_id IS DISTINCT FROM st.active_period_id
+      ORDER BY
+        COALESCE(a_prev.submission_date, a_prev.created_at) DESC NULLS LAST,
+        a_prev.application_id DESC
+      LIMIT 1
+    ) previous_application ON true
+
+    LEFT JOIN LATERAL (
+      SELECT
+        COALESCE(
+          (
+            SELECT rd.department_name
+            FROM ro_placements rp
+            JOIN ro_departments rd
+              ON rd.department_id = rp.ro_area_id
+            WHERE rp.ro_id = ro.ro_id
+            ORDER BY
+              CASE
+                WHEN LOWER(COALESCE(rp.placement_status, '')) = 'approved' THEN 0
+                WHEN LOWER(COALESCE(rp.placement_status, '')) = 'pending' THEN 1
+                ELSE 2
+              END,
+              rp.created_at DESC
+            LIMIT 1
+          ),
+          NULLIF(TRIM(ro.assigned_area), '')
+        ) AS previous_ro_assigned_office
+      FROM return_of_obligations ro
+      WHERE ro.student_id = st.student_id
+        AND (
+          ro.application_id = previous_application.application_id
+          OR (
+            previous_application.period_id IS NOT NULL
+            AND ro.period_id = previous_application.period_id
+          )
+        )
+      ORDER BY
+        CASE
+          WHEN ro.application_id = previous_application.application_id THEN 0
+          ELSE 1
+        END,
+        ro.created_at DESC NULLS LAST
+      LIMIT 1
+    ) previous_ro ON true
 
     WHERE COALESCE(
       st.is_archived,
@@ -425,6 +497,139 @@ exports.fetchRemovedScholars = async () => {
     })
   );
 };
+
+
+async function fetchScholarProgramHistory(studentId) {
+  const result = await db.query(
+    `
+    WITH ranked_applications AS (
+      SELECT
+        a.student_id,
+        a.application_id,
+        a.opening_id,
+        a.program_id,
+        a.application_status,
+        a.selection_status,
+        a.activation_status,
+        a.is_disqualified,
+        a.is_archived,
+        a.submission_date,
+        a.created_at,
+        po.opening_title,
+        po.academic_year_id,
+        po.period_id,
+        sp.program_name,
+        ROW_NUMBER() OVER (
+          PARTITION BY
+            a.student_id,
+            a.program_id,
+            COALESCE(po.academic_year_id::text, 'unknown'),
+            COALESCE(po.period_id::text, 'unknown')
+          ORDER BY
+            CASE
+              WHEN st.current_application_id = a.application_id THEN 0
+              ELSE 1
+            END,
+            COALESCE(a.submission_date, a.created_at) DESC NULLS LAST,
+            a.application_id DESC
+        ) AS history_rank
+      FROM applications a
+      JOIN students st
+        ON st.student_id = a.student_id
+      LEFT JOIN program_openings po
+        ON po.opening_id = a.opening_id
+      LEFT JOIN scholarship_program sp
+        ON sp.program_id = a.program_id
+      WHERE a.student_id = $1
+        AND a.program_id IS NOT NULL
+    )
+    SELECT
+      ra.application_id,
+      ra.opening_id,
+      ra.program_id,
+      ra.program_name,
+      ra.opening_title,
+      ra.academic_year_id,
+      ay.label AS academic_year,
+      ra.period_id,
+      ap.term AS semester,
+      ra.application_status,
+      ra.selection_status,
+      ra.activation_status,
+      ra.is_disqualified,
+      ra.is_archived,
+      CASE
+        WHEN ra.is_disqualified = true THEN 'Disqualified'
+        WHEN LOWER(COALESCE(ra.application_status, '')) = 'rejected' THEN 'Rejected'
+        WHEN LOWER(COALESCE(ra.activation_status, '')) = 'activated' THEN 'Activated'
+        WHEN LOWER(COALESCE(ra.application_status, '')) = 'approved' THEN 'Approved'
+        WHEN LOWER(COALESCE(ra.selection_status, '')) = 'promoted' THEN 'Promoted'
+        WHEN LOWER(COALESCE(ra.selection_status, '')) = 'reserved' THEN 'Reserved'
+        WHEN LOWER(COALESCE(ra.selection_status, '')) = 'selected' THEN 'Selected'
+        ELSE COALESCE(NULLIF(ra.application_status, ''), 'Applied')
+      END AS history_status,
+      COALESCE(
+        placement.department_name,
+        NULLIF(TRIM(ro.assigned_area), '')
+      ) AS ro_assigned_office,
+      ro.assignment_status AS ro_assignment_status,
+      ro.ro_status,
+      COALESCE(ra.submission_date, ra.created_at) AS applied_at
+    FROM ranked_applications ra
+    LEFT JOIN academic_years ay
+      ON ay.academic_year_id = ra.academic_year_id
+    LEFT JOIN academic_period ap
+      ON ap.period_id = ra.period_id
+    LEFT JOIN LATERAL (
+      SELECT ro.*
+      FROM return_of_obligations ro
+      WHERE ro.student_id = ra.student_id
+        AND (
+          ro.application_id = ra.application_id
+          OR (
+            ra.period_id IS NOT NULL
+            AND ro.period_id = ra.period_id
+            AND (
+              ro.program_id = ra.program_id
+              OR ro.program_id IS NULL
+            )
+          )
+        )
+      ORDER BY
+        CASE
+          WHEN ro.application_id = ra.application_id THEN 0
+          ELSE 1
+        END,
+        ro.created_at DESC NULLS LAST
+      LIMIT 1
+    ) ro ON true
+    LEFT JOIN LATERAL (
+      SELECT rd.department_name
+      FROM ro_placements rp
+      JOIN ro_departments rd
+        ON rd.department_id = rp.ro_area_id
+      WHERE rp.ro_id = ro.ro_id
+      ORDER BY
+        CASE
+          WHEN LOWER(COALESCE(rp.placement_status, '')) = 'approved' THEN 0
+          WHEN LOWER(COALESCE(rp.placement_status, '')) = 'pending' THEN 1
+          ELSE 2
+        END,
+        rp.created_at DESC
+      LIMIT 1
+    ) placement ON true
+    WHERE ra.history_rank = 1
+    ORDER BY
+      COALESCE(ra.submission_date, ra.created_at) DESC NULLS LAST,
+      ra.application_id DESC;
+    `,
+    [studentId]
+  );
+
+  return result.rows || [];
+}
+
+// SMART_PDM_SCHOLAR_PROGRAM_HISTORY_V1
 
 exports.fetchScholarById = async (studentId, options = {}) => {
   const includeRemoved = options.includeRemoved === true;
@@ -584,6 +789,8 @@ exports.fetchScholarById = async (studentId, options = {}) => {
   ]
     .filter(Boolean)
     .join(', ');
+
+  const programHistory = await fetchScholarProgramHistory(studentId);
 
   return {
     scholar_id: row.student_id,
@@ -784,6 +991,8 @@ exports.fetchScholarById = async (studentId, options = {}) => {
         row.guardian_signature_url ||
         null,
     },
+
+    program_history: programHistory,
 
     activity_logs: [],
   };

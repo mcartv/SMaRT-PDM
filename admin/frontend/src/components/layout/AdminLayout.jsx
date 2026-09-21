@@ -58,12 +58,32 @@ const navItems = [
   { path: '/admin/maintenance', icon: Settings, label: 'Maintenance' },
 ];
 
+const ADMIN_SIDEBAR_WIDTH_KEY = 'smartpdm:admin-sidebar-width';
+const ADMIN_SIDEBAR_DEFAULT_WIDTH = 248;
+const ADMIN_SIDEBAR_MIN_WIDTH = 190;
+const ADMIN_SIDEBAR_MAX_WIDTH = 360;
+
+function clampAdminSidebarWidth(value) {
+  return Math.min(
+    ADMIN_SIDEBAR_MAX_WIDTH,
+    Math.max(ADMIN_SIDEBAR_MIN_WIDTH, Number(value) || ADMIN_SIDEBAR_DEFAULT_WIDTH)
+  );
+}
+
+function getStoredAdminSidebarWidth() {
+  if (typeof window === 'undefined') return ADMIN_SIDEBAR_DEFAULT_WIDTH;
+  return clampAdminSidebarWidth(localStorage.getItem(ADMIN_SIDEBAR_WIDTH_KEY));
+}
+
 export default function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const notifRef = useRef(null);
+  const sidebarResizeRef = useRef(null);
 
   const [collapsed, setCollapsed] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(getStoredAdminSidebarWidth);
+  const [sidebarResizing, setSidebarResizing] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [adminData, setAdminData] = useState(null);
   const [profilePhotoPreviewOpen, setProfilePhotoPreviewOpen] = useState(false);
@@ -72,11 +92,23 @@ export default function AdminLayout() {
   useForceDarkMode(forceDarkMode);
   const {
     notifications: notifs,
+    filteredNotifications,
     newNotifications,
     earlierNotifications,
+    statusFilter,
+    setStatusFilter,
+    typeFilter,
+    setTypeFilter,
+    unreadOnly,
+    setUnreadOnly,
+    notificationStatusOptions,
+    notificationTypeOptions,
     unreadCount,
     loading: notificationsLoading,
+    loadingMore,
+    hasMore,
     markingAll,
+    loadMore,
     markAsRead,
     markAsUnread,
     markAllAsRead,
@@ -210,6 +242,83 @@ export default function AdminLayout() {
     await authService.logout();
   };
 
+  const persistSidebarWidth = (width) => {
+    localStorage.setItem(ADMIN_SIDEBAR_WIDTH_KEY, String(clampAdminSidebarWidth(width)));
+  };
+
+  const stopSidebarResize = (event) => {
+    const resize = sidebarResizeRef.current;
+    if (!resize || (event && event.pointerId !== resize.pointerId)) return;
+
+    if (resize.handle?.hasPointerCapture?.(resize.pointerId)) {
+      resize.handle.releasePointerCapture(resize.pointerId);
+    }
+
+    persistSidebarWidth(resize.lastWidth);
+    document.body.style.cursor = resize.previousCursor;
+    document.body.style.userSelect = resize.previousUserSelect;
+    sidebarResizeRef.current = null;
+    setSidebarResizing(false);
+  };
+
+  const handleSidebarResizeStart = (event) => {
+    if (collapsed || event.button !== 0 || window.innerWidth <= 900) return;
+
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    sidebarResizeRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: sidebarWidth,
+      lastWidth: sidebarWidth,
+      handle: event.currentTarget,
+      previousCursor: document.body.style.cursor,
+      previousUserSelect: document.body.style.userSelect,
+    };
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    setSidebarResizing(true);
+  };
+
+  const handleSidebarResizeMove = (event) => {
+    const resize = sidebarResizeRef.current;
+    if (!resize || event.pointerId !== resize.pointerId) return;
+
+    const nextWidth = clampAdminSidebarWidth(
+      resize.startWidth + event.clientX - resize.startX
+    );
+    resize.lastWidth = nextWidth;
+    setSidebarWidth(nextWidth);
+  };
+
+  const handleSidebarResizeKeyDown = (event) => {
+    if (collapsed) return;
+
+    let nextWidth = sidebarWidth;
+    if (event.key === 'ArrowLeft') nextWidth -= 8;
+    else if (event.key === 'ArrowRight') nextWidth += 8;
+    else if (event.key === 'Home') nextWidth = ADMIN_SIDEBAR_MIN_WIDTH;
+    else if (event.key === 'End') nextWidth = ADMIN_SIDEBAR_MAX_WIDTH;
+    else return;
+
+    event.preventDefault();
+    const clampedWidth = clampAdminSidebarWidth(nextWidth);
+    setSidebarWidth(clampedWidth);
+    persistSidebarWidth(clampedWidth);
+  };
+
+  const resetSidebarWidth = () => {
+    setSidebarWidth(ADMIN_SIDEBAR_DEFAULT_WIDTH);
+    persistSidebarWidth(ADMIN_SIDEBAR_DEFAULT_WIDTH);
+  };
+
+  useEffect(() => () => {
+    const resize = sidebarResizeRef.current;
+    if (!resize) return;
+    document.body.style.cursor = resize.previousCursor;
+    document.body.style.userSelect = resize.previousUserSelect;
+  }, []);
+
   useEffect(() => {
     function handleClick(e) {
       if (notifRef.current && !notifRef.current.contains(e.target)) {
@@ -288,9 +397,12 @@ export default function AdminLayout() {
     >
       {/* Sidebar */}
       <aside
-        className="portal-responsive-sidebar flex h-full min-h-0 shrink-0 flex-col border-r border-black/10 transition-all duration-300"
+        className={`admin-resizable-sidebar portal-responsive-sidebar relative flex h-full min-h-0 shrink-0 flex-col border-r border-black/10 ${sidebarResizing ? 'transition-none' : 'transition-[width] duration-300'}`}
         style={{
-          width: collapsed ? '76px' : 'clamp(218px, 18vw, 248px)',
+          width: collapsed ? '76px' : `${sidebarWidth}px`,
+          '--admin-sidebar-width': collapsed ? '76px' : `${sidebarWidth}px`,
+          '--admin-sidebar-min-width': collapsed ? '76px' : `${ADMIN_SIDEBAR_MIN_WIDTH}px`,
+          '--admin-sidebar-max-width': collapsed ? '76px' : `${ADMIN_SIDEBAR_MAX_WIDTH}px`,
           background: theme.base,
         }}
       >
@@ -365,6 +477,28 @@ export default function AdminLayout() {
             {!collapsed && <span className="portal-responsive-sidebar-label font-medium">Logout</span>}
           </button>
         </div>
+
+        {!collapsed ? (
+          <div
+            role="separator"
+            aria-label="Resize navigation sidebar"
+            aria-orientation="vertical"
+            aria-valuemin={ADMIN_SIDEBAR_MIN_WIDTH}
+            aria-valuemax={ADMIN_SIDEBAR_MAX_WIDTH}
+            aria-valuenow={Math.round(sidebarWidth)}
+            tabIndex={0}
+            onPointerDown={handleSidebarResizeStart}
+            onPointerMove={handleSidebarResizeMove}
+            onPointerUp={stopSidebarResize}
+            onPointerCancel={stopSidebarResize}
+            onDoubleClick={resetSidebarWidth}
+            onKeyDown={handleSidebarResizeKeyDown}
+            className="group absolute inset-y-0 -right-1 z-20 hidden w-2 cursor-col-resize touch-none outline-none min-[901px]:block"
+            title="Drag to resize · Double-click to reset"
+          >
+            <span className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${sidebarResizing ? 'bg-white/70' : 'bg-transparent group-hover:bg-white/45 group-focus:bg-white/70'}`} />
+          </div>
+        ) : null}
       </aside>
 
       {/* Main Content */}
@@ -412,19 +546,113 @@ export default function AdminLayout() {
                       </div>
                       {unreadCount > 0 ? (
                         <span className="rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-red-700">
-                          {unreadCount} New
+                          {unreadCount} Unread
                         </span>
                       ) : null}
                     </div>
                   </div>
 
+                  <div className="overflow-x-auto border-b border-stone-100 bg-white px-3 py-2.5">
+                    <div className="flex min-w-max items-center gap-1.5">
+                      {notificationStatusOptions.map((option) => {
+                        const isAll = option.value === 'all';
+                        const active = isAll
+                          ? statusFilter === 'all' && typeFilter === 'all'
+                          : statusFilter === option.value;
+                        const critical = option.value === 'major';
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => {
+                              if (isAll) {
+                                setStatusFilter('all');
+                                setTypeFilter('all');
+                                return;
+                              }
+                              setTypeFilter('all');
+                              setStatusFilter(active ? 'all' : option.value);
+                            }}
+                            className="rounded-full border px-2.5 py-1 text-[11px] font-semibold transition"
+                            style={active
+                              ? critical
+                                ? {
+                                    borderColor: forceDarkMode ? '#7f1d1d' : '#fecaca',
+                                    background: forceDarkMode
+                                      ? 'color-mix(in srgb, #dc2626 18%, var(--bg-secondary))'
+                                      : '#fef2f2',
+                                    color: forceDarkMode ? '#fca5a5' : '#b91c1c',
+                                  }
+                                : {
+                                    borderColor: forceDarkMode ? 'var(--border-default)' : theme.base,
+                                    background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft,
+                                    color: forceDarkMode ? 'var(--text-main)' : theme.base,
+                                  }
+                              : {
+                                  borderColor: forceDarkMode ? 'var(--border-default)' : '#e7e5e4',
+                                  background: forceDarkMode ? 'var(--bg-secondary)' : '#fff',
+                                  color: forceDarkMode ? 'var(--text-secondary)' : '#57534e',
+                                }}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                      <div className="flex items-center gap-1.5" aria-label="Filter notifications by type">
+                        {notificationTypeOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => {
+                              setStatusFilter('all');
+                              setTypeFilter(typeFilter === option.value ? 'all' : option.value);
+                            }}
+                            className="rounded-full border px-2.5 py-1 text-[11px] font-semibold transition"
+                            style={typeFilter === option.value
+                              ? {
+                                  borderColor: forceDarkMode ? 'var(--border-default)' : theme.base,
+                                  background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft,
+                                  color: forceDarkMode ? 'var(--text-main)' : theme.base,
+                                }
+                              : {
+                                  borderColor: forceDarkMode ? 'var(--border-default)' : '#e7e5e4',
+                                  background: forceDarkMode ? 'var(--bg-secondary)' : '#fff',
+                                  color: forceDarkMode ? 'var(--text-secondary)' : '#57534e',
+                                }}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                      <span className="mx-0.5 h-5 w-px shrink-0 bg-stone-200" aria-hidden="true" />
+                      <button
+                        type="button"
+                        onClick={() => setUnreadOnly((current) => !current)}
+                        className="rounded-full border px-2.5 py-1 text-[11px] font-semibold transition"
+                        style={unreadOnly
+                          ? {
+                              borderColor: forceDarkMode ? 'var(--border-default)' : theme.base,
+                              background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft,
+                              color: forceDarkMode ? 'var(--text-main)' : theme.base,
+                            }
+                          : {
+                              borderColor: forceDarkMode ? 'var(--border-default)' : '#e7e5e4',
+                              background: forceDarkMode ? 'var(--bg-secondary)' : '#fff',
+                              color: forceDarkMode ? 'var(--text-secondary)' : '#57534e',
+                            }}
+                      >
+                        Unread{unreadCount > 0 ? ` ${unreadCount > 99 ? '99+' : unreadCount}` : ''}
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="max-h-80 overflow-y-auto">
-                    {notifs.length > 0 ? (
+                    {filteredNotifications.length > 0 ? (
                       <>
                         {newNotifications.length > 0 ? (
                           <div className="border-b border-stone-100 px-4 py-2" style={{ background: forceDarkMode ? 'var(--bg-subtle)' : theme.accentSoft }}>
                             <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: forceDarkMode ? 'var(--text-secondary)' : theme.base }}>
-                              New
+                              Today
                             </p>
                           </div>
                         ) : null}
@@ -435,16 +663,25 @@ export default function AdminLayout() {
                               setNotifOpen(false);
                               openNotification(n, navigate);
                             }}
-                            className={`w-full cursor-pointer border-b border-stone-100 px-4 py-3 text-left transition hover:brightness-[0.98] ${n.is_read !== true ? 'border-l-4' : ''}`}
-                            style={n.is_read !== true
-                              ? { borderLeftColor: forceDarkMode ? 'var(--accent-primary)' : theme.base, background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft }
-                              : { background: forceDarkMode ? 'var(--bg-secondary)' : '#fff' }}
+                            className={`w-full cursor-pointer border-b border-stone-100 px-4 py-3 text-left transition hover:brightness-[0.98] ${(n.priority === 'major' || n.is_read !== true) ? 'border-l-4' : ''}`}
+                            style={n.priority === 'major'
+                              ? { borderLeftColor: '#dc2626', background: forceDarkMode ? 'color-mix(in srgb, #dc2626 12%, var(--bg-secondary))' : '#fff7f7' }
+                              : n.is_read !== true
+                                ? { borderLeftColor: forceDarkMode ? 'var(--accent-primary)' : theme.base, background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft }
+                                : { background: forceDarkMode ? 'var(--bg-secondary)' : '#fff' }}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <p className="text-[13px] font-semibold leading-[18px] text-stone-900">
                                 {n.title || 'Notification'}
                               </p>
-                              {n.is_read !== true ? (
+                              {n.priority === 'major' ? (
+                                <span
+                                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                  style={{ background: forceDarkMode ? '#7f1d1d' : '#fee2e2', color: forceDarkMode ? '#fecaca' : '#b91c1c' }}
+                                >
+                                  Major
+                                </span>
+                              ) : n.is_read !== true ? (
                                 <span
                                   className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white"
                                   style={{ background: theme.base }}
@@ -489,16 +726,25 @@ export default function AdminLayout() {
                               setNotifOpen(false);
                               openNotification(n, navigate);
                             }}
-                            className={`w-full cursor-pointer border-b border-stone-50 px-4 py-3 text-left transition-colors hover:brightness-[0.98] ${n.is_read !== true ? 'border-l-4' : ''}`}
-                            style={n.is_read !== true
-                              ? { borderLeftColor: forceDarkMode ? 'var(--accent-primary)' : theme.base, background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft }
-                              : { background: forceDarkMode ? 'var(--bg-secondary)' : '#fff' }}
+                            className={`w-full cursor-pointer border-b border-stone-50 px-4 py-3 text-left transition-colors hover:brightness-[0.98] ${(n.priority === 'major' || n.is_read !== true) ? 'border-l-4' : ''}`}
+                            style={n.priority === 'major'
+                              ? { borderLeftColor: '#dc2626', background: forceDarkMode ? 'color-mix(in srgb, #dc2626 12%, var(--bg-secondary))' : '#fff7f7' }
+                              : n.is_read !== true
+                                ? { borderLeftColor: forceDarkMode ? 'var(--accent-primary)' : theme.base, background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft }
+                                : { background: forceDarkMode ? 'var(--bg-secondary)' : '#fff' }}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <p className="text-[13px] font-medium leading-[18px] text-stone-800">
                                 {n.title || 'Notification'}
                               </p>
-                              {n.is_read !== true ? (
+                              {n.priority === 'major' ? (
+                                <span
+                                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                  style={{ background: forceDarkMode ? '#7f1d1d' : '#fee2e2', color: forceDarkMode ? '#fecaca' : '#b91c1c' }}
+                                >
+                                  Major
+                                </span>
+                              ) : n.is_read !== true ? (
                                 <span
                                   className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white"
                                   style={{ background: theme.base }}
@@ -532,13 +778,23 @@ export default function AdminLayout() {
                       </>
                     ) : (
                       <div className="p-8 text-center text-sm text-stone-400">
-                        {notificationsLoading ? 'Loading notifications...' : 'No new notifications'}
+                        {notificationsLoading ? 'Loading notifications...' : 'No notifications in this category'}
                       </div>
                     )}
                   </div>
 
                   {notifs.length > 0 ? (
-                    <div className="flex justify-end border-t border-stone-100 bg-stone-50/80 px-4 py-3">
+                    <div className="flex items-center justify-between gap-2 border-t border-stone-100 bg-stone-50/80 px-4 py-3">
+                      {hasMore ? (
+                        <button
+                          type="button"
+                          onClick={loadMore}
+                          disabled={loadingMore}
+                          className="rounded-lg px-2 py-1.5 text-xs font-semibold text-stone-500 transition hover:bg-stone-100 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {loadingMore ? 'Loading...' : 'Load more'}
+                        </button>
+                      ) : <span />}
                       <button
                         type="button"
                         onClick={markAllAsRead}

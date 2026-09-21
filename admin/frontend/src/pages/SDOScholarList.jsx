@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 // --- SHADCN UI COMPONENTS ---
 import { Input } from "@/components/ui/input";
@@ -6,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -44,6 +44,7 @@ import { useSocketEvent } from '@/hooks/useSocket';
 import usePortalTheme from '@/hooks/usePortalTheme';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
+import ScholarIdentity from '@/components/profile/ScholarIdentity';
 const API_BASE = buildApiUrl('/api');const PAGE_SIZE = 10;
 
 // ─── Theme ───────────────────────────────────────────────────────
@@ -123,184 +124,142 @@ function formatDate(value) {
   });
 }
 
-function ScholarViewModal({ scholar, onClose }) {
-  if (!scholar) return null;
+function ProfileDetail({ icon: Icon, label, children, wide = false }) {
+  return (
+    <div className={`rounded-xl border border-stone-200 bg-white px-4 py-3.5 ${wide ? 'sm:col-span-2' : ''}`}>
+      <div className="mb-1.5 flex items-center gap-2 text-xs text-stone-500">
+        <Icon className="h-3.5 w-3.5" />
+        <span>{label}</span>
+      </div>
+      <p className="whitespace-pre-wrap text-sm font-medium leading-5 text-stone-800">
+        {children}
+      </p>
+    </div>
+  );
+}
+
+function ScholarViewModal({ scholar, theme, onClose }) {
+  useEffect(() => {
+    if (!scholar) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [scholar]);
+
+  if (!scholar || typeof document === 'undefined') return null;
 
   const displayStatus = getSdoStyle(getEditableStatus(scholar.sdu_level));
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex h-[100dvh] w-full items-center justify-center bg-black/45 p-0 backdrop-blur-[3px] sm:p-4"
+      style={{
+        '--portal-base': theme?.base || C.brown,
+        '--portal-border': theme?.border || '#e7e5e4',
+      }}
       onClick={onClose}
     >
       <Card
-        className="w-full max-w-4xl max-h-[90vh] overflow-hidden border-stone-200 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="sdo-scholar-profile-title"
+        className="flex h-full max-h-[100dvh] w-full max-w-4xl flex-col overflow-hidden rounded-none border-stone-200 bg-white shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
+        onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100 bg-stone-50">
-          <div>
-            <h3 className="text-base font-semibold text-stone-800">Scholar Profile</h3>
-            <p className="text-xs text-stone-500 mt-0.5">
-              Review scholar details before updating disciplinary standing
+        <div
+          className="flex shrink-0 items-start justify-between gap-4 border-b px-5 py-4 sm:px-6"
+          style={{ background: theme?.accentSoft || '#fafaf9', borderColor: theme?.border }}
+        >
+          <div className="min-w-0">
+            <h3 id="sdo-scholar-profile-title" className="text-lg font-semibold text-stone-900">
+              Scholar Profile
+            </h3>
+            <p className="mt-1 text-xs leading-5 text-stone-500">
+              Review scholarship and disciplinary information.
             </p>
           </div>
 
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
+            className="-mr-1 rounded-lg p-2 text-stone-400 transition-colors hover:bg-white/70 hover:text-stone-700"
+            aria-label="Close scholar profile"
           >
-            <X size={16} />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="overflow-y-auto max-h-[calc(90vh-73px)] p-5 space-y-5">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            <Card className="border-stone-200 shadow-none lg:col-span-1">
-              <CardContent className="p-5 space-y-4">
-                <div className="flex items-start gap-3">
-                  <PreviewableProfileAvatar
-                    src={scholar.avatar_url || scholar.profile_photo_url || scholar.avatarUrl || ''}
-                    name={`${scholar.student_name || 'Scholar'} profile photo`}
-                    fallback={getInitials(scholar.student_name)}
-                    avatarClassName="h-12 w-12 shrink-0 rounded-2xl border border-stone-200"
-                    imageClassName="rounded-2xl"
-                    fallbackClassName="rounded-2xl bg-orange-50 text-sm font-bold text-[#5c2d0e]"
-                    buttonClassName="rounded-2xl"
-                  />
+        <div className="min-h-0 flex-1 overflow-y-auto bg-stone-50/50 p-4 sm:p-6">
+          <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+            <aside className="rounded-2xl border border-stone-200 bg-white p-5">
+              <ScholarIdentity
+                scholar={scholar}
+                name={scholar.student_name}
+                studentNumber={scholar.student_number}
+              />
 
-                  <div>
-                    <h4 className="text-base font-semibold text-stone-800">
-                      {scholar.student_name || 'Unknown Scholar'}
-                    </h4>
-                    <p className="text-xs font-mono text-stone-400 mt-0.5">
-                      {scholar.student_number || 'N/A'}
-                    </p>
+              <div
+                className="mt-5 rounded-xl border px-3.5 py-3"
+                style={{ background: displayStatus.bg, borderColor: displayStatus.color }}
+              >
+                <p className="text-xs font-medium" style={{ color: displayStatus.color }}>
+                  Disciplinary Standing
+                </p>
+                <p className="mt-1 text-sm font-semibold" style={{ color: displayStatus.color }}>
+                  {displayStatus.label}
+                </p>
+              </div>
 
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] border-stone-200 text-stone-600 bg-white"
-                      >
-                        {scholar.program_name || 'No Program'}
-                      </Badge>
-
-                      <span
-                        className="text-[10px] font-medium px-2 py-1 rounded-full"
-                        style={{
-                          background: displayStatus.bg,
-                          color: displayStatus.color,
-                        }}
-                      >
-                        {displayStatus.label}
-                      </span>
-                    </div>
+              <div className="mt-4 divide-y divide-stone-100 rounded-xl border border-stone-200 px-3.5">
+                {[
+                  ['Scholarship Program', scholar.program_name || 'Not available'],
+                  ['Course', scholar.course_code || scholar.course_name || 'Not available'],
+                ].map(([label, value]) => (
+                  <div key={label} className="py-3">
+                    <p className="text-xs text-stone-500">{label}</p>
+                    <p className="mt-1 text-sm font-medium leading-5 text-stone-800">{value}</p>
                   </div>
-                </div>
+                ))}
+              </div>
+            </aside>
 
-                <div className="grid grid-cols-1 gap-2 text-xs">
-                  <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2">
-                    <span className="text-stone-500">Batch Year</span>
-                    <span className="font-medium text-stone-800">{scholar.batch_year || 'N/A'}</span>
-                  </div>
+            <section className="rounded-2xl border border-stone-200 bg-white p-4 sm:p-5">
+              <div className="mb-4">
+                <h4 className="text-sm font-semibold text-stone-900">Scholar Details</h4>
+                <p className="mt-1 text-xs text-stone-500">Current scholarship and disciplinary record.</p>
+              </div>
 
-                  <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2">
-                    <span className="text-stone-500">Date Awarded</span>
-                    <span className="font-medium text-stone-800">{formatDate(scholar.date_awarded)}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2">
-                    <span className="text-stone-500">Course</span>
-                    <span className="font-medium text-stone-800">{scholar.course_code || scholar.course_name || 'N/A'}</span>
-                  </div>
-
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="lg:col-span-2 space-y-5">
-              <Card className="border-stone-200 shadow-none">
-                <CardHeader className="pb-2">
-                  <h4 className="text-sm font-semibold text-stone-800">Profile Information</h4>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                  <div className="rounded-lg border border-stone-200 px-3 py-3">
-                    <div className="flex items-center gap-2 text-stone-500 mb-1">
-                      <Users size={13} />
-                      <span>Scholar</span>
-                    </div>
-                    <p className="font-medium text-stone-800">{scholar.student_name || 'Not available'}</p>
-                  </div>
-
-                  <div className="rounded-lg border border-stone-200 px-3 py-3">
-                    <div className="flex items-center gap-2 text-stone-500 mb-1">
-                      <ShieldAlert size={13} />
-                      <span>Student ID</span>
-                    </div>
-                    <p className="font-medium text-stone-800">{scholar.student_number || 'Not available'}</p>
-                  </div>
-
-                  <div className="rounded-lg border border-stone-200 px-3 py-3">
-                    <div className="flex items-center gap-2 text-stone-500 mb-1">
-                      <GraduationCap size={13} />
-                      <span>Program</span>
-                    </div>
-                    <p className="font-medium text-stone-800">{scholar.program_name || 'Not available'}</p>
-                  </div>
-
-                  <div className="rounded-lg border border-stone-200 px-3 py-3">
-                    <div className="flex items-center gap-2 text-stone-500 mb-1">
-                      <CalendarDays size={13} />
-                      <span>Batch</span>
-                    </div>
-                    <p className="font-medium text-stone-800">{scholar.batch_year || 'Not available'}</p>
-                  </div>
-
-                  <div className="rounded-lg border border-stone-200 px-3 py-3">
-                    <div className="flex items-center gap-2 text-stone-500 mb-1">
-                      <ShieldAlert size={13} />
-                      <span>Course</span>
-                    </div>
-                    <p className="font-medium text-stone-800">{scholar.course_code || scholar.course_name || 'Not available'}</p>
-                  </div>
-
-                  <div className="rounded-lg border border-stone-200 px-3 py-3">
-                    <div className="flex items-center gap-2 text-stone-500 mb-1">
-                      <ShieldAlert size={13} />
-                      <span>Disciplinary Standing</span>
-                    </div>
-                    <p className="font-medium text-stone-800">{displayStatus.label}</p>
-                  </div>
-
-                  <div className="rounded-lg border border-stone-200 px-3 py-3 md:col-span-2">
-                    <div className="flex items-center gap-2 text-stone-500 mb-1">
-                      <Clock size={13} />
-                      <span>Comment</span>
-                    </div>
-                    <p className="font-medium text-stone-800 whitespace-pre-wrap">
-                      {(scholar.sdo_comment || '').trim() || 'No comment provided.'}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-stone-200 shadow-none">
-                <CardHeader className="pb-2">
-                  <h4 className="text-sm font-semibold text-stone-800">SDO Notes</h4>
-                </CardHeader>
-                <CardContent>
-                  <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-4">
-                    <p className="text-xs text-stone-600 leading-relaxed">
-                      Use this view to validate scholar identity, batch, course, program, and
-                      existing disciplinary remarks before saving an SDO update.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <ProfileDetail icon={GraduationCap} label="Scholarship Program">
+                  {scholar.program_name || 'Not available'}
+                </ProfileDetail>
+                <ProfileDetail icon={ShieldAlert} label="Course">
+                  {scholar.course_code || scholar.course_name || 'Not available'}
+                </ProfileDetail>
+                <ProfileDetail icon={CalendarDays} label="Batch Year">
+                  {scholar.batch_year || 'Not available'}
+                </ProfileDetail>
+                <ProfileDetail icon={CalendarDays} label="Date Awarded">
+                  {formatDate(scholar.date_awarded)}
+                </ProfileDetail>
+                <ProfileDetail icon={CheckCircle2} label="Disciplinary Standing">
+                  {displayStatus.label}
+                </ProfileDetail>
+                <ProfileDetail icon={Users} label="Student ID">
+                  {scholar.student_number || 'Not available'}
+                </ProfileDetail>
+                <ProfileDetail icon={Clock} label="SDO Comment" wide>
+                  {(scholar.sdo_comment || '').trim() || 'No comment provided.'}
+                </ProfileDetail>
+              </div>
+            </section>
           </div>
         </div>
       </Card>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -687,6 +646,7 @@ export default function SDOScholarList() {
       {viewScholar && (
         <ScholarViewModal
           scholar={viewScholar}
+          theme={theme}
           onClose={() => setViewScholar(null)}
         />
       )}

@@ -612,66 +612,77 @@ export default function ReportGeneration({
     if (hasPreviewed) await handlePreviewReport();
   }, [handlePreviewReport, hasPreviewed, loadMetadata]);
 
+  const reportRefreshTimerRef = useRef(null);
+  const scheduleReportRefresh = useCallback(() => {
+    clearTimeout(reportRefreshTimerRef.current);
+    reportRefreshTimerRef.current = setTimeout(() => {
+      reportRefreshTimerRef.current = null;
+      refreshReportData();
+    }, 200);
+  }, [refreshReportData]);
+
+  useEffect(() => () => clearTimeout(reportRefreshTimerRef.current), []);
+
   useSocketEvent('maintenance:updated', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('report:updated', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('application:created', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('application:updated', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('application:approved', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('application:rejected', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('application:disqualified', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('application-document:reviewed', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('payout:proof-uploaded', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('payout:proof-reviewed', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('scholar:created', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('scholar:updated', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('endorsement:updated', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('ro:updated', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('announcement:created', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('announcement:updated', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('announcement:archived', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('announcement:restored', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('opening:archived', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
   useSocketEvent('opening:restored', () => {
-    refreshReportData();
-  }, [refreshReportData]);
+    scheduleReportRefresh();
+  }, [scheduleReportRefresh]);
 
   function acquireClientExportLock(reportId) {
     if (exportLocksRef.current.has(reportId)) return false;

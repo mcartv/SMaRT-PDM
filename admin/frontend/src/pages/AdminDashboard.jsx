@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSocketEvent } from '@/hooks/useSocket';
 import usePortalTheme from '@/hooks/usePortalTheme';
@@ -671,9 +671,18 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  const refreshTimerRef = useRef(null);
   const refreshRealtime = useCallback(() => {
-    loadDashboard({ silent: true, fresh: true });
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      refreshTimerRef.current = null;
+      loadDashboard({ silent: true, fresh: true });
+    }, 200);
   }, [loadDashboard]);
+
+  useEffect(() => () => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+  }, []);
 
   useSocketEvent('dashboard:updated', refreshRealtime, [refreshRealtime]);
 

@@ -26,10 +26,10 @@ import {
   Loader2,
   FileUp,
 } from 'lucide-react';
-import ExcelJS from 'exceljs';
 
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import { toast } from 'sonner';
 import {
   MAINTENANCE_CARD_SUBTITLE_CLASS,
   MAINTENANCE_CARD_TITLE_CLASS,
@@ -514,6 +514,7 @@ function ImportRegistryModal({
   isDragging,
   setIsDragging,
   isImporting,
+  error,
   onFileSelect,
   onImport,
   onClearFile,
@@ -549,7 +550,8 @@ function ImportRegistryModal({
       onClick={onClose}
     >
       <Card
-        className="w-full max-w-xl overflow-hidden border-stone-200 shadow-xl"
+        aria-busy={isImporting}
+        className="relative w-full max-w-xl overflow-hidden border-stone-200 shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-5 py-4">
@@ -582,6 +584,7 @@ function ImportRegistryModal({
               ref={inputRef}
               type="file"
               accept=".xlsx,.csv"
+              disabled={isImporting}
               className="hidden"
               onChange={(event) => onFileSelect(event.target.files?.[0])}
             />
@@ -626,6 +629,13 @@ function ImportRegistryModal({
             </div>
           )}
 
+          {error && (
+            <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
           <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
             <div className="flex items-start gap-2">
               <FileUp className="mt-0.5 h-4 w-4 text-stone-400" />
@@ -660,6 +670,15 @@ function ImportRegistryModal({
             {isImporting ? 'Importing' : 'Import'}
           </Button>
         </div>
+
+        {isImporting && (
+          <div role="status" aria-live="polite" className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/95 px-6 text-center">
+            <Loader2 className="mb-4 h-9 w-9 animate-spin text-stone-700" />
+            <p className="text-sm font-semibold text-stone-800">Importing student registry</p>
+            <p className="mt-1 max-w-full truncate text-xs text-stone-500">{file?.name}</p>
+            <p className="mt-3 text-xs text-stone-500">Please keep this window open while the records are processed.</p>
+          </div>
+        )}
       </Card>
     </div>
   );
@@ -724,6 +743,10 @@ export default function StudentRegistryPanel() {
   const [error, setError] = useState('');
   const [registry, setRegistry] = useState([]);
   const [total, setTotal] = useState(0);
+  const [filteredTotal, setFilteredTotal] = useState(0);
+  const [registryCourseOptions, setRegistryCourseOptions] = useState([]);
+  const [registryYearOptions, setRegistryYearOptions] = useState([]);
+  const registryRequestId = useRef(0);
 
   const [excelHeaders, setExcelHeaders] = useState([]);
   const [lastImportedHeaders, setLastImportedHeaders] = useState([]);
@@ -732,6 +755,7 @@ export default function StudentRegistryPanel() {
   const [tableMode, setTableMode] = useState('imported');
 
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [courseFilter, setCourseFilter] = useState('all');
   const [yearFilter, setYearFilter] = useState('all');
 
@@ -741,12 +765,25 @@ export default function StudentRegistryPanel() {
 
   const [page, setPage] = useState(1);
 
-  const loadRegistry = useCallback(async () => {
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedSearch(search), 250);
+    return () => clearTimeout(timeout);
+  }, [search]);
+
+  const loadRegistry = useCallback(async (requestedPage = page) => {
+    const requestId = ++registryRequestId.current;
     setIsLoading(true);
     setError('');
 
     try {
-      const res = await fetch(`${API_BASE}/student-registry?limit=5000&offset=0`, {
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String((requestedPage - 1) * PAGE_SIZE),
+      });
+      if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
+      if (courseFilter !== 'all') params.set('course', courseFilter);
+      if (yearFilter !== 'all') params.set('year', yearFilter);
+      const res = await fetch(`${API_BASE}/student-registry?${params.toString()}`, {
         headers: getAuthHeaders(),
       });
 
@@ -758,18 +795,27 @@ export default function StudentRegistryPanel() {
 
       const items = Array.isArray(data.items) ? data.items : [];
 
+      if (requestId !== registryRequestId.current) return;
       setRegistry(items);
       setTotal(Number(data.total || items.length || 0));
+      setFilteredTotal(Number(data.filtered_total ?? items.length));
+      setRegistryCourseOptions(Array.isArray(data.course_options) ? data.course_options : []);
+      setRegistryYearOptions(Array.isArray(data.year_options) ? data.year_options : []);
+      if (Array.isArray(data.source_headers) && data.source_headers.length) {
+        setLastImportedHeaders(data.source_headers);
+      }
     } catch (err) {
-      setError(err.message || 'Failed to load registry');
+      if (requestId === registryRequestId.current) {
+        setError(err.message || 'Failed to load registry');
+      }
     } finally {
-      setIsLoading(false);
+      if (requestId === registryRequestId.current) setIsLoading(false);
     }
-  }, []);
+  }, [page, debouncedSearch, courseFilter, yearFilter]);
 
   useEffect(() => {
-    loadRegistry();
-  }, [loadRegistry]);
+    if (tableMode === 'imported' && debouncedSearch === search) loadRegistry();
+  }, [loadRegistry, tableMode, debouncedSearch, search]);
 
   useSocketEvent(
     'maintenance:updated',
@@ -790,6 +836,7 @@ export default function StudentRegistryPanel() {
       rows = parseCsvRows(text);
     } else if (lowerName.endsWith('.xlsx')) {
       const buffer = await selectedFile.arrayBuffer();
+      const { default: ExcelJS } = await import('exceljs');
       const workbook = new ExcelJS.Workbook();
 
       await workbook.xlsx.load(buffer);
@@ -896,7 +943,8 @@ export default function StudentRegistryPanel() {
         throw new Error(data.error || data.message || 'Import failed');
       }
 
-      await loadRegistry();
+      setPage(1);
+      await loadRegistry(1);
       setLastImportedHeaders(
         Array.isArray(data.source_headers) && data.source_headers.length
           ? data.source_headers
@@ -906,8 +954,20 @@ export default function StudentRegistryPanel() {
       setTableMode('imported');
       setImportOpen(false);
       setPage(1);
+      const imported = Number(data.imported) || 0;
+      const failed = Number(data.failed_rows) || 0;
+      const description = `${imported} of ${Number(data.total) || imported + failed} records imported${failed ? `; ${failed} failed` : ''}.`;
+      if (failed) {
+        toast.warning('Import completed with errors', { description });
+      } else {
+        toast.success('Student registry imported', { description });
+      }
     } catch (err) {
-      setError(err.message || 'Import failed');
+      const message = err.message || 'Import failed';
+      setError(message);
+      toast.error('Student registry import failed', {
+        description: message,
+      });
     } finally {
       setIsImporting(false);
     }
@@ -931,6 +991,7 @@ export default function StudentRegistryPanel() {
   }, [tableMode, excelRows, importedRows]);
 
   const courseOptions = useMemo(() => {
+    if (tableMode === 'imported') return registryCourseOptions;
     const courseHeader = findHeaderByAliases(
       currentHeaders,
       REGISTRY_HEADER_ALIASES.course
@@ -946,9 +1007,10 @@ export default function StudentRegistryPanel() {
           .map((value) => String(value).trim())
       )
     ).sort((a, b) => a.localeCompare(b));
-  }, [currentHeaders, currentRows]);
+  }, [tableMode, registryCourseOptions, currentHeaders, currentRows]);
 
   const yearOptions = useMemo(() => {
+    if (tableMode === 'imported') return registryYearOptions;
     const yearHeader = findHeaderByAliases(
       currentHeaders,
       REGISTRY_HEADER_ALIASES.year
@@ -964,9 +1026,10 @@ export default function StudentRegistryPanel() {
           .map((value) => String(value).trim())
       )
     ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  }, [currentHeaders, currentRows]);
+  }, [tableMode, registryYearOptions, currentHeaders, currentRows]);
 
   const filteredRows = useMemo(() => {
+    if (tableMode === 'imported') return currentRows;
     const q = normalizeText(search);
     const courseHeader = findHeaderByAliases(
       currentHeaders,
@@ -998,18 +1061,17 @@ export default function StudentRegistryPanel() {
 
       return matchesSearch && matchesCourse && matchesYear;
     });
-  }, [currentRows, currentHeaders, search, courseFilter, yearFilter]);
+  }, [tableMode, currentRows, currentHeaders, search, courseFilter, yearFilter]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [search, courseFilter, yearFilter, tableMode, excelRows.length, registry.length]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(
+    (tableMode === 'imported' ? filteredTotal : filteredRows.length) / PAGE_SIZE
+  ));
 
   const visibleRows = useMemo(() => {
+    if (tableMode === 'imported') return filteredRows;
     const start = (page - 1) * PAGE_SIZE;
     return filteredRows.slice(start, start + PAGE_SIZE);
-  }, [filteredRows, page]);
+  }, [tableMode, filteredRows, page]);
 
   const hasActiveFilters = courseFilter !== 'all' || yearFilter !== 'all';
 
@@ -1022,6 +1084,7 @@ export default function StudentRegistryPanel() {
   const applyFilters = () => {
     setCourseFilter(draftCourseFilter);
     setYearFilter(draftYearFilter);
+    setPage(1);
     setFilterOpen(false);
   };
 
@@ -1030,6 +1093,7 @@ export default function StudentRegistryPanel() {
     setDraftYearFilter('all');
     setCourseFilter('all');
     setYearFilter('all');
+    setPage(1);
     setFilterOpen(false);
   };
 
@@ -1058,6 +1122,7 @@ export default function StudentRegistryPanel() {
         isDragging={isDragging}
         setIsDragging={setIsDragging}
         isImporting={isImporting}
+        error={error}
         onFileSelect={handleFileSelect}
         onImport={handleImport}
         onClearFile={clearSelectedFile}
@@ -1086,7 +1151,10 @@ export default function StudentRegistryPanel() {
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
               <Input
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
                 placeholder="Search student number or name..."
                 className="h-9 rounded-lg border-stone-200 bg-white pl-9 text-sm"
               />
@@ -1160,7 +1228,7 @@ export default function StudentRegistryPanel() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={loadRegistry}
+                onClick={() => loadRegistry()}
                 className="h-8 rounded-lg border-stone-200 text-xs"
               >
                 {isLoading ? (
@@ -1275,7 +1343,7 @@ export default function StudentRegistryPanel() {
         <PaginationBar
           page={page}
           totalPages={totalPages}
-          totalRows={filteredRows.length}
+          totalRows={tableMode === 'imported' ? filteredTotal : filteredRows.length}
           onPrev={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
           onNext={() => setPage((currentPage) => Math.min(totalPages, currentPage + 1))}
           onGoToPage={(nextPage) => setPage(Math.min(Math.max(1, nextPage), totalPages))}

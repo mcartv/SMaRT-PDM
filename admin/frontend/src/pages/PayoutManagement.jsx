@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -114,6 +114,15 @@ function getAuthHeaders(json = true) {
     ...(json ? { 'Content-Type': 'application/json' } : {}),
     Authorization: `Bearer ${token}`,
   };
+}
+
+async function fetchPayoutBatches() {
+  const response = await fetch(`${API_BASE}/payouts`, {
+    headers: getAuthHeaders(false),
+  });
+  if (!response.ok) throw new Error('Failed to load payout batches');
+  const data = await response.json();
+  return Array.isArray(data) ? data : [];
 }
 
 function normalizeId(value) {
@@ -784,25 +793,40 @@ export default function PayoutManagement() {
   const [newPayoutForPrompt, setNewPayoutForPrompt] = useState(null);
 
   const [form, setForm] = useState(EMPTY_FORM);
+  const realtimeRefreshTimer = useRef(null);
+
+  const scheduleRealtimeRefresh = () => {
+    if (realtimeRefreshTimer.current) clearTimeout(realtimeRefreshTimer.current);
+    realtimeRefreshTimer.current = setTimeout(() => {
+      realtimeRefreshTimer.current = null;
+      fetchPayoutBatches()
+        .then(setBatches)
+        .catch((error) => console.error('PAYOUT BATCH REFRESH ERROR:', error));
+    }, 200);
+  };
+
+  useEffect(() => () => {
+    if (realtimeRefreshTimer.current) clearTimeout(realtimeRefreshTimer.current);
+  }, []);
 
   useEffect(() => {
     loadAll();
   }, []);
 
   useSocketEvent('payout:created', () => {
-    loadAll();
+    scheduleRealtimeRefresh();
   }, []);
 
   useSocketEvent('payout:updated', () => {
-    loadAll();
+    scheduleRealtimeRefresh();
   }, []);
 
   useSocketEvent('payout:archived', () => {
-    loadAll();
+    scheduleRealtimeRefresh();
   }, []);
 
   useSocketEvent('payout:restored', () => {
-    loadAll();
+    scheduleRealtimeRefresh();
   }, []);
 
   useEffect(() => {
@@ -839,21 +863,19 @@ export default function PayoutManagement() {
     try {
       setLoading(true);
 
-      const [batchRes, openingRes, academicYearRes] = await Promise.all([
-        fetch(`${API_BASE}/payouts`, { headers: getAuthHeaders(false) }),
+      const [batchData, openingRes, academicYearRes] = await Promise.all([
+        fetchPayoutBatches(),
         fetch(`${API_BASE}/payouts/openings`, { headers: getAuthHeaders(false) }),
         fetch(`${API_BASE}/academic-years`, { headers: getAuthHeaders(false) }),
       ]);
 
-      if (!batchRes.ok) throw new Error('Failed to load payout batches');
       if (!openingRes.ok) throw new Error('Failed to load openings');
       if (!academicYearRes.ok) throw new Error('Failed to load academic years');
 
-      const batchData = await batchRes.json();
       const openingData = await openingRes.json();
       const academicYearData = await academicYearRes.json();
 
-      setBatches(Array.isArray(batchData) ? batchData : []);
+      setBatches(batchData);
 
       setOpenings(
         (Array.isArray(openingData) ? openingData : []).filter(

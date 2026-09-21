@@ -2,6 +2,7 @@ const ExcelJS = require('exceljs');
 const JSZip = require('jszip');
 const crypto = require('crypto');
 const supabase = require('../config/supabase');
+const db = require('../config/db');
 
 const IMPORT_BATCH_TABLE = 'student_import_batches';
 const IMPORT_ROW_TABLE = 'student_import_rows';
@@ -10,6 +11,7 @@ const REGISTRY_VIEW = 'student_registry';
 const COURSE_TABLE = 'academic_course';
 const SDO_RECORD_TABLE = 'sdo_student_records';
 const HEADER_ORDER_META_KEY = '__smart_pdm_header_order';
+const IMPORT_CHUNK_SIZE = 200;
 
 function buildError(message, statusCode = 500, details = null) {
   const err = new Error(message);
@@ -529,7 +531,7 @@ async function createBatch(file, adminId = null) {
 }
 
 async function insertImportRows(importBatchId, parsedRows) {
-  if (!parsedRows.length) return [];
+  if (!parsedRows.length) return;
 
   const payload = parsedRows.map((row) => ({
     import_batch_id: importBatchId,
@@ -571,17 +573,16 @@ async function insertImportRows(importBatchId, parsedRows) {
     error_message: null,
   }));
 
-  const { data, error } = await supabase
-    .from(IMPORT_ROW_TABLE)
-    .insert(payload)
-    .select('*');
-
-  if (error) throw error;
-  return data || [];
+  for (let index = 0; index < payload.length; index += IMPORT_CHUNK_SIZE) {
+    const { error } = await supabase
+      .from(IMPORT_ROW_TABLE)
+      .insert(payload.slice(index, index + IMPORT_CHUNK_SIZE));
+    if (error) throw error;
+  }
 }
 
 async function upsertMasterRows(importBatchId, importRows, courseMap) {
-  if (!importRows.length) return [];
+  if (!importRows.length) return 0;
 
   const payload = importRows.map((row) => ({
     student_number: row.student_number,
@@ -617,37 +618,41 @@ async function upsertMasterRows(importBatchId, importRows, courseMap) {
     is_archived: false,
   }));
 
-  const { data, error } = await supabase
-    .from(MASTER_TABLE)
-    .upsert(payload, {
-      onConflict: 'student_number',
-      ignoreDuplicates: false,
-    })
-    .select('master_student_id, student_number');
-
-  if (error) throw error;
-  return data || [];
-}
-
-async function markImportRowsCompleted(importRows, masterRows) {
-  const masterMap = new Map(
-    masterRows.map((row) => [row.student_number, row.master_student_id])
-  );
-
-  for (const row of importRows) {
-    const matchedMasterId = masterMap.get(row.student_number) || null;
-
+  for (let index = 0; index < payload.length; index += IMPORT_CHUNK_SIZE) {
     const { error } = await supabase
-      .from(IMPORT_ROW_TABLE)
-      .update({
-        matched_master_student_id: matchedMasterId,
-        status: matchedMasterId ? 'imported' : 'failed',
-        error_message: matchedMasterId ? null : 'Master upsert failed',
-      })
-      .eq('import_row_id', row.import_row_id);
-
+      .from(MASTER_TABLE)
+      .upsert(payload.slice(index, index + IMPORT_CHUNK_SIZE), {
+        onConflict: 'student_number',
+        ignoreDuplicates: false,
+      });
     if (error) throw error;
   }
+  return payload.length;
+}
+
+async function markImportRowsCompleted(importBatchId) {
+  const result = await db.query(`
+    WITH matches AS (
+      SELECT import_row.import_row_id, master.master_student_id
+      FROM student_import_rows AS import_row
+      LEFT JOIN student_master_records AS master
+        ON master.student_number = import_row.student_number
+       AND master.latest_import_batch_id = $1
+      WHERE import_row.import_batch_id = $1
+    ), updated AS (
+      UPDATE student_import_rows AS import_row
+      SET matched_master_student_id = matches.master_student_id,
+          status = CASE WHEN matches.master_student_id IS NULL THEN 'failed' ELSE 'imported' END,
+          error_message = CASE WHEN matches.master_student_id IS NULL THEN 'Master upsert failed' ELSE NULL END
+      FROM matches
+      WHERE import_row.import_row_id = matches.import_row_id
+      RETURNING import_row.status
+    )
+    SELECT count(*) FILTER (WHERE status = 'imported')::int AS imported,
+           count(*) FILTER (WHERE status = 'failed')::int AS failed
+    FROM updated
+  `, [importBatchId]);
+  return result.rows[0];
 }
 
 async function finalizeBatch(importBatchId, totalRows, successRows, failedRows) {
@@ -687,22 +692,23 @@ async function importStudentRegistryFile({ file, adminId }) {
 
   const importBatchId = await createBatch(file, adminId);
   const courseMap = await loadCourseMap();
-  const importRows = await insertImportRows(importBatchId, parsedRows);
-  const masterRows = await upsertMasterRows(importBatchId, importRows, courseMap);
-
-  await markImportRowsCompleted(importRows, masterRows);
+  await insertImportRows(importBatchId, parsedRows);
+  await upsertMasterRows(importBatchId, parsedRows, courseMap);
+  const completion = await markImportRowsCompleted(importBatchId);
+  const imported = completion.imported;
+  const failedRows = completion.failed;
   await finalizeBatch(
     importBatchId,
     parsedRows.length,
-    masterRows.length,
-    Math.max(parsedRows.length - masterRows.length, 0)
+    imported,
+    failedRows
   );
 
   return {
     import_batch_id: importBatchId,
-    imported: masterRows.length,
+    imported,
     total: parsedRows.length,
-    failed_rows: Math.max(parsedRows.length - masterRows.length, 0),
+    failed_rows: failedRows,
     source_headers: sourceHeaders,
   };
 }
@@ -790,25 +796,92 @@ function hydrateRegistryRowFromSnapshot(row) {
   };
 }
 
-async function listStudentRegistry({ limit = 50, offset = 0 } = {}) {
-  const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 5000);
+const REGISTRY_COURSE_SQL = `COALESCE(
+  NULLIF(registry.raw_snapshot->>'Course', ''),
+  NULLIF(registry.raw_snapshot->>'Course Code', ''),
+  NULLIF(registry.raw_snapshot->>'Degree Program', ''),
+  NULLIF(registry.raw_snapshot->>'Program', ''),
+  NULLIF(registry.raw_snapshot->>'Program Code', ''),
+  NULLIF(registry.raw_snapshot->>'Course/Program', ''),
+  registry.course_code, ''
+)`;
+const REGISTRY_YEAR_SQL = `COALESCE(
+  NULLIF(registry.raw_snapshot->>'Year Level', ''),
+  NULLIF(registry.raw_snapshot->>'Year', ''),
+  NULLIF(registry.raw_snapshot->>'Level', ''),
+  registry.year_level::text, ''
+)`;
+
+async function listStudentRegistry({ limit = 50, offset = 0, search = '', course = '', year = '' } = {}) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
   const safeOffset = Math.max(Number(offset) || 0, 0);
-
-  const { data, error, count } = await supabase
-    .from(REGISTRY_VIEW)
-    .select('*', { count: 'exact' })
-    .eq('is_archived', false)
-    .order('sequence_number', { ascending: true, nullsFirst: false })
-    .order('student_number', { ascending: true })
-    .range(safeOffset, safeOffset + safeLimit - 1);
-
-  if (error) throw error;
+  const searchText = String(search || '').trim().slice(0, 200);
+  const courseText = String(course || '').trim().slice(0, 200);
+  const yearText = String(year || '').trim().slice(0, 50);
+  const filters = [];
+  const values = [];
+  if (searchText) {
+    values.push(`%${searchText}%`);
+    filters.push(`(
+      registry.student_number ILIKE $${values.length}
+      OR registry.given_name ILIKE $${values.length}
+      OR registry.last_name ILIKE $${values.length}
+      OR EXISTS (
+        SELECT 1 FROM jsonb_each_text(COALESCE(registry.raw_snapshot, '{}'::jsonb)) AS cell(key, value)
+        WHERE cell.key <> '${HEADER_ORDER_META_KEY}' AND cell.value ILIKE $${values.length}
+      )
+    )`);
+  }
+  if (courseText) {
+    values.push(courseText);
+    filters.push(`${REGISTRY_COURSE_SQL} = $${values.length}`);
+  }
+  if (yearText) {
+    values.push(yearText);
+    filters.push(`${REGISTRY_YEAR_SQL} = $${values.length}`);
+  }
+  const whereSql = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+  const [pageResult, filteredCountResult, totalResult, optionsResult, headerResult] = await Promise.all([
+    db.query(`
+      SELECT registry.* FROM ${REGISTRY_VIEW} AS registry
+      ${whereSql}
+      ORDER BY registry.sequence_number ASC NULLS LAST, registry.student_number ASC
+      LIMIT $${values.length + 1} OFFSET $${values.length + 2}
+    `, [...values, safeLimit, safeOffset]),
+    db.query(`SELECT count(*)::int AS total FROM ${REGISTRY_VIEW} AS registry ${whereSql}`, values),
+    db.query(`SELECT count(*)::int AS total FROM ${REGISTRY_VIEW}`),
+    db.query(`
+      SELECT DISTINCT ${REGISTRY_COURSE_SQL} AS course, ${REGISTRY_YEAR_SQL} AS year
+      FROM ${REGISTRY_VIEW} AS registry
+    `),
+    db.query(`
+      SELECT headers.header, max(master.created_at) AS last_seen, min(headers.ordinality) AS position
+      FROM ${MASTER_TABLE} AS master
+      CROSS JOIN LATERAL jsonb_array_elements_text(
+        CASE WHEN jsonb_typeof(master.raw_snapshot->'${HEADER_ORDER_META_KEY}') = 'array'
+          THEN master.raw_snapshot->'${HEADER_ORDER_META_KEY}' ELSE '[]'::jsonb END
+      ) WITH ORDINALITY AS headers(header, ordinality)
+      WHERE master.is_archived = false
+      GROUP BY headers.header
+      ORDER BY last_seen DESC, position ASC
+    `),
+  ]);
+  const courses = new Set();
+  const years = new Set();
+  optionsResult.rows.forEach((row) => {
+    if (row.course) courses.add(row.course);
+    if (row.year) years.add(row.year);
+  });
 
   return {
-    total: count || 0,
+    total: totalResult.rows[0]?.total || 0,
+    filtered_total: filteredCountResult.rows[0]?.total || 0,
     limit: safeLimit,
     offset: safeOffset,
-    items: (data || []).map(hydrateRegistryRowFromSnapshot),
+    source_headers: headerResult.rows.map((row) => row.header),
+    course_options: [...courses].sort((a, b) => a.localeCompare(b)),
+    year_options: [...years].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+    items: pageResult.rows.map(hydrateRegistryRowFromSnapshot),
   };
 }
 

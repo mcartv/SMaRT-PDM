@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useSocketEvent } from '@/hooks/useSocket';
@@ -1622,17 +1622,14 @@ export default function ScholarMonitoring() {
     }
   }, []);
 
+  const loadedSections = useRef(new Set());
   useEffect(() => {
-    loadScholars();
-  }, [loadScholars]);
-
-  useEffect(() => {
-    loadRenewals();
-  }, [loadRenewals]);
-
-  useEffect(() => {
-    loadRemovedScholars();
-  }, [loadRemovedScholars]);
+    if (loadedSections.current.has(sectionMode)) return;
+    loadedSections.current.add(sectionMode);
+    if (sectionMode === 'registry') loadScholars();
+    else if (sectionMode === 'renewals') loadRenewals();
+    else if (sectionMode === 'removed') loadRemovedScholars();
+  }, [sectionMode, loadScholars, loadRenewals, loadRemovedScholars]);
 
   useEffect(() => {
     const tab = new URLSearchParams(location.search).get('tab');
@@ -1643,41 +1640,44 @@ export default function ScholarMonitoring() {
 
   useSocketEvent(
     'renewal:updated',
-    () => loadRenewals({ quiet: true }),
+    () => { if (loadedSections.current.has('renewals')) loadRenewals({ quiet: true }); },
     [loadRenewals]
   );
 
   useSocketEvent(
     'renewal:approved',
-    () => loadRenewals({ quiet: true }),
+    () => { if (loadedSections.current.has('renewals')) loadRenewals({ quiet: true }); },
     [loadRenewals]
   );
 
   useSocketEvent(
     'scholar:updated',
-    () => loadScholars({ quiet: true }),
+    () => { if (loadedSections.current.has('registry')) loadScholars({ quiet: true }); },
     [loadScholars]
   );
 
   useSocketEvent(
     'scholar:created',
-    () => loadScholars({ quiet: true }),
+    () => { if (loadedSections.current.has('registry')) loadScholars({ quiet: true }); },
     [loadScholars]
   );
 
   useSocketEvent(
     'scholar:archived',
     () => {
-      loadScholars({ quiet: true });
-      loadRemovedScholars({ quiet: true });
+      if (loadedSections.current.has('registry')) loadScholars({ quiet: true });
+      if (loadedSections.current.has('removed')) loadRemovedScholars({ quiet: true });
     },
     [loadScholars, loadRemovedScholars]
   );
 
   useSocketEvent(
     'scholar:restored',
-    () => loadScholars({ quiet: true }),
-    [loadScholars]
+    () => {
+      if (loadedSections.current.has('registry')) loadScholars({ quiet: true });
+      if (loadedSections.current.has('removed')) loadRemovedScholars({ quiet: true });
+    },
+    [loadScholars, loadRemovedScholars]
   );
 
   const handleViewScholar = async (scholarId) => {

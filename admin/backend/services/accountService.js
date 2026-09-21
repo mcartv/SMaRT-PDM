@@ -549,11 +549,33 @@ async function listStaffAccounts() {
             u.created_at DESC
     `);
 
-    const accounts = await Promise.all(result.rows.map((row) => decorateStaffAccount(row)));
-
-    return accounts.filter((account) =>
-        ROLE_VALUES.includes(account.role)
-    );
+    const accounts = result.rows.map(mapStaffAccount).filter((account) => ROLE_VALUES.includes(account.role));
+    const pdIds = accounts.filter((account) => account.role === 'pd').map((account) => account.user_id);
+    const coordinatorIds = accounts
+        .filter((account) => ['pd', 'sdo', 'guidance', 'ro_coordinator'].includes(account.role))
+        .map((account) => account.user_id);
+    const [assignmentsByUser, coordinatorResult] = await Promise.all([
+        pdCourseAssignmentService.getAssignmentsForUsers(pdIds),
+        coordinatorIds.length
+            ? db.query(`
+                SELECT DISTINCT rac.user_id
+                FROM ro_area_coordinators rac
+                JOIN ro_departments rd ON rd.department_id = rac.ro_area_id AND rd.is_active = true
+                WHERE rac.user_id = ANY($1::uuid[]) AND rac.is_active = true
+              `, [coordinatorIds])
+            : Promise.resolve({ rows: [] }),
+    ]);
+    const coordinatorUsers = new Set(coordinatorResult.rows.map((row) => String(row.user_id)));
+    return Promise.all(accounts.map(async (account) => {
+        const assignedCourses = assignmentsByUser.get(String(account.user_id)) || [];
+        return {
+            ...account,
+            avatar_url: await resolveAvatarUrl(account.profile_photo_url),
+            assigned_courses: assignedCourses,
+            course_ids: assignedCourses.map((course) => course.course_id),
+            has_ro_coordinator_access: coordinatorUsers.has(String(account.user_id)),
+        };
+    }));
 }
 
 async function getCurrentStaffProfile(userId) {

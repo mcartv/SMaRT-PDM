@@ -97,8 +97,14 @@ export default function AuditPanel() {
     const [error, setError] = useState('');
 
     const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [moduleFilter, setModuleFilter] = useState('all');
     const [moduleOptions, setModuleOptions] = useState([]);
+
+    useEffect(() => {
+        const timeout = setTimeout(() => setDebouncedSearch(search), 250);
+        return () => clearTimeout(timeout);
+    }, [search]);
 
     const isFiltered = search.trim() || moduleFilter !== 'all';
     const loadLogs = useCallback(async () => {
@@ -112,8 +118,8 @@ export default function AuditPanel() {
             params.set('limit', '150');
             params.set('offset', '0');
 
-            if (search.trim()) {
-                params.set('search', search.trim());
+            if (debouncedSearch.trim()) {
+                params.set('search', debouncedSearch.trim());
             }
 
             if (moduleFilter !== 'all') {
@@ -161,13 +167,13 @@ export default function AuditPanel() {
         } finally {
             setLoading(false);
         }
-    }, [auditToken, search, moduleFilter]);
+    }, [auditToken, debouncedSearch, moduleFilter]);
 
     useEffect(() => {
-        if (unlocked && auditToken) {
+        if (unlocked && auditToken && debouncedSearch === search) {
             loadLogs();
         }
-    }, [unlocked, auditToken, loadLogs]);
+    }, [unlocked, auditToken, loadLogs, debouncedSearch, search]);
 
     useSocketEvent(
         'maintenance:updated',

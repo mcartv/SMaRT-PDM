@@ -7,7 +7,13 @@ exports.getRegistry = async (req, res) => {
     const limit = req.query.limit;
     const offset = req.query.offset;
 
-    const data = await studentRegistryService.listStudentRegistry({ limit, offset });
+    const data = await studentRegistryService.listStudentRegistry({
+      limit,
+      offset,
+      search: req.query.search,
+      course: req.query.course,
+      year: req.query.year,
+    });
 
     res.json(data);
   } catch (err) {

@@ -889,6 +889,27 @@ const OPENING_ACTION_META = {
     },
 };
 
+function getApplicantStatusMeta(value) {
+    const status = String(value || 'pending').trim().toLowerCase().replace(/[_-]+/g, ' ');
+    if (['pending', 'pending review'].includes(status)) {
+        return { label: 'Pending Review', color: 'var(--portal-base)', bg: 'var(--portal-accent-soft)' };
+    }
+    if (['review', 'under review', 'for review'].includes(status)) {
+        return { label: 'Under Review', color: C.blueMid, bg: C.blueSoft };
+    }
+    if (['approved', 'accepted', 'qualified'].includes(status)) {
+        return { label: status === 'qualified' ? 'Qualified' : 'Approved', color: C.green, bg: C.greenSoft };
+    }
+    if (['rejected', 'disqualified', 'declined'].includes(status)) {
+        return { label: 'Rejected', color: C.red, bg: C.redSoft };
+    }
+    return {
+        label: status.replace(/\b\w/g, (letter) => letter.toUpperCase()),
+        color: '#57534e',
+        bg: '#f5f5f4',
+    };
+}
+
 function OpeningActionConfirmModal({ action, working, error, buttonColor, onCancel, onConfirm }) {
     const meta = action ? OPENING_ACTION_META[action.type] : null;
     const openingName = action?.opening?.opening_title || 'This scholarship opening';
@@ -1090,6 +1111,59 @@ function OpeningCard({
     handleReopenOpening,
     handleArchiveOpening,
 }) {
+    const navigate = useNavigate();
+    const [showApplicants, setShowApplicants] = useState(false);
+    const [applicantSearch, setApplicantSearch] = useState('');
+    const [applicantStatusFilter, setApplicantStatusFilter] = useState('all');
+    const [applicants, setApplicants] = useState([]);
+    const [applicantsLoading, setApplicantsLoading] = useState(false);
+    const [applicantsError, setApplicantsError] = useState('');
+    const [applicantsRefreshKey, setApplicantsRefreshKey] = useState(0);
+
+    useEffect(() => {
+        if (!showApplicants) return undefined;
+
+        let active = true;
+        const loadApplicants = async () => {
+            setApplicantsLoading(true);
+            setApplicantsError('');
+            try {
+                const token = sessionStorage.getItem('adminToken');
+                const response = await fetch(
+                    buildApiUrl(`/api/program-openings/${opening.opening_id}/applications`),
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(data.error || data.message || 'Failed to load applicants.');
+                }
+                if (active) setApplicants(Array.isArray(data) ? data : []);
+            } catch (error) {
+                if (active) setApplicantsError(error.message || 'Failed to load applicants.');
+            } finally {
+                if (active) setApplicantsLoading(false);
+            }
+        };
+
+        loadApplicants();
+        return () => { active = false; };
+    }, [showApplicants, opening.opening_id, applicantsRefreshKey]);
+
+    const applicantStatusOptions = useMemo(() =>
+        [...new Set(applicants.map((applicant) => getApplicantStatusMeta(applicant.application_status).label))]
+            .sort((a, b) => a.localeCompare(b)),
+    [applicants]);
+
+    const filteredApplicants = useMemo(() => {
+        const query = applicantSearch.trim().toLowerCase();
+        return applicants.filter((applicant) =>
+            (applicantStatusFilter === 'all' ||
+                getApplicantStatusMeta(applicant.application_status).label === applicantStatusFilter) &&
+            (!query || [applicant.student_name, applicant.name, applicant.student_number, applicant.pdm_id, applicant.course]
+                .some((value) => String(value || '').toLowerCase().includes(query)))
+        );
+    }, [applicants, applicantSearch, applicantStatusFilter]);
+
     const computedStatus = getComputedDisplayStatus(opening);
     const meta = STATUS_META[computedStatus] || STATUS_META.draft;
     const audience = normalizeAudience(opening.target_audience) || 'Applicants';
@@ -1154,6 +1228,19 @@ function OpeningCard({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 lg:max-w-[55%] lg:justify-end">
+                        {!isArchived && (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setShowApplicants((current) => !current)}
+                                aria-expanded={showApplicants}
+                                className={themeOutlineButton}
+                                style={{ borderColor: C.brownMid, color: C.brownMid }}
+                            >
+                                <Users className="mr-1.5 h-3.5 w-3.5" />
+                                Applicants ({Number(opening.application_count) || 0})
+                            </Button>
+                        )}
                         {isArchived && (
                             <Button
                                 size="sm"
@@ -1290,6 +1377,88 @@ function OpeningCard({
                         </div>
                     ))}
                 </div>
+
+                {showApplicants && !isArchived && (
+                    <div className="border-t border-stone-100 px-4 py-4 sm:px-5">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <h4 className="text-sm font-semibold text-stone-800">Students who applied</h4>
+                                <p className="mt-0.5 text-xs text-stone-500">Applicants for this opening</p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                <Button type="button" size="sm" variant="outline" onClick={() => setApplicantsRefreshKey((value) => value + 1)} disabled={applicantsLoading} className="h-8 rounded-lg border-stone-200 text-xs">
+                                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                                    Refresh
+                                </Button>
+                                <Button type="button" size="sm" variant="outline" onClick={() => navigate(`/admin/openings/${opening.opening_id}/applications`)} className="h-8 rounded-lg border-stone-200 text-xs">
+                                    Open applicant review
+                                </Button>
+                                <Button type="button" size="sm" variant="outline" onClick={() => setShowApplicants(false)} className="h-8 rounded-lg border-stone-200 text-xs">
+                                    <X className="mr-1.5 h-3.5 w-3.5" />
+                                    Close
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                            <div className="relative w-full max-w-md">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                                <Input
+                                    aria-label={`Search applicants for ${opening.opening_title || 'opening'}`}
+                                    placeholder="Search student name, PDM ID, or course..."
+                                    value={applicantSearch}
+                                    onChange={(event) => setApplicantSearch(event.target.value)}
+                                    className="h-9 rounded-lg border-stone-200 bg-stone-50 pl-9 text-sm"
+                                />
+                            </div>
+                            <Select value={applicantStatusFilter} onValueChange={setApplicantStatusFilter}>
+                                <SelectTrigger aria-label="Filter applicants by status" className="h-9 w-full rounded-lg border-stone-200 bg-stone-50 text-sm sm:w-44">
+                                    <SelectValue placeholder="All statuses" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All statuses</SelectItem>
+                                    {applicantStatusOptions.map((status) => (
+                                        <SelectItem key={status} value={status}>{status}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {applicantsLoading ? (
+                            <div role="status" className="flex items-center gap-2 py-5 text-sm text-stone-500">
+                                <Loader2 className="h-4 w-4 animate-spin" /> Loading applicants...
+                            </div>
+                        ) : applicantsError ? (
+                            <p role="alert" className="py-4 text-sm text-red-700">{applicantsError}</p>
+                        ) : filteredApplicants.length === 0 ? (
+                            <p className="py-4 text-sm text-stone-500">
+                                {applicantSearch || applicantStatusFilter !== 'all'
+                                    ? 'No students match your search or filter.'
+                                    : 'No students have applied to this opening yet.'}
+                            </p>
+                        ) : (
+                            <div className="mt-3 max-h-72 divide-y divide-stone-100 overflow-y-auto rounded-xl border border-stone-200">
+                                {filteredApplicants.map((applicant) => (
+                                    <div key={applicant.application_id || applicant.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-sm">
+                                        <div className="min-w-0">
+                                            <p className="font-medium text-stone-800">{applicant.student_name || applicant.name || 'Unnamed student'}</p>
+                                            <p className="text-xs text-stone-500">{applicant.student_number || applicant.pdm_id || 'No PDM ID'}{applicant.course ? ` · ${applicant.course}` : ''}</p>
+                                        </div>
+                                        <span
+                                            className="rounded-full px-2.5 py-1 text-xs font-medium"
+                                            style={{
+                                                color: getApplicantStatusMeta(applicant.application_status).color,
+                                                backgroundColor: getApplicantStatusMeta(applicant.application_status).bg,
+                                            }}
+                                        >
+                                            {getApplicantStatusMeta(applicant.application_status).label}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {opening.announcement_text && (
                     <details className="border-t border-stone-100 px-4 py-3 text-sm sm:px-5">

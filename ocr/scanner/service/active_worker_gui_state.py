@@ -117,6 +117,7 @@ class ProbeConfig:
     backend_health_url: str
     interval_seconds: float
     timeout_seconds: float
+    backend_timeout_seconds: float = 15.0
 
 
 def resolve_device_id(configured_value: Optional[str] = None) -> str:
@@ -170,11 +171,16 @@ def load_probe_config(environ: Optional[dict[str, str]] = None) -> ProbeConfig:
         6.0,
         max(2.0, float(values.get("PUBLIC_INTERNET_PROBE_TIMEOUT_SECONDS", "3"))),
     )
+    backend_timeout = min(
+        30.0,
+        max(2.0, float(values.get("SMART_PDM_BACKEND_PROBE_TIMEOUT_SECONDS", "15"))),
+    )
     return ProbeConfig(
         public_urls=(first, second),
         backend_health_url=f"{base_url}/api/health",
         interval_seconds=interval,
         timeout_seconds=timeout,
+        backend_timeout_seconds=backend_timeout,
     )
 
 
@@ -219,9 +225,10 @@ def run_connectivity_probes(
     requester: Callable[[str, float], bool] = _https_request_succeeds,
 ) -> tuple[str, str]:
     urls = (*config.public_urls, config.backend_health_url)
+    timeouts = (config.timeout_seconds, config.timeout_seconds, config.backend_timeout_seconds)
     with ThreadPoolExecutor(max_workers=3, thread_name_prefix="pi-status-probe") as pool:
         results = list(
-            pool.map(lambda url: bool(requester(url, config.timeout_seconds)), urls)
+            pool.map(lambda item: bool(requester(*item)), zip(urls, timeouts))
         )
     internet = internet_status_from_probes(results[0], results[1])
     backend = backend_status_from_probe(internet, results[2])

@@ -22,6 +22,8 @@ class DeviceStateMonitorTests(unittest.TestCase):
         }
         config = monitor.load_probe_config(base)
         self.assertEqual(config.backend_health_url, "https://smart-pdm.example/api/health")
+        self.assertEqual(config.backend_timeout_seconds, 15.0)
+        self.assertEqual(monitor.load_probe_config({**base, "SMART_PDM_BACKEND_PROBE_TIMEOUT_SECONDS": "20"}).backend_timeout_seconds, 20.0)
         with self.assertRaises(ValueError):
             monitor.load_probe_config({**base, "PUBLIC_INTERNET_PROBE_URL_1": "http://one.example"})
         with self.assertRaises(ValueError):
@@ -97,6 +99,27 @@ class DeviceStateMonitorTests(unittest.TestCase):
         )
         self.assertEqual(internet, "offline")
         self.assertEqual(backend, "no_internet")
+
+    def test_backend_uses_its_own_timeout(self):
+        config = monitor.ProbeConfig(
+            public_urls=("https://one.example", "https://two.example"),
+            backend_health_url="https://backend.example/api/health",
+            interval_seconds=5,
+            timeout_seconds=2,
+            backend_timeout_seconds=15,
+        )
+        observed = {}
+
+        def requester(url, timeout):
+            observed[url] = timeout
+            return True
+
+        self.assertEqual(monitor.run_connectivity_probes(config, requester), ("online", "connected"))
+        self.assertEqual(observed, {
+            "https://one.example": 2,
+            "https://two.example": 2,
+            "https://backend.example/api/health": 15,
+        })
 
     def test_worker_heartbeat_freshness_uses_local_file_age(self):
         with tempfile.TemporaryDirectory() as directory:

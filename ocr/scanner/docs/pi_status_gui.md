@@ -13,6 +13,7 @@ PUBLIC_INTERNET_PROBE_URL_1=https://your-first-probe.example/health
 PUBLIC_INTERNET_PROBE_URL_2=https://your-second-probe.example/health
 PUBLIC_INTERNET_PROBE_INTERVAL_SECONDS=5
 PUBLIC_INTERNET_PROBE_TIMEOUT_SECONDS=2
+SMART_PDM_BACKEND_PROBE_TIMEOUT_SECONDS=15
 SMART_PDM_WORKER_HEARTBEAT_SECONDS=2.5
 SMART_PDM_WORKER_STALE_SECONDS=7.5
 SMART_PDM_DEVICE_HEARTBEAT_SECONDS=2.5
@@ -21,6 +22,8 @@ SMART_PDM_DEVICE_HEARTBEAT_SECONDS=2.5
 Neither public probe may be the configured `RENDER_API_BASE_URL`. The monitor
 accepts one successful public probe as Online and requires both to fail before
 showing Offline. The backend row uses `RENDER_API_BASE_URL/api/health` separately.
+Its timeout defaults to 15 seconds, allowing a hosted backend time to respond
+without slowing the public Internet probes.
 
 ## Installation
 

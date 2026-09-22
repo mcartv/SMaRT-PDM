@@ -760,7 +760,7 @@ function AssignModal({
                     disabled={!department.coordinator}
                   >
                     {department.department_name}
-                    {department.coordinator ? ` — ${department.coordinator.name}` : ' — No coordinator'}
+                    {department.coordinator ? ` — ${department.coordinator.name}` : ' — No RO Personnel-In-Charge'}
                   </option>
                 ))}
               </select>
@@ -895,7 +895,7 @@ function BatchAssignModal({
                     disabled={!department.coordinator}
                   >
                     {department.department_name}
-                    {department.coordinator ? ` — ${department.coordinator.name}` : ' — No coordinator'}
+                    {department.coordinator ? ` — ${department.coordinator.name}` : ' — No RO Personnel-In-Charge'}
                   </option>
                 ))}
               </select>

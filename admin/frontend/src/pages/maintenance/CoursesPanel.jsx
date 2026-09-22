@@ -513,7 +513,7 @@ export default function CoursesPanel() {
                                             {course.course_name}
                                         </p>
                                         {!isArchived ? (
-                                            <p className={`mt-1 text-[11px] font-medium ${course.assigned_pd ? 'text-violet-700' : 'text-amber-700'}`}>
+                                            <p className={`mt-1 text-xs font-medium ${course.assigned_pd ? 'text-violet-700' : 'text-amber-700'}`}>
                                                 {course.assigned_pd
                                                     ? `Program Director: ${course.assigned_pd.name || course.assigned_pd.email}`
                                                     : `Program Director: Unassigned${course.pending_pd_count ? ` · ${course.pending_pd_count} pending applicant${course.pending_pd_count === 1 ? '' : 's'}` : ''}`}

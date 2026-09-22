@@ -3,6 +3,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
     AlertTriangle,
     Building2,
     Clock3,
@@ -121,7 +130,7 @@ function DepartmentModal({
                 <CardContent className="space-y-3 p-4">
                     <div className="space-y-1.5">
                         <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                            Office
+                            Office/Department
                         </label>
 
                         <Input
@@ -183,6 +192,7 @@ export default function ROSettingsPanel() {
     const [saving, setSaving] = useState(false);
     const [departmentSaving, setDepartmentSaving] = useState(false);
     const [departmentActionId, setDepartmentActionId] = useState('');
+    const [deactivationTarget, setDeactivationTarget] = useState(null);
 
     const [error, setError] = useState('');
 
@@ -469,9 +479,9 @@ export default function ROSettingsPanel() {
             showAppToast(
                 'warning',
                 'RO Area cannot be deactivated',
-                `${department.coordinator.name || 'An active coordinator'} is still assigned to ${department.department_name}. Remove or reassign the coordinator before deactivating this RO Area.`
+                `${department.coordinator.name || 'An RO personnel in charge'} is still assigned to ${department.department_name}. Remove or reassign that person before deactivating this RO Area.`
             );
-            return;
+            return false;
         }
 
         try {
@@ -494,13 +504,39 @@ export default function ROSettingsPanel() {
 
             showAppToast('success', 'RO area updated', data.message || 'RO Area status updated successfully.');
             await loadSettings();
+            return true;
         } catch (err) {
             console.error('TOGGLE RO DEPARTMENT ERROR:', err);
             const message = err.message || 'Failed to update RO Area status.';
             showAppToast('error', 'RO Area status not updated', message);
+            return false;
         } finally {
             setDepartmentActionId('');
         }
+    };
+
+    const requestDeactivation = (department) => {
+        if (department.coordinator) {
+            showAppToast(
+                'warning',
+                'RO Area cannot be deactivated',
+                `Remove or reassign ${department.coordinator.name || 'the RO personnel in charge'} before deactivating ${department.department_name}.`
+            );
+            return;
+        }
+        setDeactivationTarget(department);
+    };
+
+    const confirmDeactivation = async () => {
+        if (!deactivationTarget) return;
+        const currentDepartment = departments.find(
+            (department) => department.department_id === deactivationTarget.department_id
+        );
+        if (!currentDepartment || currentDepartment.is_active === false) {
+            setDeactivationTarget(null);
+            return;
+        }
+        if (await toggleDepartment(currentDepartment)) setDeactivationTarget(null);
     };
 
     const hasSearch = search.trim().length > 0;
@@ -524,6 +560,38 @@ export default function ROSettingsPanel() {
                 onSave={saveDepartment}
                 saving={departmentSaving}
             />
+
+            <AlertDialog
+                open={Boolean(deactivationTarget)}
+                onOpenChange={(open) => {
+                    if (!open && !departmentActionId) setDeactivationTarget(null);
+                }}
+            >
+                {deactivationTarget && (
+                    <AlertDialogContent className="gap-0 p-0">
+                        <AlertDialogHeader className="gap-2 px-5 py-4">
+                            <AlertDialogTitle>Deactivate RO Area?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {deactivationTarget.department_name} will move to Inactive. You can restore it later.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter className="px-5 py-4">
+                            <AlertDialogCancel disabled={Boolean(departmentActionId)}>Cancel</AlertDialogCancel>
+                            <Button
+                                type="button"
+                                onClick={confirmDeactivation}
+                                disabled={Boolean(departmentActionId)}
+                                className="bg-red-700 text-white hover:bg-red-800"
+                            >
+                                {departmentActionId === deactivationTarget.department_id && (
+                                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                                )}
+                                Deactivate RO Area
+                            </Button>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                )}
+            </AlertDialog>
 
             {error ? (
                 <div className="flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -666,16 +734,6 @@ export default function ROSettingsPanel() {
 
                             <Button
                                 size="sm"
-                                variant="outline"
-                                onClick={loadSettings}
-                                className="h-8 rounded-lg border-stone-200 text-xs text-stone-600"
-                            >
-                                <RefreshCw className="mr-1 h-3.5 w-3.5" />
-                                Refresh
-                            </Button>
-
-                            <Button
-                                size="sm"
                                 className="h-8 rounded-lg border-none text-xs text-white"
                                 style={{ background: C.brownMid }}
                                 onClick={openCreateModal}
@@ -724,7 +782,7 @@ export default function ROSettingsPanel() {
                                         <p className={`mt-1 truncate text-xs font-medium ${department.coordinator ? 'text-cyan-700' : 'text-amber-700'}`}>
                                             {department.coordinator
                                                 ? `Personnel-In-Charge: ${department.coordinator.name}`
-                                                : 'No active coordinator assigned'}
+                                                : 'Personnel-In-Charge: Unassigned'}
                                         </p>
                                     </div>
 
@@ -739,7 +797,7 @@ export default function ROSettingsPanel() {
                                                 className="h-8 max-w-[230px] rounded-lg border border-stone-200 bg-white px-2 text-xs text-stone-700 outline-none focus:border-orange-700"
                                                 aria-label={`Personnel-In-Charge for ${department.department_name}`}
                                             >
-                                                <option value="">No coordinator</option>
+                                                <option value="">Unassigned</option>
                                                 {coordinatorCandidates.map((candidate) => (
                                                     <option
                                                         key={candidate.user_id}
@@ -769,7 +827,7 @@ export default function ROSettingsPanel() {
                                                     ? 'border-red-200 text-red-700 hover:bg-red-50'
                                                     : 'border-green-200 text-green-700 hover:bg-green-50'
                                                 }`}
-                                            onClick={() => toggleDepartment(department)}
+                                            onClick={() => isActive ? requestDeactivation(department) : toggleDepartment(department)}
                                             disabled={loadingThis}
                                         >
                                             {loadingThis ? (

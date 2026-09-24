@@ -106,7 +106,7 @@ function BenefactorFields({ form, setForm, includeArchive = true }) {
               benefactor_name: event.target.value,
             }))
           }
-          placeholder="e.g. CHED / UNIFAST"
+          placeholder="e.g. Community Scholarship Foundation"
           className="h-9 rounded-lg border-stone-200 text-sm"
         />
       </div>
@@ -206,7 +206,7 @@ function ProgramFields({ form, setForm, includeBenefactor = false, benefactors =
               program_name: event.target.value,
             }))
           }
-          placeholder="e.g. TES - Tertiary Education Subsidy"
+          placeholder="e.g. Academic Excellence Scholarship"
           className="h-9 rounded-lg border-stone-200 text-sm"
         />
       </div>

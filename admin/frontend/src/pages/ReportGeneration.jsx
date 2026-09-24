@@ -26,7 +26,10 @@ import {
   Filter,
   Loader2,
   Eye,
+  Printer,
   RotateCcw,
+  ChevronDown,
+  ChevronUp,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -155,19 +158,19 @@ function getAuthHeaders(tokenStorageKey = 'adminToken') {
   };
 }
 
-function TemplateRow({ report, active, onClick, theme }) {
+function TemplateRow({ report, active, onClick, theme, compact = false }) {
   return (
     <button
       type="button"
       onClick={() => onClick(report.id)}
-      className={`report-template-card group flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${active
+      className={`report-template-card group flex w-full items-start gap-3 rounded-xl border px-3 text-left transition-colors ${compact ? 'py-2' : 'py-3'} ${active
         ? ''
         : 'border-stone-200/60 bg-transparent hover:border-stone-300/90 hover:bg-stone-50'
         }`}
       style={active ? { borderColor: theme.base, background: theme.accentSoft } : undefined}
     >
       <div
-        className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-colors ${active
+        className={`mt-0.5 flex shrink-0 items-center justify-center rounded-xl border transition-colors ${compact ? 'h-8 w-8' : 'h-9 w-9'} ${active
           ? 'text-white'
           : 'border-stone-200 bg-white text-stone-500 group-hover:border-stone-300'
           }`}
@@ -193,7 +196,7 @@ function TemplateRow({ report, active, onClick, theme }) {
 
 function FilterField({ label, children }) {
   return (
-    <div className="min-w-0 space-y-2">
+    <div className="report-filter-field min-w-0 space-y-2">
       <label className="block text-[11px] font-semibold uppercase tracking-wider text-stone-400">
         {label}
       </label>
@@ -254,6 +257,15 @@ function formatHeader(key) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function escapePrintHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
 export default function ReportGeneration({
   tokenStorageKey = 'adminToken',
   allowedReportTypes = null,
@@ -269,8 +281,10 @@ export default function ReportGeneration({
           ? 'ro_coordinator'
           : 'admin';
   const { theme } = usePortalTheme(portalKey);
+  const isDepartmentView = portalKey !== 'admin';
 
   const [loading, setLoading] = useState(true);
+  const [filtersExpanded, setFiltersExpanded] = useState(true);
   const [exportState, setExportState] = useState({});
   const [lockedReports, setLockedReports] = useState(() => new Set());
   const exportLocksRef = useRef(new Set());
@@ -844,6 +858,67 @@ export default function ReportGeneration({
     }
   }
 
+  function handlePrintPreview() {
+    const printWindow = window.open('', '_blank', 'width=1200,height=800');
+    if (!printWindow) {
+      toast.error('Unable to open print preview', {
+        description: 'Allow pop-ups for this site, then try again.',
+      });
+      return;
+    }
+
+    printWindow.opener = null;
+    const title = escapePrintHtml(selectedReport?.name || 'Report Preview');
+    const subtitle = escapePrintHtml(selectedReport?.sub || '');
+    const generatedAt = escapePrintHtml(new Date().toLocaleString());
+    const columnHeaders = previewColumns
+      .map((column) => `<th>${escapePrintHtml(formatHeader(column))}</th>`)
+      .join('');
+    const tableRows = previewRows
+      .map((row) => `<tr>${previewColumns
+        .map((column) => `<td>${escapePrintHtml(formatCellValue(row[column]))}</td>`)
+        .join('')}</tr>`)
+      .join('');
+    const emptyState = `<tr><td class="empty" colspan="${Math.max(previewColumns.length, 1)}">No matching records found.</td></tr>`;
+
+    printWindow.document.open();
+    printWindow.document.write(`<!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>${title}</title>
+          <style>
+            @page { size: landscape; margin: 12mm; }
+            * { box-sizing: border-box; }
+            body { margin: 0; color: #1c1917; font-family: Arial, sans-serif; font-size: 11px; }
+            h1 { margin: 0; font-size: 20px; }
+            .subtitle { margin: 5px 0 0; color: #57534e; font-size: 12px; }
+            .meta { display: flex; justify-content: space-between; gap: 16px; margin: 18px 0 10px; color: #78716c; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #d6d3d1; padding: 7px 8px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+            th { background: #f5f5f4; font-size: 10px; text-transform: uppercase; }
+            tr { break-inside: avoid; }
+            .empty { padding: 28px; text-align: center; color: #78716c; }
+          </style>
+        </head>
+        <body>
+          <h1>${title}</h1>
+          ${subtitle ? `<p class="subtitle">${subtitle}</p>` : ''}
+          <div class="meta">
+            <span>Showing ${previewRows.length} of ${previewTotal} matching records</span>
+            <span>Prepared ${generatedAt}</span>
+          </div>
+          <table>
+            ${previewColumns.length ? `<thead><tr>${columnHeaders}</tr></thead>` : ''}
+            <tbody>${tableRows || emptyState}</tbody>
+          </table>
+        </body>
+      </html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    window.setTimeout(() => printWindow.print(), 150);
+  }
+
   if (loading) {
     return <PageLoadingSkeleton label="Loading reports" variant="cards" />;
   }
@@ -882,23 +957,41 @@ export default function ReportGeneration({
         </div>
       ) : null}
 
-      <div className="grid min-w-0 grid-cols-1 gap-4 sm:gap-5 xl:grid-cols-12 xl:items-start">
+      {isDepartmentView ? (
+        <Card className="min-w-0 overflow-hidden border-stone-200 bg-white shadow-none">
+          <div className="flex flex-col gap-3 p-3 sm:p-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <div
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                style={{ background: theme.accentSoft, color: theme.base }}
+              >
+                <FileText className="h-5 w-5" />
+              </div>
+
+              <div className="min-w-0">
+                <h2 className="report-section-title break-words text-base font-semibold text-stone-900 sm:text-lg">
+                  {selectedReport?.name || 'Report'}
+                </h2>
+                <p className="mt-0.5 max-w-2xl text-xs leading-5 text-stone-500 sm:text-sm">
+                  {selectedReport?.sub || 'Set the filters below to generate this report.'}
+                </p>
+              </div>
+            </div>
+
+          </div>
+        </Card>
+      ) : null}
+
+      <div className={isDepartmentView
+        ? 'grid min-w-0 grid-cols-1 gap-4 sm:gap-5'
+        : 'grid min-w-0 grid-cols-1 gap-4 sm:gap-5 xl:grid-cols-12 xl:items-start'}>
         {/* LEFT: REPORT TEMPLATE LIST */}
         <Card
-          className="
-    flex
-    min-h-0
-    min-w-0
-    flex-col
-    overflow-hidden
-    border-stone-200
-    bg-white
-    shadow-none
-    xl:col-span-4
-    xl:h-[calc(100dvh-7rem)]
-  "
+          className={isDepartmentView
+            ? 'flex min-h-0 min-w-0 flex-col overflow-hidden border-stone-200 bg-white shadow-none'
+            : 'flex min-h-0 min-w-0 flex-col overflow-hidden border-stone-200 bg-white shadow-none xl:col-span-4 xl:h-[calc(100dvh-7rem)]'}
         >
-          <div className="shrink-0 border-b border-stone-100 bg-stone-50/70 px-4 py-4">
+          <div className={`shrink-0 border-b border-stone-100 bg-stone-50/70 px-4 ${isDepartmentView ? 'py-3' : 'py-4'}`}>
             <h2 className="report-section-title text-sm font-semibold text-stone-800">
               Report Templates
             </h2>
@@ -908,27 +1001,22 @@ export default function ReportGeneration({
             </p>
           </div>
 
-          <CardContent
-            className="
-              min-h-0
-              flex-1
-              overflow-y-auto
-              overscroll-contain
-              p-3
-              sm:p-4
-            "
-          >
-            <div className="space-y-5 pb-1">
+          <CardContent className={isDepartmentView
+            ? 'min-h-0 flex-1 overflow-y-auto overscroll-contain p-2.5 sm:p-3'
+            : 'min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4'}>
+            <div className={isDepartmentView ? 'space-y-3 pb-1' : 'space-y-5 pb-1'}>
               {groupedReportTypes.map((group) => (
                 <section
                   key={group.label}
                   className="min-w-0"
                 >
-                  <p className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-400">
+                  {!isDepartmentView ? <p className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-400">
                     {group.label}
-                  </p>
+                  </p> : null}
 
-                  <div className="space-y-1">
+                  <div className={isDepartmentView
+                    ? 'grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3'
+                    : 'space-y-1'}>
                     {group.reports.map((report) => (
                       <TemplateRow
                         key={report.id}
@@ -936,6 +1024,7 @@ export default function ReportGeneration({
                         active={selected === report.id}
                         onClick={handleReportTypeChange}
                         theme={theme}
+                        compact={isDepartmentView}
                       />
                     ))}
                   </div>
@@ -947,19 +1036,11 @@ export default function ReportGeneration({
 
         {/* RIGHT: SELECTED REPORT */}
         <Card
-          className="
-            flex
-            min-w-0
-            flex-col
-            overflow-hidden
-            border-stone-200
-            bg-white
-            shadow-none
-            xl:col-span-8
-            xl:min-h-[calc(100dvh-7rem)]
-          "
+          className={isDepartmentView
+            ? 'flex min-w-0 flex-col overflow-hidden border-stone-200 bg-white shadow-none'
+            : 'flex min-w-0 flex-col overflow-hidden border-stone-200 bg-white shadow-none xl:col-span-8 xl:min-h-[calc(100dvh-7rem)]'}
         >
-          <div className="shrink-0 border-b border-stone-100 bg-stone-50/70 px-4 py-4 sm:px-5">
+          {!isDepartmentView ? <div className="shrink-0 border-b border-stone-100 bg-stone-50/70 px-4 py-4 sm:px-5">
             <div className="flex min-w-0 items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-600">
                 <FileText className="h-4 w-4" />
@@ -976,28 +1057,62 @@ export default function ReportGeneration({
                 </p>
               </div>
             </div>
-          </div>
+          </div> : null}
 
-          <CardContent className="p-4 sm:p-5">
-            <div className="mx-auto w-full max-w-4xl space-y-6">
+          <CardContent className={isDepartmentView ? 'p-2.5 sm:p-3' : 'p-4 sm:p-5'}>
+            <div className={isDepartmentView ? 'w-full space-y-3' : 'mx-auto w-full max-w-4xl space-y-6'}>
               <section className="min-w-0">
-                <div className="mb-4 flex items-start gap-3">
-                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-stone-600">
-                    <Filter className="h-4 w-4" />
+                <div className={`${isDepartmentView ? (filtersExpanded ? 'mb-2.5' : 'mb-0') : 'mb-4'} flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between`}>
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-stone-600"
+                      style={isDepartmentView ? { background: theme.accentSoft, color: theme.base } : undefined}
+                    >
+                      <Filter className="h-4 w-4" />
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-semibold text-stone-800">
+                        Filters
+                      </h3>
+
+                      {!isDepartmentView ? <p className="mt-0.5 text-xs text-stone-500">
+                        Set the parameters for the report.
+                      </p> : null}
+                    </div>
                   </div>
 
-                  <div>
-                    <h3 className="text-sm font-semibold text-stone-800">
-                      Filters
-                    </h3>
-
-                    <p className="mt-0.5 text-xs text-stone-500">
-                      Set the parameters for the report.
-                    </p>
-                  </div>
+                  {isDepartmentView ? (
+                    <div className="flex w-full gap-2 sm:w-auto">
+                      <Button
+                        variant="outline"
+                        className="h-8 flex-1 rounded-lg px-3 text-xs font-semibold sm:flex-none"
+                        style={{ borderColor: theme.border, color: theme.base }}
+                        disabled={previewLoading}
+                        onClick={resetFilters}
+                        aria-label="Reset Filters"
+                      >
+                        <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                        Reset
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-8 flex-1 rounded-lg px-3 text-xs font-semibold sm:flex-none"
+                        onClick={() => setFiltersExpanded((current) => !current)}
+                        aria-expanded={filtersExpanded}
+                      >
+                        {filtersExpanded
+                          ? <ChevronUp className="mr-1.5 h-3.5 w-3.5" />
+                          : <ChevronDown className="mr-1.5 h-3.5 w-3.5" />}
+                        {filtersExpanded ? 'Hide Filters' : 'Show Filters'}
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
 
-                <div className="grid min-w-0 grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2">
+                {(!isDepartmentView || filtersExpanded) ? <div className={isDepartmentView
+                  ? 'grid min-w-0 grid-cols-1 gap-x-2.5 gap-y-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-5 [&_.report-filter-field]:space-y-1 [&_[data-slot=select-trigger]]:h-8 [&_[data-slot=select-trigger]]:rounded-lg [&_[data-slot=select-trigger]]:text-xs'
+                  : 'grid min-w-0 grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2'}>
                   {supportsAcademicYearRangeFilter ? (
                     <>
                       <FilterField label="Academic Year From">
@@ -1410,12 +1525,40 @@ export default function ReportGeneration({
                     </FilterField>
                   ) : null}
 
-                </div>
+                  {isDepartmentView && supportsDateFilters ? (
+                    <>
+                      <FilterField label="Date From">
+                        <Input
+                          type="date"
+                          value={dateFrom}
+                          onChange={(event) => setDateFrom(event.target.value)}
+                          className="h-8 w-full min-w-0 rounded-lg border-stone-200 bg-stone-50/50 text-xs font-medium"
+                        />
+                      </FilterField>
+
+                      <FilterField label="Date To">
+                        <Input
+                          type="date"
+                          value={dateTo}
+                          onChange={(event) => setDateTo(event.target.value)}
+                          className="h-8 w-full min-w-0 rounded-lg border-stone-200 bg-stone-50/50 text-xs font-medium"
+                        />
+                      </FilterField>
+                    </>
+                  ) : null}
+
+                </div> : null}
+
+                {isDepartmentView && filtersExpanded && isDateRangeInvalid ? (
+                  <p className="mt-2 text-xs font-medium text-red-600">
+                    Date From cannot be later than Date To.
+                  </p>
+                ) : null}
               </section>
 
-              {supportsDateFilters ? (
-                <section className="border-t border-stone-100 pt-5">
-                  <div className="mb-4 flex items-start gap-3">
+              {supportsDateFilters && !isDepartmentView ? (
+                <section className={`border-t border-stone-100 ${isDepartmentView ? 'pt-4' : 'pt-5'}`}>
+                  <div className={`${isDepartmentView ? 'mb-3' : 'mb-4'} flex items-start gap-3`}>
                     <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-stone-600">
                       <Calendar className="h-4 w-4" />
                     </div>
@@ -1431,7 +1574,9 @@ export default function ReportGeneration({
                     </div>
                   </div>
 
-                  <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className={isDepartmentView
+                    ? 'grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 [&_.report-filter-field]:space-y-1 [&_input]:h-9'
+                    : 'grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2'}>
                     <FilterField label="Date From">
                       <Input
                         type="date"
@@ -1463,7 +1608,7 @@ export default function ReportGeneration({
                 </section>
               ) : null}
 
-              <div className="flex flex-col gap-2 border-t border-stone-100 pt-5 sm:flex-row sm:flex-wrap">
+              {!isDepartmentView ? <div className="flex flex-col gap-2 border-t border-stone-100 pt-5 sm:flex-row sm:flex-wrap">
                 <Button
                   variant="outline"
                   className="report-action-button h-11 w-full rounded-xl text-sm font-semibold sm:w-auto"
@@ -1528,7 +1673,7 @@ export default function ReportGeneration({
                   <RotateCcw className="mr-2 h-4 w-4" />
                   Reset
                 </Button>
-              </div>
+              </div> : null}
             </div>
           </CardContent>
         </Card>
@@ -1536,8 +1681,8 @@ export default function ReportGeneration({
 
       {hasPreviewed ? (
         <Card ref={previewSectionRef} className="w-full min-w-0 max-w-full scroll-mt-4 overflow-hidden border-stone-200 bg-white shadow-none">
-          <div className="border-b border-stone-100 bg-stone-50/70 px-4 py-4">
-            <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+          <div className={`border-b border-stone-100 bg-stone-50/70 px-4 ${isDepartmentView ? 'py-3' : 'py-4'}`}>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="min-w-0">
                 <h2 className="text-sm font-semibold text-stone-800">
                   {isScholarshipHistoryReport
@@ -1557,11 +1702,54 @@ export default function ReportGeneration({
                 </p>
               </div>
 
-              {previewRows.length > 0 ? (
-                <span className="w-fit rounded-full border border-stone-200 bg-white px-3 py-1 text-[11px] font-medium text-stone-500">
-                  Preview only
-                </span>
-              ) : null}
+              <div className="flex flex-wrap items-center gap-2">
+                {previewRows.length > 0 ? (
+                  <span className="w-fit rounded-full border border-stone-200 bg-white px-3 py-1 text-[11px] font-medium text-stone-500">
+                    Total Records: {previewTotal}
+                  </span>
+                ) : null}
+
+                {isDepartmentView ? (
+                  <>
+                    <Button
+                      className="h-8 rounded-lg border-none px-3 text-xs font-semibold text-white"
+                      style={{ background: theme.base }}
+                      disabled={isSelectedReportExportLocked || hasInvalidFilterRange}
+                      onClick={handleGenerateReport}
+                    >
+                      {selectedGeneratingFormat === (isScholarCountReport ? 'pdf' : 'xlsx')
+                        ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        : <Download className="mr-1.5 h-3.5 w-3.5" />}
+                      {isScholarCountReport ? 'Download PDF' : 'Download Excel'}
+                    </Button>
+
+                    {!isScholarCountReport ? (
+                      <Button
+                        variant="outline"
+                        className="h-8 rounded-lg px-3 text-xs font-semibold"
+                        style={{ borderColor: theme.border, color: theme.base }}
+                        disabled={isSelectedReportExportLocked || hasInvalidFilterRange}
+                        onClick={() => handleDownloadByFormat('csv')}
+                      >
+                        {selectedGeneratingFormat === 'csv'
+                          ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          : <Download className="mr-1.5 h-3.5 w-3.5" />}
+                        Download CSV
+                      </Button>
+                    ) : null}
+
+                    <Button
+                      variant="outline"
+                      className="h-8 rounded-lg px-3 text-xs font-semibold"
+                      style={{ borderColor: theme.border, color: theme.base }}
+                      onClick={handlePrintPreview}
+                    >
+                      <Printer className="mr-1.5 h-3.5 w-3.5" />
+                      Print
+                    </Button>
+                  </>
+                ) : null}
+              </div>
             </div>
           </div>
 

@@ -49,3 +49,16 @@ test('department report selection includes SDO offense classifications and optio
   assert.match(controller, /normalizedRole === 'sdo'[\s\S]*allowed\.push\('sdo_offenses'\)/);
   assert.match(controller, /hasRoCoordinatorAccess[\s\S]*allowed\.push\('ro'\)/);
 });
+
+test('department reports use a responsive landscape workspace while Admin keeps its existing split layout', () => {
+  const page = read('frontend/src/pages/ReportGeneration.jsx');
+
+  assert.match(page, /const isDepartmentView = portalKey !== 'admin'/);
+  assert.match(page, /isDepartmentView[\s\S]*Download Excel[\s\S]*Download CSV/);
+  assert.match(page, /handlePrintPreview[\s\S]*window\.open[\s\S]*printWindow\.print/);
+  assert.match(page, /<Printer[\s\S]*Print/);
+  assert.match(page, /sm:grid-cols-2 xl:grid-cols-4/);
+  assert.match(page, /Reset Filters/);
+  assert.match(page, /xl:grid-cols-12 xl:items-start/);
+  assert.match(page, /xl:col-span-4[\s\S]*xl:col-span-8/);
+});

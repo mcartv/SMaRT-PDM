@@ -399,11 +399,12 @@ export default function DepartmentPortalLayout({
               collapsed ? 'justify-center' : 'gap-3'
             } rounded-xl px-3 py-2.5 text-sm transition-colors hover:bg-white/10`}
             style={{ color: theme.text }}
-            title={collapsed ? 'Expand' : 'Collapse'}
+            title={collapsed ? 'Expand' : 'Minimize'}
+            aria-label={collapsed ? 'Expand sidebar' : 'Minimize sidebar'}
           >
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
             <span className={`portal-responsive-sidebar-label font-medium ${collapsed ? 'hidden' : ''}`}>
-              Collapse
+              Minimize
             </span>
           </button>
 

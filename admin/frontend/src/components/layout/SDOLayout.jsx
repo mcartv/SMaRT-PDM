@@ -388,14 +388,15 @@ export default function SDOLayout() {
         <div className="p-3 border-t border-white/10 space-y-1.5">
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className={`flex items-center ${
+            className={`portal-responsive-collapse-control flex items-center ${
               collapsed ? 'justify-center' : 'gap-3'
             } w-full px-3 py-2.5 rounded-xl text-sm transition-colors hover:bg-white/10`}
             style={{ color: theme.text }}
-            title={collapsed ? 'Expand' : 'Collapse'}
+            title={collapsed ? 'Expand' : 'Minimize'}
+            aria-label={collapsed ? 'Expand sidebar' : 'Minimize sidebar'}
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-            {!collapsed && <span className="portal-responsive-sidebar-label font-medium">Collapse</span>}
+            {!collapsed && <span className="portal-responsive-sidebar-label font-medium">Minimize</span>}
           </button>
 
           <button

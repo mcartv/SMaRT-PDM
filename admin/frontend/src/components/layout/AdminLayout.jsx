@@ -455,16 +455,17 @@ export default function AdminLayout() {
         <div className="space-y-1.5 border-t border-white/10 p-3">
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className={`flex w-full items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-colors hover:bg-white/10`}
+            className={`portal-responsive-collapse-control flex w-full items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-colors hover:bg-white/10`}
             style={{ color: theme.text }}
-            title={collapsed ? 'Expand' : 'Collapse'}
+            title={collapsed ? 'Expand' : 'Minimize'}
+            aria-label={collapsed ? 'Expand sidebar' : 'Minimize sidebar'}
           >
             {collapsed ? (
               <ChevronRight className="h-4 w-4" />
             ) : (
               <ChevronLeft className="h-4 w-4" />
             )}
-            {!collapsed && <span className="portal-responsive-sidebar-label font-medium">Collapse</span>}
+            {!collapsed && <span className="portal-responsive-sidebar-label font-medium">Minimize</span>}
           </button>
 
           <button

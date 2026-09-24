@@ -36,7 +36,6 @@ import {
     ArchiveRestore,
     X,
     Clock3,
-    Sparkles,
     Megaphone,
     Layers3,
     EyeOff,
@@ -397,16 +396,20 @@ function OpeningModal({
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-2 backdrop-blur-sm sm:p-4"
             onClick={onClose}
+            role="presentation"
         >
             <Card
-                className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden border-stone-200 shadow-xl"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="scholarship-opening-modal-title"
+                className="flex max-h-[calc(100dvh-1rem)] w-full max-w-5xl flex-col overflow-hidden border-stone-200 shadow-xl sm:max-h-[calc(100dvh-2rem)]"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="flex shrink-0 items-center justify-between border-b border-stone-100 bg-stone-50 px-5 py-4">
-                    <div>
-                        <h3 className="text-base font-semibold text-stone-800">{title}</h3>
+                <div className="flex shrink-0 items-start justify-between gap-3 border-b border-stone-100 bg-stone-50 px-4 py-3 sm:px-5 sm:py-4">
+                    <div className="min-w-0">
+                        <h3 id="scholarship-opening-modal-title" className="text-base font-semibold text-stone-800">{title}</h3>
                         <p className="mt-0.5 text-xs text-stone-500">
                             {isTemplateLaunch
                                 ? 'Start from this template. Opening-specific capacity and budget are configured after the draft is created.'
@@ -417,13 +420,14 @@ function OpeningModal({
                     <button
                         type="button"
                         onClick={onClose}
-                        className="rounded-lg p-2 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600"
+                        className="shrink-0 rounded-lg p-2 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600"
+                        aria-label={`Close ${title}`}
                     >
                         <X size={16} />
                     </button>
                 </div>
 
-                <div className="flex-1 space-y-5 overflow-y-auto p-5">
+                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 sm:space-y-5 sm:p-5">
                     {selectedTemplate && (
                         <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
                             <div className="flex items-start gap-3">
@@ -478,7 +482,7 @@ function OpeningModal({
                         </div>
                     )}
 
-                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
                         <div className="space-y-4">
                             <div className="space-y-1.5">
                                 <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
@@ -741,16 +745,16 @@ function OpeningModal({
                                 }))
                             }
                             placeholder="Instructions, reminders, notes, or conditions..."
-                            className="min-h-[120px] resize-none rounded-lg border-stone-200 text-sm"
+                            className="min-h-24 resize-y rounded-lg border-stone-200 text-sm sm:min-h-[120px]"
                         />
                     </div>
                 </div>
 
-                <div className="flex shrink-0 items-center justify-end gap-2 border-t border-stone-100 bg-stone-50 px-5 py-4">
+                <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-stone-100 bg-stone-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-end sm:px-5 sm:py-4">
                     <Button
                         variant="outline"
                         onClick={onClose}
-                        className="h-9 rounded-lg border-stone-200 text-xs"
+                        className="h-9 w-full rounded-lg border-stone-200 text-xs sm:w-auto"
                     >
                         Cancel
                     </Button>
@@ -758,14 +762,12 @@ function OpeningModal({
                     <Button
                         onClick={onSave}
                         disabled={saving || !canSubmit}
-                        className="h-9 rounded-lg border-none text-xs text-white disabled:opacity-50"
+                        className="h-9 w-full rounded-lg border-none text-xs text-white disabled:opacity-50 sm:w-auto"
                         style={{ background: C.brownMid }}
                     >
                         {saving ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                            <Sparkles className="mr-2 h-4 w-4" />
-                        )}
+                        ) : null}
                         {isEdit ? 'Save Changes' : isTemplateLaunch ? 'Create Draft' : 'Create Opening'}
                     </Button>
                 </div>

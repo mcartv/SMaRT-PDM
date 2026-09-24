@@ -20,9 +20,17 @@ export const C = {
 };
 
 export function FieldLabel({ children }) {
+    const text = typeof children === 'string' ? children.trimEnd() : null;
+    const hasRequiredMark = Boolean(text?.endsWith('*'));
+
     return (
         <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-stone-400">
-            {children}
+            {hasRequiredMark ? (
+                <>
+                    {text.slice(0, -1).trimEnd()}{' '}
+                    <span className="text-red-600" aria-hidden="true">*</span>
+                </>
+            ) : children}
         </label>
     );
 }

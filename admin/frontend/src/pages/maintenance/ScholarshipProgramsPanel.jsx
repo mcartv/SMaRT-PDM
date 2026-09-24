@@ -38,6 +38,7 @@ import {
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { confirmArchive } from '@/utils/confirmArchive';
+import { toast } from 'sonner';
 
 const EMPTY_BENEFACTOR = {
   benefactor_name: '',
@@ -329,6 +330,28 @@ function statusBadge(isArchived) {
     : 'border-emerald-100 bg-emerald-50 text-emerald-700';
 }
 
+const NEW_RECORD_DAYS = 30;
+
+function createdTime(record) {
+  const timestamp = Date.parse(record?.created_at || '');
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function isNewRecord(record) {
+  const timestamp = createdTime(record);
+  if (!timestamp) return false;
+  const age = Date.now() - timestamp;
+  return age >= 0 && age <= NEW_RECORD_DAYS * 24 * 60 * 60 * 1000;
+}
+
+function latestBenefactorActivity(benefactor, programsByBenefactor) {
+  const linkedPrograms = programsByBenefactor.get(String(benefactor?.benefactor_id)) || [];
+  return linkedPrograms.reduce(
+    (latest, program) => Math.max(latest, createdTime(program)),
+    createdTime(benefactor)
+  );
+}
+
 function ProgramRow({ program, onEdit, onArchive }) {
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-stone-50/70 p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -344,6 +367,11 @@ function ProgramRow({ program, onEdit, onArchive }) {
           >
             {program.is_archived ? 'Archived' : program.visibility_status || 'Published'}
           </span>
+          {!program.is_archived && isNewRecord(program) ? (
+            <span className="rounded-full bg-[var(--portal-accent-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--portal-base)]">
+              New
+            </span>
+          ) : null}
         </div>
         <p className="mt-1 text-xs text-stone-500">
           {program.target_audience || 'Applicants'} ·{' '}
@@ -482,11 +510,8 @@ export default function ScholarshipProgramsPanel() {
     });
 
     map.forEach((rows) => {
-      rows.sort((left, right) =>
-        String(left.program_name || '').localeCompare(
-          String(right.program_name || '')
-        )
-      );
+      rows.sort((left, right) => createdTime(right) - createdTime(left)
+        || String(left.program_name || '').localeCompare(String(right.program_name || '')));
     });
 
     return map;
@@ -506,7 +531,7 @@ export default function ScholarshipProgramsPanel() {
         const linkedPrograms =
           programsByBenefactor.get(String(benefactor.benefactor_id)) || [];
 
-        return (
+        return !query || (
           String(benefactor.benefactor_name || '')
             .toLowerCase()
             .includes(query) ||
@@ -527,11 +552,9 @@ export default function ScholarshipProgramsPanel() {
           )
         );
       })
-      .sort((left, right) =>
-        String(left.benefactor_name || '').localeCompare(
-          String(right.benefactor_name || '')
-        )
-      );
+      .sort((left, right) => latestBenefactorActivity(right, programsByBenefactor)
+        - latestBenefactorActivity(left, programsByBenefactor)
+        || String(left.benefactor_name || '').localeCompare(String(right.benefactor_name || '')));
   }, [benefactors, pageTab, programsByBenefactor, search]);
 
   const openCombinedCreate = () => {
@@ -590,6 +613,9 @@ export default function ScholarshipProgramsPanel() {
           [newBenefactorId]: true,
         }));
       }
+      toast.success('Benefactor and program created', {
+        description: `${benefactorPayload.benefactor_name} and ${programPayload.program_name} were added successfully.`,
+      });
     } catch (error) {
       console.error('CREATE BENEFACTOR WITH PROGRAM ERROR:', error);
       alert(error.message || 'Failed to create benefactor and program');
@@ -625,6 +651,9 @@ export default function ScholarshipProgramsPanel() {
       setBenefactorModalOpen(false);
       setEditingBenefactorId(null);
       await loadAll();
+      toast.success('Benefactor updated', {
+        description: `${benefactorForm.benefactor_name.trim()} was updated successfully.`,
+      });
     } catch (error) {
       console.error('UPDATE BENEFACTOR ERROR:', error);
       alert(error.message || 'Failed to update benefactor');
@@ -648,6 +677,9 @@ export default function ScholarshipProgramsPanel() {
         body: JSON.stringify({ is_archived: nextArchived }),
       });
       await loadAll();
+      toast.success(nextArchived ? 'Benefactor archived' : 'Benefactor restored', {
+        description: `${benefactor.benefactor_name} was ${nextArchived ? 'moved to Archived' : 'restored to Current'}.`,
+      });
     } catch (error) {
       console.error('ARCHIVE BENEFACTOR ERROR:', error);
       alert(error.message || `Failed to ${verb} benefactor`);
@@ -724,6 +756,9 @@ export default function ScholarshipProgramsPanel() {
         ...previous,
         [payload.benefactor_id]: true,
       }));
+      toast.success(isEdit ? 'Scholarship program updated' : 'Scholarship program created', {
+        description: `${payload.program_name} was ${isEdit ? 'updated' : 'added'} successfully.`,
+      });
     } catch (error) {
       console.error('SAVE PROGRAM ERROR:', error);
       alert(error.message || 'Failed to save scholarship program');
@@ -747,6 +782,9 @@ export default function ScholarshipProgramsPanel() {
         body: JSON.stringify({ is_archived: nextArchived }),
       });
       await loadAll();
+      toast.success(nextArchived ? 'Scholarship program archived' : 'Scholarship program restored', {
+        description: `${program.program_name} was ${nextArchived ? 'moved to Archived' : 'restored to Current'}.`,
+      });
     } catch (error) {
       console.error('ARCHIVE PROGRAM ERROR:', error);
       alert(error.message || `Failed to ${verb} scholarship program`);

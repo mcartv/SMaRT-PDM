@@ -330,7 +330,7 @@ export default function App() {
             element={
               <ReportGeneration
                 tokenStorageKey="sdoToken"
-                allowedReportTypes={['sdo', 'ro']}
+                allowedReportTypes={['sdo', 'sdo_offenses', 'ro']}
                 defaultReportType="sdo"
               />
             }

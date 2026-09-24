@@ -30,7 +30,7 @@ test('RO compliance reporting supports the requested demographic and placement f
 
   assert.match(page, /Compliance Status/);
   assert.match(page, /Not fully complied/i);
-  assert.match(page, /Pending validations/i);
+  assert.match(service, /pending_validation_count/);
 });
 
 test('shared scholar filters and aligned date range are available across reports', () => {
@@ -43,9 +43,9 @@ test('shared scholar filters and aligned date range are available across reports
   assert.match(service, /appendDateRange\(where, params, 'pb\.payout_date'/);
   assert.match(service, /LEFT JOIN benefactors b ON sp\.benefactor_id = b\.benefactor_id/);
 
-  assert.match(page, /supportsStudentDetailFilters = selected !== 'slot_utilization'/);
-  assert.match(page, /supportsRoAreaFilter = \['ro', 'ro_compliance'\]/);
-  assert.match(page, /md:col-span-2 md:grid-cols-2/);
+  assert.match(page, /ro_compliance:\s*\[[^\]]*roArea[^\]]*course[^\]]*yearLevel[^\]]*gender/);
+  assert.match(page, /supportsRoAreaFilter = activeFilterFields\.has\('roArea'\)/);
+  assert.match(page, /gap-x-5 gap-y-4 md:grid-cols-2/);
   assert.match(page, /Date From/);
   assert.match(page, /Date To/);
 });

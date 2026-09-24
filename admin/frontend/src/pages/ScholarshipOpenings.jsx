@@ -482,7 +482,7 @@ function OpeningModal({
                         <div className="space-y-4">
                             <div className="space-y-1.5">
                                 <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                    Scholarship Program
+                                    Scholarship Program <span className="text-red-600" aria-hidden="true">*</span>
                                 </label>
                                 <Select
                                     value={form.program_id}
@@ -525,7 +525,7 @@ function OpeningModal({
 
                             <div className="space-y-1.5">
                                 <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                    Opening Title
+                                    Opening Title <span className="text-red-600" aria-hidden="true">*</span>
                                 </label>
                                 <Input
                                     value={form.opening_title}
@@ -542,7 +542,7 @@ function OpeningModal({
 
                             <div className="space-y-1.5">
                                 <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                    Academic Year
+                                    Academic Year <span className="text-red-600" aria-hidden="true">*</span>
                                 </label>
                                 <Select
                                     value={form.academic_year_id}
@@ -598,7 +598,7 @@ function OpeningModal({
                                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                     <div className="space-y-1.5">
                                         <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                            Allocated Slots
+                                            Allocated Slots <span className="text-red-600" aria-hidden="true">*</span>
                                         </label>
                                         <Input
                                             type="number"

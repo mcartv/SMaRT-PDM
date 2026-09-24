@@ -75,7 +75,9 @@ test('Payout realtime preserves archive/restore contracts without duplicate relo
   assert.doesNotMatch(dashboard, /useSocketEvent\('scholar:released'/);
   assert.match(dashboard, /useSocketEvent\('maintenance:updated'/);
 
-  assert.doesNotMatch(reports, /useSocketEvent\('payout:/);
+  assert.match(reports, /useSocketEvent\('payout:proof-uploaded'/);
+  assert.match(reports, /useSocketEvent\('payout:proof-reviewed'/);
+  assert.doesNotMatch(reports, /useSocketEvent\('payout:(?:created|updated|archived|restored)'/);
   assert.match(reports, /useSocketEvent\('report:updated'/);
 
   assert.match(controller, /emitPayoutBatchRealtime\(req, row\?\.batch \|\| row, 'archived'\)/);

@@ -14,6 +14,8 @@ function mapCourse(row = {}) {
         course_code: row.course_code,
         course_name: row.course_name,
         is_archived: row.is_archived === true,
+        created_at: row.created_at || null,
+        updated_at: row.updated_at || null,
         assigned_pd: row.assigned_pd_user_id ? {
             user_id: row.assigned_pd_user_id,
             name: [row.assigned_pd_first_name, row.assigned_pd_last_name].filter(Boolean).join(' '),
@@ -30,7 +32,9 @@ async function getCourseById(courseId) {
             course_id,
             course_code,
             course_name,
-            is_archived
+            is_archived,
+            created_at,
+            updated_at
         FROM academic_course
         WHERE course_id = $1
         LIMIT 1
@@ -66,6 +70,8 @@ const fetchCourses = async () => {
             course.course_code,
             course.course_name,
             course.is_archived,
+            course.created_at,
+            course.updated_at,
             assignment.pd_user_id AS assigned_pd_user_id,
             profile.first_name AS assigned_pd_first_name,
             profile.last_name AS assigned_pd_last_name,
@@ -91,6 +97,7 @@ const fetchCourses = async () => {
         LEFT JOIN users pd_user ON pd_user.user_id = assignment.pd_user_id
         ORDER BY
             course.is_archived ASC,
+            course.created_at DESC NULLS LAST,
             course.course_code ASC
         `
     );
@@ -128,7 +135,9 @@ const createCourse = async ({
             course_id,
             course_code,
             course_name,
-            is_archived
+            is_archived,
+            created_at,
+            updated_at
         `,
         [
             normalizedCourseCode,
@@ -191,7 +200,9 @@ const updateCourse = async (
             course_id,
             course_code,
             course_name,
-            is_archived
+            is_archived,
+            created_at,
+            updated_at
         `,
         [
             nextCourseCode,
@@ -219,7 +230,7 @@ const archiveCourse = async (courseId) => {
             UPDATE academic_course
             SET is_archived = true
             WHERE course_id = $1
-            RETURNING course_id, course_code, course_name, is_archived
+            RETURNING course_id, course_code, course_name, is_archived, created_at, updated_at
             `,
             [courseId]
         );
@@ -257,7 +268,9 @@ const restoreCourse = async (courseId) => {
             course_id,
             course_code,
             course_name,
-            is_archived
+            is_archived,
+            created_at,
+            updated_at
         `,
         [courseId]
     );

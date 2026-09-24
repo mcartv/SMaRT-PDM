@@ -11,7 +11,7 @@ test('Admin alone receives renewal and slot utilization report templates', () =>
   assert.match(controller, /if \(normalizedRole === 'admin'\)[\s\S]*'renewals'/);
   assert.match(controller, /if \(normalizedRole === 'admin'\)[\s\S]*'slot_utilization'/);
   assert.match(service, /Scholarship Renewal Report/);
-  assert.match(service, /Scholarship Slot Utilization Report/);
+  assert.match(service, /Scholarship Slot Report/);
 });
 
 test('renewal report uses decided renewal records and real workflow statuses', () => {
@@ -41,7 +41,7 @@ test('new reports share preview, Excel, CSV, reset, and requested filter UI', ()
   const page = read('frontend/src/pages/ReportGeneration.jsx');
 
   assert.match(service, /scholarship_renewal_report\.xlsx/);
-  assert.match(service, /scholarship_slot_utilization_report\.xlsx/);
+  assert.match(service, /scholarship_slot_report\.xlsx/);
   assert.match(page, /All Renewal Outcomes/);
   assert.match(page, /All Opening Statuses/);
   assert.match(page, /Renewal Status/);

@@ -265,33 +265,33 @@ export const authService = {
     } catch {
       // Local/cross-tab logout still proceeds for the captured session. A
       // same-device Admin login can replace stale backend state if necessary.
-    } finally {
-      clearPortalSessionFeedback(active?.portalName || null);
+    }
 
-      if (active?.portalName && active?.token) {
-        broadcastPortalSessionCleared(active.portalName, active);
+    clearPortalSessionFeedback(active?.portalName || null);
 
-        const cleared = clearPortalSession(active.portalName, {
-          expectedToken: active.token,
-          expectedBrowserSessionId: active.browserSessionId || '',
-        });
-        const replacement = getStoredPortalSession(active.portalName);
+    if (active?.portalName && active?.token) {
+      broadcastPortalSessionCleared(active.portalName, active);
 
-        if (cleared && !replacement?.token) {
-          window.location.href = '/login';
-          return;
-        }
+      const cleared = clearPortalSession(active.portalName, {
+        expectedToken: active.token,
+        expectedBrowserSessionId: active.browserSessionId || '',
+      });
+      const replacement = getStoredPortalSession(active.portalName);
 
-        // Another tab established a newer session while this logout request was
-        // in flight. The logout belongs only to the captured old session, so
-        // the replacement remains active and this tab must not force /login.
-        logoutInProgress = false;
+      if (cleared && !replacement?.token) {
+        window.location.href = '/login';
         return;
       }
 
-      clearAuthStorage();
-      window.location.href = '/login';
+      // Another tab established a newer session while this logout request was
+      // in flight. The logout belongs only to the captured old session, so
+      // the replacement remains active and this tab must not force /login.
+      logoutInProgress = false;
+      return;
     }
+
+    clearAuthStorage();
+    window.location.href = '/login';
   },
 };
 

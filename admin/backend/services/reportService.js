@@ -61,6 +61,7 @@ function normalizeReportType(value) {
         'payouts',
         'payout_proofs',
         'sdo',
+        'sdo_offenses',
         'guidance',
         'pd',
         'scholars_by_benefactor',
@@ -237,6 +238,11 @@ async function getReportMetadata() {
                 id: 'sdo',
                 name: 'SDO Endorsement Report',
                 sub: 'SDO disciplinary standing, remarks, and endorsement stage status',
+            },
+            {
+                id: 'sdo_offenses',
+                name: 'SDO Offense Classification Report',
+                sub: 'Students classified as No Offense, Minor Offense, or Major Offense',
             },
             {
                 id: 'guidance',
@@ -504,6 +510,7 @@ function getInstitutionalReportTitle(reportType) {
         renewals: 'SCHOLARSHIP RENEWAL REPORT',
         slot_utilization: 'SCHOLARSHIP SLOT REPORT',
         sdo: 'SDO ENDORSEMENT REPORT',
+        sdo_offenses: 'SDO OFFENSE CLASSIFICATION REPORT',
         guidance: 'GUIDANCE ENDORSEMENT REPORT',
         pd: 'PD ENDORSEMENT REPORT',
         ro: 'RO PERSONNEL-IN-CHARGE REPORT',
@@ -1270,6 +1277,33 @@ async function getScholarshipHistoryRows({
     return rows;
 }
 
+function normalizeSdoOffenseClassification(value) {
+    const status = safeText(value).toLowerCase();
+    if (['no_offense', 'cleared'].includes(status)) return 'No Offense';
+    if (['minor_offense', 'disqualified_minor'].includes(status)) return 'Minor Offense';
+    if (['major_offense', 'disqualified_major'].includes(status)) return 'Major Offense';
+    return 'Unclassified';
+}
+
+async function getSdoOffenseRows(filters) {
+    const rows = await getSdoRows({ ...filters, classifiedOnly: true });
+    return rows.map((row) => ({
+        pdm_id: row.pdm_id,
+        student_name: row.student_name,
+        gender: row.gender,
+        course_code: row.course_code,
+        year_level: row.year_level,
+        program_name: row.program_name,
+        benefactor_name: row.benefactor_name,
+        academic_year: row.academic_year,
+        semester: row.semester,
+        offense_classification: normalizeSdoOffenseClassification(row.sdo_status),
+        remarks: row.sdo_remarks,
+        reviewed_by: row.reviewed_by,
+        reviewed_at: row.sdo_acted_at,
+    }));
+}
+
 // SMART_PDM_SCHOLARSHIP_HISTORY_REPORT_V1
 
 async function getScholarCountRows({
@@ -1741,6 +1775,7 @@ async function getSdoRows({
     courseId,
     yearLevel,
     gender,
+    classifiedOnly = false,
 }) {
     const params = [];
     const where = [`COALESCE(a.is_archived, FALSE) = FALSE`];
@@ -1783,6 +1818,8 @@ async function getSdoRows({
         } else {
             throw createHttpError(400, 'Invalid SDO endorsement result filter.');
         }
+    } else if (classifiedOnly) {
+        where.push(`es.sdo_status IN ('no_offense', 'cleared', 'minor_offense', 'disqualified_minor', 'major_offense', 'disqualified_major')`);
     }
 
     appendDateRange(
@@ -2409,13 +2446,15 @@ function buildOfficeSummary(reportType, rows = []) {
         completed: 0,
     };
 
-    if (reportType === 'sdo') {
+    if (['sdo', 'sdo_offenses'].includes(reportType)) {
         summary.noOffense = 0;
         summary.minor = 0;
         summary.major = 0;
 
         rows.forEach((row) => {
-            const status = safeText(row.sdo_status).toLowerCase();
+            const status = safeText(row.sdo_status || row.offense_classification)
+                .toLowerCase()
+                .replaceAll(' ', '_');
             if (!status) summary.pending += 1;
             if (['no_offense', 'cleared'].includes(status)) summary.noOffense += 1;
             if (['minor_offense', 'disqualified_minor'].includes(status)) summary.minor += 1;
@@ -2583,6 +2622,10 @@ async function getRowsByReportType({
         return await getSdoRows(sharedFilters);
     }
 
+    if (reportType === 'sdo_offenses') {
+        return await getSdoOffenseRows(sharedFilters);
+    }
+
     if (reportType === 'guidance') {
         return await getGuidanceRows(sharedFilters);
     }
@@ -2659,7 +2702,7 @@ async function previewReport(query = {}) {
         reportType: normalized.reportType,
         total: rows.length,
         rows: rows.slice(0, 50).map(stripInternalReportFields),
-        summary: ['sdo', 'guidance', 'pd', 'ro', 'ro_compliance'].includes(normalized.reportType)
+        summary: ['sdo', 'sdo_offenses', 'guidance', 'pd', 'ro', 'ro_compliance'].includes(normalized.reportType)
             ? buildOfficeSummary(normalized.reportType, rows)
             : null,
     };
@@ -2900,6 +2943,25 @@ async function buildExportDefinition(normalized) {
             { header: 'Reviewed By', key: 'reviewed_by' },
             { header: 'Reviewed At', key: 'sdo_acted_at' },
             { header: 'Submitted At', key: 'submission_date' },
+        ];
+    } else if (normalized.reportType === 'sdo_offenses') {
+        rows = await getSdoOffenseRows(normalized);
+        sheetName = 'SDO Offense Classifications';
+        filename = 'sdo_offense_classification_report.xlsx';
+        columns = [
+            { header: 'Student Number', key: 'pdm_id' },
+            { header: 'Student Name', key: 'student_name' },
+            { header: 'Gender', key: 'gender' },
+            { header: 'Course', key: 'course_code' },
+            { header: 'Year Level', key: 'year_level' },
+            { header: 'Program', key: 'program_name' },
+            { header: 'Benefactor', key: 'benefactor_name' },
+            { header: 'Academic Year', key: 'academic_year' },
+            { header: 'Semester', key: 'semester' },
+            { header: 'Offense Classification', key: 'offense_classification' },
+            { header: 'Remarks', key: 'remarks' },
+            { header: 'Reviewed By', key: 'reviewed_by' },
+            { header: 'Reviewed At', key: 'reviewed_at' },
         ];
     } else if (normalized.reportType === 'guidance') {
         rows = await getGuidanceRows(normalized);

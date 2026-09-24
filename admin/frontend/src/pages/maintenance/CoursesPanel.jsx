@@ -26,6 +26,7 @@ import {
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { confirmArchive } from '@/utils/confirmArchive';
+import { toast } from 'sonner';
 
 function CourseModal({
     open,
@@ -73,7 +74,7 @@ function CourseModal({
                 <CardContent className="space-y-3 p-4">
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <div className="space-y-1.5">
-                            <FieldLabel>Course Code</FieldLabel>
+                            <FieldLabel>Course Code *</FieldLabel>
                             <Input
                                 value={form.course_code}
                                 onChange={(e) =>
@@ -89,7 +90,7 @@ function CourseModal({
                         </div>
 
                         <div className="space-y-1.5 md:col-span-2">
-                            <FieldLabel>Course Name</FieldLabel>
+                            <FieldLabel>Course Name *</FieldLabel>
                             <Input
                                 value={form.course_name}
                                 onChange={(e) =>
@@ -135,11 +136,43 @@ function CourseModal({
     );
 }
 
+function CourseNoticeModal({ notice, onClose }) {
+    if (!notice) return null;
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm" onClick={onClose}>
+            <Card className="w-full max-w-md overflow-hidden border-stone-200 shadow-xl" onClick={(event) => event.stopPropagation()}>
+                <div className="border-b border-stone-100 bg-stone-50 px-5 py-4">
+                    <h3 className="text-sm font-semibold text-stone-900">{notice.title}</h3>
+                </div>
+                <CardContent className="p-5 text-sm leading-6 text-stone-600">{notice.message}</CardContent>
+                <div className="flex justify-end border-t border-stone-100 bg-stone-50 px-5 py-3">
+                    <Button size="sm" onClick={onClose} className="h-8 rounded-lg bg-[var(--portal-base)] text-xs text-white">Close</Button>
+                </div>
+            </Card>
+        </div>
+    );
+}
+
+const NEW_COURSE_DAYS = 30;
+
+function courseCreatedTime(course) {
+    const value = Date.parse(course?.created_at || '');
+    return Number.isFinite(value) ? value : 0;
+}
+
+function isNewCourse(course) {
+    const created = courseCreatedTime(course);
+    if (!created) return false;
+    const age = Date.now() - created;
+    return age >= 0 && age <= NEW_COURSE_DAYS * 24 * 60 * 60 * 1000;
+}
+
 export default function CoursesPanel() {
     const [courses, setCourses] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [actionLoadingId, setActionLoadingId] = useState(null);
+    const [notice, setNotice] = useState(null);
 
     const [search, setSearch] = useState('');
     const [pageTab, setPageTab] = useState('current');
@@ -178,7 +211,7 @@ export default function CoursesPanel() {
             await fetchCourses();
         } catch (err) {
             console.error('COURSES FETCH ERROR:', err);
-            alert(err.message || 'Failed to load courses');
+            setNotice({ title: 'Unable to load courses', message: err.message || 'Failed to load courses.' });
         } finally {
             setLoading(false);
         }
@@ -230,9 +263,8 @@ export default function CoursesPanel() {
                     return (a.is_archived ? 1 : 0) - (b.is_archived ? 1 : 0);
                 }
 
-                return String(a.course_code || '').localeCompare(
-                    String(b.course_code || '')
-                );
+                return courseCreatedTime(b) - courseCreatedTime(a)
+                    || String(a.course_code || '').localeCompare(String(b.course_code || ''));
             });
     }, [courses, search, pageTab]);
 
@@ -277,6 +309,20 @@ export default function CoursesPanel() {
                 throw new Error('Course name is required');
             }
 
+            const duplicate = courses.find((course) =>
+                String(course.course_code || '').trim().toUpperCase() === payload.course_code
+                && String(course.course_id) !== String(editingCourseId || '')
+            );
+            if (duplicate) {
+                setNotice({
+                    title: duplicate.is_archived ? 'Course is in Archived' : 'Course already exists',
+                    message: duplicate.is_archived
+                        ? `${payload.course_code} already exists in Archived. Restore that course instead of creating a duplicate.`
+                        : `${payload.course_code} is already in the current course list.`,
+                });
+                return;
+            }
+
             const isEdit = modalMode === 'edit' && editingCourseId;
             const url = isEdit
                 ? buildApiUrl(`/api/courses/${editingCourseId}`)
@@ -304,7 +350,7 @@ export default function CoursesPanel() {
             setPageTab('current');
         } catch (err) {
             console.error('SAVE COURSE ERROR:', err);
-            alert(err.message || 'Failed to save course');
+            setNotice({ title: 'Unable to save course', message: err.message || 'Failed to save course.' });
         } finally {
             setSaving(false);
         }
@@ -335,9 +381,12 @@ export default function CoursesPanel() {
             }
 
             await fetchCourses();
+            toast.success('Course archived', {
+                description: `${course.course_code || courseName} was moved to Archived.`,
+            });
         } catch (err) {
             console.error('ARCHIVE COURSE ERROR:', err);
-            alert(err.message || 'Failed to archive course');
+            setNotice({ title: 'Unable to archive course', message: err.message || 'Failed to archive course.' });
         } finally {
             setActionLoadingId(null);
         }
@@ -366,9 +415,12 @@ export default function CoursesPanel() {
 
             await fetchCourses();
             setPageTab('current');
+            toast.success('Course restored', {
+                description: `${course.course_code || course.course_name || 'The course'} is available in the current course list.`,
+            });
         } catch (err) {
             console.error('RESTORE COURSE ERROR:', err);
-            alert(err.message || 'Failed to restore course');
+            setNotice({ title: 'Unable to restore course', message: err.message || 'Failed to restore course.' });
         } finally {
             setActionLoadingId(null);
         }
@@ -385,6 +437,7 @@ export default function CoursesPanel() {
                 onSave={handleSave}
                 saving={saving}
             />
+            <CourseNoticeModal notice={notice} onClose={() => setNotice(null)} />
 
             <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
                 <div className="flex flex-col gap-4">
@@ -507,6 +560,11 @@ export default function CoursesPanel() {
                                                     Active
                                                 </span>
                                             )}
+                                            {!isArchived && isNewCourse(course) ? (
+                                                <span className="rounded-full bg-[var(--portal-accent-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--portal-base)]">
+                                                    New
+                                                </span>
+                                            ) : null}
                                         </div>
 
                                         <p className="mt-1 truncate text-xs text-stone-500">

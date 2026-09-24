@@ -88,6 +88,7 @@ function getAllowedReportTypes(role, hasRoCoordinatorAccess = false) {
 
     if (['sdo', 'guidance', 'pd'].includes(normalizedRole)) {
         allowed.push(normalizedRole);
+        if (normalizedRole === 'sdo') allowed.push('sdo_offenses');
     }
 
     if (hasRoCoordinatorAccess) {

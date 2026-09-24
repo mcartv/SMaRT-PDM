@@ -1422,6 +1422,9 @@ export default function AccountsPanel() {
     const [pageTab, setPageTab] = useState('current');
     const [roleFilter, setRoleFilter] = useState('grouped');
     const [courseFilter, setCourseFilter] = useState('all');
+    const [collapsedRoleGroups, setCollapsedRoleGroups] = useState(() =>
+        Object.fromEntries(ACCOUNT_ROLE_GROUP_ORDER.map((role) => [role, false]))
+    );
 
     const currentCount = useMemo(
         () => accounts.filter((account) => account.is_archived !== true).length,
@@ -1475,6 +1478,7 @@ export default function AccountsPanel() {
             if (!roleAccounts.length) return [];
 
             const label = ROLE_OPTIONS.find((option) => option.value === role)?.label || role;
+            const isCollapsed = collapsedRoleGroups[role] === true && !search.trim();
 
             return [
                 {
@@ -1483,15 +1487,16 @@ export default function AccountsPanel() {
                     role,
                     label: role === 'guidance' ? `${label} (GCO)` : label,
                     count: roleAccounts.length,
+                    isCollapsed,
                 },
-                ...roleAccounts.map((account) => ({
+                ...(isCollapsed ? [] : roleAccounts.map((account) => ({
                     type: 'account',
                     key: account.user_id,
                     account,
-                })),
+                }))),
             ];
         });
-    }, [filteredAccounts, roleFilter]);
+    }, [collapsedRoleGroups, filteredAccounts, roleFilter, search]);
 
     const loadAccounts = useCallback(async () => {
         try {
@@ -2126,15 +2131,24 @@ export default function AccountsPanel() {
                                 {accountListItems.map((item) => {
                                     if (item.type === 'group') {
                                         return (
-                                            <div
+                                            <button
+                                                type="button"
                                                 key={item.key}
-                                                className="flex items-center justify-between gap-3 bg-stone-50/90 px-4 py-2.5"
+                                                onClick={() => setCollapsedRoleGroups((current) => ({
+                                                    ...current,
+                                                    [item.role]: !current[item.role],
+                                                }))}
+                                                aria-expanded={!item.isCollapsed}
+                                                className="flex w-full items-center justify-between gap-3 bg-stone-50/90 px-4 py-2.5 text-left transition-colors hover:bg-stone-100"
                                             >
-                                                <span className="text-xs font-semibold">{item.label}</span>
-                                                <span className="text-xs font-medium text-stone-500">
+                                                <span className="flex items-center gap-2 text-xs font-semibold text-stone-800">
+                                                    <ChevronDown className={`h-3.5 w-3.5 text-stone-500 transition-transform ${item.isCollapsed ? '-rotate-90' : ''}`} />
+                                                    {item.label}
+                                                </span>
+                                                <span className="rounded-md border border-stone-200 bg-white px-2 py-0.5 text-xs font-medium text-stone-500">
                                                     {item.count} account{item.count === 1 ? '' : 's'}
                                                 </span>
-                                            </div>
+                                            </button>
                                         );
                                     }
 

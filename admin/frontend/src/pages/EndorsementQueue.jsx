@@ -558,10 +558,6 @@ function ActionPanel({ queueKey, row, state, onChange, onSubmit, saving, gradePr
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
           A Grade Report is required for Program Director review.
         </p>
-      ) : !gradePreviewed ? (
-        <p className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800">
-          Preview the applicant's Grade Report before recording a scholastic standing.
-        </p>
       ) : null}
       <Button disabled={saving || !gradeDocumentReady || !gradePreviewed || !standing} className={endorsementButtonClass(queueKey, standing)} onClick={() => onSubmit(standing)}>
         {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Confirm Endorsement
@@ -626,7 +622,7 @@ function ReviewDrawer({ queueKey, row, state, onChange, onSubmit, saving, onClos
                 </div>
               </div>
               {row.grade_document?.url ? (
-                <div className="mt-4">
+                <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/60 p-3">
                   <Button
                     type="button"
                     size="sm"
@@ -642,6 +638,13 @@ function ReviewDrawer({ queueKey, row, state, onChange, onSubmit, saving, onClos
                     <Eye className="mr-2 h-4 w-4" />
                     Preview Grade Report
                   </Button>
+                  {!gradePreviewed ? (
+                    <p className="mt-2 text-xs leading-5 text-blue-800">
+                      Preview the applicant's Grade Report before recording a scholastic standing.
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-xs font-medium text-emerald-700">Grade Report previewed. Actions are now available.</p>
+                  )}
                 </div>
               ) : <p className="mt-3 text-xs text-amber-700">Grade Report not uploaded.</p>}
             </section>

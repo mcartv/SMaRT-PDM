@@ -57,6 +57,12 @@ const OFFICE_REPORT_FILTERS = {
     { value: 'minor_offense', label: 'With Minor Offense/s' },
     { value: 'major_offense', label: 'With Major Offense/s' },
   ],
+  sdo_offenses: [
+    { value: 'all', label: 'All Offense Classifications' },
+    { value: 'no_offense', label: 'No Offense' },
+    { value: 'minor_offense', label: 'Minor Offense' },
+    { value: 'major_offense', label: 'Major Offense' },
+  ],
   guidance: [
     { value: 'all', label: 'All Guidance Results' },
     { value: 'pending', label: 'Pending' },
@@ -109,7 +115,7 @@ const REPORT_TEMPLATE_GROUPS = [
   },
   {
     label: 'Office Reports',
-    ids: ['sdo', 'guidance', 'pd', 'ro'],
+    ids: ['sdo', 'sdo_offenses', 'guidance', 'pd', 'ro'],
   },
 ];
 
@@ -133,6 +139,7 @@ const REPORT_FILTER_FIELDS = {
   ],
   ro_compliance: ['academicYear', 'semester', 'benefactor', 'program', 'roArea', 'course', 'yearLevel', 'gender', 'result', 'date'],
   sdo: ['academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'gender', 'result', 'date'],
+  sdo_offenses: ['academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'gender', 'result', 'date'],
   guidance: ['academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'gender', 'result', 'date'],
   pd: ['academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'gender', 'result', 'date'],
   ro: ['academicYear', 'semester', 'program', 'course', 'yearLevel', 'gender', 'roArea', 'result', 'date'],
@@ -269,6 +276,9 @@ export default function ReportGeneration({
   const exportLocksRef = useRef(new Set());
   const exportCooldownTimersRef = useRef(new Map());
   const metadataInitializedRef = useRef(false);
+  const previewRequestIdRef = useRef(0);
+  const previewNavigationRequestedRef = useRef(false);
+  const previewSectionRef = useRef(null);
   const [reportTypes, setReportTypes] = useState([]);
   const [programs, setPrograms] = useState([]);
   const [academicYears, setAcademicYears] = useState([]);
@@ -339,6 +349,8 @@ export default function ReportGeneration({
   }, [visibleReportTypes]);
 
   useEffect(() => {
+    previewRequestIdRef.current += 1;
+    setPreviewLoading(false);
     setPreviewRows([]);
     setPreviewTotal(0);
     setHasPreviewed(false);
@@ -428,6 +440,8 @@ export default function ReportGeneration({
           ? 'Opening Status'
           : selected === 'endorsements'
             ? 'Endorsement Result'
+            : selected === 'sdo_offenses'
+              ? 'Offense Classification'
             : 'Office Result';
 
   const previewColumns = useMemo(() => {
@@ -567,7 +581,20 @@ export default function ReportGeneration({
     setHasPreviewed(false);
   }
 
-  const handlePreviewReport = useCallback(async () => {
+  function handleReportTypeChange(reportId) {
+    setSelected(reportId);
+    setAcademicYearFromId('all');
+    setAcademicYearToId('all');
+    setReviewResult('all');
+    setApplicationStatus('all');
+    setDocumentStatus('all');
+    setVerificationStatus('all');
+    setBatchStatus('all');
+    setReleaseStatus('all');
+    setPaymentMode('all');
+  }
+
+  const handlePreviewReport = useCallback(async ({ navigateToPreview = false } = {}) => {
     if (hasInvalidFilterRange) {
       setFeedback({
         tone: 'error',
@@ -576,6 +603,9 @@ export default function ReportGeneration({
       });
       return;
     }
+
+    if (navigateToPreview) previewNavigationRequestedRef.current = true;
+    const requestId = ++previewRequestIdRef.current;
 
     try {
       setPreviewLoading(true);
@@ -586,11 +616,18 @@ export default function ReportGeneration({
 
       if (!res.ok) throw new Error(data?.error || 'Failed to preview report.');
 
+      if (requestId !== previewRequestIdRef.current) return;
       setPreviewRows(Array.isArray(data.rows) ? data.rows : []);
       setPreviewTotal(Number(data.total || data.rows?.length || 0));
       setHasPreviewed(true);
       setFeedback(null);
+      if (previewNavigationRequestedRef.current) {
+        previewNavigationRequestedRef.current = false;
+        window.setTimeout(() => previewSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+      }
     } catch (error) {
+      if (requestId !== previewRequestIdRef.current) return;
+      previewNavigationRequestedRef.current = false;
       console.error('REPORT PREVIEW ERROR:', error);
       setFeedback({
         tone: 'error',
@@ -598,7 +635,7 @@ export default function ReportGeneration({
         message: error.message || 'Failed to preview report.',
       });
     } finally {
-      setPreviewLoading(false);
+      if (requestId === previewRequestIdRef.current) setPreviewLoading(false);
     }
   }, [
     buildParams,
@@ -606,6 +643,14 @@ export default function ReportGeneration({
     invalidFilterRangeMessage,
     tokenStorageKey,
   ]);
+
+  useEffect(() => {
+    if (loading || !metadataInitializedRef.current || !selected || hasInvalidFilterRange) return undefined;
+    const timer = window.setTimeout(() => {
+      handlePreviewReport();
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [handlePreviewReport, hasInvalidFilterRange, loading, selected]);
 
   const refreshReportData = useCallback(async () => {
     await loadMetadata();
@@ -804,7 +849,7 @@ export default function ReportGeneration({
   }
 
   return (
-    <div className="space-y-5 py-2">
+    <div className="min-w-0 space-y-4 py-2 sm:space-y-5">
       {feedback ? (
         <div className="rounded-2xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 px-4 py-4 text-red-900 shadow-sm">
           <div className="flex items-start justify-between gap-3">
@@ -822,6 +867,7 @@ export default function ReportGeneration({
                   {feedback.message}
                 </p>
               </div>
+
             </div>
 
             <button
@@ -836,7 +882,7 @@ export default function ReportGeneration({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-12 xl:items-start">
+      <div className="grid min-w-0 grid-cols-1 gap-4 sm:gap-5 xl:grid-cols-12 xl:items-start">
         {/* LEFT: REPORT TEMPLATE LIST */}
         <Card
           className="
@@ -888,18 +934,7 @@ export default function ReportGeneration({
                         key={report.id}
                         report={report}
                         active={selected === report.id}
-                        onClick={(reportId) => {
-                          setSelected(reportId);
-                          setAcademicYearFromId('all');
-                          setAcademicYearToId('all');
-                          setReviewResult('all');
-                          setApplicationStatus('all');
-                          setDocumentStatus('all');
-                          setVerificationStatus('all');
-                          setBatchStatus('all');
-                          setReleaseStatus('all');
-                          setPaymentMode('all');
-                        }}
+                        onClick={handleReportTypeChange}
                         theme={theme}
                       />
                     ))}
@@ -1374,6 +1409,7 @@ export default function ReportGeneration({
                       </Select>
                     </FilterField>
                   ) : null}
+
                 </div>
               </section>
 
@@ -1439,7 +1475,7 @@ export default function ReportGeneration({
                     previewLoading ||
                     hasInvalidFilterRange
                   }
-                  onClick={handlePreviewReport}
+                  onClick={() => handlePreviewReport({ navigateToPreview: true })}
                 >
                   {previewLoading ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1454,49 +1490,27 @@ export default function ReportGeneration({
 
                 <Button
                   className="report-action-button h-11 w-full min-w-0 rounded-xl border-none text-sm font-semibold text-white sm:min-w-[190px] sm:flex-1"
-                  style={{
-                    background: theme.base,
-                  }}
-                  disabled={
-                    isSelectedReportExportLocked ||
-                    hasInvalidFilterRange
-                  }
+                  style={{ background: theme.base }}
+                  disabled={isSelectedReportExportLocked || hasInvalidFilterRange}
                   onClick={handleGenerateReport}
                 >
-                  {selectedGeneratingFormat ===
-                    (isScholarCountReport ? 'pdf' : 'xlsx') ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="mr-2 h-4 w-4" />
-                  )}
-
-                  {isScholarCountReport
-                    ? 'Download PDF'
-                    : 'Download Excel'}
+                  {selectedGeneratingFormat === (isScholarCountReport ? 'pdf' : 'xlsx')
+                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    : <Download className="mr-2 h-4 w-4" />}
+                  {isScholarCountReport ? 'Download PDF' : 'Download Excel'}
                 </Button>
 
                 {!isScholarCountReport ? (
                   <Button
                     variant="outline"
                     className="report-action-button h-11 w-full rounded-xl text-sm font-semibold sm:w-auto"
-                    style={{
-                      borderColor: theme.border,
-                      color: theme.base,
-                    }}
-                    disabled={
-                      isSelectedReportExportLocked ||
-                      hasInvalidFilterRange
-                    }
-                    onClick={() =>
-                      handleDownloadByFormat('csv')
-                    }
+                    style={{ borderColor: theme.border, color: theme.base }}
+                    disabled={isSelectedReportExportLocked || hasInvalidFilterRange}
+                    onClick={() => handleDownloadByFormat('csv')}
                   >
-                    {selectedGeneratingFormat === 'csv' ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Download className="mr-2 h-4 w-4" />
-                    )}
-
+                    {selectedGeneratingFormat === 'csv'
+                      ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      : <Download className="mr-2 h-4 w-4" />}
                     Download CSV
                   </Button>
                 ) : null}
@@ -1521,7 +1535,7 @@ export default function ReportGeneration({
       </div>
 
       {hasPreviewed ? (
-        <Card className="min-w-0 overflow-hidden border-stone-200 bg-white shadow-none">
+        <Card ref={previewSectionRef} className="w-full min-w-0 max-w-full scroll-mt-4 overflow-hidden border-stone-200 bg-white shadow-none">
           <div className="border-b border-stone-100 bg-stone-50/70 px-4 py-4">
             <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
               <div className="min-w-0">
@@ -1646,8 +1660,8 @@ export default function ReportGeneration({
                 </p>
               </div>
             ) : isScholarCountReport ? null : (
-              <div className="max-h-[420px] overflow-auto">
-                <table className="min-w-full text-left text-xs">
+              <div className="max-h-[420px] max-w-full overflow-auto overscroll-contain">
+                <table className="w-max min-w-full text-left text-xs">
                   <thead className="sticky top-0 z-10 bg-stone-50 text-stone-500">
                     <tr>
                       {previewColumns.map((key) => (

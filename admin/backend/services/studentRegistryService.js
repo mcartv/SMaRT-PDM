@@ -811,13 +811,19 @@ const REGISTRY_YEAR_SQL = `COALESCE(
   NULLIF(registry.raw_snapshot->>'Level', ''),
   registry.year_level::text, ''
 )`;
+const REGISTRY_SEX_SQL = `COALESCE(
+  NULLIF(registry.raw_snapshot->>'Sex', ''),
+  NULLIF(registry.raw_snapshot->>'Sex at Birth', ''),
+  registry.sex_at_birth, ''
+)`;
 
-async function listStudentRegistry({ limit = 50, offset = 0, search = '', course = '', year = '' } = {}) {
+async function listStudentRegistry({ limit = 50, offset = 0, search = '', course = '', year = '', sex = '' } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
   const safeOffset = Math.max(Number(offset) || 0, 0);
   const searchText = String(search || '').trim().slice(0, 200);
   const courseText = String(course || '').trim().slice(0, 200);
   const yearText = String(year || '').trim().slice(0, 50);
+  const sexText = String(sex || '').trim().slice(0, 50);
   const filters = [];
   const values = [];
   if (searchText) {
@@ -840,6 +846,10 @@ async function listStudentRegistry({ limit = 50, offset = 0, search = '', course
     values.push(yearText);
     filters.push(`${REGISTRY_YEAR_SQL} = $${values.length}`);
   }
+  if (sexText) {
+    values.push(sexText);
+    filters.push(`${REGISTRY_SEX_SQL} = $${values.length}`);
+  }
   const whereSql = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
   const [pageResult, filteredCountResult, totalResult, optionsResult, headerResult] = await Promise.all([
     db.query(`
@@ -851,7 +861,7 @@ async function listStudentRegistry({ limit = 50, offset = 0, search = '', course
     db.query(`SELECT count(*)::int AS total FROM ${REGISTRY_VIEW} AS registry ${whereSql}`, values),
     db.query(`SELECT count(*)::int AS total FROM ${REGISTRY_VIEW}`),
     db.query(`
-      SELECT DISTINCT ${REGISTRY_COURSE_SQL} AS course, ${REGISTRY_YEAR_SQL} AS year
+      SELECT DISTINCT ${REGISTRY_COURSE_SQL} AS course, ${REGISTRY_YEAR_SQL} AS year, ${REGISTRY_SEX_SQL} AS sex
       FROM ${REGISTRY_VIEW} AS registry
     `),
     db.query(`
@@ -868,9 +878,11 @@ async function listStudentRegistry({ limit = 50, offset = 0, search = '', course
   ]);
   const courses = new Set();
   const years = new Set();
+  const sexes = new Set();
   optionsResult.rows.forEach((row) => {
     if (row.course) courses.add(row.course);
     if (row.year) years.add(row.year);
+    if (row.sex) sexes.add(row.sex);
   });
 
   return {
@@ -881,6 +893,7 @@ async function listStudentRegistry({ limit = 50, offset = 0, search = '', course
     source_headers: headerResult.rows.map((row) => row.header),
     course_options: [...courses].sort((a, b) => a.localeCompare(b)),
     year_options: [...years].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+    sex_options: [...sexes].sort((a, b) => a.localeCompare(b)),
     items: pageResult.rows.map(hydrateRegistryRowFromSnapshot),
   };
 }

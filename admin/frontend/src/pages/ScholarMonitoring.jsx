@@ -1680,7 +1680,7 @@ export default function ScholarMonitoring() {
     [loadScholars, loadRemovedScholars]
   );
 
-  const handleViewScholar = async (scholarId) => {
+  const handleViewScholar = useCallback(async (scholarId) => {
     try {
       setSelectedScholarId(scholarId);
       setSelectedScholar(null);
@@ -1713,7 +1713,7 @@ export default function ScholarMonitoring() {
     } finally {
       setProfileLoading(false);
     }
-  };
+  }, [sectionMode]);
 
   useEffect(() => {
     const requestedStudentId =
@@ -1722,7 +1722,7 @@ export default function ScholarMonitoring() {
     if (!requestedStudentId) return;
 
     void handleViewScholar(requestedStudentId);
-  }, [location.search]);
+  }, [handleViewScholar, location.search]);
 
   const handleArchiveScholar = async (payload) => {
     if (!archiveModalScholar) return;

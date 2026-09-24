@@ -137,6 +137,7 @@ const REGISTRY_HEADER_ALIASES = {
   middleName: ['middle name', 'middle initial'],
   course: ['course', 'course code', 'degree program', 'program', 'program code', 'course/program'],
   year: ['year level', 'year', 'level'],
+  sex: ['sex', 'sex at birth'],
 };
 
 function formatWorkbookCellValue(value) {
@@ -411,8 +412,11 @@ function FilterModal({
   setDraftCourseFilter,
   draftYearFilter,
   setDraftYearFilter,
+  draftSexFilter,
+  setDraftSexFilter,
   courseOptions,
   yearOptions,
+  sexOptions,
   onApply,
   onClear,
 }) {
@@ -420,35 +424,41 @@ function FilterModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-3 backdrop-blur-sm sm:p-4"
       onClick={onClose}
     >
       <Card
-        className="w-full max-w-md overflow-hidden border-stone-200 shadow-xl"
+        className="w-full max-w-lg overflow-hidden border-stone-200 shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-5 py-4">
-          <h3 className="text-sm font-semibold text-stone-800">
-            Filter Registry
-          </h3>
+        <div className="flex items-start justify-between gap-3 border-b border-stone-100 bg-stone-50 px-4 py-4 sm:px-5">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-stone-800">
+              Filter Registry
+            </h3>
+            <p className="mt-0.5 text-xs leading-5 text-stone-500">
+              Narrow the student records by course, sex, and year level.
+            </p>
+          </div>
 
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close filters"
             className="rounded-md p-1.5 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-700"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="space-y-4 p-5">
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+        <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-5">
+          <div className="min-w-0 space-y-1.5 sm:col-span-2">
+            <label className="block text-[11px] font-medium uppercase tracking-wide text-stone-400">
               Course
             </label>
 
             <Select value={draftCourseFilter} onValueChange={setDraftCourseFilter}>
-              <SelectTrigger className="h-10 rounded-lg border-stone-200">
+              <SelectTrigger className="h-10 w-full min-w-0 rounded-lg border-stone-200 bg-white text-sm">
                 <SelectValue placeholder="Course" />
               </SelectTrigger>
 
@@ -463,13 +473,28 @@ function FilterModal({
             </Select>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+          <div className="min-w-0 space-y-1.5">
+            <label className="block text-[11px] font-medium uppercase tracking-wide text-stone-400">
+              Sex
+            </label>
+            <Select value={draftSexFilter} onValueChange={setDraftSexFilter}>
+              <SelectTrigger className="h-10 w-full min-w-0 rounded-lg border-stone-200 bg-white text-sm">
+                <SelectValue placeholder="Sex" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                {sexOptions.map((sex) => <SelectItem key={sex} value={sex}>{sex}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="min-w-0 space-y-1.5">
+            <label className="block text-[11px] font-medium uppercase tracking-wide text-stone-400">
               Year Level
             </label>
 
             <Select value={draftYearFilter} onValueChange={setDraftYearFilter}>
-              <SelectTrigger className="h-10 rounded-lg border-stone-200">
+              <SelectTrigger className="h-10 w-full min-w-0 rounded-lg border-stone-200 bg-white text-sm">
                 <SelectValue placeholder="Year" />
               </SelectTrigger>
 
@@ -485,18 +510,18 @@ function FilterModal({
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-stone-100 bg-stone-50 px-5 py-4">
+        <div className="flex flex-col-reverse gap-2 border-t border-stone-100 bg-stone-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-end sm:px-5">
           <Button
             variant="outline"
             onClick={onClear}
-            className="h-8 rounded-lg border-stone-200 text-xs"
+            className="h-9 w-full rounded-lg border-stone-200 text-xs sm:w-auto"
           >
             Clear
           </Button>
 
           <Button
             onClick={onApply}
-            className="h-8 rounded-lg border-none bg-[var(--portal-base)] text-xs text-white hover:bg-[var(--portal-active)]"
+            className="h-9 w-full rounded-lg border-none bg-[var(--portal-base)] px-4 text-xs text-white hover:bg-[var(--portal-active)] sm:w-auto"
           >
             Apply
           </Button>
@@ -746,6 +771,7 @@ export default function StudentRegistryPanel() {
   const [filteredTotal, setFilteredTotal] = useState(0);
   const [registryCourseOptions, setRegistryCourseOptions] = useState([]);
   const [registryYearOptions, setRegistryYearOptions] = useState([]);
+  const [registrySexOptions, setRegistrySexOptions] = useState([]);
   const registryRequestId = useRef(0);
 
   const [excelHeaders, setExcelHeaders] = useState([]);
@@ -758,10 +784,12 @@ export default function StudentRegistryPanel() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [courseFilter, setCourseFilter] = useState('all');
   const [yearFilter, setYearFilter] = useState('all');
+  const [sexFilter, setSexFilter] = useState('all');
 
   const [filterOpen, setFilterOpen] = useState(false);
   const [draftCourseFilter, setDraftCourseFilter] = useState('all');
   const [draftYearFilter, setDraftYearFilter] = useState('all');
+  const [draftSexFilter, setDraftSexFilter] = useState('all');
 
   const [page, setPage] = useState(1);
 
@@ -783,6 +811,7 @@ export default function StudentRegistryPanel() {
       if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
       if (courseFilter !== 'all') params.set('course', courseFilter);
       if (yearFilter !== 'all') params.set('year', yearFilter);
+      if (sexFilter !== 'all') params.set('sex', sexFilter);
       const res = await fetch(`${API_BASE}/student-registry?${params.toString()}`, {
         headers: getAuthHeaders(),
       });
@@ -801,6 +830,7 @@ export default function StudentRegistryPanel() {
       setFilteredTotal(Number(data.filtered_total ?? items.length));
       setRegistryCourseOptions(Array.isArray(data.course_options) ? data.course_options : []);
       setRegistryYearOptions(Array.isArray(data.year_options) ? data.year_options : []);
+      setRegistrySexOptions(Array.isArray(data.sex_options) ? data.sex_options : []);
       if (Array.isArray(data.source_headers) && data.source_headers.length) {
         setLastImportedHeaders(data.source_headers);
       }
@@ -811,7 +841,7 @@ export default function StudentRegistryPanel() {
     } finally {
       if (requestId === registryRequestId.current) setIsLoading(false);
     }
-  }, [page, debouncedSearch, courseFilter, yearFilter]);
+  }, [page, debouncedSearch, courseFilter, yearFilter, sexFilter]);
 
   useEffect(() => {
     if (tableMode === 'imported' && debouncedSearch === search) loadRegistry();
@@ -888,6 +918,8 @@ export default function StudentRegistryPanel() {
     setYearFilter('all');
     setDraftCourseFilter('all');
     setDraftYearFilter('all');
+    setSexFilter('all');
+    setDraftSexFilter('all');
     setPage(1);
   };
 
@@ -1028,6 +1060,13 @@ export default function StudentRegistryPanel() {
     ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }, [tableMode, registryYearOptions, currentHeaders, currentRows]);
 
+  const sexOptions = useMemo(() => {
+    if (tableMode === 'imported') return registrySexOptions;
+    const sexHeader = findHeaderByAliases(currentHeaders, REGISTRY_HEADER_ALIASES.sex);
+    if (!sexHeader) return [];
+    return Array.from(new Set(currentRows.map((row) => String(row[sexHeader] || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  }, [tableMode, registrySexOptions, currentHeaders, currentRows]);
+
   const filteredRows = useMemo(() => {
     if (tableMode === 'imported') return currentRows;
     const q = normalizeText(search);
@@ -1039,6 +1078,7 @@ export default function StudentRegistryPanel() {
       currentHeaders,
       REGISTRY_HEADER_ALIASES.year
     );
+    const sexHeader = findHeaderByAliases(currentHeaders, REGISTRY_HEADER_ALIASES.sex);
 
     return currentRows.filter((row) => {
       const searchableText = normalizeText(
@@ -1050,6 +1090,7 @@ export default function StudentRegistryPanel() {
       const yearLevel = yearHeader
         ? String(row[yearHeader] || '').trim()
         : '';
+      const sex = sexHeader ? String(row[sexHeader] || '').trim() : '';
 
       const matchesSearch = !q || searchableText.includes(q);
       const matchesCourse =
@@ -1058,10 +1099,11 @@ export default function StudentRegistryPanel() {
       const matchesYear =
         yearFilter === 'all' ||
         (yearHeader && yearLevel === yearFilter);
+      const matchesSex = sexFilter === 'all' || (sexHeader && sex === sexFilter);
 
-      return matchesSearch && matchesCourse && matchesYear;
+      return matchesSearch && matchesCourse && matchesYear && matchesSex;
     });
-  }, [tableMode, currentRows, currentHeaders, search, courseFilter, yearFilter]);
+  }, [tableMode, currentRows, currentHeaders, search, courseFilter, yearFilter, sexFilter]);
 
   const totalPages = Math.max(1, Math.ceil(
     (tableMode === 'imported' ? filteredTotal : filteredRows.length) / PAGE_SIZE
@@ -1073,17 +1115,19 @@ export default function StudentRegistryPanel() {
     return filteredRows.slice(start, start + PAGE_SIZE);
   }, [tableMode, filteredRows, page]);
 
-  const hasActiveFilters = courseFilter !== 'all' || yearFilter !== 'all';
+  const hasActiveFilters = courseFilter !== 'all' || yearFilter !== 'all' || sexFilter !== 'all';
 
   const openFilterModal = () => {
     setDraftCourseFilter(courseFilter);
     setDraftYearFilter(yearFilter);
+    setDraftSexFilter(sexFilter);
     setFilterOpen(true);
   };
 
   const applyFilters = () => {
     setCourseFilter(draftCourseFilter);
     setYearFilter(draftYearFilter);
+    setSexFilter(draftSexFilter);
     setPage(1);
     setFilterOpen(false);
   };
@@ -1093,6 +1137,8 @@ export default function StudentRegistryPanel() {
     setDraftYearFilter('all');
     setCourseFilter('all');
     setYearFilter('all');
+    setDraftSexFilter('all');
+    setSexFilter('all');
     setPage(1);
     setFilterOpen(false);
   };
@@ -1106,8 +1152,11 @@ export default function StudentRegistryPanel() {
         setDraftCourseFilter={setDraftCourseFilter}
         draftYearFilter={draftYearFilter}
         setDraftYearFilter={setDraftYearFilter}
+        draftSexFilter={draftSexFilter}
+        setDraftSexFilter={setDraftSexFilter}
         courseOptions={courseOptions}
         yearOptions={yearOptions}
+        sexOptions={sexOptions}
         onApply={applyFilters}
         onClear={clearFilters}
       />
@@ -1210,20 +1259,6 @@ export default function StudentRegistryPanel() {
                   </span>
                 )}
               </Button>
-
-              {(search || hasActiveFilters) && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setSearch('');
-                    clearFilters();
-                  }}
-                  className="h-8 rounded-lg border-stone-200 text-xs"
-                >
-                  Reset
-                </Button>
-              )}
 
               <Button
                 variant="outline"

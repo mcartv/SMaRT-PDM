@@ -13,6 +13,7 @@ exports.getRegistry = async (req, res) => {
       search: req.query.search,
       course: req.query.course,
       year: req.query.year,
+      sex: req.query.sex,
     });
 
     res.json(data);

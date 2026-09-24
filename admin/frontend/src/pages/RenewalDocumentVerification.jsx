@@ -749,7 +749,7 @@ export default function RenewalDocumentVerification() {
 
                     <div className="min-w-0 flex-1">
                       <p className={`break-words text-sm font-semibold leading-5 ${isActive ? 'text-stone-900' : 'text-stone-700'}`}>
-                        {doc.name}
+                        {doc.name}<span className="ml-1 text-red-600" aria-hidden="true">*</span>
                       </p>
                       <p className="mt-1 text-xs text-stone-500">
                         {doc.url ? 'File submitted' : 'Awaiting upload'}

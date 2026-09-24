@@ -33,7 +33,8 @@ test('only appropriate primary admin actions inherit the personal portal theme',
   assert.match(themePanel, /bg-\[var\(--portal-base\)\][\s\S]*hover:bg-\[var\(--portal-active\)\]/);
   assert.doesNotMatch(themePanel, /Save Custom Theme[\s\S]{0,300}bg-stone-900/);
   assert.doesNotMatch(networkGate, /#4b2a1a|#5c3522/i);
-  assert.match(networkGate, /bg-\[var\(--portal-base\)\]/);
+  assert.match(networkGate, /bg-\[#704127\]/);
+  assert.doesNotMatch(networkGate, /bg-\[var\(--portal-base\)\]/);
   assert.match(registry, /onClick=\{onApply\}[\s\S]{0,180}bg-\[var\(--portal-base\)\]/);
   assert.match(academicYear, /bg-\[var\(--portal-base\)\] hover:bg-\[var\(--portal-active\)\]/);
   assert.match(finalSelection, /Finalize List[\s\S]{0,300}|bg-\[var\(--portal-base\)\]/);
@@ -41,7 +42,7 @@ test('only appropriate primary admin actions inherit the personal portal theme',
 
   // Semantic approval/success actions intentionally remain green instead of
   // being recolored by the user's decorative theme.
-  assert.match(endorsement, /#059669/);
+  assert.match(endorsement, /bg-emerald-600/);
 });
 
 test('admin to mobile realtime relay tolerates transient backend wakeups and common environment aliases', () => {

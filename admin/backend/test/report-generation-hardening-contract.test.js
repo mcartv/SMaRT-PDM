@@ -132,7 +132,7 @@ test('date validation and responsive report UI safeguards remain present', () =>
   assert.match(page, /Date From cannot be later than Date To\./);
   assert.match(page, /grid-cols-1[^"]*xl:grid-cols-12/);
   assert.match(page, /md:grid-cols-2/);
-  assert.match(page, /max-h-\[420px\] overflow-auto/);
+  assert.match(page, /max-h-\[420px\][^\"]*overflow-auto/);
   assert.match(page, /w-full[^"]*sm:w-auto/);
   assert.doesNotMatch(page, /Total assigned/);
 });

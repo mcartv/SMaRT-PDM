@@ -115,7 +115,7 @@ function RejectModal({ onClose, onSubmit, busy, error }) {
         </div>
 
         <label className="text-sm font-semibold text-stone-700" htmlFor="profile-photo-rejection-reason">
-          Rejection reason
+          Rejection reason <span className="text-red-600" aria-hidden="true">*</span>
         </label>
         <select
           id="profile-photo-rejection-reason"

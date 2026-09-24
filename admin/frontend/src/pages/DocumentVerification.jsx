@@ -2934,7 +2934,7 @@ function ChecklistCard({
                       }`}
                     style={isActive ? { color: theme?.base || C.brownMid } : undefined}
                   >
-                    {d.name}
+                    {d.name}{d.required !== false ? <span className="ml-1 text-red-600" aria-hidden="true">*</span> : null}
                   </p>
                   <p className="mt-0.5 text-xs text-stone-400">
                     {d.id === 'birth_certificate'

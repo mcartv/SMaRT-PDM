@@ -125,6 +125,17 @@ function formatDate(value) {
   });
 }
 
+function formatTime(value) {
+  if (!value) return 'No time';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return 'No time';
+  return d.toLocaleTimeString('en-PH', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
 function toTimestamp(value, fallback = Number.MAX_SAFE_INTEGER) {
   if (!value) return fallback;
   const parsed = new Date(value).getTime();
@@ -327,6 +338,8 @@ function normalizeApplicantRow(app) {
       app.documents_ready === true ||
       Number(app.uploaded_required_count || 0) >= 4,
     uploaded_required_count: Number(app.uploaded_required_count || 0),
+    submitted_requirement_count: Number(app.submitted_requirement_count || 0),
+    requirement_total_count: Number(app.requirement_total_count || 6),
     requirements_status: app.requirements_status || null,
     requirements_completed_at: app.requirements_completed_at || null,
     fcfs_completed_at: app.fcfs_completed_at || null,
@@ -337,6 +350,8 @@ function normalizeApplicantRow(app) {
       app.waitlist_position != null ? Number(app.waitlist_position) : null,
     selection_status: app.selection_status || null,
     endorsement_complete: app.endorsement_complete === true,
+    endorsement_completed_count: Number(app.endorsement_completed_count || 0),
+    endorsement_total_count: Number(app.endorsement_total_count || 3),
     scholar_activation_ready: app.scholar_activation_ready === true,
     requirements_incomplete: app.requirements_incomplete !== false,
     endorsement_pending: app.endorsement_pending !== false,
@@ -1620,16 +1635,27 @@ function RegistryTable({
                         <p className="mt-0.5 text-[11px] text-stone-400">{row.academic_year}</p>
                       </td>
 
-                      <td className="px-3 py-3.5 align-top whitespace-nowrap text-xs font-medium text-stone-700">
-                        {formatDate(row.submitted_at)}
+                      <td className="px-3 py-3.5 align-top whitespace-nowrap">
+                        <p className="text-xs font-medium leading-5 text-stone-700">
+                          {formatDate(row.submitted_at)}
+                        </p>
+                        <p className="mt-0.5 text-[11px] leading-4 text-stone-400">
+                          {formatTime(row.submitted_at)}
+                        </p>
                       </td>
 
                       <td className="px-3 py-3.5 align-top">
                         <StatusPill meta={requirementsMeta} />
+                        <p className="mt-1 text-[11px] leading-4 text-stone-400">
+                          {row.submitted_requirement_count}/{row.requirement_total_count} submitted
+                        </p>
                       </td>
 
                       <td className="px-3 py-3.5 align-top">
                         <StatusPill meta={endorsementMeta} />
+                        <p className="mt-1 text-[11px] leading-4 text-stone-400">
+                          {row.endorsement_completed_count}/{row.endorsement_total_count} completed
+                        </p>
                       </td>
 
                       {isReadinessMode ? (

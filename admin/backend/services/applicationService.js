@@ -401,6 +401,14 @@ const REQUIRED_UPLOAD_DOCUMENT_NAMES = Object.freeze([
     'letter of request',
 ]);
 
+const REGISTRY_UPLOAD_DOCUMENT_NAMES = Object.freeze([
+    'birth certificate / psa',
+    ...REQUIRED_UPLOAD_DOCUMENT_NAMES,
+]);
+
+const REGISTRY_REQUIREMENT_TOTAL = APPLICATION_DOCUMENT_DEFINITIONS.length;
+const ENDORSEMENT_STAGE_TOTAL = 3;
+
 const PSA_BIRTH_CERTIFICATE_DOCUMENT_KEY = 'birth_certificate';
 
 async function getConfirmedPsaBirthCertificateOcrReview(applicationId) {
@@ -589,6 +597,7 @@ function buildReadinessFlags(row = {}) {
     const applicationStatus = normalizeLookupValue(row.application_status);
     const documentStatus = normalizeLookupValue(row.document_status);
     const endorsementStatusRaw = String(row.endorsement_overall_status || row.overall_status || '').trim().toLowerCase();
+    const endorsementStage = String(row.endorsement_current_stage || row.current_stage || '').trim().toLowerCase();
     // Downstream readiness trusts the coordinator's final requirements review.
     // Individual document-review counts are still surfaced for diagnostics, but
     // once verification_status is "verified" we do not re-litigate every
@@ -599,6 +608,19 @@ function buildReadinessFlags(row = {}) {
         Number(row.uploaded_required_count || 0) >= REQUIRED_UPLOAD_DOCUMENT_NAMES.length;
     const endorsementComplete =
         endorsementStatusRaw === 'completed';
+    const endorsementCompletedCount = endorsementComplete
+        ? ENDORSEMENT_STAGE_TOTAL
+        : endorsementStage === 'pending_pd'
+            ? 2
+            : endorsementStage === 'pending_guidance'
+                ? 1
+                : ['disqualified_major', 'disqualified_minor'].includes(endorsementStatusRaw)
+                    ? 1
+                    : 0;
+    const submittedRequirementCount = Math.min(
+        REGISTRY_REQUIREMENT_TOTAL,
+        Number(row.registry_uploaded_count || 0) + 1
+    );
     const blockers = [];
     let requirementsStatus = 'under_review';
     let endorsementStatus = endorsementStatusRaw || null;
@@ -661,6 +683,10 @@ function buildReadinessFlags(row = {}) {
         blockers,
         verified_review_count: Number(row.verified_review_count || 0),
         uploaded_required_count: Number(row.uploaded_required_count || 0),
+        submitted_requirement_count: submittedRequirementCount,
+        requirement_total_count: REGISTRY_REQUIREMENT_TOTAL,
+        endorsement_completed_count: endorsementCompletedCount,
+        endorsement_total_count: ENDORSEMENT_STAGE_TOTAL,
         requirements_status: requirementsStatus,
         endorsement_status: row.endorsement_overall_status || row.overall_status || null,
         normalized_endorsement_status: endorsementStatus,
@@ -705,9 +731,18 @@ async function fetchApplicationReadinessMap(applicationIds = []) {
                      and (
                         nullif(trim(coalesce(ad.file_path, '')), '') is not null
                         or nullif(trim(coalesce(ad.file_url, '')), '') is not null
+                    )
+                    then lower(ad.document_type)
+                end) as uploaded_required_count,
+                count(distinct case
+                    when lower(coalesce(ad.document_type, '')) = any($4::text[])
+                     and coalesce(ad.is_submitted, false) = true
+                     and (
+                        nullif(trim(coalesce(ad.file_path, '')), '') is not null
+                        or nullif(trim(coalesce(ad.file_url, '')), '') is not null
                      )
                     then lower(ad.document_type)
-                end) as uploaded_required_count
+                end) as registry_uploaded_count
             from application_documents ad
             where ad.application_id = any($1::uuid[])
             group by ad.application_id
@@ -727,7 +762,8 @@ async function fetchApplicationReadinessMap(applicationIds = []) {
             es.overall_status as endorsement_overall_status,
             es.current_stage as endorsement_current_stage,
             coalesce(rs.verified_review_count, 0) as verified_review_count,
-            coalesce(us.uploaded_required_count, 0) as uploaded_required_count
+            coalesce(us.uploaded_required_count, 0) as uploaded_required_count,
+            coalesce(us.registry_uploaded_count, 0) as registry_uploaded_count
         from applications a
         left join endorsement_slips es
             on es.application_id = a.application_id
@@ -737,7 +773,12 @@ async function fetchApplicationReadinessMap(applicationIds = []) {
             on us.application_id = a.application_id
         where a.application_id = any($1::uuid[])
         `,
-        [normalizedIds, REQUIRED_REVIEW_DOCUMENT_KEYS, REQUIRED_UPLOAD_DOCUMENT_NAMES]
+        [
+            normalizedIds,
+            REQUIRED_REVIEW_DOCUMENT_KEYS,
+            REQUIRED_UPLOAD_DOCUMENT_NAMES,
+            REGISTRY_UPLOAD_DOCUMENT_NAMES,
+        ]
     );
 
     const readinessMap = new Map();

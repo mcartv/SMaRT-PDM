@@ -549,12 +549,14 @@ class _StepPersonalState extends State<StepPersonal> {
     String? errorText,
     Widget? suffixIcon,
     bool hasValue = false,
+    bool readOnly = false,
   }) => intakeInputDecoration(
     context,
     hint: hint,
     errorText: errorText,
     suffixIcon: suffixIcon,
     hasValue: hasValue,
+    readOnly: readOnly,
   );
 
   Widget _field({required String label, required Widget child}) {
@@ -617,9 +619,11 @@ class _StepPersonalState extends State<StepPersonal> {
     VoidCallback? onTap,
     Widget? suffixIcon,
   }) {
+    final visuallyReadOnly = readOnly && onTap == null;
     return _field(
       label: label,
       child: TextFormField(
+        style: intakeInputTextStyle(context, readOnly: visuallyReadOnly),
         controller: controller,
         readOnly: readOnly,
         keyboardType: keyboardType,
@@ -628,8 +632,11 @@ class _StepPersonalState extends State<StepPersonal> {
         decoration: _dec(
           hint,
           errorText: errorText,
-          suffixIcon: suffixIcon ?? intakeCompletionIcon(controller.text),
+          suffixIcon:
+              suffixIcon ??
+              intakeCompletionIcon(controller.text, isValid: errorText == null),
           hasValue: controller.text.trim().isNotEmpty,
+          readOnly: visuallyReadOnly,
         ),
       ),
     );
@@ -650,7 +657,7 @@ class _StepPersonalState extends State<StepPersonal> {
         dropdownColor: intakeSurfaceColor(context),
         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
           color: intakeTextColor(context),
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w400,
         ),
         iconEnabledColor: intakeSubtextColor(context),
         iconDisabledColor: intakeSubtextColor(context).withValues(alpha: 0.45),
@@ -658,7 +665,10 @@ class _StepPersonalState extends State<StepPersonal> {
         decoration: _dec(
           hint,
           errorText: errorText,
-          suffixIcon: intakeCompletionIcon(currentValue),
+          suffixIcon: intakeCompletionIcon(
+            currentValue,
+            isValid: errorText == null,
+          ),
           hasValue: currentValue.trim().isNotEmpty,
         ),
         items: items
@@ -952,7 +962,7 @@ class _StepPersonalState extends State<StepPersonal> {
               _textField(
                 controller: lastNameController,
                 label: 'Last Name *',
-                hint: 'Pascual',
+                hint: 'Enter last name',
                 errorText: _nameError(lastNameController.text, 'Last name'),
               ),
               _textField(
@@ -961,7 +971,7 @@ class _StepPersonalState extends State<StepPersonal> {
                   LengthLimitingTextInputFormatter(ApplicationFieldLimits.name),
                 ],
                 label: 'First Name *',
-                hint: 'Jomar Paul',
+                hint: 'Enter first name',
                 errorText: _nameError(firstNameController.text, 'First name'),
               ),
             ]),
@@ -973,7 +983,7 @@ class _StepPersonalState extends State<StepPersonal> {
                   LengthLimitingTextInputFormatter(ApplicationFieldLimits.name),
                 ],
                 label: 'Middle Name (Optional)',
-                hint: 'Gutierrez',
+                hint: 'Enter middle name',
                 errorText: _nameError(
                   middleNameController.text,
                   'Middle name',
@@ -1007,7 +1017,7 @@ class _StepPersonalState extends State<StepPersonal> {
               _textField(
                 controller: dobController,
                 label: 'Date of Birth *',
-                hint: '11/29/2007',
+                hint: 'Select date of birth',
                 readOnly: true,
                 onTap: _pickBirthDate,
                 errorText: _dobError(),
@@ -1039,7 +1049,7 @@ class _StepPersonalState extends State<StepPersonal> {
                   ),
                 ],
                 label: 'Place of Birth *',
-                hint: 'Marilao',
+                hint: 'Enter place of birth',
                 errorText: _requiredError(
                   placeOfBirthController.text,
                   'Place of birth',
@@ -1056,7 +1066,7 @@ class _StepPersonalState extends State<StepPersonal> {
                   ),
                 ],
                 label: 'Citizenship *',
-                hint: 'Filipino',
+                hint: 'Enter citizenship',
                 errorText: _requiredError(
                   citizenshipController.text,
                   'Citizenship',
@@ -1108,7 +1118,7 @@ class _StepPersonalState extends State<StepPersonal> {
                   ),
                 ],
                 label: 'Specify Religion *',
-                hint: 'Other',
+                hint: 'Enter religion',
                 errorText: _requiredError(widget.data.religion, 'Religion'),
               ),
             ],
@@ -1126,7 +1136,7 @@ class _StepPersonalState extends State<StepPersonal> {
                   ),
                 ],
                 label: 'RM/FLR/UNIT NO. BLDG NAME',
-                hint: 'Unit 5, Bldg. 12',
+                hint: 'Enter unit or building',
               ),
               _textField(
                 controller: houseLotBlockNoController,
@@ -1136,7 +1146,7 @@ class _StepPersonalState extends State<StepPersonal> {
                   ),
                 ],
                 label: 'HOUSE/LOT/BLOCK NO.',
-                hint: 'Lot 8, Block 3',
+                hint: 'Enter house, lot, or block number',
               ),
               _textField(
                 controller: phaseController,
@@ -1146,7 +1156,7 @@ class _StepPersonalState extends State<StepPersonal> {
                   ),
                 ],
                 label: 'Phase',
-                hint: 'Phase',
+                hint: 'Enter phase',
               ),
             ]),
             const SizedBox(height: 16),
@@ -1158,8 +1168,8 @@ class _StepPersonalState extends State<StepPersonal> {
                     ApplicationFieldLimits.addressPart,
                   ),
                 ],
-                label: 'Street',
-                hint: '288 Quezon Blvd, Brgy. Baritan',
+                label: 'Street *',
+                hint: 'Enter street',
                 errorText:
                     widget.showErrors && streetController.text.trim().isEmpty
                     ? 'Street is required.'
@@ -1211,7 +1221,7 @@ class _StepPersonalState extends State<StepPersonal> {
               _textField(
                 controller: zipCodeController,
                 label: 'ZIP Code *',
-                hint: '3019',
+                hint: 'Enter ZIP code',
                 keyboardType: TextInputType.text,
                 inputFormatters: [LengthLimitingTextInputFormatter(4)],
                 errorText: _zipCodeError(),
@@ -1231,14 +1241,14 @@ class _StepPersonalState extends State<StepPersonal> {
                 ),
               ],
               label: 'Landline',
-              hint: '(044) XXX-XXXX',
+              hint: 'Enter landline number',
               keyboardType: TextInputType.phone,
             ),
             const SizedBox(height: 16),
             _textField(
               controller: mobileController,
               label: 'Mobile Number *',
-              hint: '09123456789',
+              hint: 'Enter mobile number',
               keyboardType: TextInputType.phone,
               inputFormatters: const [PhilippineMobileInputFormatter()],
               errorText: _mobileError(),
@@ -1250,7 +1260,7 @@ class _StepPersonalState extends State<StepPersonal> {
                 LengthLimitingTextInputFormatter(ApplicationFieldLimits.email),
               ],
               label: 'Email Address *',
-              hint: 'name@example.com',
+              hint: 'Enter email address',
               keyboardType: TextInputType.emailAddress,
               errorText: _emailError(),
             ),

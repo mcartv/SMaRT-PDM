@@ -95,8 +95,10 @@ class _StepEssayState extends State<StepEssay> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  '$title *',
+                child: intakeRequiredText(
+                  context,
+                  title,
+                  required: true,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: intakeTextColor(context),
                     fontWeight: FontWeight.w800,
@@ -109,6 +111,7 @@ class _StepEssayState extends State<StepEssay> {
           ),
           const SizedBox(height: 16),
           TextFormField(
+            style: intakeInputTextStyle(context),
             controller: controller,
             minLines: 8,
             maxLines: 14,
@@ -154,7 +157,7 @@ class _StepEssayState extends State<StepEssay> {
           number: 1,
           title: 'Write a short essay describing yourself.',
           controller: describeYourselfController,
-          hint: 'Start writing here...',
+          hint: 'Enter your answer here',
           field: 'describeYourselfEssay',
         ),
         _essayCard(
@@ -162,7 +165,7 @@ class _StepEssayState extends State<StepEssay> {
           title:
               'State briefly your aims and ambition after graduation, including plans for your hometown or province.',
           controller: aimsAndAmbitionController,
-          hint: 'Start writing here...',
+          hint: 'Enter your answer here',
           field: 'aimsAndAmbitionEssay',
         ),
         const IntakeInfoCard(

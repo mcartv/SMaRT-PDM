@@ -343,12 +343,18 @@ class _StepAcademicState extends State<StepAcademic> {
     selectedCourse = normalizedCourse.isEmpty ? null : normalizedCourse;
   }
 
-  InputDecoration _dec(String hint, {String? errorText, Widget? suffixIcon}) {
+  InputDecoration _dec(
+    String hint, {
+    String? errorText,
+    Widget? suffixIcon,
+    bool readOnly = false,
+  }) {
     return intakeInputDecoration(
       context,
       hint: hint,
       errorText: errorText,
       suffixIcon: suffixIcon,
+      readOnly: readOnly,
     );
   }
 
@@ -541,8 +547,10 @@ class _StepAcademicState extends State<StepAcademic> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '$title *',
+          intakeRequiredText(
+            context,
+            title,
+            required: true,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: intakeTextColor(context),
               fontWeight: FontWeight.w900,
@@ -553,6 +561,7 @@ class _StepAcademicState extends State<StepAcademic> {
           _field(
             'School *',
             TextFormField(
+              style: intakeInputTextStyle(context),
               controller: school,
               inputFormatters: [
                 LengthLimitingTextInputFormatter(
@@ -570,6 +579,7 @@ class _StepAcademicState extends State<StepAcademic> {
           _field(
             'Address *',
             TextFormField(
+              style: intakeInputTextStyle(context),
               controller: address,
               inputFormatters: [
                 LengthLimitingTextInputFormatter(
@@ -589,6 +599,7 @@ class _StepAcademicState extends State<StepAcademic> {
               _field(
                 'Honors / Awards',
                 TextFormField(
+                  style: intakeInputTextStyle(context),
                   controller: honors,
                   inputFormatters: [
                     LengthLimitingTextInputFormatter(
@@ -604,6 +615,7 @@ class _StepAcademicState extends State<StepAcademic> {
               _field(
                 'Club / Org',
                 TextFormField(
+                  style: intakeInputTextStyle(context),
                   controller: club,
                   inputFormatters: [
                     LengthLimitingTextInputFormatter(
@@ -630,7 +642,7 @@ class _StepAcademicState extends State<StepAcademic> {
                     dropdownColor: intakeSurfaceColor(context),
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: intakeTextColor(context),
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w400,
                     ),
                     iconEnabledColor: intakeSubtextColor(context),
                     iconDisabledColor: intakeSubtextColor(
@@ -678,7 +690,7 @@ class _StepAcademicState extends State<StepAcademic> {
                     dropdownColor: intakeSurfaceColor(context),
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: intakeTextColor(context),
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w400,
                     ),
                     iconEnabledColor: intakeSubtextColor(context),
                     iconDisabledColor: intakeSubtextColor(
@@ -741,7 +753,7 @@ class _StepAcademicState extends State<StepAcademic> {
                 dropdownColor: intakeSurfaceColor(context),
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: intakeTextColor(context),
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w400,
                 ),
                 iconEnabledColor: intakeSubtextColor(context),
                 iconDisabledColor: intakeSubtextColor(
@@ -932,10 +944,15 @@ class _StepAcademicState extends State<StepAcademic> {
               _field(
                 'Course *',
                 TextFormField(
+                  style: intakeInputTextStyle(context, readOnly: true),
                   key: ValueKey(selectedCourse ?? ''),
                   initialValue: selectedCourse ?? '',
                   readOnly: true,
-                  decoration: _dec('Course', errorText: _courseError()),
+                  decoration: _dec(
+                    'Course',
+                    errorText: _courseError(),
+                    readOnly: true,
+                  ),
                 ),
               ),
               if ((selectedCourse ?? '').trim().isEmpty) ...[
@@ -997,7 +1014,7 @@ class _StepAcademicState extends State<StepAcademic> {
                       dropdownColor: intakeSurfaceColor(context),
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: intakeTextColor(context),
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w400,
                       ),
                       iconEnabledColor: intakeSubtextColor(context),
                       iconDisabledColor: intakeSubtextColor(
@@ -1034,7 +1051,7 @@ class _StepAcademicState extends State<StepAcademic> {
                       dropdownColor: intakeSurfaceColor(context),
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: intakeTextColor(context),
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w400,
                       ),
                       iconEnabledColor: intakeSubtextColor(context),
                       iconDisabledColor: intakeSubtextColor(
@@ -1065,11 +1082,13 @@ class _StepAcademicState extends State<StepAcademic> {
                   _field(
                     'Student Number *',
                     TextFormField(
+                      style: intakeInputTextStyle(context, readOnly: true),
                       controller: studentNumberController,
                       readOnly: true,
                       decoration: _dec(
                         'Student Number',
                         errorText: _studentNumberError(),
+                        readOnly: true,
                         suffixIcon: intakeCompletionIcon(
                           studentNumberController.text,
                         ),
@@ -1083,6 +1102,7 @@ class _StepAcademicState extends State<StepAcademic> {
               _field(
                 'Learner Reference Number *',
                 TextFormField(
+                  style: intakeInputTextStyle(context),
                   initialValue: widget.data.learnersReferenceNumber,
                   inputFormatters: [LengthLimitingTextInputFormatter(12)],
                   decoration: _dec(
@@ -1108,8 +1128,10 @@ class _StepAcademicState extends State<StepAcademic> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Financial Support *',
+              intakeRequiredText(
+                context,
+                'Financial Support',
+                required: true,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: intakeTextColor(context),
                   fontWeight: FontWeight.w900,
@@ -1123,6 +1145,7 @@ class _StepAcademicState extends State<StepAcademic> {
                 _field(
                   'Specify',
                   TextFormField(
+                    style: intakeInputTextStyle(context),
                     controller: financialSupportOtherController,
                     inputFormatters: [
                       LengthLimitingTextInputFormatter(
@@ -1145,8 +1168,10 @@ class _StepAcademicState extends State<StepAcademic> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Scholarship History *',
+              intakeRequiredText(
+                context,
+                'Scholarship History',
+                required: true,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: intakeTextColor(context),
                   fontWeight: FontWeight.w900,
@@ -1238,6 +1263,7 @@ class _StepAcademicState extends State<StepAcademic> {
                   _field(
                     'If Other, specify',
                     TextFormField(
+                      style: intakeInputTextStyle(context),
                       controller: scholarshipOthersSpecifyController,
                       inputFormatters: [
                         LengthLimitingTextInputFormatter(
@@ -1255,6 +1281,7 @@ class _StepAcademicState extends State<StepAcademic> {
                 _field(
                   'Please indicate details of scholarship such as name of school, course, year level, inclusive semester/s and school year/s and amount granted.',
                   TextFormField(
+                    style: intakeInputTextStyle(context),
                     controller: scholarshipDetailsController,
                     inputFormatters: [
                       LengthLimitingTextInputFormatter(
@@ -1291,8 +1318,10 @@ class _StepAcademicState extends State<StepAcademic> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Disciplinary Action *',
+              intakeRequiredText(
+                context,
+                'Disciplinary Action',
+                required: true,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: intakeTextColor(context),
                   fontWeight: FontWeight.w900,
@@ -1323,6 +1352,7 @@ class _StepAcademicState extends State<StepAcademic> {
                 _field(
                   'Please explain briefly',
                   TextFormField(
+                    style: intakeInputTextStyle(context),
                     controller: disciplinaryExplanationController,
                     inputFormatters: [
                       LengthLimitingTextInputFormatter(

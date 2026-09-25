@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
@@ -16,6 +17,7 @@ import 'package:smartpdm_mobileapp/features/applicant/data/services/applicant_do
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/applicant_documents_package.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ApplicantDocumentsScreen extends StatefulWidget {
   const ApplicantDocumentsScreen({
@@ -247,10 +249,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                 'Your current uploaded file will remain available until the '
                 'replacement finishes successfully. After replacement, the new '
                 'file becomes the current document and returns to Pending Review.',
-                style: TextStyle(
-                  color: bodyColor,
-                  height: 1.4,
-                ),
+                style: TextStyle(color: bodyColor, height: 1.4),
               ),
               const SizedBox(height: 10),
               Text(
@@ -298,23 +297,47 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     final canContinue = await _confirmDocumentReplacement(document);
     if (!canContinue || !mounted) return;
 
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
-      allowMultiple: false,
-      withData: kIsWeb,
-    );
+    final source = await _chooseUploadSource(document);
+    if (source == null || !mounted) return;
 
-    if (result == null || result.files.isEmpty) return;
+    String fileName;
+    String? filePath;
+    Uint8List? fileBytes;
+    int fileSize;
 
-    final pickedFile = result.files.single;
-    final fileName = pickedFile.name;
-    final filePath = kIsWeb ? null : pickedFile.path;
-    final fileBytes = pickedFile.bytes;
+    if (source == _DocumentUploadSource.camera) {
+      final capturedFile = await ImagePicker().pickImage(
+        source: ImageSource.camera,
+        imageQuality: 90,
+        maxWidth: 2400,
+      );
+      if (capturedFile == null) return;
+
+      fileName = capturedFile.name;
+      filePath = capturedFile.path;
+      fileBytes = kIsWeb ? await capturedFile.readAsBytes() : null;
+      fileSize = await capturedFile.length();
+    } else {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
+        allowMultiple: false,
+        withData: kIsWeb,
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final pickedFile = result.files.single;
+      fileName = pickedFile.name;
+      filePath = kIsWeb ? null : pickedFile.path;
+      fileBytes = pickedFile.bytes;
+      fileSize = pickedFile.size;
+    }
+
     final extension = fileName.split('.').last.toLowerCase();
 
     const maxFileSizeBytes = 10 * 1024 * 1024;
-    if (pickedFile.size > maxFileSizeBytes) {
+    if (fileSize > maxFileSizeBytes) {
       _showUploadMessage(
         'File is too large. Maximum size is 10 MB.',
         isError: true,
@@ -381,6 +404,57 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     }
   }
 
+  Future<_DocumentUploadSource?> _chooseUploadSource(
+    ApplicantRequirementDocument document,
+  ) {
+    return showModalBottomSheet<_DocumentUploadSource>(
+      context: context,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              document.isSubmitted ? 'Replace document' : 'Upload document',
+              style: Theme.of(
+                sheetContext,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              document.documentType,
+              style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 18),
+            if (!kIsWeb)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Take Photo'),
+                subtitle: const Text('Capture the document using your camera'),
+                onTap: () => Navigator.of(
+                  sheetContext,
+                ).pop(_DocumentUploadSource.camera),
+              ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.folder_open_outlined),
+              title: const Text('Choose File'),
+              subtitle: const Text('Select a PDF or image from your device'),
+              onTap: () =>
+                  Navigator.of(sheetContext).pop(_DocumentUploadSource.file),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _showDocumentPreview(
     ApplicantRequirementDocument document,
   ) async {
@@ -404,6 +478,19 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
         path.endsWith('.webp');
     final isPdf = path.endsWith('.pdf');
 
+    if (!isImage) {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened && mounted) {
+        _showUploadMessage(
+          isPdf
+              ? 'Unable to open the PDF preview on this device.'
+              : 'Unable to open this uploaded file on this device.',
+          isError: true,
+        );
+      }
+      return;
+    }
+
     final shouldReplace = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -416,9 +503,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
             horizontal: 22,
             vertical: 28,
           ),
-          shape: RoundedRectangleBorder(
-            borderRadius: AppRadii.card,
-          ),
+          shape: RoundedRectangleBorder(borderRadius: AppRadii.card),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
             child: Padding(
@@ -631,7 +716,12 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
           key: const PageStorageKey<String>('applicant-required-documents'),
           controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xxl),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.xxl,
+          ),
           children: [
             _HeaderCard(
               title:
@@ -683,18 +773,22 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                           const SizedBox(height: AppSpacing.sm),
                           Text(
                             applicationRejected
-                                ? ((package?.rejectionReason?.trim().isNotEmpty ?? false)
+                                ? ((package?.rejectionReason
+                                              ?.trim()
+                                              .isNotEmpty ??
+                                          false)
                                       ? 'Application rejected. Admin feedback: ${package!.rejectionReason}'
                                       : 'Application rejected by Admin. Document upload and replacement are locked.')
                                 : (package?.uploadLockReason ??
                                       'Documents verified by Admin. Upload and replacement are locked unless a correction is requested.'),
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: applicationRejected
-                                  ? lockColors.onDangerContainer
-                                  : lockColors.onSuccessContainer,
-                              height: 1.4,
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: applicationRejected
+                                      ? lockColors.onDangerContainer
+                                      : lockColors.onSuccessContainer,
+                                  height: 1.4,
+                                  fontWeight: FontWeight.w700,
+                                ),
                           ),
                         ],
                       ),
@@ -1107,16 +1201,37 @@ class _DocumentCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      document.isRequired
-                          ? 'Required'
-                          : document.documentType.toLowerCase().contains('birth') ||
-                                document.documentType.toLowerCase().contains('psa')
-                              ? 'Optional Mobile Upload'
-                              : 'Optional',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: subtitleColor,
-                        fontWeight: FontWeight.w700,
+                    Text.rich(
+                      TextSpan(
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: subtitleColor,
+                              fontWeight: FontWeight.w700,
+                            ),
+                        children: document.isRequired
+                            ? [
+                                const TextSpan(text: 'Required'),
+                                TextSpan(
+                                  text: ' *',
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.error,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ]
+                            : [
+                                TextSpan(
+                                  text:
+                                      document.documentType
+                                              .toLowerCase()
+                                              .contains('birth') ||
+                                          document.documentType
+                                              .toLowerCase()
+                                              .contains('psa')
+                                      ? 'Optional Mobile Upload'
+                                      : 'Optional',
+                                ),
+                              ],
                       ),
                     ),
                   ],
@@ -1169,26 +1284,24 @@ class _DocumentCard extends StatelessWidget {
                   onUpload == null
                       ? Icons.lock_outline_rounded
                       : document.isSubmitted
-                          ? Icons.swap_horiz_rounded
-                          : Icons.upload_file,
+                      ? Icons.swap_horiz_rounded
+                      : Icons.upload_file,
                 ),
                 label: Text(
                   onUpload == null
                       ? 'Verified — Locked'
                       : isUploading
-                          ? (document.isSubmitted
-                                ? 'Replacing...'
-                                : 'Uploading...')
-                          : document.isSubmitted
-                              ? 'Replace Document'
-                              : 'Upload File',
+                      ? (document.isSubmitted ? 'Replacing...' : 'Uploading...')
+                      : document.isSubmitted
+                      ? 'Replace Document'
+                      : 'Upload File',
                 ),
               ),
               if (onOpen != null)
                 OutlinedButton.icon(
                   onPressed: isUploading ? null : onOpen,
                   icon: const Icon(Icons.visibility_outlined),
-                  label: const Text('View File'),
+                  label: const Text('Preview'),
                 ),
             ],
           ),
@@ -1211,6 +1324,8 @@ class _DocumentCard extends StatelessWidget {
     return Icons.description_outlined;
   }
 }
+
+enum _DocumentUploadSource { camera, file }
 
 class _PreviewUnavailable extends StatelessWidget {
   const _PreviewUnavailable({

@@ -68,7 +68,7 @@
 	</array>
 
 	<key>NSCameraUsageDescription</key>
-	<string>SMaRT-PDM needs camera access to capture RO photo proof.</string>
+	<string>SMaRT-PDM needs camera access to capture document uploads and RO photo proof.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>SMaRT-PDM records your location when submitting RO photo proof, when available.</string>
 </dict>

@@ -357,13 +357,18 @@ class _StepFamilyState extends State<StepFamily> {
     return educationalOptions.contains(value.trim()) ? value.trim() : null;
   }
 
-  InputDecoration _dec(String hint, {String? errorText, Widget? suffixIcon}) =>
-      intakeInputDecoration(
-        context,
-        hint: hint,
-        errorText: errorText,
-        suffixIcon: suffixIcon,
-      );
+  InputDecoration _dec(
+    String hint, {
+    String? errorText,
+    Widget? suffixIcon,
+    bool readOnly = false,
+  }) => intakeInputDecoration(
+    context,
+    hint: hint,
+    errorText: errorText,
+    suffixIcon: suffixIcon,
+    readOnly: readOnly,
+  );
 
   String? _requiredError(String value, String label) {
     if (!widget.showErrors || value.trim().isNotEmpty) return null;
@@ -447,10 +452,13 @@ class _StepFamilyState extends State<StepFamily> {
         : 'Enter the complete name of at least one parent or guardian.';
   }
 
-  Widget _field(String label, Widget child) {
+  Widget _field(String label, Widget child, {bool required = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [intakeFieldLabel(context, label), child],
+      children: [
+        intakeFieldLabel(context, label, required: required),
+        child,
+      ],
     );
   }
 
@@ -688,6 +696,7 @@ class _StepFamilyState extends State<StepFamily> {
             _field(
               'Last Name',
               TextFormField(
+                style: intakeInputTextStyle(context),
                 controller: lastNameController,
                 inputFormatters: [
                   LengthLimitingTextInputFormatter(ApplicationFieldLimits.name),
@@ -709,10 +718,12 @@ class _StepFamilyState extends State<StepFamily> {
                   suffixIcon: intakeCompletionIcon(lastNameController.text),
                 ),
               ),
+              required: true,
             ),
             _field(
               'First Name',
               TextFormField(
+                style: intakeInputTextStyle(context),
                 controller: firstNameController,
                 inputFormatters: [
                   LengthLimitingTextInputFormatter(ApplicationFieldLimits.name),
@@ -734,6 +745,7 @@ class _StepFamilyState extends State<StepFamily> {
                   suffixIcon: intakeCompletionIcon(firstNameController.text),
                 ),
               ),
+              required: true,
             ),
           ]),
           const SizedBox(height: 16),
@@ -741,6 +753,7 @@ class _StepFamilyState extends State<StepFamily> {
             _field(
               'Middle Name',
               TextFormField(
+                style: intakeInputTextStyle(context),
                 controller: middleNameController,
                 inputFormatters: [
                   LengthLimitingTextInputFormatter(ApplicationFieldLimits.name),
@@ -755,10 +768,12 @@ class _StepFamilyState extends State<StepFamily> {
                   suffixIcon: intakeCompletionIcon(middleNameController.text),
                 ),
               ),
+              required: true,
             ),
             _field(
               'Mobile Number',
               TextFormField(
+                style: intakeInputTextStyle(context),
                 controller: mobileController,
                 keyboardType: TextInputType.text,
                 inputFormatters: _familyMobileInputFormatters,
@@ -774,6 +789,7 @@ class _StepFamilyState extends State<StepFamily> {
                   ),
                 ),
               ),
+              required: true,
             ),
           ]),
           const SizedBox(height: 16),
@@ -784,7 +800,7 @@ class _StepFamilyState extends State<StepFamily> {
               dropdownColor: intakeSurfaceColor(context),
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: intakeTextColor(context),
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w400,
               ),
               iconEnabledColor: intakeSubtextColor(context),
               iconDisabledColor: intakeSubtextColor(
@@ -810,11 +826,13 @@ class _StepFamilyState extends State<StepFamily> {
                 onEducationChanged(value);
               },
             ),
+            required: true,
           ),
           const SizedBox(height: 16),
           _field(
             'Occupation',
             TextFormField(
+              style: intakeInputTextStyle(context),
               controller: occupationController,
               inputFormatters: [
                 LengthLimitingTextInputFormatter(
@@ -830,11 +848,13 @@ class _StepFamilyState extends State<StepFamily> {
                 suffixIcon: intakeCompletionIcon(occupationController.text),
               ),
             ),
+            required: true,
           ),
           const SizedBox(height: 16),
           _field(
             'Company Name / Address',
             TextFormField(
+              style: intakeInputTextStyle(context),
               controller: companyController,
               inputFormatters: [
                 LengthLimitingTextInputFormatter(
@@ -850,6 +870,7 @@ class _StepFamilyState extends State<StepFamily> {
                 suffixIcon: intakeCompletionIcon(companyController.text),
               ),
             ),
+            required: true,
           ),
         ],
       ),
@@ -933,7 +954,14 @@ class _StepFamilyState extends State<StepFamily> {
                 onTap: () => _applySameAddress(!sameAddress),
               ),
               const SizedBox(height: 12),
+              if (!sameAddress)
+                intakeFieldLabel(
+                  context,
+                  'Parent or guardian address',
+                  required: true,
+                ),
               TextFormField(
+                style: intakeInputTextStyle(context, readOnly: sameAddress),
                 controller: parentAddressController,
                 inputFormatters: [
                   LengthLimitingTextInputFormatter(
@@ -945,6 +973,7 @@ class _StepFamilyState extends State<StepFamily> {
                 decoration: _dec(
                   'Parent or guardian address',
                   errorText: _parentAddressError(),
+                  readOnly: sameAddress,
                   suffixIcon: intakeCompletionIcon(
                     parentAddressController.text,
                   ),
@@ -1040,8 +1069,9 @@ class _StepFamilyState extends State<StepFamily> {
               const SizedBox(height: 18),
               _row([
                 _field(
-                  'Last Name',
+                  'Last Name *',
                   TextFormField(
+                    style: intakeInputTextStyle(context),
                     controller: siblingLastNameController,
                     decoration: _dec(
                       'Last Name',
@@ -1053,8 +1083,9 @@ class _StepFamilyState extends State<StepFamily> {
                   ),
                 ),
                 _field(
-                  'First Name',
+                  'First Name *',
                   TextFormField(
+                    style: intakeInputTextStyle(context),
                     controller: siblingFirstNameController,
                     decoration: _dec(
                       'First Name',
@@ -1069,8 +1100,9 @@ class _StepFamilyState extends State<StepFamily> {
               const SizedBox(height: 16),
               _row([
                 _field(
-                  'Middle Name',
+                  'Middle Name *',
                   TextFormField(
+                    style: intakeInputTextStyle(context),
                     controller: siblingMiddleNameController,
                     decoration: _dec(
                       'Middle Name',
@@ -1083,8 +1115,9 @@ class _StepFamilyState extends State<StepFamily> {
                   ),
                 ),
                 _field(
-                  'Mobile Number',
+                  'Mobile Number *',
                   TextFormField(
+                    style: intakeInputTextStyle(context),
                     controller: siblingMobileController,
                     keyboardType: TextInputType.text,
                     inputFormatters: _familyMobileInputFormatters,
@@ -1104,13 +1137,13 @@ class _StepFamilyState extends State<StepFamily> {
               ]),
               const SizedBox(height: 16),
               _field(
-                'Highest Educational Attainment',
+                'Highest Educational Attainment *',
                 DropdownButtonFormField<String>(
                   isExpanded: true,
                   dropdownColor: intakeSurfaceColor(context),
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: intakeTextColor(context),
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w400,
                   ),
                   iconEnabledColor: intakeSubtextColor(context),
                   iconDisabledColor: intakeSubtextColor(
@@ -1137,8 +1170,9 @@ class _StepFamilyState extends State<StepFamily> {
               ),
               const SizedBox(height: 16),
               _field(
-                'Occupation',
+                'Occupation *',
                 TextFormField(
+                  style: intakeInputTextStyle(context),
                   controller: siblingOccupationController,
                   decoration: _dec(
                     'Occupation',
@@ -1151,8 +1185,9 @@ class _StepFamilyState extends State<StepFamily> {
               ),
               const SizedBox(height: 16),
               _field(
-                'Company Name / Address',
+                'Company Name / Address *',
                 TextFormField(
+                  style: intakeInputTextStyle(context),
                   controller: siblingCompanyController,
                   decoration: _dec(
                     'Company Name / Address',
@@ -1203,8 +1238,10 @@ class _StepFamilyState extends State<StepFamily> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              intakeRequiredText(
+                context,
                 'Are your parents native of Marilao?',
+                required: true,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: intakeTextColor(context),
                   fontWeight: FontWeight.w900,
@@ -1251,7 +1288,7 @@ class _StepFamilyState extends State<StepFamily> {
                     dropdownColor: intakeSurfaceColor(context),
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: intakeTextColor(context),
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w400,
                     ),
                     iconEnabledColor: intakeSubtextColor(context),
                     iconDisabledColor: intakeSubtextColor(
@@ -1298,6 +1335,7 @@ class _StepFamilyState extends State<StepFamily> {
                       ? 'Guardian Previous City / Municipality *'
                       : 'City / Municipality *',
                   TextFormField(
+                    style: intakeInputTextStyle(context),
                     controller: parentPreviousTownMunicipalityController,
                     inputFormatters: [
                       LengthLimitingTextInputFormatter(
@@ -1317,6 +1355,7 @@ class _StepFamilyState extends State<StepFamily> {
                 _field(
                   'Province *',
                   TextFormField(
+                    style: intakeInputTextStyle(context),
                     initialValue: widget.data.parentPreviousProvince,
                     inputFormatters: [
                       LengthLimitingTextInputFormatter(

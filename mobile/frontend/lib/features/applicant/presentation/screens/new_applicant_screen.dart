@@ -107,7 +107,10 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     try {
       final profile = await _profileService.fetchMyProfile();
       final databaseSection =
-          (profile['section'] ?? profile['current_section'])?.toString().trim() ?? '';
+          (profile['section'] ?? profile['current_section'])
+              ?.toString()
+              .trim() ??
+          '';
       final databaseLrn =
           profile['learners_reference_number']?.toString().trim() ?? '';
       final databaseCourse = profile['course_code']?.toString().trim() ?? '';
@@ -371,6 +374,14 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
         _showValidationErrors = true;
         _formFeedbackError = validationError;
       });
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(validationError),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         final stepContext = _stepContentKey.currentContext;
@@ -430,7 +441,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                   margin: const EdgeInsets.only(top: 1),
                   decoration: BoxDecoration(
                     color: AppColors.gold.withOpacity(0.14),
-                    borderRadius: BorderRadius.all(Radius.circular(AppRadii.sm)),
+                    borderRadius: BorderRadius.all(
+                      Radius.circular(AppRadii.sm),
+                    ),
                   ),
                   child: Icon(
                     Icons.check_rounded,
@@ -462,12 +475,8 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             minimumSize: const Size(0, AppSizes.minimumTapTarget),
             foregroundColor: titleColor,
             side: BorderSide(color: borderColor),
-            shape: RoundedRectangleBorder(
-              borderRadius: AppRadii.control,
-            ),
-            textStyle: const TextStyle(
-              fontWeight: FontWeight.w800,
-            ),
+            shape: RoundedRectangleBorder(borderRadius: AppRadii.control),
+            textStyle: const TextStyle(fontWeight: FontWeight.w800),
           ),
         );
 
@@ -480,12 +489,8 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             backgroundColor: AppColors.gold,
             foregroundColor: const Color(0xFF3D2A1D),
             elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: AppRadii.control,
-            ),
-            textStyle: const TextStyle(
-              fontWeight: FontWeight.w900,
-            ),
+            shape: RoundedRectangleBorder(borderRadius: AppRadii.control),
+            textStyle: const TextStyle(fontWeight: FontWeight.w900),
           ),
         );
 
@@ -740,24 +745,32 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   String? _validateCurrentForm() {
     switch (_step) {
       case 0:
-        return _submissionValidator.validatePersonalProgression(_data).firstMessage;
+        return _submissionValidator
+            .validatePersonalProgression(_data)
+            .firstMessage;
       case 1:
-        return _submissionValidator.validateFamilyProgression(_data).firstMessage;
+        return _submissionValidator
+            .validateFamilyProgression(_data)
+            .firstMessage;
       case 2:
-        return _submissionValidator.validateAcademicProgression(_data).firstMessage;
+        return _submissionValidator
+            .validateAcademicProgression(_data)
+            .firstMessage;
       case 3:
-        return _submissionValidator.validateEssayProgression(_data).firstMessage;
+        return _submissionValidator
+            .validateEssayProgression(_data)
+            .firstMessage;
       case 4:
-        return _submissionValidator.validateSubmissionPreflight(_data).firstMessage;
+        return _submissionValidator
+            .validateSubmissionPreflight(_data)
+            .firstMessage;
       default:
         return null;
     }
   }
 
-  Widget _buildStep() => KeyedSubtree(
-    key: _stepContentKey,
-    child: _buildStepContent(),
-  );
+  Widget _buildStep() =>
+      KeyedSubtree(key: _stepContentKey, child: _buildStepContent());
 
   Widget _buildStepContent() {
     switch (_step) {
@@ -845,14 +858,12 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
               final gutter = IntakeLayout.horizontalPadding(width);
               final formTheme = Theme.of(context).copyWith(
                 textTheme: Theme.of(context).textTheme.copyWith(
-                  bodyLarge: Theme.of(context)
-                      .textTheme
-                      .bodyLarge
-                      ?.copyWith(height: 1.45),
-                  bodyMedium: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(height: 1.45),
+                  bodyLarge: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(height: 1.45),
+                  bodyMedium: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(height: 1.45),
                 ),
               );
 
@@ -1164,10 +1175,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             child: !_hasSelectedOpening
                 ? const SizedBox.shrink()
                 : _step < 4
-                ? NavyButton(
-                    label: _nextButtonLabel,
-                    onTap: _next,
-                  )
+                ? NavyButton(label: _nextButtonLabel, onTap: _next)
                 : provider.isLoading
                 ? const Center(
                     child: SizedBox(
@@ -1181,8 +1189,12 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.gold,
                       foregroundColor: AppColors.darkBrown,
-                      disabledBackgroundColor: AppSurfacePalette.outline(context),
-                      disabledForegroundColor: AppSurfacePalette.mutedText(context),
+                      disabledBackgroundColor: AppSurfacePalette.outline(
+                        context,
+                      ),
+                      disabledForegroundColor: AppSurfacePalette.mutedText(
+                        context,
+                      ),
                       minimumSize: const Size(0, 56),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -1197,9 +1209,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                       widget.editExistingApplication
                           ? 'Save Updated Application'
                           : 'Submit Application',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                      ),
+                      style: const TextStyle(fontWeight: FontWeight.w900),
                     ),
                   ),
           ),

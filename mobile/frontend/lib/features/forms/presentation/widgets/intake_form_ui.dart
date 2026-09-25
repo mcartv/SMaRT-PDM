@@ -41,13 +41,17 @@ class IntakeLayout {
 bool intakeIsDark(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark;
 
-Color intakePageColor(BuildContext context) => AppSurfacePalette.background(context);
+Color intakePageColor(BuildContext context) =>
+    AppSurfacePalette.background(context);
 
-Color intakeSurfaceColor(BuildContext context) => AppSurfacePalette.surface(context);
+Color intakeSurfaceColor(BuildContext context) =>
+    AppSurfacePalette.surface(context);
 
-Color intakeSurfaceTintColor(BuildContext context) => AppSurfacePalette.surfaceMuted(context);
+Color intakeSurfaceTintColor(BuildContext context) =>
+    AppSurfacePalette.surfaceMuted(context);
 
-Color intakeBorderColor(BuildContext context) => AppSurfacePalette.outline(context);
+Color intakeBorderColor(BuildContext context) =>
+    AppSurfacePalette.outline(context);
 
 Color intakeMutedBorderColor(BuildContext context) =>
     AppSurfacePalette.outline(context).withValues(alpha: 0.82);
@@ -56,6 +60,60 @@ Color intakeTextColor(BuildContext context) => AppSurfacePalette.text(context);
 
 Color intakeSubtextColor(BuildContext context) =>
     AppSurfacePalette.mutedText(context);
+
+TextStyle intakeInputTextStyle(BuildContext context, {bool readOnly = false}) =>
+    Theme.of(context).textTheme.bodyLarge?.copyWith(
+      color: readOnly
+          ? intakeTextColor(context).withValues(alpha: 0.88)
+          : intakeTextColor(context),
+      fontWeight: FontWeight.w400,
+    ) ??
+    TextStyle(
+      color: readOnly
+          ? intakeTextColor(context).withValues(alpha: 0.88)
+          : intakeTextColor(context),
+      fontSize: 16,
+      fontWeight: FontWeight.w400,
+    );
+
+String intakeActionHint(String hint) {
+  final normalized = hint.trim();
+  if (normalized.startsWith('Enter ') ||
+      normalized.startsWith('Select ') ||
+      normalized.startsWith('Choose ') ||
+      normalized.startsWith('Tap ') ||
+      normalized.startsWith('Auto-') ||
+      normalized.startsWith('Assigned ')) {
+    return normalized;
+  }
+
+  return switch (normalized) {
+    'Last Name' => 'Enter last name',
+    'First Name' => 'Enter first name',
+    'Middle Name' => 'Enter middle name',
+    'School' => 'Enter school name',
+    'Address' => 'Enter school address',
+    'Honors / Awards' => 'Enter honors or awards',
+    'Club / Org' => 'Enter club or organization',
+    'Course' => 'Assigned course',
+    'Year Level' => 'Select year level',
+    'Section' => 'Select section',
+    'Student Number' => 'Assigned student number',
+    'Learner Reference Number' => 'Enter learner reference number',
+    'Specify other financial support' => 'Enter other financial support',
+    'Occupation' => 'Enter occupation',
+    'Company Name / Address' => 'Enter company name or address',
+    'Parent or guardian address' => 'Enter parent or guardian address',
+    'City / Municipality' => 'Enter city or municipality',
+    'Province' => 'Enter province',
+    'Specify' => 'Enter details',
+    'School, course, school year, amount' =>
+      'Enter school, course, school year, and amount',
+    'Explain the disciplinary action' => 'Enter a brief explanation',
+    '09171234567' => 'Enter mobile number',
+    _ => normalized,
+  };
+}
 
 Color intakeWarningColor(BuildContext context) => intakeIsDark(context)
     ? AppColors.applicantDarkSurfaceMuted
@@ -283,7 +341,7 @@ class IntakeChoiceCard extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: intakeTextColor(context),
                       fontWeight: FontWeight.w800,
-                      ),
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(
@@ -311,35 +369,52 @@ InputDecoration intakeInputDecoration(
   String? errorText,
   Widget? suffixIcon,
   bool hasValue = false,
+  bool readOnly = false,
 }) {
+  final isDark = intakeIsDark(context);
+  final theme = Theme.of(context);
+  final primaryColor = theme.colorScheme.primary;
   final border = OutlineInputBorder(
     borderRadius: AppRadii.control,
-    borderSide: BorderSide(color: intakeMutedBorderColor(context)),
+    borderSide: BorderSide(
+      color: isDark
+          ? AppColors.applicantDarkTextMuted.withValues(alpha: 0.62)
+          : AppColors.brown.withValues(alpha: 0.50),
+      width: 1.2,
+    ),
   );
 
   return InputDecoration(
-    hintText: hint,
+    hintText: intakeActionHint(hint),
     errorText: errorText,
     suffixIcon: suffixIcon,
     filled: true,
-    fillColor: intakeSurfaceTintColor(context),
+    fillColor: readOnly
+        ? intakeSurfaceTintColor(context)
+        : intakeSurfaceColor(context),
     constraints: const BoxConstraints(minHeight: 58),
     contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 17),
     enabledBorder: border,
     border: border,
     disabledBorder: border,
     focusedBorder: border.copyWith(
-      borderSide: const BorderSide(color: AppColors.gold, width: 1.4),
+      borderSide: BorderSide(color: primaryColor, width: 2),
     ),
     errorBorder: border.copyWith(
-      borderSide: BorderSide(color: Theme.of(context).colorScheme.error, width: 1.2),
+      borderSide: BorderSide(
+        color: Theme.of(context).colorScheme.error,
+        width: 1.5,
+      ),
     ),
     focusedErrorBorder: border.copyWith(
-      borderSide: BorderSide(color: Theme.of(context).colorScheme.error, width: 1.4),
+      borderSide: BorderSide(
+        color: Theme.of(context).colorScheme.error,
+        width: 1.8,
+      ),
     ),
     hintStyle: TextStyle(
-      color: intakeSubtextColor(context).withValues(alpha: 0.60),
-      fontWeight: FontWeight.w500,
+      color: intakeSubtextColor(context).withValues(alpha: 0.82),
+      fontWeight: FontWeight.w400,
     ),
     errorStyle: TextStyle(
       color: Theme.of(context).colorScheme.error,
@@ -348,32 +423,57 @@ InputDecoration intakeInputDecoration(
   );
 }
 
-Widget intakeFieldLabel(BuildContext context, String label) {
-  return Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Text(
-      label,
-      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+Widget intakeRequiredText(
+  BuildContext context,
+  String label, {
+  bool required = false,
+  TextStyle? style,
+}) {
+  final hasRequiredMarker = required || label.trimRight().endsWith('*');
+  final cleanLabel = label.replaceFirst(RegExp(r'\s*\*\s*$'), '').trimRight();
+  final effectiveStyle =
+      style ??
+      Theme.of(context).textTheme.labelLarge?.copyWith(
         color: intakeTextColor(context),
         fontWeight: FontWeight.w700,
-        ),
+      );
+
+  return Text.rich(
+    TextSpan(
+      style: effectiveStyle,
+      children: [
+        TextSpan(text: cleanLabel),
+        if (hasRequiredMarker)
+          TextSpan(
+            text: ' *',
+            style: effectiveStyle?.copyWith(
+              color: Theme.of(context).colorScheme.error,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+      ],
     ),
   );
 }
 
-Widget intakeCompletionIcon(String value) {
-  if (value.trim().isEmpty) {
-    return const Icon(
-      Icons.radio_button_unchecked_rounded,
-      color: Color(0xFFD7D0C7),
-      size: 20,
-    );
-  }
+Widget intakeFieldLabel(
+  BuildContext context,
+  String label, {
+  bool required = false,
+}) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: intakeRequiredText(context, label, required: required),
+  );
+}
+
+Widget? intakeCompletionIcon(String value, {bool isValid = true}) {
+  if (value.trim().isEmpty || !isValid) return null;
 
   return const Icon(
     Icons.check_circle_outline_rounded,
     color: IntakePalette.success,
-    size: 22,
+    size: 19,
   );
 }
 
@@ -470,7 +570,9 @@ class IntakeReviewRow extends StatelessWidget {
             child: Text(
               missing ? 'Missing' : value,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: missing ? Theme.of(context).colorScheme.error : intakeTextColor(context),
+                color: missing
+                    ? Theme.of(context).colorScheme.error
+                    : intakeTextColor(context),
                 fontWeight: missing ? FontWeight.w800 : FontWeight.w600,
               ),
             ),

@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
@@ -15,6 +18,8 @@ import 'package:smartpdm_mobileapp/features/scholar/data/services/payout_service
 import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar_nav_chips.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
+
+enum _ProofUploadSource { camera, file }
 
 class PayoutScheduleScreen extends StatefulWidget {
   final bool showBottomNav;
@@ -142,30 +147,111 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     _loadPayouts(silent: true);
   }
 
+  Future<_ProofUploadSource?> _chooseProofUploadSource() async {
+    if (kIsWeb) return _ProofUploadSource.file;
+    if (!mounted) return null;
+
+    return showModalBottomSheet<_ProofUploadSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Choose upload source',
+                style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Take a photo of your payout proof or choose an existing file.',
+                style: Theme.of(sheetContext).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Camera'),
+                subtitle: const Text('Take a new photo of the proof'),
+                onTap: () => Navigator.pop(
+                  sheetContext,
+                  _ProofUploadSource.camera,
+                ),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.folder_open_outlined),
+                title: const Text('Choose File'),
+                subtitle: const Text('PDF, JPG, JPEG, PNG, or WEBP'),
+                onTap: () => Navigator.pop(
+                  sheetContext,
+                  _ProofUploadSource.file,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _pickAndUploadProof(MobilePayoutItem payout) async {
     if (_uploadingProofs.contains(payout.payoutEntryId)) return;
 
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
-      allowMultiple: false,
-      withData: kIsWeb,
-    );
+    final source = await _chooseProofUploadSource();
+    if (source == null || !mounted) return;
 
-    if (result == null || result.files.isEmpty) return;
+    String fileName;
+    String? filePath;
+    Uint8List? fileBytes;
+    int fileSize;
 
-    final file = result.files.single;
+    if (source == _ProofUploadSource.camera) {
+      final photo = await ImagePicker().pickImage(
+        source: ImageSource.camera,
+        imageQuality: 92,
+        maxWidth: 2400,
+        maxHeight: 2400,
+      );
+      if (photo == null) return;
+
+      fileName = photo.name.trim().isNotEmpty
+          ? photo.name
+          : 'payout_proof_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      filePath = photo.path;
+      fileSize = await photo.length();
+    } else {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
+        allowMultiple: false,
+        withData: kIsWeb,
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.single;
+      fileName = file.name;
+      filePath = kIsWeb ? null : file.path;
+      fileBytes = file.bytes;
+      fileSize = file.size;
+    }
+
     const maxBytes = 10 * 1024 * 1024;
-    final extension = file.name.contains('.')
-        ? file.name.split('.').last.toLowerCase()
+    final extension = fileName.contains('.')
+        ? fileName.split('.').last.toLowerCase()
         : '';
     const allowed = {'pdf', 'jpg', 'jpeg', 'png', 'webp'};
 
-    if (file.size <= 0) {
+    if (fileSize <= 0) {
       _showMessage('The selected file is empty.');
       return;
     }
-    if (file.size > maxBytes) {
+    if (fileSize > maxBytes) {
       _showMessage('Payout proof must be 10 MB or smaller.');
       return;
     }
@@ -173,11 +259,12 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
       _showMessage('Only PDF, JPG, JPEG, PNG, and WEBP files are allowed.');
       return;
     }
-    if (kIsWeb && (file.bytes == null || file.bytes!.isEmpty)) {
+    if (kIsWeb && source == _ProofUploadSource.file &&
+        (fileBytes == null || fileBytes.isEmpty)) {
       _showMessage('The selected file could not be read. Choose it again.');
       return;
     }
-    if (!kIsWeb && (file.path == null || file.path!.trim().isEmpty)) {
+    if (!kIsWeb && (filePath == null || filePath.trim().isEmpty)) {
       _showMessage('The selected file could not be accessed. Choose it again.');
       return;
     }
@@ -186,9 +273,9 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     try {
       await _payoutService.uploadProof(
         payoutEntryId: payout.payoutEntryId,
-        fileName: file.name,
-        filePath: kIsWeb ? null : file.path,
-        fileBytes: file.bytes,
+        fileName: fileName,
+        filePath: filePath,
+        fileBytes: fileBytes,
       );
       if (!mounted) return;
       _showMessage('Payout proof submitted for review.');
@@ -205,6 +292,118 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
         }
       }
     }
+  }
+
+  Future<void> _previewProof(MobilePayoutItem payout) async {
+    final proof = payout.proof;
+    final fileUrl = proof?.fileUrl?.trim() ?? '';
+    if (fileUrl.isEmpty) {
+      _showMessage('No uploaded proof is available yet.');
+      return;
+    }
+
+    final uri = Uri.tryParse(fileUrl);
+    if (uri == null || !uri.hasScheme) {
+      _showMessage('The uploaded proof URL is invalid.');
+      return;
+    }
+
+    final path = uri.path.toLowerCase();
+    final isImage =
+        path.endsWith('.jpg') ||
+        path.endsWith('.jpeg') ||
+        path.endsWith('.png') ||
+        path.endsWith('.webp');
+
+    if (!isImage) {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened && mounted) {
+        _showMessage('Unable to open this proof on your device.');
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final size = MediaQuery.sizeOf(dialogContext);
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 28),
+          shape: const RoundedRectangleBorder(borderRadius: AppRadii.card),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 520,
+              maxHeight: size.height * 0.78,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          proof?.fileName?.trim().isNotEmpty == true
+                              ? proof!.fileName!
+                              : 'Proof of Payout',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(dialogContext)
+                              .textTheme
+                              .titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close preview',
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Flexible(
+                  child: Container(
+                    width: double.infinity,
+                    color: AppSurfacePalette.surfaceMuted(dialogContext),
+                    padding: const EdgeInsets.all(12),
+                    child: InteractiveViewer(
+                      minScale: 0.8,
+                      maxScale: 4,
+                      child: Center(
+                        child: Image.network(
+                          fileUrl,
+                          fit: BoxFit.contain,
+                          loadingBuilder: (context, child, progress) {
+                            if (progress == null) return child;
+                            return const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(30),
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
+                          },
+                          errorBuilder: (_, _, _) => const Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Text(
+                              'Unable to display this proof preview.',
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _showMessage(String message) {
@@ -288,6 +487,14 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
               style: Theme.of(
                 context,
               ).textTheme.labelMedium?.copyWith(color: subtitleColor),
+            ),
+          ],
+          if (proof?.fileUrl?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: isUploading ? null : () => _previewProof(payout),
+              icon: const Icon(Icons.visibility_outlined),
+              label: const Text('Preview'),
             ),
           ],
           if (canUpload) ...[

@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
@@ -14,6 +17,8 @@ import 'package:smartpdm_mobileapp/features/notifications/presentation/providers
 import 'package:smartpdm_mobileapp/features/scholar/data/services/renewal_service.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar_nav_chips.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
+
+enum _RenewalUploadSource { camera, file }
 
 class ScholarRenewalRequirementsScreen extends StatefulWidget {
   final bool showBottomNav;
@@ -169,43 +174,120 @@ class _ScholarRenewalRequirementsScreenState
         );
   }
 
-  Future<void> _pickAndUploadDocument(ScholarRenewalDocument document) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
-      allowMultiple: false,
-      withData: kIsWeb,
-    );
+  Future<_RenewalUploadSource?> _chooseUploadSource() async {
+    if (kIsWeb) return _RenewalUploadSource.file;
+    if (!mounted) return null;
 
-    if (result == null || result.files.isEmpty) {
-      return;
+    return showModalBottomSheet<_RenewalUploadSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Choose upload source',
+                style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Take a clear photo or choose an existing document from your device.',
+                style: Theme.of(sheetContext).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Camera'),
+                subtitle: const Text('Take a new photo of the document'),
+                onTap: () => Navigator.pop(
+                  sheetContext,
+                  _RenewalUploadSource.camera,
+                ),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.folder_open_outlined),
+                title: const Text('Choose File'),
+                subtitle: const Text('PDF, JPG, JPEG, PNG, or WEBP'),
+                onTap: () => Navigator.pop(
+                  sheetContext,
+                  _RenewalUploadSource.file,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickAndUploadDocument(ScholarRenewalDocument document) async {
+    final source = await _chooseUploadSource();
+    if (source == null || !mounted) return;
+
+    String fileName;
+    String? filePath;
+    Uint8List? fileBytes;
+    int fileSize;
+
+    if (source == _RenewalUploadSource.camera) {
+      final photo = await ImagePicker().pickImage(
+        source: ImageSource.camera,
+        imageQuality: 92,
+        maxWidth: 2400,
+        maxHeight: 2400,
+      );
+      if (photo == null) return;
+
+      fileName = photo.name.trim().isNotEmpty
+          ? photo.name
+          : 'renewal_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      filePath = photo.path;
+      fileSize = await photo.length();
+    } else {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
+        allowMultiple: false,
+        withData: kIsWeb,
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final pickedFile = result.files.single;
+      fileName = pickedFile.name;
+      filePath = kIsWeb ? null : pickedFile.path;
+      fileBytes = pickedFile.bytes;
+      fileSize = pickedFile.size;
     }
 
-    final pickedFile = result.files.single;
-    final fileName = pickedFile.name;
-    final filePath = kIsWeb ? null : pickedFile.path;
-    final fileBytes = pickedFile.bytes;
     final extension = fileName.split('.').last.toLowerCase();
     const maxFileSizeBytes = 8 * 1024 * 1024;
 
-    if (pickedFile.size <= 0) {
+    if (fileSize <= 0) {
       _showSnackBar('The selected file is empty. Choose another file.');
       return;
     }
 
-    if (pickedFile.size > maxFileSizeBytes) {
+    if (fileSize > maxFileSizeBytes) {
       _showSnackBar('File is too large. Maximum size is 8 MB.');
       return;
     }
 
     const allowedExtensions = {'pdf', 'jpg', 'jpeg', 'png', 'webp'};
-
     if (!allowedExtensions.contains(extension)) {
       _showSnackBar('Only PDF, JPG, JPEG, PNG, and WEBP files are allowed.');
       return;
     }
 
-    if (kIsWeb && (fileBytes == null || fileBytes.isEmpty)) {
+    if (kIsWeb && source == _RenewalUploadSource.file &&
+        (fileBytes == null || fileBytes.isEmpty)) {
       _showSnackBar(
         'The selected file could not be read in the browser. Please try another file.',
       );
@@ -230,9 +312,7 @@ class _ScholarRenewalRequirementsScreenState
       );
 
       if (!mounted) return;
-
       setState(() => _renewalPackage = payload);
-
       _showSnackBar('${document.documentType} uploaded successfully.');
     } catch (error) {
       if (!mounted) return;
@@ -317,6 +397,7 @@ class _ScholarRenewalRequirementsScreenState
     return url.contains('.jpg') ||
         url.contains('.jpeg') ||
         url.contains('.png') ||
+        url.contains('.webp') ||
         type.contains('image');
   }
 
@@ -329,9 +410,16 @@ class _ScholarRenewalRequirementsScreenState
     }
 
     if (!_isImageDocument(document)) {
-      _showSnackBar(
-        'Inline preview is currently available for image files. PDF files can still be replaced from this screen.',
-      );
+      final uri = Uri.tryParse(fileUrl.trim());
+      if (uri == null || !uri.hasScheme) {
+        _showSnackBar('The uploaded file URL is invalid.');
+        return;
+      }
+
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened) {
+        _showSnackBar('Unable to open this file on your device.');
+      }
       return;
     }
 
@@ -888,7 +976,7 @@ class _ScholarRenewalRequirementsScreenState
                         TextButton.icon(
                           onPressed: () => _openFilePreview(document),
                           icon: const Icon(Icons.visibility_outlined, size: 16),
-                          label: const Text('View file'),
+                          label: const Text('Preview'),
                         ),
                     ],
                   ),

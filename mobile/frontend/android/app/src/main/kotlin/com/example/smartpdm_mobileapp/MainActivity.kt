@@ -1,4 +1,4 @@
-package com.example.smartpdm_mobileapp
+package ph.edu.pdm.smartpdm
 
 import io.flutter.embedding.android.FlutterActivity
 

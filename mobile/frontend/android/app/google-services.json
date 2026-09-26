@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "364539364867",
+    "project_id": "smart-pdm-842f2",
+    "storage_bucket": "smart-pdm-842f2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:364539364867:android:449823ea14b226bad9b036",
+        "android_client_info": {
+          "package_name": "ph.edu.pdm.smartpdm"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBLcprH9u-1GuSm45tIbVS01l2ImCJ9P7g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

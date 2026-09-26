@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 
 const roController = require('../controllers/roController');
+const roPaginationController = require('../controllers/roPaginationController');
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
 const {
     cacheJsonResponse,
@@ -17,7 +18,7 @@ const roCache = cacheJsonResponse({
 const invalidateRo = invalidateCacheOnSuccess(['ro']);
 
 router.get('/summary', adminOnly, roCache, roController.getSummary);
-router.get('/scholars', adminOnly, roCache, roController.getROScholars);
+router.get('/scholars', adminOnly, roCache, roPaginationController.getROScholars);
 
 router.get(
     '/scholars/:studentId/history',

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { buildApiUrl } from '@/api';
 import ROScholarRequestsPanel from './ROScholarRequestsPanel';
@@ -51,6 +51,8 @@ const TOP_TABS = [
   { value: 'cleared', label: 'Cleared' },
   { value: 'requests', label: 'Area Requests' },
 ];
+
+const RO_PAGE_SIZE = 10;
 
 function normalizeStatus(value) {
   return String(value || '').trim().toLowerCase();
@@ -1534,6 +1536,34 @@ export default function ROAdmin() {
   const [programId, setProgramId] = useState('all');
   const [yearLevel, setYearLevel] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [pageByTab, setPageByTab] = useState({
+    assigned: 1,
+    unassigned: 1,
+    cleared: 1,
+  });
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: RO_PAGE_SIZE,
+    total: 0,
+    totalPages: 1,
+    hasPrevious: false,
+    hasNext: false,
+    start: 0,
+    end: 0,
+  });
+  const scholarRequestSequenceRef = useRef(0);
+  const detailsRequestSequenceRef = useRef(0);
+  const skipReactiveScholarLoadRef = useRef(true);
+
+  const currentPage = topTab === 'requests' ? 1 : pageByTab[topTab] || 1;
+
+  const setActivePage = (nextPage) => {
+    if (!['assigned', 'unassigned', 'cleared'].includes(topTab)) return;
+    const safePage = Math.max(1, Number(nextPage) || 1);
+    setPageByTab((current) => ({ ...current, [topTab]: safePage }));
+  };
+
+  const resetActivePage = () => setActivePage(1);
 
   const [selectedIds, setSelectedIds] = useState([]);
   const [batchModalOpen, setBatchModalOpen] = useState(false);
@@ -1542,6 +1572,7 @@ export default function ROAdmin() {
 
   const [loading, setLoading] = useState(true);
   const [filterLoading, setFilterLoading] = useState(false);
+  const [detailsLoading, setDetailsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -1597,78 +1628,10 @@ export default function ROAdmin() {
     return !isCleared;
   };
 
-  const displayedScholars = useMemo(() => {
-    const rows = [...scholars];
-
-    return rows.filter((scholar) => {
-      const assignmentStatus = normalizeStatus(
-        scholar.assignment_status || scholar.assignmentStatus
-      );
-
-      const progressStatus = normalizeStatus(
-        scholar.progress_status || scholar.progressStatus
-      );
-
-      const roStatus = normalizeStatus(scholar.ro_status);
-
-      const isCleared =
-        scholar.is_cleared === true ||
-        roStatus === 'cleared' ||
-        assignmentStatus === 'cleared';
-
-      const hasAssignment = hasRoAssignment(scholar);
-
-      if (topTab === 'unassigned' && hasAssignment) return false;
-      if (topTab === 'assigned' && (!hasAssignment || isCleared)) return false;
-      if (topTab === 'cleared' && !isCleared) return false;
-
-      const placementState = getPlacementApprovalState(scholar);
-
-      if (statusFilter === 'pending_approval') {
-        return (
-          assignmentStatus === 'pending coordinator approval' ||
-          (placementState.hasPending && !placementState.hasApproved)
-        );
-      }
-
-      if (statusFilter === 'assigned') {
-        return (
-          assignmentStatus === 'assigned' &&
-          (!placementState.hasPending || placementState.hasApproved)
-        );
-      }
-
-      if (statusFilter === 'in_progress') {
-        return (
-          assignmentStatus === 'in progress' ||
-          progressStatus === 'in progress'
-        );
-      }
-
-      if (statusFilter === 'for_validation') {
-        return (
-          assignmentStatus === 'for validation' ||
-          progressStatus === 'for validation'
-        );
-      }
-
-      if (statusFilter === 'conflict') {
-        return assignmentStatus === 'conflict reported';
-      }
-
-      if (statusFilter === 'cleared') {
-        return isCleared;
-      }
-
-      return true;
-    });
-  }, [scholars, topTab, statusFilter]);
-
+  // The API already applies the active bucket and detailed status filter.
+  // Keep only the current page in React instead of loading every scholar.
+  const displayedScholars = scholars;
   const selectableScholars = displayedScholars.filter(isBatchSelectable);
-
-  const selectedScholars = scholars.filter((scholar) =>
-    selectedIds.includes(String(scholar.student_id))
-  );
 
   const allVisibleSelected =
     selectableScholars.length > 0 &&
@@ -1677,10 +1640,14 @@ export default function ROAdmin() {
     );
 
 
-  const buildScholarQuery = () => {
+  const buildScholarQuery = (page = currentPage) => {
     const params = new URLSearchParams();
 
-    params.set('status', 'all');
+    params.set('view', 'paginated');
+    params.set('bucket', topTab);
+    params.set('page', String(Math.max(1, Number(page) || 1)));
+    params.set('limit', String(RO_PAGE_SIZE));
+    params.set('statusFilter', statusFilter);
 
     if (search.trim()) params.set('search', search.trim());
     if (courseId !== 'all') params.set('courseId', courseId);
@@ -1760,14 +1727,18 @@ export default function ROAdmin() {
     }
   };
 
-  const loadScholars = async ({ initial = false } = {}) => {
+  const loadScholars = async ({ initial = false, page = currentPage } = {}) => {
+    if (topTab === 'requests') return;
+
+    const requestSequence = ++scholarRequestSequenceRef.current;
+
     try {
       if (initial) setLoading(true);
       else setFilterLoading(true);
 
       setError('');
 
-      const query = buildScholarQuery();
+      const query = buildScholarQuery(page);
 
       const res = await fetch(buildApiUrl(`/api/ro/scholars?${query}`), {
         headers: { Authorization: `Bearer ${token}` },
@@ -1779,36 +1750,80 @@ export default function ROAdmin() {
         throw new Error(data.error || data.message || 'Failed to load RO scholars');
       }
 
+      if (requestSequence !== scholarRequestSequenceRef.current) return;
+
       const rows = parseScholarRows(data);
+      const nextPagination = data?.pagination || {};
+      const resolvedPage = Math.max(1, Number(nextPagination.page || page || 1));
+      const resolvedLimit = Math.max(1, Number(nextPagination.limit || RO_PAGE_SIZE));
+      const resolvedTotal = Math.max(0, Number(nextPagination.total || 0));
+      const resolvedTotalPages = Math.max(
+        1,
+        Number(nextPagination.totalPages || nextPagination.total_pages || 1)
+      );
+
       setScholars(rows);
-
-      setSelectedIds((current) => {
-        const validIds = new Set(rows.map((row) => String(row.student_id)));
-        return current.filter((id) => validIds.has(String(id)));
+      setPagination({
+        page: resolvedPage,
+        limit: resolvedLimit,
+        total: resolvedTotal,
+        totalPages: resolvedTotalPages,
+        hasPrevious:
+          nextPagination.hasPrevious ?? nextPagination.has_previous ?? resolvedPage > 1,
+        hasNext:
+          nextPagination.hasNext ??
+          nextPagination.has_next ??
+          resolvedPage < resolvedTotalPages,
+        start: Math.max(0, Number(nextPagination.start || 0)),
+        end: Math.max(0, Number(nextPagination.end || 0)),
       });
 
-      setDetailsScholar((current) => {
-        if (!current?.student_id) return current;
-        return rows.find((row) => row.student_id === current.student_id) || current;
-      });
+      if (resolvedPage !== currentPage) {
+        setPageByTab((current) => ({ ...current, [topTab]: resolvedPage }));
+      }
 
-      setSelectedScholar((current) => {
-        if (!current?.student_id) return current;
-        return rows.find((row) => row.student_id === current.student_id) || current;
-      });
+      // Detail/log modals are loaded independently. Do not replace their
+      // detailed record with the lightweight paginated row during realtime
+      // or pagination refreshes.
     } catch (err) {
+      if (requestSequence !== scholarRequestSequenceRef.current) return;
       console.error('LOAD RO SCHOLARS ERROR:', err);
       setError(err.message || 'Failed to load RO scholars');
       setScholars([]);
-      setSelectedIds([]);
+      setPagination({
+        page: 1,
+        limit: RO_PAGE_SIZE,
+        total: 0,
+        totalPages: 1,
+        hasPrevious: false,
+        hasNext: false,
+        start: 0,
+        end: 0,
+      });
     } finally {
-      setLoading(false);
-      setFilterLoading(false);
+      if (requestSequence === scholarRequestSequenceRef.current) {
+        setLoading(false);
+        setFilterLoading(false);
+      }
     }
   };
 
   const refreshAll = async () => {
     await Promise.all([loadFilterData(), loadScholars()]);
+  };
+
+  const refreshFromRealtime = async () => {
+    await refreshAll();
+
+    const detailTarget = logsModalOpen
+      ? selectedScholar
+      : detailsModalOpen
+        ? detailsScholar
+        : null;
+
+    if (detailTarget?.student_id) {
+      await loadScholarDetails(detailTarget, { silent: true });
+    }
   };
 
   useEffect(() => {
@@ -1818,28 +1833,59 @@ export default function ROAdmin() {
   }, []);
 
   useEffect(() => {
+    if (skipReactiveScholarLoadRef.current) {
+      skipReactiveScholarLoadRef.current = false;
+      return undefined;
+    }
+
+    if (topTab === 'requests') return undefined;
+
     const timeout = setTimeout(() => {
       loadScholars();
     }, 350);
 
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, courseId, programId, yearLevel]);
+  }, [search, courseId, programId, yearLevel, statusFilter, topTab, currentPage]);
 
   useSocketEvent(
     'ro:updated',
     () => {
-      refreshAll();
+      refreshFromRealtime();
     },
-    [search, courseId, programId, yearLevel, topTab, statusFilter]
+    [
+      search,
+      courseId,
+      programId,
+      yearLevel,
+      topTab,
+      statusFilter,
+      currentPage,
+      detailsModalOpen,
+      logsModalOpen,
+      detailsScholar?.student_id,
+      selectedScholar?.student_id,
+    ]
   );
 
   useSocketEvent(
     'roUpdated',
     () => {
-      refreshAll();
+      refreshFromRealtime();
     },
-    [search, courseId, programId, yearLevel, topTab, statusFilter]
+    [
+      search,
+      courseId,
+      programId,
+      yearLevel,
+      topTab,
+      statusFilter,
+      currentPage,
+      detailsModalOpen,
+      logsModalOpen,
+      detailsScholar?.student_id,
+      selectedScholar?.student_id,
+    ]
   );
 
   const handleResetFilters = () => {
@@ -1848,6 +1894,30 @@ export default function ROAdmin() {
     setProgramId('all');
     setYearLevel('all');
     setStatusFilter('all');
+    resetActivePage();
+    setSelectedIds([]);
+  };
+
+  const handleTopTabChange = (nextTab) => {
+    if (nextTab === topTab) return;
+
+    setTopTab(nextTab);
+    setSelectedIds([]);
+    setError('');
+
+    if (nextTab !== 'requests') {
+      setScholars([]);
+      setPagination({
+        page: pageByTab[nextTab] || 1,
+        limit: RO_PAGE_SIZE,
+        total: 0,
+        totalPages: 1,
+        hasPrevious: false,
+        hasNext: false,
+        start: 0,
+        end: 0,
+      });
+    }
   };
 
   const toggleSelected = (studentId) => {
@@ -1886,11 +1956,143 @@ export default function ROAdmin() {
     setAssignModalOpen(true);
   };
 
-  const openDetailsModal = (scholar) => {
-    closeAllModals();
-    setDetailsScholar(scholar);
-    setDetailsModalOpen(true);
-  };
+  async function loadScholarDetails(scholar, { openModal = false, silent = false } = {}) {
+    if (!scholar?.student_id) return;
+
+    if (openModal) {
+      closeAllModals();
+      setDetailsScholar(scholar);
+      setDetailsModalOpen(true);
+    }
+
+    if (!silent) {
+      setDetailsLoading(true);
+    }
+    setActionError('');
+
+    const requestSequence = ++detailsRequestSequenceRef.current;
+
+    try {
+      const response = await fetch(
+        buildApiUrl(`/api/ro/scholars/${scholar.student_id}/history`),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          payload?.error ||
+          payload?.message ||
+          'Failed to load RO details.'
+        );
+      }
+
+      if (requestSequence !== detailsRequestSequenceRef.current) return;
+
+      const history = Array.isArray(payload?.history)
+        ? payload.history
+        : [];
+
+      const detailed =
+        history.find(
+          (item) =>
+            scholar.ro_id &&
+            String(item.ro_id || item.roId || '') === String(scholar.ro_id)
+        ) ||
+        history.find(
+          (item) =>
+            scholar.application_id &&
+            String(item.application_id || item.applicationId || '') ===
+              String(scholar.application_id)
+        ) ||
+        history.find(
+          (item) =>
+            item.is_current_period === true ||
+            item.isCurrentPeriod === true
+        ) ||
+        history[0] ||
+        null;
+
+      if (!detailed) {
+        throw new Error('Current RO details were not found for this scholar.');
+      }
+
+      const logs = Array.isArray(detailed.logs)
+        ? detailed.logs
+        : [];
+
+      const pendingLogCount = logs.filter(
+        (log) =>
+          normalizeStatus(
+            log.validationStatus || log.validation_status
+          ) === 'pending validation'
+      ).length;
+
+      const proofCount = Number(
+        detailed.proof_count ?? detailed.proofCount ?? 0
+      );
+
+      const mergedScholar = {
+        ...scholar,
+        ...detailed,
+        name:
+          scholar.name ||
+          payload?.student?.name ||
+          getScholarName(scholar),
+        pdm_id:
+          scholar.pdm_id ||
+          payload?.student?.pdm_id ||
+          '',
+        profile_photo_url:
+          scholar.profile_photo_url ||
+          payload?.student?.avatar_url ||
+          '',
+        avatar_url:
+          scholar.avatar_url ||
+          payload?.student?.avatar_url ||
+          '',
+        placements: Array.isArray(detailed.placements)
+          ? detailed.placements
+          : scholar.placements || [],
+        logs,
+        pending_log_count: pendingLogCount,
+        pendingLogCount,
+        proof_count: proofCount,
+        proofCount,
+      };
+
+      setDetailsScholar(mergedScholar);
+      setSelectedScholar((current) =>
+        current?.student_id === mergedScholar.student_id
+          ? mergedScholar
+          : current
+      );
+    } catch (err) {
+      if (requestSequence !== detailsRequestSequenceRef.current) return;
+
+      console.error('LOAD RO DETAILS ERROR:', err);
+
+      if (openModal) {
+        setDetailsModalOpen(false);
+        setDetailsScholar(null);
+      }
+
+      if (!silent) {
+        setError(err.message || 'Failed to load RO details.');
+      }
+    } finally {
+      if (requestSequence === detailsRequestSequenceRef.current && !silent) {
+        setDetailsLoading(false);
+      }
+    }
+  }
+
+  async function openDetailsModal(scholar) {
+    await loadScholarDetails(scholar, { openModal: true });
+  }
 
   const closeAssignModal = () => {
     if (actionLoading) return;
@@ -1908,6 +2110,8 @@ export default function ROAdmin() {
 
   const closeDetailsModal = () => {
     if (actionLoading) return;
+    detailsRequestSequenceRef.current += 1;
+    setDetailsLoading(false);
     setDetailsModalOpen(false);
     setDetailsScholar(null);
     setActionError('');
@@ -1974,9 +2178,9 @@ export default function ROAdmin() {
       setActionLoading(true);
       setBatchError('');
 
-      const assignableIds = selectedScholars
-        .filter(isBatchSelectable)
-        .map((scholar) => String(scholar.student_id));
+      const assignableIds = [
+        ...new Set(selectedIds.map((id) => String(id)).filter(Boolean)),
+      ];
 
       if (!assignableIds.length) {
         throw new Error('Select at least one assignable scholar.');
@@ -2071,13 +2275,29 @@ export default function ROAdmin() {
         programs={programs}
         courses={courses}
         programId={programId}
-        setProgramId={setProgramId}
+        setProgramId={(value) => {
+          setProgramId(value);
+          resetActivePage();
+          setSelectedIds([]);
+        }}
         courseId={courseId}
-        setCourseId={setCourseId}
+        setCourseId={(value) => {
+          setCourseId(value);
+          resetActivePage();
+          setSelectedIds([]);
+        }}
         yearLevel={yearLevel}
-        setYearLevel={setYearLevel}
+        setYearLevel={(value) => {
+          setYearLevel(value);
+          resetActivePage();
+          setSelectedIds([]);
+        }}
         statusFilter={statusFilter}
-        setStatusFilter={setStatusFilter}
+        setStatusFilter={(value) => {
+          setStatusFilter(value);
+          resetActivePage();
+          setSelectedIds([]);
+        }}
         onReset={handleResetFilters}
       />
 
@@ -2125,7 +2345,7 @@ export default function ROAdmin() {
       <RoDetailsModal
         open={detailsModalOpen}
         scholar={detailsScholar}
-        loading={actionLoading}
+        loading={actionLoading || detailsLoading}
         onClose={closeDetailsModal}
         onAssign={openAssignFromDetails}
         onLogs={openLogsFromDetails}
@@ -2156,7 +2376,11 @@ export default function ROAdmin() {
 
               <Input
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  resetActivePage();
+                  setSelectedIds([]);
+                }}
                 placeholder="Search by scholar name or PDM ID..."
                 className="h-10 rounded-xl border-stone-200 bg-stone-50 pl-10 text-sm"
               />
@@ -2174,7 +2398,7 @@ export default function ROAdmin() {
             <ToolbarSegment
               options={TOP_TABS}
               value={topTab}
-              onChange={setTopTab}
+              onChange={handleTopTabChange}
             />
 
             {topTab !== 'requests' ? (
@@ -2265,7 +2489,7 @@ export default function ROAdmin() {
 
         <CardContent className="p-4">
           {displayedScholars.length === 0 ? (
-            <EmptyState onAssignMode={() => setTopTab('unassigned')} />
+            <EmptyState onAssignMode={() => handleTopTabChange('unassigned')} />
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full border-collapse text-left">
@@ -2436,7 +2660,7 @@ export default function ROAdmin() {
 
         <div className="flex items-center justify-between border-t border-stone-100 px-5 py-3">
           <p className="text-xs text-stone-400">
-            Showing {displayedScholars.length ? `1-${displayedScholars.length}` : '0-0'} of {displayedScholars.length}
+            Showing {pagination.start}-{pagination.end} of {pagination.total}
           </p>
 
           <div className="flex items-center gap-3">
@@ -2444,20 +2668,26 @@ export default function ROAdmin() {
               type="button"
               variant="outline"
               size="icon"
-              disabled
-              className="h-8 w-8 rounded-full border-stone-200 text-stone-400 disabled:opacity-50"
+              disabled={filterLoading || !pagination.hasPrevious}
+              onClick={() => setActivePage(currentPage - 1)}
+              className="h-8 w-8 rounded-full border-stone-200 text-stone-600 disabled:opacity-50"
+              aria-label="Previous RO scholars page"
             >
               <ChevronLeft className="h-3.5 w-3.5" />
             </Button>
 
-            <span className="text-xs text-stone-500">Page 1 / 1</span>
+            <span className="text-xs text-stone-500">
+              Page {pagination.page} / {pagination.totalPages}
+            </span>
 
             <Button
               type="button"
               variant="outline"
               size="icon"
-              disabled
-              className="h-8 w-8 rounded-full border-stone-200 text-stone-400 disabled:opacity-50"
+              disabled={filterLoading || !pagination.hasNext}
+              onClick={() => setActivePage(currentPage + 1)}
+              className="h-8 w-8 rounded-full border-stone-200 text-stone-600 disabled:opacity-50"
+              aria-label="Next RO scholars page"
             >
               <ChevronRight className="h-3.5 w-3.5" />
             </Button>

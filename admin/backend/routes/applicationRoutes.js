@@ -52,6 +52,12 @@ router.post(
     invalidateApplications,
     applicationController.requestApplicationFormReedit
 );
+router.patch(
+    '/:id/documents/:documentKey/review',
+    ...adminOnly,
+    invalidateApplications,
+    applicationController.saveApplicationDocumentReview
+);
 router.post(
     '/:id/verify',
     ...adminOnly,

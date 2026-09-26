@@ -478,6 +478,53 @@ exports.saveApplicationDocumentOcrSnapshot = async (req, res) => {
     }
 };
 
+exports.saveApplicationDocumentReview = async (req, res) => {
+    const { id, documentKey } = req.params;
+
+    try {
+        const data = await applicationService.saveApplicationDocumentReview({
+            applicationId: id,
+            documentKey,
+            status: req.body?.status,
+            issueSeverity: req.body?.issue_severity,
+            reasonCode: req.body?.reason_code,
+            comment: req.body?.comment,
+            user: req.user,
+        });
+
+        const io = req.app.get('io');
+        const updatedAt = data?.reviewed_at || new Date().toISOString();
+
+        socketEvents.applicationDocumentReviewed(io, {
+            application_id: id,
+            document_key: data?.document_key || documentKey,
+            status: data?.review_status || req.body?.status || 'pending',
+            document_status: data?.document_status || null,
+            updated_at: updatedAt,
+            source: 'document_review',
+        });
+
+        socketEvents.applicationUpdated(io, {
+            application_id: id,
+            document_key: data?.document_key || documentKey,
+            document_status: data?.document_status || null,
+            updated_at: updatedAt,
+            source: 'document_review',
+        });
+
+        return res.status(200).json({
+            message: 'Document review saved successfully',
+            data,
+        });
+    } catch (err) {
+        console.error('SAVE APPLICATION DOCUMENT REVIEW CONTROLLER ERROR:', err.message);
+
+        return res.status(err.statusCode || 500).json({
+            error: err.message || 'Failed to save document review',
+        });
+    }
+};
+
 exports.saveApplicationVerification = async (req, res) => {
     const { id } = req.params;
 

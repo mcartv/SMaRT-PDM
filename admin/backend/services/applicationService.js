@@ -3851,6 +3851,278 @@ exports.attemptScholarActivationIfReady = async (applicationId) => {
     };
 };
 
+exports.saveApplicationDocumentReview = async ({
+    applicationId,
+    documentKey,
+    status,
+    issueSeverity = null,
+    reasonCode = null,
+    comment = '',
+    user = null,
+}) => {
+    if (!applicationId) {
+        throw buildHttpError(400, 'Application ID is required.');
+    }
+
+    const normalizedDocumentKey = normalizeDocumentType(documentKey);
+
+    if (
+        !normalizedDocumentKey ||
+        !REVIEWABLE_DOCUMENT_KEYS.has(normalizedDocumentKey)
+    ) {
+        throw buildHttpError(
+            400,
+            `Unsupported review document: ${documentKey || 'unknown'}`
+        );
+    }
+
+    const reviewStatus = normalizeDocumentReviewStatus(status);
+
+    if (!['verified', 'reupload_required', 'rejected'].includes(reviewStatus)) {
+        throw buildHttpError(
+            400,
+            'Document review status must be verified, reupload_required, or rejected.'
+        );
+    }
+
+    const normalizedIssueSeverity = normalizeIssueSeverity(
+        issueSeverity,
+        reviewStatus
+    );
+    const normalizedReasonCode = normalizeReasonCode(reasonCode);
+
+    if (reviewStatus === 'rejected' && normalizedIssueSeverity !== 'major') {
+        throw buildHttpError(
+            400,
+            'A major issue is required before rejecting this document.'
+        );
+    }
+
+    const { data: applicationRecord, error: applicationError } = await supabase
+        .from('applications')
+        .select('application_id, verification_status')
+        .eq('application_id', applicationId)
+        .maybeSingle();
+
+    if (applicationError) {
+        throw new Error(applicationError.message);
+    }
+
+    if (!applicationRecord) {
+        throw buildHttpError(404, 'Application not found.');
+    }
+
+    const persistedVerificationStatus = normalizeLookupValue(
+        applicationRecord.verification_status
+    ).replace(/\s+/g, '_');
+
+    if (
+        ['verified', 'rejected', 'requires_reupload'].includes(
+            persistedVerificationStatus
+        )
+    ) {
+        throw buildHttpError(
+            409,
+            'The requirements review has already been finalized.'
+        );
+    }
+
+    let reviewedBy = user?.admin_id || null;
+
+    if (!reviewedBy && (user?.user_id || user?.userId)) {
+        const authUserId = user.user_id || user.userId;
+        const { data: adminProfile, error: adminProfileError } = await supabase
+            .from('admin_profiles')
+            .select('admin_id')
+            .eq('user_id', authUserId)
+            .maybeSingle();
+
+        if (adminProfileError) {
+            throw new Error(adminProfileError.message);
+        }
+
+        reviewedBy = adminProfile?.admin_id || null;
+    }
+
+    const documentName =
+        DOCUMENT_TYPE_TO_NAME[normalizedDocumentKey] ||
+        normalizedDocumentKey;
+    const reviewedAt = new Date().toISOString();
+    let submittedDocument = null;
+
+    if (normalizedDocumentKey !== 'application_form') {
+        const { data: documentRows, error: documentError } = await supabase
+            .from('application_documents')
+            .select(
+                'document_id, document_type, is_submitted, file_path, file_url, current_version_id'
+            )
+            .eq('application_id', applicationId);
+
+        if (documentError) {
+            throw new Error(documentError.message);
+        }
+
+        submittedDocument = (documentRows || []).find(
+            (document) =>
+                normalizeDocumentType(document.document_type) ===
+                normalizedDocumentKey
+        ) || null;
+
+        const hasPersistedUpload =
+            submittedDocument?.is_submitted === true &&
+            Boolean(
+                String(submittedDocument?.file_path || '').trim() ||
+                String(submittedDocument?.file_url || '').trim() ||
+                submittedDocument?.current_version_id
+            );
+
+        if (!hasPersistedUpload) {
+            throw buildHttpError(
+                409,
+                'Upload this document before reviewing it.'
+            );
+        }
+    }
+
+    const reviewRow = {
+        application_id: applicationId,
+        document_key: normalizedDocumentKey,
+        document_name: documentName,
+        review_status: reviewStatus,
+        issue_severity: normalizedIssueSeverity,
+        reason_code: normalizedReasonCode,
+        admin_comment: String(comment || '').trim(),
+        reviewed_by: reviewedBy,
+        reviewed_at: reviewedAt,
+        updated_at: reviewedAt,
+    };
+
+    const { data: savedReview, error: reviewError } = await supabase
+        .from('application_document_reviews')
+        .upsert(reviewRow, {
+            onConflict: 'application_id,document_key',
+        })
+        .select()
+        .single();
+
+    if (reviewError) {
+        console.error('SUPABASE DOCUMENT REVIEW UPSERT ERROR:', reviewError);
+        throw new Error(reviewError.message);
+    }
+
+    if (normalizedDocumentKey !== 'application_form') {
+        const { error: documentUpdateError } = await supabase
+            .from('application_documents')
+            .update({
+                review_status: reviewStatus,
+                notes: String(comment || '').trim() || null,
+                remarks: String(comment || '').trim() || null,
+                reviewed_by: reviewedBy,
+                reviewed_at: reviewedAt,
+                updated_at: reviewedAt,
+            })
+            .eq('application_id', applicationId)
+            .eq('document_type', documentName);
+
+        if (documentUpdateError) {
+            console.error(
+                'SUPABASE DOCUMENT REVIEW METADATA UPDATE ERROR:',
+                documentUpdateError
+            );
+            throw new Error(documentUpdateError.message);
+        }
+
+        documentViewMetadataCache.delete(
+            `${applicationId}:${normalizedDocumentKey}`
+        );
+    }
+
+    const [reviewsResult, documentsResult] = await Promise.all([
+        supabase
+            .from('application_document_reviews')
+            .select('document_key, review_status')
+            .eq('application_id', applicationId),
+        supabase
+            .from('application_documents')
+            .select(
+                'document_type, is_submitted, file_path, file_url, current_version_id'
+            )
+            .eq('application_id', applicationId),
+    ]);
+
+    if (reviewsResult.error) {
+        throw new Error(reviewsResult.error.message);
+    }
+
+    if (documentsResult.error) {
+        throw new Error(documentsResult.error.message);
+    }
+
+    const reviewStatusByKey = new Map(
+        (reviewsResult.data || []).map((review) => [
+            normalizeDocumentType(review.document_key),
+            normalizeDocumentReviewStatus(review.review_status),
+        ])
+    );
+
+    const hasRequiredReupload = REQUIRED_REVIEW_DOCUMENT_KEYS.some(
+        (requiredKey) =>
+            reviewStatusByKey.get(requiredKey) === 'reupload_required'
+    );
+
+    const uploadedDocumentNames = new Set(
+        (documentsResult.data || [])
+            .filter(
+                (document) =>
+                    document.is_submitted === true &&
+                    Boolean(
+                        String(document.file_path || '').trim() ||
+                        String(document.file_url || '').trim() ||
+                        document.current_version_id
+                    )
+            )
+            .map((document) => normalizeLookupValue(document.document_type))
+    );
+
+    const allRequiredUploadsPresent = REQUIRED_UPLOAD_DOCUMENT_NAMES.every(
+        (name) => uploadedDocumentNames.has(normalizeLookupValue(name))
+    );
+
+    const provisionalDocumentStatus = hasRequiredReupload
+        ? 'Requires Reupload'
+        : allRequiredUploadsPresent
+          ? 'Under Review'
+          : 'Missing Docs';
+
+    const { error: applicationUpdateError } = await supabase
+        .from('applications')
+        .update({
+            document_status: provisionalDocumentStatus,
+        })
+        .eq('application_id', applicationId);
+
+    if (applicationUpdateError) {
+        console.error(
+            'SUPABASE APPLICATION DOCUMENT STATUS UPDATE ERROR:',
+            applicationUpdateError
+        );
+        throw new Error(applicationUpdateError.message);
+    }
+
+    return {
+        application_id: applicationId,
+        document_id: submittedDocument?.document_id || null,
+        document_key: normalizedDocumentKey,
+        document_name: documentName,
+        review_status: reviewStatus,
+        issue_severity: normalizedIssueSeverity,
+        reason_code: normalizedReasonCode,
+        admin_comment: String(comment || '').trim(),
+        document_status: provisionalDocumentStatus,
+        reviewed_at: savedReview?.reviewed_at || reviewedAt,
+    };
+};
+
 exports.saveApplicationVerification = async (applicationId, payload, user) => {
     const {
         document_reviews = [],
@@ -4790,6 +5062,8 @@ module.exports = {
         exports.uploadStudentApplicationDocument,
     markApplicationDisqualified:
         exports.markApplicationDisqualified,
+    saveApplicationDocumentReview:
+        exports.saveApplicationDocumentReview,
     saveApplicationVerification:
         exports.saveApplicationVerification,
     requestApplicationFormReedit:

@@ -1889,7 +1889,15 @@ export default function ApplicationReview() {
     if (!incoming) return;
 
     if (incoming?.tone === 'success') {
-      showAppToast('success', incoming.title, incoming.message);
+      showAppToast(
+        'success',
+        incoming.title,
+        incoming.message,
+        {
+          id: incoming.toastId || undefined,
+          duration: incoming.duration || 3000,
+        }
+      );
     } else {
       setFeedback(incoming);
     }

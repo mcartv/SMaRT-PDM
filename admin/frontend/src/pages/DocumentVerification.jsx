@@ -28,8 +28,10 @@ import {
 import API_BASE_URL from '@/api';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import usePortalTheme from '@/hooks/usePortalTheme';
+import { showAppToast } from '@/utils/appToast';
 
 const API_BASE = API_BASE_URL;
+const ACTION_TOAST_DURATION_MS = 3000;
 
 const C = {
   green: '#16a34a',
@@ -3002,6 +3004,7 @@ function VerificationActions({
   allRequiredDocsReviewed,
   requiredDocCount,
   submitting,
+  reviewActionSaving,
   canCompleteVerification,
   finalVerificationStatus,
   requirementsReviewAlreadySaved,
@@ -3013,7 +3016,8 @@ function VerificationActions({
   const canReviewActiveDocument =
     hasUploadedDocument &&
     !isSaved &&
-    !submitting;
+    !submitting &&
+    !reviewActionSaving;
 
   const canRequestReupload = canReviewActiveDocument;
 
@@ -3111,6 +3115,7 @@ function VerificationActions({
   const StatusIcon = statusConfig.icon;
 
   const saveButtonLabel = (() => {
+    if (reviewActionSaving) return 'Saving Document Review...';
     if (submitting) return 'Saving Requirements Review...';
     if (isSaved) {
       return finalVerificationStatus === 'requires_reupload'
@@ -3138,6 +3143,7 @@ function VerificationActions({
 
   const saveDisabled =
     submitting ||
+    reviewActionSaving ||
     isSaved ||
     !canCompleteVerification;
 
@@ -3373,6 +3379,7 @@ export default function DocumentVerification() {
   const [activeDocId, setActiveDocId] = useState('certificate_of_registration');
   const [viewMode, setViewMode] = useState('preview');
   const [submitting, setSubmitting] = useState(false);
+  const [reviewActionSaving, setReviewActionSaving] = useState(false);
 
   const [docStatuses, setDocStatuses] = useState({});
   const [docComments, setDocComments] = useState({});
@@ -3407,9 +3414,8 @@ export default function DocumentVerification() {
   const activeIotRequestRef = useRef(null);
   const ocrRefreshSuppressedUntilRef = useRef(0);
 
-  // Verify/Reject actions are draft review decisions until the coordinator
-  // presses "Save Requirements Review". Background/realtime refreshes must not
-  // overwrite those unsaved decisions with the persisted "uploaded" state.
+  // Keep local state stable while an immediate per-document review write and
+  // its realtime echo are in flight. Successful review actions are persisted.
   const dirtyReviewIdsRef = useRef(new Set());
 
   const stopPolling = useCallback(() => {
@@ -4353,44 +4359,142 @@ export default function DocumentVerification() {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [activeDoc?.id, id, reviewCandidate?.ocr_version, reviewCandidate?.request_id, reviewCandidate?.status]);
-  const updateActiveDocStatus = (
+  const persistActiveDocStatus = async (
     nextStatus,
     nextComment = null,
     reviewMeta = null
   ) => {
-    if (!activeDoc || !hasUploadedDocument) return;
+    if (
+      !activeDoc ||
+      !hasUploadedDocument ||
+      requirementsReviewAlreadySaved ||
+      reviewActionSaving
+    ) {
+      return false;
+    }
 
+    const targetDocument = activeDoc;
     const resolvedComment =
       nextComment !== null ? nextComment : comment;
+    const resolvedMeta =
+      reviewMeta || {
+        issue_severity: null,
+        reason_code: null,
+      };
+    const toastId =
+      `document-review:${id}:${targetDocument.id}:${nextStatus}`;
 
-    dirtyReviewIdsRef.current.add(activeDoc.id);
+    dirtyReviewIdsRef.current.add(targetDocument.id);
 
-    setDocStatuses((prev) => ({
-      ...prev,
-      [activeDoc.id]: nextStatus,
+    // Optimistic UI: reflect the action immediately while the write is in flight.
+    setDocStatuses((current) => ({
+      ...current,
+      [targetDocument.id]: nextStatus,
     }));
-
-    setDocComments((prev) => ({
-      ...prev,
-      [activeDoc.id]: resolvedComment,
+    setDocComments((current) => ({
+      ...current,
+      [targetDocument.id]: resolvedComment,
     }));
-
-    setDocReviewMeta((prev) => ({
-      ...prev,
-      [activeDoc.id]:
-        reviewMeta || {
-          issue_severity: null,
-          reason_code: null,
-        },
+    setDocReviewMeta((current) => ({
+      ...current,
+      [targetDocument.id]: resolvedMeta,
     }));
-
     setComment(resolvedComment);
+
+    try {
+      setReviewActionSaving(true);
+
+      const response = await fetch(
+        `${API_BASE}/api/applications/${id}/documents/${encodeURIComponent(targetDocument.id)}/review`,
+        {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            status: nextStatus,
+            issue_severity: resolvedMeta.issue_severity || null,
+            reason_code: resolvedMeta.reason_code || null,
+            comment: resolvedComment || '',
+          }),
+          cache: 'no-store',
+        }
+      );
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          payload.error || 'Failed to save document review.'
+        );
+      }
+
+      dirtyReviewIdsRef.current.delete(targetDocument.id);
+      await fetchApplicationDocuments({ soft: true });
+
+      if (nextStatus === 'verified') {
+        showAppToast(
+          'success',
+          'Document verified',
+          `${targetDocument.name} is saved as Verified.`,
+          {
+            id: toastId,
+            duration: ACTION_TOAST_DURATION_MS,
+          }
+        );
+      } else if (nextStatus === 'reupload_required') {
+        showAppToast(
+          'warning',
+          'Re-upload requested',
+          `${targetDocument.name} is saved as Re-upload Required. Save the full Requirements Review when all items are ready.`,
+          {
+            id: toastId,
+            duration: ACTION_TOAST_DURATION_MS,
+          }
+        );
+      } else {
+        showAppToast(
+          'warning',
+          'Major issue saved',
+          `The rejection decision for ${targetDocument.name} is saved. Save the full Requirements Review to finalize the application rejection.`,
+          {
+            id: toastId,
+            duration: ACTION_TOAST_DURATION_MS,
+          }
+        );
+      }
+
+      return true;
+    } catch (error) {
+      console.error('SAVE DOCUMENT REVIEW ERROR:', error);
+      dirtyReviewIdsRef.current.delete(targetDocument.id);
+
+      // Roll the optimistic state back to the server's authoritative value.
+      try {
+        await fetchApplicationDocuments({ soft: true });
+      } catch {
+        // fetchApplicationDocuments already reports its own load failure state.
+      }
+
+      showAppToast(
+        'error',
+        'Document review not saved',
+        error.message || 'Failed to save document review.',
+        {
+          id: toastId,
+          duration: 5000,
+        }
+      );
+
+      return false;
+    } finally {
+      setReviewActionSaving(false);
+    }
   };
 
-  const handleVerify = () => {
-    if (requirementsReviewAlreadySaved) return;
-
-    updateActiveDocStatus('verified', '', {
+  const handleVerify = async () => {
+    await persistActiveDocStatus('verified', '', {
       issue_severity: null,
       reason_code: null,
     });
@@ -4408,15 +4512,17 @@ export default function DocumentVerification() {
     }
 
     /*
-     * Application Form correction is persisted immediately.
-     * It does NOT wait for all six Requirements items.
+     * Application Form correction keeps its dedicated endpoint because it
+     * changes mobile editability and notification behavior immediately.
      */
     if (
       activeDoc?.id === 'application_form' &&
       status === 'reupload_required'
     ) {
+      const toastId = `application-form-reedit:${id}`;
+
       try {
-        setSubmitting(true);
+        setReviewActionSaving(true);
 
         const response = await fetch(
           `${API_BASE}/api/applications/${id}/application-form/request-reedit`,
@@ -4430,6 +4536,7 @@ export default function DocumentVerification() {
               reason_code: reasonCode,
               comment: nextComment || '',
             }),
+            cache: 'no-store',
           }
         );
 
@@ -4442,9 +4549,6 @@ export default function DocumentVerification() {
           );
         }
 
-        /*
-         * Reflect the persisted status immediately in Admin.
-         */
         setDocStatuses((current) => ({
           ...current,
           application_form: 'reupload_required',
@@ -4464,10 +4568,19 @@ export default function DocumentVerification() {
         }));
 
         dirtyReviewIdsRef.current.delete('application_form');
-
         setReviewIssueModal(null);
 
         await fetchApplicationDocuments({ soft: true });
+
+        showAppToast(
+          'warning',
+          'Application Form re-edit requested',
+          'The correction request was saved and the applicant can edit the Application Form.',
+          {
+            id: toastId,
+            duration: ACTION_TOAST_DURATION_MS,
+          }
+        );
 
         return;
       } catch (error) {
@@ -4476,28 +4589,38 @@ export default function DocumentVerification() {
           error
         );
 
-        alert(
+        showAppToast(
+          'error',
+          'Re-edit request not saved',
           error.message ||
-          'Failed to request Application Form re-edit.'
+            'Failed to request Application Form re-edit.',
+          {
+            id: toastId,
+            duration: 5000,
+          }
         );
 
         return;
       } finally {
-        setSubmitting(false);
+        setReviewActionSaving(false);
       }
     }
 
-    // Normal document correction remains a draft until
-    // Save Requirements Review.
-    updateActiveDocStatus(status, nextComment, {
-      issue_severity: issueSeverity,
-      reason_code: reasonCode,
-    });
+    const saved = await persistActiveDocStatus(
+      status,
+      nextComment,
+      {
+        issue_severity: issueSeverity,
+        reason_code: reasonCode,
+      }
+    );
 
-    setReviewIssueModal(null);
+    if (saved) {
+      setReviewIssueModal(null);
+    }
   };
 
-  const handleMajorIssueConfirm = ({
+  const handleMajorIssueConfirm = async ({
     status,
     issueSeverity,
     reasonCode,
@@ -4508,12 +4631,18 @@ export default function DocumentVerification() {
       return;
     }
 
-    updateActiveDocStatus(status, nextComment, {
-      issue_severity: issueSeverity,
-      reason_code: reasonCode,
-    });
+    const saved = await persistActiveDocStatus(
+      status,
+      nextComment,
+      {
+        issue_severity: issueSeverity,
+        reason_code: reasonCode,
+      }
+    );
 
-    setReviewIssueModal(null);
+    if (saved) {
+      setReviewIssueModal(null);
+    }
   };
 
   const handleRunIotOcr = async () => {
@@ -5008,6 +5137,8 @@ export default function DocumentVerification() {
                   ? 'Application rejected'
                   : 'Verification saved',
             message: successMessage,
+            toastId: `requirements-review:${id}:${savedStatus}`,
+            duration: ACTION_TOAST_DURATION_MS,
           },
         },
       });
@@ -5016,9 +5147,14 @@ export default function DocumentVerification() {
         'COMPLETE VERIFICATION ERROR:',
         err
       );
-      alert(
-        err.message ||
-        'Failed to complete verification'
+      showAppToast(
+        'error',
+        'Requirements review not saved',
+        err.message || 'Failed to complete verification',
+        {
+          id: `requirements-review:${id}:error`,
+          duration: 5000,
+        }
       );
     } finally {
       setSubmitting(false);
@@ -5376,6 +5512,7 @@ export default function DocumentVerification() {
             allRequiredDocsReviewed={allRequiredDocsReviewed}
             requiredDocCount={requiredDocCount}
             submitting={submitting}
+            reviewActionSaving={reviewActionSaving}
             canCompleteVerification={canCompleteVerification}
             finalVerificationStatus={finalVerificationStatus}
             requirementsReviewAlreadySaved={requirementsReviewAlreadySaved}

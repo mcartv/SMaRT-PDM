@@ -9,6 +9,7 @@ import hashlib
 import socket
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -22,6 +23,14 @@ except ImportError:  # pragma: no cover
 
 
 ENV_PATH = Path(__file__).resolve().with_name(".env")
+
+
+def _bounded_concurrency(name: str, default: int = 4) -> int:
+    try:
+        value = int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        value = default
+    return max(1, min(6, value))
 
 
 def _load_colocated_env(path: Path) -> None:
@@ -436,18 +445,28 @@ class ApiClient:
         upload_items = authorized.get("artifacts") or []
         if len(upload_items) != len(manifest):
             return None
-        for authorization in upload_items:
+        def upload_one(authorization):
             slot = (
                 str(authorization.get("artifact_kind") or ""),
                 str(authorization.get("cell_key") or ""),
             )
             local = by_slot.get(slot)
-            if not local or not self.upload_signed_artifact(
-                authorization,
-                local["content"],
-                local["mime_type"],
-            ):
-                return None
+            return bool(local and self.upload_signed_artifact(
+                authorization, local["content"], local["mime_type"]
+            )), slot
+
+        with ThreadPoolExecutor(
+            max_workers=_bounded_concurrency("BIRTH_ARTIFACT_UPLOAD_CONCURRENCY")
+        ) as executor:
+            uploads = [executor.submit(upload_one, authorization) for authorization in upload_items]
+            for upload in as_completed(uploads):
+                ok, slot = upload.result()
+                if not ok:
+                    self._log_transport_error(
+                        "Upload private Birth V2 artifact",
+                        f"artifact_slot={slot[0]}:{slot[1]}",
+                    )
+                    return None
         url = f"{self.base_url}/api/pi/iot-ocr/{request_id}/capture-artifacts/complete"
         try:
             response = self.session.post(

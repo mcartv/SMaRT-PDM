@@ -392,6 +392,22 @@ exports.streamApplicationBirthOcrImage = async (req, res) => {
     }
 };
 
+exports.getApplicationBirthOcrImageUrl = async (req, res) => {
+    try {
+        if (!['birth_certificate', 'certificate_of_live_birth'].includes(String(req.params.documentKey || '').toLowerCase())) {
+            return res.status(404).json({ error: 'Birth review image not found' });
+        }
+        const birthV2 = require('../services/birthOcrV2Service');
+        const data = await birthV2.createOriginalSignedUrl({
+            requestId: req.params.requestId,
+            applicationId: req.params.id,
+        });
+        return res.status(200).json({ data });
+    } catch (error) {
+        return res.status(error.statusCode || 500).json({ error: error.message || 'Failed to prepare Birth review image' });
+    }
+};
+
 exports.listIotOcrReviewQueue = async (req, res) => {
     try {
         const birthV2 = require('../services/birthOcrV2Service');

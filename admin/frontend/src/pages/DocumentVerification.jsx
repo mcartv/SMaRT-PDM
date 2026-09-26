@@ -4332,9 +4332,19 @@ export default function DocumentVerification() {
         const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
         try {
           if (attempt === 2 && !cancelled) setBirthReviewImageStatus('retrying');
+          const accessResponse = await fetch(
+            `${API_BASE}/api/applications/${id}/documents/${activeDoc.id}/iot-ocr/${reviewCandidate.request_id}/review-image-url?_=${Date.now()}`,
+            { headers: { Authorization: `Bearer ${sessionStorage.getItem('adminToken')}` }, cache: 'no-store' }
+          );
+          const accessPayload = await accessResponse.json().catch(() => ({}));
+          if (!accessResponse.ok || !accessPayload?.data?.url) {
+            const failure = new Error(accessPayload?.error || `Private Birth review image request failed (${accessResponse.status})`);
+            failure.status = accessResponse.status;
+            throw failure;
+          }
           const response = await fetch(
-            `${API_BASE}/api/applications/${id}/documents/${activeDoc.id}/iot-ocr/${reviewCandidate.request_id}/review-image`,
-            { headers: { Authorization: `Bearer ${sessionStorage.getItem('adminToken')}` }, cache: 'no-store', signal: controller.signal }
+            accessPayload.data.url,
+            { cache: 'no-store', signal: controller.signal }
           );
           if (!response.ok) {
             const failure = new Error(`Private Birth review image request failed (${response.status})`);

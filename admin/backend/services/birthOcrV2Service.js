@@ -11,6 +11,10 @@ function configuredTimeout(name, fallback, minimum) {
 }
 
 const BUCKET = String(process.env.IOT_OCR_CAPTURE_BUCKET || 'iot-ocr-captures').trim();
+const ARTIFACT_DOWNLOAD_CONCURRENCY = Math.min(
+    6,
+    Math.max(1, Number.parseInt(process.env.BIRTH_ARTIFACT_DOWNLOAD_CONCURRENCY || '4', 10) || 4)
+);
 const GEMINI_MODEL = String(process.env.GEMINI_MODEL || 'gemini-3.6-flash').trim();
 const GEMINI_MODELS = Object.freeze(Array.from(new Set([
     GEMINI_MODEL,
@@ -325,8 +329,7 @@ async function downloadAndVerifyArtifacts(requestId, { originalOnly = false } = 
     if (originals.length !== 1 || ![0, 9].includes(cells.length)) {
         throw httpError(409, 'Birth V2 artifacts are incomplete');
     }
-    const verified = [];
-    for (const row of result.rows) {
+    const verifyArtifact = async (row) => {
         const downloaded = await supabase.storage.from(row.bucket_name).download(row.object_path);
         if (downloaded.error || !downloaded.data) throw httpError(409, 'Birth V2 artifact upload is incomplete');
         const bytes = Buffer.from(await downloaded.data.arrayBuffer());
@@ -335,7 +338,20 @@ async function downloadAndVerifyArtifacts(requestId, { originalOnly = false } = 
             || !bytesMatchMime(bytes, row.mime_type)) {
             throw httpError(409, 'Birth V2 artifact integrity check failed', 'ARTIFACT_INTEGRITY_FAILED');
         }
-        verified.push({ ...row, bytes });
+        return { ...row, bytes };
+    };
+    const verified = new Array(result.rows.length);
+    let nextIndex = 0;
+    const workers = Array.from({ length: Math.min(ARTIFACT_DOWNLOAD_CONCURRENCY, result.rows.length) }, async () => {
+        while (true) {
+            const index = nextIndex++;
+            if (index >= result.rows.length) return;
+            verified[index] = await verifyArtifact(result.rows[index]);
+        }
+    });
+    await Promise.all(workers);
+    for (const row of verified) {
+        if (!row) throw httpError(409, 'Birth V2 artifact upload is incomplete');
     }
     await pool.query(`
         UPDATE public.iot_ocr_capture_artifacts
@@ -1015,6 +1031,24 @@ exports.streamOriginal = async ({ requestId, applicationId }) => {
     const downloaded = await supabase.storage.from(row.bucket_name).download(row.object_path);
     if (downloaded.error || !downloaded.data) throw httpError(404, 'Birth review image not found');
     return { mime_type: row.mime_type, bytes: Buffer.from(await downloaded.data.arrayBuffer()) };
+};
+
+exports.createOriginalSignedUrl = async ({ requestId, applicationId }) => {
+    const result = await pool.query(`
+        SELECT a.bucket_name, a.object_path, a.mime_type
+        FROM public.iot_ocr_capture_artifacts a
+        JOIN public.iot_ocr_requests r ON r.request_id = a.request_id
+        WHERE a.request_id = $1::uuid AND r.application_id = $2::uuid
+          AND r.ocr_version = 'v2' AND a.artifact_kind = 'original'
+          AND a.upload_status IN ('available', 'deletion_pending')
+        LIMIT 1
+    `, [requestId, applicationId]);
+    if (!result.rows.length) throw httpError(404, 'Birth review image not found');
+    const row = result.rows[0];
+    const expiresIn = 180;
+    const signed = await supabase.storage.from(row.bucket_name).createSignedUrl(row.object_path, expiresIn);
+    if (signed.error || !signed.data?.signedUrl) throw httpError(503, 'Birth review image preview is temporarily unavailable');
+    return { url: signed.data.signedUrl, mime_type: row.mime_type, expires_in: expiresIn };
 };
 
 exports.markArtifactsForDeletion = async (requestId) => {

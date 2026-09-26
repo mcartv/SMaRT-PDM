@@ -44,6 +44,7 @@ router.post('/:id/documents/:documentKey/iot-ocr/:requestId/reject', ...adminOnl
 router.post('/:id/documents/:documentKey/iot-ocr/:requestId/rescan', ...adminOnly, invalidateApplications, applicationController.rescanApplicationDocumentIotOcr);
 router.get('/:id/documents/:documentKey/iot-ocr/:requestId/captured-image', ...adminOnly, applicationController.streamApplicationCapturedOcrImage);
 router.get('/:id/documents/:documentKey/iot-ocr/:requestId/review-image', ...adminOnly, applicationController.streamApplicationBirthOcrImage);
+router.get('/:id/documents/:documentKey/iot-ocr/:requestId/review-image-url', ...adminOnly, applicationController.getApplicationBirthOcrImageUrl);
 router.get('/:id/documents/:documentKey/ocr-snapshot', ...adminOnly, applicationController.getApplicationDocumentOcrSnapshot);
 router.post('/:id/documents/:documentKey/ocr-snapshot', ...adminOnly, invalidateApplications, applicationController.saveApplicationDocumentOcrSnapshot);
 router.post(

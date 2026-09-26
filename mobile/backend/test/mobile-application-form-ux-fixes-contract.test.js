@@ -10,6 +10,7 @@ const shell = read('mobile/frontend/lib/features/applicant/presentation/screens/
 const family = read('mobile/frontend/lib/features/forms/presentation/screens/step_family_intake.dart');
 const academic = read('mobile/frontend/lib/features/forms/presentation/screens/step_academic_intake.dart');
 const status = read('mobile/frontend/lib/features/dashboard/presentation/widgets/applicant_application_status_panel.dart');
+const messagingProvider = read('mobile/frontend/lib/features/messaging/presentation/providers/messaging_provider.dart');
 
 test('application footer hides while keyboard is open and keeps consistent 52px actions', () => {
   assert.match(shell, /MediaQuery\.viewInsetsOf\(context\)\.bottom > 0/);
@@ -60,4 +61,23 @@ test('application status is reorganized without inventing workflow states', () =
   assert.match(status, /application\.stepLabel/);
   assert.match(status, /application\.primaryAction/);
   assert.match(status, /minimumSize:\s*const Size\.fromHeight\(52\)/);
+});
+
+
+test('family form source has no malformed identifiers from the application-form patch', () => {
+  for (const malformed of ['origrn', '_syncPreviousOrigr', '_syncPreviousOrigrn', ".jor(', ')", 'margrn:']) {
+    assert.doesNotMatch(family, new RegExp(malformed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+  assert.match(family, /final origin = \[/);
+  assert.match(family, /parentPreviousTownProvinceController\.text = origin/);
+  assert.match(family, /return parts\.join\(', '\)/);
+  assert.match(family, /margin: const EdgeInsets\.only\(bottom: 16\)/);
+  assert.match(family, /_syncPreviousOrigin\(\)/);
+});
+
+test('read-only former-group realtime branch returns a bool explicitly', () => {
+  assert.match(
+    messagingProvider,
+    /if \(cutoff == null \|\| message\.sentAt\.isAfter\(cutoff\)\) return false;/,
+  );
 });

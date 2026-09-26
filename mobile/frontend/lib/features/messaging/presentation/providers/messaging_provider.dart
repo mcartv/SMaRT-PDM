@@ -771,7 +771,7 @@ class MessagingProvider extends ChangeNotifier {
     if (isActiveGroupMessage) {
       if (isActiveGroupReadOnly) {
         final cutoff = activeGroupCutoffAt;
-        if (cutoff == null || message.sentAt.isAfter(cutoff)) return;
+        if (cutoff == null || message.sentAt.isAfter(cutoff)) return false;
       }
       _upsertMessage(message);
       _updateGroupPreview(roomId, message);

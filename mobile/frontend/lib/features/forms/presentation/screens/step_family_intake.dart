@@ -330,17 +330,17 @@ class _StepFamilyState extends State<StepFamily> {
     );
     _bind(parentPreviousTownMunicipalityController, (value) {
       widget.data.parentPreviousTownMunicipality = value;
-      _syncPreviousOrigr();
+      _syncPreviousOrigin();
     });
   }
 
-  void _syncPreviousOrigr() {
+  void _syncPreviousOrigin() {
     final town = widget.data.parentPreviousTownMunicipality.trim();
-    final origrn = [
+    final origin = [
       town,
       widget.data.parentPreviousProvince.trim(),
     ].where((part) => part.isNotEmpty).join(', ');
-    widget.data.parentPreviousTownProvince = origrn;
+    widget.data.parentPreviousTownProvince = origin;
     parentPreviousTownProvinceController.text = origin;
   }
 
@@ -518,7 +518,7 @@ class _StepFamilyState extends State<StepFamily> {
       widget.data.zipCode,
     ].map((value) => value.trim()).where((value) => value.isNotEmpty).toList();
 
-    return parts.jor(', ');
+    return parts.join(', ');
   }
 
   void _applySameAddress(bool value) {
@@ -726,7 +726,7 @@ class _StepFamilyState extends State<StepFamily> {
     required ValueChanged<String> onEducationChanged,
   }) {
     return IntakeCard(
-      margrn: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -980,7 +980,7 @@ class _StepFamilyState extends State<StepFamily> {
             ),
           ),
         IntakeCard(
-          margrn: const EdgeInsets.only(bottom: 16),
+          margin: const EdgeInsets.only(bottom: 16),
           padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1442,7 +1442,7 @@ class _StepFamilyState extends State<StepFamily> {
                     ),
                     onChanged: (value) {
                       widget.data.parentPreviousProvince = value;
-                      _syncPreviousOrigrn();
+                      _syncPreviousOrigin();
                       widget.onChanged();
                     },
                   ),

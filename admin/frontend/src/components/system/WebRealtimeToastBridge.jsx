@@ -126,68 +126,10 @@ export default function WebRealtimeToastBridge() {
     [location.pathname]
   );
 
-  const showMessageToast = useCallback(
-    (rawPayload = {}) => {
-      const session = getCurrentPortalSession(location.pathname);
-      if (!session) return;
-
-      const payload = unwrapPayload(rawPayload, 'message');
-      const currentUserId = getCurrentUserId(session);
-      const senderId = pickText(payload, ['sender_id', 'senderId']);
-
-      if (senderId && currentUserId && senderId === currentUserId) {
-        return;
-      }
-
-      const messageId = pickText(payload, [
-        'message_id',
-        'messageId',
-        'id',
-      ]);
-
-      const senderName =
-        pickText(payload, ['sender_name', 'senderName']) || 'New message';
-
-      const description =
-        clipPreview(
-          pickText(payload, [
-            'message_body',
-            'messageBody',
-            'message',
-            'body',
-          ])
-        ) || 'You received a new message.';
-
-      const sentAt = pickText(payload, [
-        'sent_at',
-        'sentAt',
-        'created_at',
-        'createdAt',
-      ]);
-
-      const toastId = messageId
-        ? `realtime-message:${messageId}`
-        : `realtime-message:${sentAt}:${senderId}:${description}`;
-
-      toast(senderName, {
-        id: toastId,
-        description,
-        duration: TOAST_DURATION_MS,
-      });
-    },
-    [location.pathname]
-  );
-
   useSocketEvent(
     'notification:new',
     showNotificationToast,
     [showNotificationToast]
-  );
-
-  useSocketEvent(
-    'message:new',
-    showMessageToast,
-    [showMessageToast]
   );
 
   return null;

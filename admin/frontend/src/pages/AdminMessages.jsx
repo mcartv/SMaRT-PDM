@@ -915,14 +915,13 @@ function FormerGroupHistoryPanel({ thread, messages, loading, error, currentUser
           <div className="mx-auto flex max-w-3xl flex-col gap-2">
             {messages.map((message) => {
               const systemMessage = String(message.subject || '').toLowerCase() === 'system'
-              const removalEvent = systemMessage && /\bremoved\b.*\bfrom the group\b/i.test(message.messageBody || '')
               if (systemMessage) {
                 return (
-                  <div key={message.messageId} className="flex justify-center py-1">
-                    <div className={`inline-flex max-w-[88%] items-center gap-2 rounded-xl border px-3 py-2 text-center text-xs font-semibold ${removalEvent ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-stone-200 bg-white text-stone-500'}`}>
-                      {removalEvent ? <UserMinus className="h-3.5 w-3.5 shrink-0" /> : <Info className="h-3.5 w-3.5 shrink-0" />}
-                      <span>{message.messageBody}</span>
-                    </div>
+                  <div
+                    key={message.messageId}
+                    className="flex justify-center py-1 text-center text-xs font-medium text-stone-500"
+                  >
+                    {message.messageBody}
                   </div>
                 )
               }
@@ -1147,13 +1146,12 @@ function MessageBubble({
   }, [message.messageId])
 
   if (String(message.subject || '').toLowerCase() === 'system') {
-    const removalEvent = /\bremoved\b.*\bfrom the group\b/i.test(message.messageBody || '')
     return (
-      <div ref={messageRootRef} className="my-4 flex w-full justify-center px-4 text-center">
-        <span className={`inline-flex max-w-[min(92%,560px)] items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${removalEvent ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-stone-200 bg-stone-50 text-stone-500'}`}>
-          {removalEvent ? <UserMinus className="h-3.5 w-3.5 shrink-0" /> : <Info className="h-3.5 w-3.5 shrink-0" />}
-          <span>{message.messageBody}</span>
-        </span>
+      <div
+        ref={messageRootRef}
+        className="my-4 flex w-full justify-center px-4 text-center text-xs font-medium text-stone-500"
+      >
+        {message.messageBody}
       </div>
     )
   }

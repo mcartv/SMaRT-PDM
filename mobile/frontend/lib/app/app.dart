@@ -5,15 +5,14 @@ import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_theme.dart';
 import 'package:smartpdm_mobileapp/app/theme/theme_provider.dart';
 import 'package:smartpdm_mobileapp/core/maintenance/maintenance_mode_gate.dart'; // SMART-PDM_MOBILE_MAINTENANCE_GATE_V1
+import 'package:smartpdm_mobileapp/core/notifications/in_app_realtime_banner.dart';
+
+final GlobalKey<NavigatorState> smartPdmNavigatorKey =
+    GlobalKey<NavigatorState>();
 
 class SmartPdmApp extends StatelessWidget {
   const SmartPdmApp({super.key});
 
-  /// Slightly reduces typography on narrow phones so navigation labels,
-  /// status cards, buttons, and form labels do not overflow.
-  ///
-  /// The previous implementation enlarged text by 8–14% on small screens,
-  /// which caused otherwise valid one-line labels to wrap or clip.
   double _responsiveTextFactor(double width) {
     if (width <= 340) return 0.88;
     if (width <= 360) return 0.91;
@@ -27,6 +26,7 @@ class SmartPdmApp extends StatelessWidget {
     return Consumer<ThemeProvider>(
       builder: (context, themeProvider, child) {
         return MaterialApp(
+          navigatorKey: smartPdmNavigatorKey,
           title: 'SMaRT-PDM',
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
@@ -41,8 +41,6 @@ class SmartPdmApp extends StatelessWidget {
               mediaQuery.size.width,
             );
 
-            // Keep the user's accessibility preference, but apply a bounded
-            // responsive adjustment so very narrow screens remain usable.
             final systemTextScale = mediaQuery.textScaler.scale(16) / 16;
             final effectiveTextScale = (systemTextScale * responsiveFactor)
                 .clamp(0.85, 1.15)
@@ -52,8 +50,11 @@ class SmartPdmApp extends StatelessWidget {
               data: mediaQuery.copyWith(
                 textScaler: TextScaler.linear(effectiveTextScale),
               ),
-              child: MaintenanceModeGate(
-                child: child ?? const SizedBox.shrink(),
+              child: InAppRealtimeBannerHost(
+                navigatorKey: smartPdmNavigatorKey,
+                child: MaintenanceModeGate(
+                  child: child ?? const SizedBox.shrink(),
+                ),
               ),
             );
           },

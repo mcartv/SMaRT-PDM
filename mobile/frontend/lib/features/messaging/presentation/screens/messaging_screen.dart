@@ -8,6 +8,7 @@ import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_button_styles.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_status_colors.dart';
+import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/features/messaging/data/services/message_service.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/chat_message.dart';
@@ -27,6 +28,7 @@ class MessagingScreen extends StatefulWidget {
 class _MessagingScreenState extends State<MessagingScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _messageScrollController = ScrollController();
+  final MessageService _historyService = MessageService();
 
   MessagingProvider? _provider;
   Timer? _refreshFallback;
@@ -39,6 +41,12 @@ class _MessagingScreenState extends State<MessagingScreen> {
   String _chatSearchTerm = '';
   bool _isNearLatest = true;
   String _lastRenderedMessageId = '';
+
+  final List<ChatMessage> _olderMessages = <ChatMessage>[];
+  bool _historyInitialized = false;
+  bool _hasMoreHistory = false;
+  bool _isLoadingOlder = false;
+  int _historyRequestGeneration = 0;
 
   bool get _isGroupChat => _normalizedRoomId != null;
 
@@ -63,6 +71,42 @@ class _MessagingScreenState extends State<MessagingScreen> {
     });
   }
 
+  @override
+  void didUpdateWidget(covariant MessagingScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.roomId?.trim() != widget.roomId?.trim()) {
+      _resetHistoryWindow();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _openThread());
+    }
+  }
+
+  void _resetHistoryWindow() {
+    _historyRequestGeneration += 1;
+    _olderMessages.clear();
+    _historyInitialized = false;
+    _hasMoreHistory = false;
+    _isLoadingOlder = false;
+    _lastRenderedMessageId = '';
+  }
+
+  List<ChatMessage> _visibleMessages(MessagingProvider provider) {
+    final byId = <String, ChatMessage>{};
+    for (final message in <ChatMessage>[
+      ...provider.messages,
+      ..._olderMessages,
+    ]) {
+      if (message.messageId.isNotEmpty) byId[message.messageId] = message;
+    }
+
+    final items = byId.values.toList(growable: false);
+    items.sort((left, right) {
+      final sentAtCompare = right.sentAt.compareTo(left.sentAt);
+      if (sentAtCompare != 0) return sentAtCompare;
+      return right.messageId.compareTo(left.messageId);
+    });
+    return items;
+  }
+
   void _handleComposerChanged() {
     if (mounted) setState(() {});
   }
@@ -70,6 +114,13 @@ class _MessagingScreenState extends State<MessagingScreen> {
   void _handleMessageScroll() {
     if (!_messageScrollController.hasClients) return;
     _isNearLatest = _messageScrollController.offset <= 120;
+
+    final remainingToOlderEdge =
+        _messageScrollController.position.maxScrollExtent -
+        _messageScrollController.offset;
+    if (remainingToOlderEdge <= 220) {
+      unawaited(_loadOlderMessages());
+    }
   }
 
   void _handleProviderMessagesChanged() {
@@ -122,7 +173,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     if (!_messageScrollController.hasClients) return;
     _isNearLatest = true;
 
-    if (animated) {
+    if (animated && !MediaQuery.of(context).disableAnimations) {
       _messageScrollController.animateTo(
         0,
         duration: const Duration(milliseconds: 220),
@@ -154,17 +205,106 @@ class _MessagingScreenState extends State<MessagingScreen> {
     } else {
       await provider.enterThread();
     }
+
+    if (!mounted) return;
+    if (!_historyInitialized) {
+      _historyInitialized = true;
+      _hasMoreHistory =
+          provider.messages.length >= MessageService.historyBatchSize;
+      _lastRenderedMessageId =
+          provider.messages.isEmpty ? '' : provider.messages.first.messageId;
+      setState(() {});
+    }
+  }
+
+  Future<void> _loadOlderMessages() async {
+    final provider = _provider;
+    if (!mounted || provider == null || !_historyInitialized) return;
+    if (_isLoadingOlder || !_hasMoreHistory) return;
+
+    final visible = _visibleMessages(provider);
+    if (visible.isEmpty) {
+      _hasMoreHistory = false;
+      return;
+    }
+
+    final before = visible.last;
+    final requestGeneration = _historyRequestGeneration;
+    final oldOffset = _messageScrollController.hasClients
+        ? _messageScrollController.offset
+        : 0.0;
+
+    setState(() => _isLoadingOlder = true);
+
+    try {
+      late final List<ChatMessage> older;
+      late final bool hasMore;
+
+      if (_isGroupChat) {
+        final page = await _historyService.fetchOlderRoomThread(
+          _normalizedRoomId!,
+          before: before,
+        );
+        older = page.items;
+        hasMore = page.hasMore;
+      } else {
+        final page = await _historyService.fetchOlderThread(
+          before: before,
+          counterpartyId: provider.counterpartyId,
+        );
+        older = page.items;
+        hasMore = page.hasMore;
+      }
+
+      if (!mounted || requestGeneration != _historyRequestGeneration) return;
+
+      final existingIds = _visibleMessages(provider)
+          .map((message) => message.messageId)
+          .toSet();
+      final additions = older
+          .where((message) => !existingIds.contains(message.messageId))
+          .toList(growable: false);
+
+      setState(() {
+        _olderMessages.addAll(additions);
+        _hasMoreHistory = hasMore;
+      });
+
+      if (additions.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || !_messageScrollController.hasClients) return;
+          final target = oldOffset.clamp(
+            0.0,
+            _messageScrollController.position.maxScrollExtent,
+          ).toDouble();
+          _messageScrollController.jumpTo(target);
+        });
+      }
+    } on ApiException catch (error) {
+      if (error.statusCode == 404 || error.statusCode == 405) {
+        if (mounted && requestGeneration == _historyRequestGeneration) {
+          setState(() => _hasMoreHistory = false);
+        }
+        return;
+      }
+      rethrow;
+    } catch (error) {
+      debugPrint('[MessagingScreen] older message load error: $error');
+    } finally {
+      if (mounted && requestGeneration == _historyRequestGeneration) {
+        setState(() => _isLoadingOlder = false);
+      }
+    }
   }
 
   void _startRefreshFallback() {
     _refreshFallback?.cancel();
-    _refreshFallback = Timer.periodic(const Duration(seconds: 2), (_) async {
+    _refreshFallback = Timer.periodic(const Duration(seconds: 20), (_) async {
       if (!mounted || _isRefreshing) return;
 
-      // Socket.IO remains the primary path. This short active-thread watchdog
-      // reconciles the authoritative API even when a Render/Supabase event is
-      // missed while the socket still reports connected. It runs only while
-      // this conversation route is actually visible.
+      // Socket.IO remains the primary path. This bounded reconciliation only
+      // refreshes the newest window and leaves already-loaded older history in
+      // place if an event was missed while the socket still reports connected.
       if (ModalRoute.of(context)?.isCurrent != true) return;
 
       _isRefreshing = true;
@@ -307,7 +447,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
             final normalizedQuery = chatQuery.trim().toLowerCase();
             final matchCount = normalizedQuery.isEmpty
                 ? 0
-                : provider.messages
+                : _visibleMessages(provider)
                     .where(
                       (message) => message.messageBody
                           .toLowerCase()
@@ -608,6 +748,8 @@ class _MessagingScreenState extends State<MessagingScreen> {
     final conversationTitle = widget.title?.trim().isNotEmpty == true
         ? widget.title!.trim()
         : 'OSFA Administrator';
+    final visibleMessages = _visibleMessages(provider);
+
     return SmartPdmPageScaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -696,7 +838,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
                 value: _chatSearchTerm,
                 matchCount: _chatSearchTerm.trim().isEmpty
                     ? 0
-                    : provider.messages
+                    : visibleMessages
                         .where((message) => message.messageBody.toLowerCase().contains(_chatSearchTerm.trim().toLowerCase()))
                         .length,
                 onChanged: (value) => setState(() => _chatSearchTerm = value),
@@ -719,7 +861,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
   }
 
   Widget _buildMessageArea(MessagingProvider provider, bool isDark) {
-    final messages = provider.messages;
+    final messages = _visibleMessages(provider);
 
     if (provider.isLoading && messages.isEmpty) {
       return const Center(child: CircularProgressIndicator());
@@ -774,6 +916,8 @@ class _MessagingScreenState extends State<MessagingScreen> {
       );
     }
 
+    final showHistoryEdge = _isLoadingOlder || _hasMoreHistory;
+
     return RefreshIndicator(
       color: AppColors.gold,
       onRefresh: _refreshThread,
@@ -782,8 +926,29 @@ class _MessagingScreenState extends State<MessagingScreen> {
         reverse: true,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 24),
-        itemCount: messages.length,
+        itemCount: messages.length + (showHistoryEdge ? 1 : 0),
         itemBuilder: (context, index) {
+          if (index >= messages.length) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Center(
+                child: _isLoadingOlder
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(
+                        'Scroll up to load earlier messages',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: AppSurfacePalette.mutedText(context),
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+              ),
+            );
+          }
+
           final message = messages[index];
           final isMe = message.senderId == provider.currentUserId;
           final olderMessage = index + 1 < messages.length
@@ -800,7 +965,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
               olderMessage.sentAt.month != message.sentAt.month ||
               olderMessage.sentAt.day != message.sentAt.day;
 
-          return Column(
+          Widget item = Column(
             children: [
               if (showDate) _DateDivider(label: _formatDate(message.sentAt)),
               _MessageBubble(
@@ -823,6 +988,27 @@ class _MessagingScreenState extends State<MessagingScreen> {
               ),
             ],
           );
+
+          final shouldAnimateNewest = index == 0 &&
+              message.messageId == _lastRenderedMessageId &&
+              !MediaQuery.of(context).disableAnimations;
+          if (shouldAnimateNewest) {
+            item = TweenAnimationBuilder<double>(
+              key: ValueKey<String>('message-entry-${message.messageId}'),
+              tween: Tween<double>(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 170),
+              curve: Curves.easeOut,
+              builder: (context, value, child) => Opacity(
+                opacity: value,
+                child: Transform.translate(
+                  offset: Offset(0, 5 * (1 - value)),
+                  child: child,
+                ),
+              ),
+              child: item,
+            );
+          }
+          return item;
         },
       ),
     );
@@ -830,6 +1016,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
 
   @override
   void dispose() {
+    _historyRequestGeneration += 1;
     _refreshFallback?.cancel();
     _deliveredStatusDelay?.cancel();
     _messageController.removeListener(_handleComposerChanged);
@@ -1079,7 +1266,6 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 }
-
 
 class _ChatSearchBar extends StatelessWidget {
   const _ChatSearchBar({

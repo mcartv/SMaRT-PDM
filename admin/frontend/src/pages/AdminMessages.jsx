@@ -37,6 +37,8 @@ import { useSocketConnectionState, useSocketEmit, useSocketEvent } from '@/hooks
 import API_BASE_URL from '@/api'
 
 const MESSAGING_API_BASE = API_BASE_URL
+const MESSAGE_BATCH_SIZE = 30
+const MESSAGE_LOAD_OLDER_THRESHOLD_PX = 96
 // SMART-PDM_ADMIN_MESSAGES_RESPONSIVE_V1
 // SMART-PDM_ADMIN_MESSAGES_EMBEDDED_GROUP_INFO_V2
 // SMART_PDM_ADMIN_MESSAGES_COMPACT_LAYOUT_V1
@@ -305,9 +307,20 @@ function normalizeMessage(raw = {}) {
 }
 
 function sortMessages(items = []) {
-  return [...items].sort(
-    (left, right) => new Date(left.sentAt).getTime() - new Date(right.sentAt).getTime()
-  )
+  return [...items].sort((left, right) => {
+    const leftTime = new Date(left.sentAt).getTime()
+    const rightTime = new Date(right.sentAt).getTime()
+
+    if (Number.isFinite(leftTime) && Number.isFinite(rightTime) && leftTime !== rightTime) {
+      return leftTime - rightTime
+    }
+
+    if (Number.isFinite(leftTime) !== Number.isFinite(rightTime)) {
+      return Number.isFinite(leftTime) ? -1 : 1
+    }
+
+    return String(left.messageId || '').localeCompare(String(right.messageId || ''))
+  })
 }
 
 function sortItems(items = []) {
@@ -323,6 +336,13 @@ function upsertMessage(items, message) {
   })
   next.push(message)
   return sortMessages(next)
+}
+
+function mergeMessageCollections(current = [], incoming = []) {
+  return incoming.reduce(
+    (items, message) => upsertMessage(items, message),
+    [...current]
+  )
 }
 
 function markMessagesRead(items, messageIds = []) {
@@ -1036,9 +1056,28 @@ function MessageBubble({
     }
   }, [actionsOpen])
 
+  useEffect(() => {
+    const node = messageRootRef.current
+    if (!node || typeof node.animate !== 'function') return undefined
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return undefined
+
+    const animation = node.animate(
+      [
+        { opacity: 0, transform: 'translateY(5px) scale(0.992)' },
+        { opacity: 1, transform: 'translateY(0) scale(1)' },
+      ],
+      {
+        duration: 170,
+        easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+      }
+    )
+
+    return () => animation.cancel()
+  }, [message.messageId])
+
   if (String(message.subject || '').toLowerCase() === 'system') {
     return (
-      <div className="my-4 flex w-full justify-center px-4 text-center text-xs font-medium text-stone-500">
+      <div ref={messageRootRef} className="my-4 flex w-full justify-center px-4 text-center text-xs font-medium text-stone-500">
         <span className="rounded-full bg-stone-100 px-3 py-1">{message.messageBody}</span>
       </div>
     )
@@ -2232,6 +2271,9 @@ export default function AdminMessages({
   const [error, setError] = useState('')
   const [loadingConversations, setLoadingConversations] = useState(false)
   const [loadingMessages, setLoadingMessages] = useState(false)
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false)
+  const [hasOlderMessages, setHasOlderMessages] = useState(false)
+  const [olderMessagesCursor, setOlderMessagesCursor] = useState('')
   const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const [sending, setSending] = useState(false)
 
@@ -2312,6 +2354,10 @@ export default function AdminMessages({
   const conversationListRequestRef = useRef(0)
   const roomListRequestRef = useRef(0)
   const messageRequestRef = useRef({ sequence: 0, controller: null })
+  const olderMessageRequestRef = useRef({ sequence: 0, controller: null })
+  const messageHistoryRef = useRef({ threadKey: '', hasMore: false, nextCursor: '' })
+  const loadOlderMessagesRef = useRef(null)
+  const suppressNextAutoScrollRef = useRef(false)
   const conversationsLoadedRef = useRef(false)
 
   const totalUnreadCount = useMemo(
@@ -2528,6 +2574,11 @@ export default function AdminMessages({
   const handleMessagesScroll = useCallback(() => {
     const container = messagesScrollRef.current
     if (!container) return
+
+    if (container.scrollTop <= MESSAGE_LOAD_OLDER_THRESHOLD_PX) {
+      loadOlderMessagesRef.current?.()
+    }
+
     const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
     const isNearBottom = distanceFromBottom < 120
     shouldAutoScrollRef.current = isNearBottom
@@ -2538,7 +2589,7 @@ export default function AdminMessages({
     if (!messageId) return
     window.requestAnimationFrame(() => {
       const container = messagesScrollRef.current
-      const target = container?.querySelector(`[data-message-id="${messageId}"]`)
+      const target = container?.querySelector(`[data-message-id=\"${messageId}\"]`)
       if (!container || !target) return
       const containerRect = container.getBoundingClientRect()
       const targetRect = target.getBoundingClientRect()
@@ -2554,14 +2605,31 @@ export default function AdminMessages({
       (activeType === 'group' && pending.type === 'group' && pending.id === activeRoomId) ||
       (activeType === 'private' && pending.type === 'private' && pending.id === activeConversationId)
     )
+
+    olderMessageRequestRef.current.controller?.abort()
+    olderMessageRequestRef.current = {
+      sequence: olderMessageRequestRef.current.sequence + 1,
+      controller: null,
+    }
+    messageHistoryRef.current = { threadKey: '', hasMore: false, nextCursor: '' }
+    setLoadingOlderMessages(false)
+    setHasOlderMessages(false)
+    setOlderMessagesCursor('')
+
     forceScrollToBottomRef.current = !pendingMatches
     shouldAutoScrollRef.current = !pendingMatches
+    suppressNextAutoScrollRef.current = false
     setFirstUnreadMessageId('')
     setShowJumpToLatest(false)
   }, [activeType, activeConversationId, activeRoomId])
 
   useEffect(() => {
     if (!messages.length) return
+
+    if (suppressNextAutoScrollRef.current) {
+      suppressNextAutoScrollRef.current = false
+      return
+    }
 
     if (forceScrollToBottomRef.current) {
       scrollMessagesToBottom('auto')
@@ -2693,6 +2761,29 @@ export default function AdminMessages({
     }
   }, [token])
 
+  const applyHistoryMetadata = useCallback((threadKey, payload = {}) => {
+    const pagination = payload.pagination || {}
+    const hasMore =
+      pagination.hasMore === true ||
+      pagination.has_more === true ||
+      payload.hasMore === true ||
+      payload.has_more === true
+    const nextCursor =
+      pagination.nextCursor?.toString?.() ||
+      pagination.next_cursor?.toString?.() ||
+      payload.nextCursor?.toString?.() ||
+      payload.next_cursor?.toString?.() ||
+      ''
+
+    messageHistoryRef.current = {
+      threadKey,
+      hasMore,
+      nextCursor,
+    }
+    setHasOlderMessages(hasMore)
+    setOlderMessagesCursor(nextCursor)
+  }, [])
+
   const fetchConversationMessages = useCallback(
     async (counterpartyId, { silent = false } = {}) => {
       if (!counterpartyId) {
@@ -2707,8 +2798,12 @@ export default function AdminMessages({
       if (!silent) setLoadingMessages(true)
 
       try {
+        const params = new URLSearchParams({
+          view: 'window',
+          limit: String(MESSAGE_BATCH_SIZE),
+        })
         const response = await fetch(
-          `${MESSAGING_API_BASE}/api/messages/conversations/${counterpartyId}`,
+          `${MESSAGING_API_BASE}/api/messages/conversations/${counterpartyId}?${params.toString()}`,
           {
             headers: buildMessagingHeaders(token),
             signal: controller.signal,
@@ -2721,18 +2816,20 @@ export default function AdminMessages({
           activeConversationRef.current !== counterpartyId ||
           activeRoomRef.current
         ) return
+
         const items = sortMessages((payload.items || []).map(normalizeMessage))
         const counterpartyDisabled = payload?.counterparty?.is_disabled === true
+        const threadKey = `private:${counterpartyId}`
 
         setMessages((current) => {
           if (!silent) return items
-          const serverClientIds = new Set(items.map((message) => message.clientMessageId).filter(Boolean))
-          const localPending = current.filter((message) =>
-            (message.deliveryStatus === 'sending' || message.deliveryStatus === 'failed') &&
-            (!message.clientMessageId || !serverClientIds.has(message.clientMessageId))
-          )
-          return sortMessages([...items, ...localPending])
+          return mergeMessageCollections(current, items)
         })
+
+        if (!silent) {
+          applyHistoryMetadata(threadKey, payload)
+        }
+
         setConversations((current) =>
           current.map((item) =>
             item.id === counterpartyId
@@ -2750,7 +2847,7 @@ export default function AdminMessages({
         if (requestId === messageRequestRef.current.sequence) setLoadingMessages(false)
       }
     },
-    [token]
+    [token, applyHistoryMetadata]
   )
 
   const fetchRoomMessages = useCallback(
@@ -2767,8 +2864,12 @@ export default function AdminMessages({
       if (!silent) setLoadingMessages(true)
 
       try {
+        const params = new URLSearchParams({
+          view: 'window',
+          limit: String(MESSAGE_BATCH_SIZE),
+        })
         const response = await fetch(
-          `${MESSAGING_API_BASE}/api/messages/rooms/${roomId}/messages`,
+          `${MESSAGING_API_BASE}/api/messages/rooms/${roomId}/messages?${params.toString()}`,
           {
             headers: buildMessagingHeaders(token),
             signal: controller.signal,
@@ -2780,6 +2881,7 @@ export default function AdminMessages({
           requestId !== messageRequestRef.current.sequence ||
           activeRoomRef.current !== roomId
         ) return
+
         const items = sortMessages((payload.items || []).map(normalizeMessage))
         const hasMemberPayload =
           Array.isArray(payload.members) ||
@@ -2792,16 +2894,17 @@ export default function AdminMessages({
         const resolvedMemberCount = Number(
           payload.member_count ?? payload.memberCount ?? roomMembers.length
         )
+        const threadKey = `group:${roomId}`
 
         setMessages((current) => {
           if (!silent) return items
-          const serverClientIds = new Set(items.map((message) => message.clientMessageId).filter(Boolean))
-          const localPending = current.filter((message) =>
-            (message.deliveryStatus === 'sending' || message.deliveryStatus === 'failed') &&
-            (!message.clientMessageId || !serverClientIds.has(message.clientMessageId))
-          )
-          return sortMessages([...items, ...localPending])
+          return mergeMessageCollections(current, items)
         })
+
+        if (!silent) {
+          applyHistoryMetadata(threadKey, payload)
+        }
+
         if (hasMemberPayload) {
           setGroupMembers(roomMembers)
           setRooms((current) => current.map((room) =>
@@ -2812,6 +2915,10 @@ export default function AdminMessages({
                   payload.viewer_is_admin === true ||
                   payload.viewerIsAdmin === true ||
                   room.viewerIsAdmin,
+                viewerIsCreator:
+                  payload.viewer_is_creator === true ||
+                  payload.viewerIsCreator === true ||
+                  room.viewerIsCreator,
                 memberCount: resolvedMemberCount,
                 studentNumber: `${resolvedMemberCount} member${resolvedMemberCount === 1 ? '' : 's'}`,
               }
@@ -2828,7 +2935,7 @@ export default function AdminMessages({
         if (requestId === messageRequestRef.current.sequence) setLoadingMessages(false)
       }
     },
-    [token]
+    [token, applyHistoryMetadata]
   )
 
   const fetchRoomMembers = useCallback(
@@ -2842,15 +2949,16 @@ export default function AdminMessages({
       try {
         setLoadingGroupMembers(true)
         const response = await fetch(
-          `${MESSAGING_API_BASE}/api/messages/rooms/${normalizedRoomId}/messages`,
+          `${MESSAGING_API_BASE}/api/messages/rooms/${normalizedRoomId}/members`,
           { headers: buildMessagingHeaders(token) }
         )
         const payload = await parseApiResponse(response, 'Failed to load group members.')
-        const hasMemberPayload = Array.isArray(payload.members) || Array.isArray(payload.roomMembers)
-        const items = (payload.members || payload.roomMembers || [])
+        const hasMemberPayload = Array.isArray(payload.members) || Array.isArray(payload.roomMembers) || Array.isArray(payload.items)
+        const items = (payload.members || payload.roomMembers || payload.items || [])
           .map(normalizeRoomMember)
           .sort((left, right) => left.name.localeCompare(right.name, 'en', { sensitivity: 'base', numeric: true }))
         if (hasMemberPayload) {
+          const resolvedMemberCount = Number(payload.member_count ?? payload.memberCount ?? items.length)
           setGroupMembers(items)
           setRooms((current) => current.map((room) =>
             room.id === normalizedRoomId
@@ -2860,8 +2968,12 @@ export default function AdminMessages({
                   payload.viewer_is_admin === true ||
                   payload.viewerIsAdmin === true ||
                   room.viewerIsAdmin,
-                memberCount: Number(payload.member_count ?? payload.memberCount ?? items.length),
-                studentNumber: `${Number(payload.member_count ?? payload.memberCount ?? items.length)} member${Number(payload.member_count ?? payload.memberCount ?? items.length) === 1 ? '' : 's'}`,
+                viewerIsCreator:
+                  payload.viewer_is_creator === true ||
+                  payload.viewerIsCreator === true ||
+                  room.viewerIsCreator,
+                memberCount: resolvedMemberCount,
+                studentNumber: `${resolvedMemberCount} member${resolvedMemberCount === 1 ? '' : 's'}`,
               }
               : room
           ))
@@ -2876,6 +2988,106 @@ export default function AdminMessages({
     },
     [token]
   )
+
+  const loadOlderMessages = useCallback(async () => {
+    if (loadingMessages || loadingOlderMessages || olderMessageRequestRef.current.controller) return
+
+    const type = activeType
+    const id = type === 'group' ? activeRoomRef.current || activeRoomId : activeConversationRef.current || activeConversationId
+    if (!id) return
+
+    const threadKey = `${type}:${id}`
+    const history = messageHistoryRef.current
+    if (history.threadKey !== threadKey || !history.hasMore || !history.nextCursor) return
+
+    const container = messagesScrollRef.current
+    const previousScrollHeight = container?.scrollHeight || 0
+    const previousScrollTop = container?.scrollTop || 0
+    const requestId = olderMessageRequestRef.current.sequence + 1
+    const controller = new AbortController()
+    olderMessageRequestRef.current = { sequence: requestId, controller }
+    setLoadingOlderMessages(true)
+
+    try {
+      const params = new URLSearchParams({
+        view: 'window',
+        limit: String(MESSAGE_BATCH_SIZE),
+        before: history.nextCursor,
+      })
+      const endpoint = type === 'group'
+        ? `${MESSAGING_API_BASE}/api/messages/rooms/${id}/messages?${params.toString()}`
+        : `${MESSAGING_API_BASE}/api/messages/conversations/${id}?${params.toString()}`
+      const response = await fetch(endpoint, {
+        headers: buildMessagingHeaders(token),
+        signal: controller.signal,
+      })
+      const payload = await parseApiResponse(response, 'Failed to load earlier messages.')
+
+      const activeId = type === 'group' ? activeRoomRef.current : activeConversationRef.current
+      if (
+        requestId !== olderMessageRequestRef.current.sequence ||
+        activeType !== type ||
+        activeId !== id ||
+        messageHistoryRef.current.threadKey !== threadKey
+      ) return
+
+      const olderItems = sortMessages((payload.items || []).map(normalizeMessage))
+      const pagination = payload.pagination || {}
+      const hasMore =
+        pagination.hasMore === true ||
+        pagination.has_more === true ||
+        payload.hasMore === true ||
+        payload.has_more === true
+      const nextCursor =
+        pagination.nextCursor?.toString?.() ||
+        pagination.next_cursor?.toString?.() ||
+        payload.nextCursor?.toString?.() ||
+        payload.next_cursor?.toString?.() ||
+        ''
+
+      suppressNextAutoScrollRef.current = true
+      shouldAutoScrollRef.current = false
+      setMessages((current) => mergeMessageCollections(olderItems, current))
+      messageHistoryRef.current = { threadKey, hasMore, nextCursor }
+      setHasOlderMessages(hasMore)
+      setOlderMessagesCursor(nextCursor)
+
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          const currentContainer = messagesScrollRef.current
+          if (!currentContainer) return
+          const addedHeight = Math.max(0, currentContainer.scrollHeight - previousScrollHeight)
+          currentContainer.scrollTop = previousScrollTop + addedHeight
+        })
+      })
+      setError('')
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        setError(err.message || 'Failed to load earlier messages.')
+      }
+    } finally {
+      if (requestId === olderMessageRequestRef.current.sequence) {
+        olderMessageRequestRef.current = { sequence: requestId, controller: null }
+        setLoadingOlderMessages(false)
+      }
+    }
+  }, [
+    token,
+    activeType,
+    activeConversationId,
+    activeRoomId,
+    loadingMessages,
+    loadingOlderMessages,
+  ])
+
+  useEffect(() => {
+    loadOlderMessagesRef.current = loadOlderMessages
+    return () => {
+      if (loadOlderMessagesRef.current === loadOlderMessages) {
+        loadOlderMessagesRef.current = null
+      }
+    }
+  }, [loadOlderMessages])
 
   const markConversationRead = useCallback(
     async (counterpartyId) => {
@@ -3797,6 +4009,48 @@ export default function AdminMessages({
       const memberPayload = await parseApiResponse(response, 'Failed to remove group admin role.')
       const refreshedMembers = (memberPayload.members || memberPayload.roomMembers || []).map(normalizeRoomMember)
       const refreshedCount = Number(memberPayload.member_count ?? memberPayload.memberCount ?? refreshedMembers.length)
+      if (Array.isArray(memberPayload.members) || Array.isArray(memberPayload.roomMembers)) {
+        setGroupMembers(refreshedMembers)
+      }
+      setRooms((current) => current.map((room) =>
+        room.id === activeRoomId
+          ? {
+            ...room,
+            memberCount: refreshedCount,
+            studentNumber: `${refreshedCount} member${refreshedCount === 1 ? '' : 's'}`,
+          }
+          : room
+      ))
+      setPendingDemoteMember(null)
+      await Promise.all([
+        fetchRoomMembers(activeRoomId),
+        fetchRooms(activeRoomId),
+        fetchRoomMessages(activeRoomId, { silent: true }),
+      ])
+      setError('')
+    } catch (err) {
+      setError(err.message || 'Failed to remove group admin role.')
+    } finally {
+      setDemoteMemberBusy(false)
+    }
+  }
+
+  async function handleDemoteMember(member) {
+    if (!activeRoomId || !member?.userId) return
+
+    try {
+      setDemoteMemberBusy(true)
+      const response = await fetch(
+        `${MESSAGING_API_BASE}/api/messages/rooms/${activeRoomId}/members`,
+        {
+          method: 'POST',
+          headers: buildMessagingHeaders(token, { json: true }),
+          body: JSON.stringify({ action: 'demote_admin', memberId: member.userId }),
+        }
+      )
+      const memberPayload = await parseApiResponse(response, 'Failed to remove group admin role.')
+      const refreshedMembers = (memberPayload.members || memberPayload.roomMembers || []).map(normalizeRoomMember)
+      const refreshedCount = Number(memberPayload.member_count ?? memberPayload.memberCount ?? refreshedMembers.length)
 
       if (Array.isArray(memberPayload.members) || Array.isArray(memberPayload.roomMembers)) {
         setGroupMembers(refreshedMembers)
@@ -4016,6 +4270,7 @@ export default function AdminMessages({
 
   useEffect(() => () => {
     messageRequestRef.current.controller?.abort()
+    olderMessageRequestRef.current.controller?.abort()
   }, [])
 
   useEffect(() => {
@@ -4577,7 +4832,7 @@ export default function AdminMessages({
         roomId &&
         (activeRoomRef.current === roomId || activeRoomId === roomId)
       ) {
-        await fetchRoomMessages(roomId)
+        await fetchRoomMessages(roomId, { silent: true })
         if (groupInfoOpen) await fetchRoomMembers(roomId)
       }
     },
@@ -4662,8 +4917,9 @@ export default function AdminMessages({
           setGroupMembers([])
           setActiveRoomId('')
           setMessages([])
-        } else if (groupInfoOpen) {
-          await fetchRoomMembers(roomId)
+        } else {
+          await fetchRoomMessages(roomId, { silent: true })
+          if (groupInfoOpen) await fetchRoomMembers(roomId)
         }
       }
     },
@@ -4672,6 +4928,7 @@ export default function AdminMessages({
       currentUserId,
       groupInfoOpen,
       fetchRooms,
+      fetchRoomMessages,
       fetchRoomMembers,
     ]
   )
@@ -4690,8 +4947,9 @@ export default function AdminMessages({
           setGroupMembers([])
           setActiveRoomId('')
           setMessages([])
-        } else if (groupInfoOpen) {
-          await fetchRoomMembers(roomId)
+        } else {
+          await fetchRoomMessages(roomId, { silent: true })
+          if (groupInfoOpen) await fetchRoomMembers(roomId)
         }
       }
     },
@@ -4700,6 +4958,7 @@ export default function AdminMessages({
       currentUserId,
       groupInfoOpen,
       fetchRooms,
+      fetchRoomMessages,
       fetchRoomMembers,
     ]
   )
@@ -4717,7 +4976,7 @@ export default function AdminMessages({
         roomId &&
         (activeRoomRef.current === roomId || activeRoomId === roomId)
       ) {
-        await fetchRoomMessages(roomId)
+        await fetchRoomMessages(roomId, { silent: true })
       }
     },
     [
@@ -5292,6 +5551,24 @@ export default function AdminMessages({
                             <MessageThreadSkeleton />
                         ) : messages.length ? (
                           <div className="flex min-h-full flex-col justify-end">
+                            <div className="flex min-h-8 shrink-0 items-center justify-center py-1.5 text-[11px] font-medium text-stone-400" aria-live="polite">
+                              {loadingOlderMessages ? (
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 shadow-sm">
+                                  <LoaderCircle className="h-3 w-3 animate-spin" />
+                                  Loading earlier messages…
+                                </span>
+                              ) : hasOlderMessages && olderMessagesCursor ? (
+                                <button
+                                  type="button"
+                                  onClick={() => loadOlderMessages()}
+                                  className="pointer-events-auto rounded-full px-3 py-1 transition hover:bg-white hover:text-stone-600 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
+                                >
+                                  Scroll up or click to load earlier messages
+                                </button>
+                              ) : (
+                                <span>Beginning of conversation</span>
+                              )}
+                            </div>
                             {messages.map((message, index) => {
                               const isMine = message.senderId === currentUserId
                               const previousMessage = index > 0 ? messages[index - 1] : null

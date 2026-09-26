@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 
 const messageController = require('../controllers/messageController');
+const messageHistoryController = require('../controllers/messageHistoryController');
 const roomAdminController = require('../controllers/roomAdminController');
 const { protect } = require('../middleware/authMiddleware');
 const { authorizeRoleGroup } = require('../middleware/rbacMiddleware');
@@ -37,8 +38,8 @@ router.delete('/message/:messageId', messageController.hideMessageForMe);
   PRIVATE CONVERSATIONS
 */
 router.get('/conversations', messageController.getConversations);
-router.get('/conversations/:counterpartyId', messageController.getConversationMessages);
-router.get('/conversations/:counterpartyId/messages', messageController.getConversationMessages);
+router.get('/conversations/:counterpartyId', messageHistoryController.getConversationMessages);
+router.get('/conversations/:counterpartyId/messages', messageHistoryController.getConversationMessages);
 router.post('/conversations/:counterpartyId', messageController.sendMessage);
 router.post('/conversations/:counterpartyId/messages', messageController.sendMessage);
 
@@ -54,7 +55,7 @@ router.patch('/conversations/:counterpartyId/restore', messageController.restore
 router.get('/rooms', messageController.getRooms);
 router.post('/rooms', messageController.createRoom);
 
-router.get('/rooms/:roomId/messages', messageController.getRoomMessages);
+router.get('/rooms/:roomId/messages', messageHistoryController.getRoomMessages);
 router.post('/rooms/:roomId/messages', messageController.sendRoomMessage);
 
 router.get('/rooms/:roomId/members', messageController.getRoomMembers);

@@ -6,11 +6,20 @@ import 'package:flutter/foundation.dart';
 class MessageThreadResult {
   final String counterpartyId;
   final List<ChatMessage> items;
+  final bool hasMore;
 
   const MessageThreadResult({
     required this.counterpartyId,
     required this.items,
+    this.hasMore = false,
   });
+}
+
+class MessageHistoryPage {
+  final List<ChatMessage> items;
+  final bool hasMore;
+
+  const MessageHistoryPage({required this.items, this.hasMore = false});
 }
 
 class MessageReadResult {
@@ -109,7 +118,6 @@ class ChatRoom {
   }
 }
 
-
 class GroupMember {
   final String userId;
   final String name;
@@ -179,23 +187,56 @@ class MessageService {
   MessageService({ApiClient? apiClient})
     : _apiClient = apiClient ?? ApiClient();
 
+  static const int historyBatchSize = 30;
   final ApiClient _apiClient;
 
   Future<MessageThreadResult> fetchThread() async {
     try {
+      final response = await _apiClient.getObject(
+        '/api/messages/thread/window?limit=$historyBatchSize',
+      );
+      _lastConversationCounterpartyId = _readCounterpartyId(response);
+      return MessageThreadResult(
+        counterpartyId: _lastConversationCounterpartyId,
+        items: _parseItems(response['items']),
+        hasMore: _readHasMore(response),
+      );
+    } on ApiException catch (error) {
+      if (!_shouldFallbackToConversationList(error)) rethrow;
+      return _fetchThreadLegacy();
+    }
+  }
+
+  Future<MessageThreadResult> fetchOlderThread({
+    required ChatMessage before,
+    String? counterpartyId,
+  }) async {
+    final query = _historyQuery(
+      before: before,
+      counterpartyId: counterpartyId,
+    );
+    final response = await _apiClient.getObject('/api/messages/thread/window?$query');
+    final resolvedCounterpartyId = _readCounterpartyId(response);
+    if (resolvedCounterpartyId.isNotEmpty) {
+      _lastConversationCounterpartyId = resolvedCounterpartyId;
+    }
+    return MessageThreadResult(
+      counterpartyId: _lastConversationCounterpartyId,
+      items: _parseItems(response['items']),
+      hasMore: _readHasMore(response),
+    );
+  }
+
+  Future<MessageThreadResult> _fetchThreadLegacy() async {
+    try {
       final response = await _apiClient.getObject('/api/messages/thread');
-      _lastConversationCounterpartyId =
-          response['counterpartyId']?.toString().trim() ??
-          response['counterparty_id']?.toString().trim() ??
-          '';
+      _lastConversationCounterpartyId = _readCounterpartyId(response);
       return MessageThreadResult(
         counterpartyId: _lastConversationCounterpartyId,
         items: _parseItems(response['items']),
       );
     } on ApiException catch (error) {
-      if (!_shouldFallbackToConversationList(error)) {
-        rethrow;
-      }
+      if (!_shouldFallbackToConversationList(error)) rethrow;
 
       final conversations = await _fetchConversationList();
       if (conversations.isEmpty) {
@@ -374,17 +415,40 @@ class MessageService {
   }
 
   Future<List<ChatMessage>> fetchRoomThread(String roomId) async {
+    final normalizedRoomId = roomId.trim();
     try {
       final response = await _apiClient.getObject(
-        '/api/messages/rooms/$roomId/thread',
+        '/api/messages/rooms/$normalizedRoomId/window?limit=$historyBatchSize',
       );
       return _parseItems(response['items']);
-    } catch (_) {
-      final response = await _apiClient.getObject(
-        '/api/messages/rooms/$roomId/messages',
-      );
-      return _parseItems(response['items']);
+    } on ApiException catch (error) {
+      if (error.statusCode != 404 && error.statusCode != 405) rethrow;
+      try {
+        final response = await _apiClient.getObject(
+          '/api/messages/rooms/$normalizedRoomId/thread',
+        );
+        return _parseItems(response['items']);
+      } catch (_) {
+        final response = await _apiClient.getObject(
+          '/api/messages/rooms/$normalizedRoomId/messages',
+        );
+        return _parseItems(response['items']);
+      }
     }
+  }
+
+  Future<MessageHistoryPage> fetchOlderRoomThread(
+    String roomId, {
+    required ChatMessage before,
+  }) async {
+    final normalizedRoomId = roomId.trim();
+    final response = await _apiClient.getObject(
+      '/api/messages/rooms/$normalizedRoomId/window?${_historyQuery(before: before)}',
+    );
+    return MessageHistoryPage(
+      items: _parseItems(response['items']),
+      hasMore: _readHasMore(response),
+    );
   }
 
   Future<ChatMessage> sendRoomMessage(String roomId, String messageBody) async {
@@ -434,6 +498,35 @@ class MessageService {
 
   Future<void> restoreRoom(String roomId) async {
     await _apiClient.patchJson('/api/messages/rooms/$roomId/restore');
+  }
+
+  String _historyQuery({
+    required ChatMessage before,
+    String? counterpartyId,
+  }) {
+    final values = <String, String>{
+      'limit': '$historyBatchSize',
+      'beforeSentAt': before.sentAt.toUtc().toIso8601String(),
+      'beforeMessageId': before.messageId,
+      if ((counterpartyId ?? '').trim().isNotEmpty)
+        'counterpartyId': counterpartyId!.trim(),
+    };
+    return Uri(queryParameters: values).query;
+  }
+
+  bool _readHasMore(Map<String, dynamic> response) {
+    final pagination = response['pagination'];
+    if (pagination is! Map) return false;
+    final raw = pagination['hasMore'] ?? pagination['has_more'];
+    if (raw is bool) return raw;
+    if (raw is num) return raw != 0;
+    return raw?.toString().toLowerCase() == 'true';
+  }
+
+  String _readCounterpartyId(Map<String, dynamic> response) {
+    return response['counterpartyId']?.toString().trim() ??
+        response['counterparty_id']?.toString().trim() ??
+        '';
   }
 
   List<ChatMessage> _parseItems(dynamic rawItems) {

@@ -581,10 +581,166 @@ async function insertImportRows(importBatchId, parsedRows) {
   }
 }
 
-async function upsertMasterRows(importBatchId, importRows, courseMap) {
-  if (!importRows.length) return 0;
+function normalizeRegistryIdentityValue(value) {
+  return normalizeLookupValue(value).replace(/[^a-z0-9]/g, '');
+}
 
-  const payload = importRows.map((row) => ({
+function isDifferentRegistryIdentity(existing = {}, incoming = {}) {
+  const existingFirst = normalizeRegistryIdentityValue(existing.first_name);
+  const existingLast = normalizeRegistryIdentityValue(existing.last_name);
+  const incomingFirst = normalizeRegistryIdentityValue(incoming.given_name);
+  const incomingLast = normalizeRegistryIdentityValue(incoming.last_name);
+
+  const firstChanged =
+    Boolean(existingFirst && incomingFirst && existingFirst !== incomingFirst);
+  const lastChanged =
+    Boolean(existingLast && incomingLast && existingLast !== incomingLast);
+
+  if (firstChanged && lastChanged) return true;
+
+  const existingDob = normalizeText(existing.date_of_birth);
+  const incomingDob = normalizeText(incoming.date_of_birth);
+  const dobChanged =
+    Boolean(existingDob && incomingDob && existingDob !== incomingDob);
+
+  const existingLrn =
+    normalizeRegistryIdentityValue(existing.learners_reference_number);
+  const incomingLrn =
+    normalizeRegistryIdentityValue(incoming.learners_reference_number);
+  const lrnChanged =
+    Boolean(existingLrn && incomingLrn && existingLrn !== incomingLrn);
+
+  return (firstChanged || lastChanged) && (dobChanged || lrnChanged);
+}
+
+async function classifyProtectedRegistryRows(importBatchId, importRows) {
+  if (!Array.isArray(importRows) || importRows.length === 0) {
+    return { safeRows: [], conflicts: [] };
+  }
+
+  const studentNumbers = [
+    ...new Set(
+      importRows
+        .map((row) => normalizeText(row.student_number))
+        .filter(Boolean)
+    ),
+  ];
+
+  if (!studentNumbers.length) {
+    return { safeRows: importRows, conflicts: [] };
+  }
+
+  const existingResult = await db.query(
+    `
+      SELECT
+        master.master_student_id,
+        master.student_number,
+        master.learners_reference_number,
+        master.first_name,
+        master.last_name,
+        master.date_of_birth,
+        EXISTS (
+          SELECT 1
+          FROM students AS student
+          WHERE student.master_student_id = master.master_student_id
+        ) AS has_linked_student
+      FROM student_master_records AS master
+      WHERE master.student_number = ANY($1::text[])
+        AND COALESCE(master.is_archived, false) = false
+    `,
+    [studentNumbers]
+  );
+
+  const existingByNumber = new Map(
+    existingResult.rows.map((row) => [
+      normalizeText(row.student_number).toUpperCase(),
+      row,
+    ])
+  );
+
+  const safeRows = [];
+  const conflicts = [];
+
+  for (const row of importRows) {
+    const key = normalizeText(row.student_number).toUpperCase();
+    const existing = existingByNumber.get(key);
+
+    if (
+      existing?.has_linked_student &&
+      isDifferentRegistryIdentity(existing, row)
+    ) {
+      conflicts.push({
+        row_number: row.row_number,
+        student_number: row.student_number,
+        error_message:
+          'Student Number is already linked to a different student account/history. Existing identity was preserved.',
+      });
+      continue;
+    }
+
+    safeRows.push(row);
+  }
+
+  if (conflicts.length > 0) {
+    await db.query(
+      `
+        UPDATE student_import_rows AS import_row
+        SET
+          status = 'failed',
+          error_message = conflict.error_message
+        FROM jsonb_to_recordset($2::jsonb) AS conflict(
+          row_number integer,
+          student_number text,
+          error_message text
+        )
+        WHERE import_row.import_batch_id = $1
+          AND import_row.row_number = conflict.row_number
+          AND import_row.student_number = conflict.student_number
+      `,
+      [importBatchId, JSON.stringify(conflicts)]
+    );
+  }
+
+  return { safeRows, conflicts };
+}
+
+async function syncLinkedStudentsFromRegistryMaster(importBatchId) {
+  await db.query(
+    `
+      UPDATE students AS student
+      SET
+        pdm_id = COALESCE(NULLIF(master.pdm_id, ''), master.student_number),
+        registrar_student_number = master.student_number,
+        first_name = master.first_name,
+        middle_name = master.middle_name,
+        last_name = master.last_name,
+        course_id = master.course_id,
+        year_level = master.year_level,
+        sex_at_birth = master.sex_at_birth,
+        sequence_number = master.sequence_number,
+        updated_at = now()
+      FROM student_master_records AS master
+      WHERE student.master_student_id = master.master_student_id
+        AND master.latest_import_batch_id = $1
+    `,
+    [importBatchId]
+  );
+}
+
+async function upsertMasterRows(importBatchId, importRows, courseMap) {
+  // SMART_PDM_REGISTRY_UPSERT_GUARD_V3
+  if (!Array.isArray(importRows) || importRows.length === 0) return 0;
+
+  const { safeRows } = await classifyProtectedRegistryRows(
+    importBatchId,
+    importRows
+  );
+
+  if (safeRows.length === 0) {
+    return 0;
+  }
+
+  const payload = safeRows.map((row) => ({
     student_number: row.student_number,
     pdm_id: row.pdm_id || row.student_number,
     learners_reference_number: row.learners_reference_number || null,
@@ -625,33 +781,51 @@ async function upsertMasterRows(importBatchId, importRows, courseMap) {
         onConflict: 'student_number',
         ignoreDuplicates: false,
       });
+
     if (error) throw error;
   }
+
+  await syncLinkedStudentsFromRegistryMaster(importBatchId);
+
   return payload.length;
 }
 
 async function markImportRowsCompleted(importBatchId) {
+  // SMART_PDM_REGISTRY_FAILED_ROW_PRESERVATION_V3
   const result = await db.query(`
     WITH matches AS (
-      SELECT import_row.import_row_id, master.master_student_id
+      SELECT
+        import_row.import_row_id,
+        master.master_student_id
       FROM student_import_rows AS import_row
       LEFT JOIN student_master_records AS master
         ON master.student_number = import_row.student_number
        AND master.latest_import_batch_id = $1
       WHERE import_row.import_batch_id = $1
+        AND import_row.status <> 'failed'
     ), updated AS (
       UPDATE student_import_rows AS import_row
-      SET matched_master_student_id = matches.master_student_id,
-          status = CASE WHEN matches.master_student_id IS NULL THEN 'failed' ELSE 'imported' END,
-          error_message = CASE WHEN matches.master_student_id IS NULL THEN 'Master upsert failed' ELSE NULL END
+      SET
+        matched_master_student_id = matches.master_student_id,
+        status = CASE
+          WHEN matches.master_student_id IS NULL THEN 'failed'
+          ELSE 'imported'
+        END,
+        error_message = CASE
+          WHEN matches.master_student_id IS NULL THEN 'Master upsert failed'
+          ELSE NULL
+        END
       FROM matches
       WHERE import_row.import_row_id = matches.import_row_id
-      RETURNING import_row.status
+      RETURNING import_row.import_row_id
     )
-    SELECT count(*) FILTER (WHERE status = 'imported')::int AS imported,
-           count(*) FILTER (WHERE status = 'failed')::int AS failed
-    FROM updated
+    SELECT
+      count(*) FILTER (WHERE status = 'imported')::int AS imported,
+      count(*) FILTER (WHERE status = 'failed')::int AS failed
+    FROM student_import_rows
+    WHERE import_batch_id = $1
   `, [importBatchId]);
+
   return result.rows[0];
 }
 

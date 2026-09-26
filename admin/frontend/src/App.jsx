@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-
 import { Toaster } from './components/ui/sonner';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import PublicVisitorTracker from './components/system/PublicVisitorTracker';
+import WebRealtimeToastBridge from './components/system/WebRealtimeToastBridge';
 import { getStoredPortalSession } from './utils/authStorage';
 
 // --- LAYOUTS ---
@@ -78,6 +79,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <PublicVisitorTracker />
+      <WebRealtimeToastBridge />
       <Routes>
         <Route path="/" element={<PortalEntryRedirect />} />
 

@@ -10,14 +10,24 @@ const {
 } = require('../controllers/courseController');
 
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const {
+    cacheJsonResponse,
+    invalidateCacheOnSuccess,
+} = require('../middleware/appCacheMiddleware');
 
-router.get('/', protect, authorizeRoles('admin'), getCourses);
-router.post('/', protect, authorizeRoles('admin'), createCourse);
-router.patch('/:id', protect, authorizeRoles('admin'), updateCourse);
-router.patch('/:id/archive', protect, authorizeRoles('admin'), archiveCourse);
-router.patch('/:id/restore', protect, authorizeRoles('admin'), restoreCourse);
+const courseCache = cacheJsonResponse({
+    namespace: 'courses',
+    ttlMs: 120000,
+});
+const invalidateCourses = invalidateCacheOnSuccess(['courses']);
+
+router.get('/', protect, authorizeRoles('admin'), courseCache, getCourses);
+router.post('/', protect, authorizeRoles('admin'), invalidateCourses, createCourse);
+router.patch('/:id', protect, authorizeRoles('admin'), invalidateCourses, updateCourse);
+router.patch('/:id/archive', protect, authorizeRoles('admin'), invalidateCourses, archiveCourse);
+router.patch('/:id/restore', protect, authorizeRoles('admin'), invalidateCourses, restoreCourse);
 
 // Safe delete: this archives instead of hard-deleting.
-router.delete('/:id', protect, authorizeRoles('admin'), archiveCourse);
+router.delete('/:id', protect, authorizeRoles('admin'), invalidateCourses, archiveCourse);
 
 module.exports = router;

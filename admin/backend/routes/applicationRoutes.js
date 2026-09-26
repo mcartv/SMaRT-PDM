@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 
@@ -8,44 +8,59 @@ const { protect, authorizeRoles } = require('../middleware/authMiddleware');
 const {
     notifySdoAfterSuccessfulVerification,
 } = require('../middleware/endorsementNotificationMiddleware');
+const {
+    cacheJsonResponse,
+    invalidateCacheOnSuccess,
+} = require('../middleware/appCacheMiddleware');
 
 const adminOnly = [protect, authorizeRoles('admin')];
+const applicationsCache = cacheJsonResponse({
+    namespace: 'applications',
+    ttlMs: 3000,
+});
+const invalidateApplications = invalidateCacheOnSuccess([
+    'applications',
+    'program-openings',
+]);
+
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 },
 });
 
-router.get('/', ...adminOnly, applicationRegistryController.getApplications);
+router.get('/', ...adminOnly, applicationsCache, applicationRegistryController.getApplications);
 router.get('/iot-ocr/availability', ...adminOnly, applicationController.getIotOcrAvailability);
 router.get('/iot-ocr/review-queue', ...adminOnly, applicationController.listIotOcrReviewQueue);
 router.get('/:id', ...adminOnly, applicationController.getApplicationDetails);
 router.get('/:id/documents', ...adminOnly, applicationController.getApplicationDocuments);
 router.get('/:id/documents/:documentKey/view-url', ...adminOnly, applicationController.getApplicationDocumentViewUrl);
-router.post('/:id/documents/upload', ...adminOnly, upload.single('file'), applicationController.uploadStudentDocument);
+router.post('/:id/documents/upload', ...adminOnly, invalidateApplications, upload.single('file'), applicationController.uploadStudentDocument);
 router.post('/:id/documents/:documentKey/iot-ocr', ...adminOnly, applicationController.runApplicationDocumentIotOcr);
 router.get('/:id/documents/:documentKey/iot-ocr', ...adminOnly, applicationController.getApplicationDocumentIotOcr);
-router.post('/:id/documents/:documentKey/iot-ocr/:requestId/confirm', ...adminOnly, applicationController.confirmApplicationDocumentIotOcr);
+router.post('/:id/documents/:documentKey/iot-ocr/:requestId/confirm', ...adminOnly, invalidateApplications, applicationController.confirmApplicationDocumentIotOcr);
 router.post('/:id/documents/:documentKey/iot-ocr/:requestId/retry', ...adminOnly, applicationController.retryApplicationDocumentIotOcr);
 router.post('/:id/documents/:documentKey/iot-ocr/:requestId/cancel', ...adminOnly, applicationController.cancelApplicationDocumentIotOcr);
-router.post('/:id/documents/:documentKey/iot-ocr/:requestId/reject', ...adminOnly, applicationController.rejectApplicationDocumentIotOcr);
-router.post('/:id/documents/:documentKey/iot-ocr/:requestId/rescan', ...adminOnly, applicationController.rescanApplicationDocumentIotOcr);
+router.post('/:id/documents/:documentKey/iot-ocr/:requestId/reject', ...adminOnly, invalidateApplications, applicationController.rejectApplicationDocumentIotOcr);
+router.post('/:id/documents/:documentKey/iot-ocr/:requestId/rescan', ...adminOnly, invalidateApplications, applicationController.rescanApplicationDocumentIotOcr);
 router.get('/:id/documents/:documentKey/iot-ocr/:requestId/captured-image', ...adminOnly, applicationController.streamApplicationCapturedOcrImage);
 router.get('/:id/documents/:documentKey/iot-ocr/:requestId/review-image', ...adminOnly, applicationController.streamApplicationBirthOcrImage);
 router.get('/:id/documents/:documentKey/ocr-snapshot', ...adminOnly, applicationController.getApplicationDocumentOcrSnapshot);
-router.post('/:id/documents/:documentKey/ocr-snapshot', ...adminOnly, applicationController.saveApplicationDocumentOcrSnapshot);
+router.post('/:id/documents/:documentKey/ocr-snapshot', ...adminOnly, invalidateApplications, applicationController.saveApplicationDocumentOcrSnapshot);
 router.post(
     '/:id/application-form/request-reedit',
     ...adminOnly,
+    invalidateApplications,
     applicationController.requestApplicationFormReedit
 );
 router.post(
     '/:id/verify',
     ...adminOnly,
+    invalidateApplications,
     notifySdoAfterSuccessfulVerification,
     applicationController.saveApplicationVerification
 );
-router.patch('/:id/approve', ...adminOnly, applicationController.approveApplication);
-router.patch('/:id/remarks', ...adminOnly, applicationController.saveApplicationRemarks);
-router.patch('/:id/disqualify', ...adminOnly, applicationController.disqualifyApplication);
+router.patch('/:id/approve', ...adminOnly, invalidateApplications, applicationController.approveApplication);
+router.patch('/:id/remarks', ...adminOnly, invalidateApplications, applicationController.saveApplicationRemarks);
+router.patch('/:id/disqualify', ...adminOnly, invalidateApplications, applicationController.disqualifyApplication);
 
 module.exports = router;

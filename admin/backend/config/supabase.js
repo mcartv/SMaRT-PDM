@@ -1,6 +1,7 @@
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 const { installStorageSignedUrlCache } = require('./storageSignedUrlCache');
+const { installSupabaseRealtimeInvalidation } = require('./appCache');
 
 require('dotenv').config({
     path: path.resolve(__dirname, '../.env'),
@@ -37,5 +38,6 @@ const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
 });
 
 installStorageSignedUrlCache(supabase, { label: 'admin-backend' });
+installSupabaseRealtimeInvalidation(supabase);
 
 module.exports = supabase;

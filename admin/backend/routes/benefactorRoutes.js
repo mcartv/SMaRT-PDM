@@ -10,12 +10,31 @@ const {
 } = require('../controllers/benefactorController');
 
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const {
+    cacheJsonResponse,
+    invalidateCacheOnSuccess,
+} = require('../middleware/appCacheMiddleware');
 const adminOnly = [protect, authorizeRoles('admin')];
 
-router.get('/public', getPublicBenefactors);
-router.get('/', ...adminOnly, getBenefactors);
-router.post('/with-program', ...adminOnly, createBenefactorWithProgram);
-router.post('/', ...adminOnly, createBenefactor);
-router.patch('/:id', ...adminOnly, updateBenefactor);
+const benefactorCache = cacheJsonResponse({
+    namespace: 'benefactors',
+    ttlMs: 120000,
+});
+const publicBenefactorCache = cacheJsonResponse({
+    namespace: 'benefactors',
+    ttlMs: 120000,
+    scope: 'public',
+});
+const invalidateBenefactors = invalidateCacheOnSuccess([
+    'benefactors',
+    'scholarship-programs',
+    'program-openings',
+]);
+
+router.get('/public', publicBenefactorCache, getPublicBenefactors);
+router.get('/', ...adminOnly, benefactorCache, getBenefactors);
+router.post('/with-program', ...adminOnly, invalidateBenefactors, createBenefactorWithProgram);
+router.post('/', ...adminOnly, invalidateBenefactors, createBenefactor);
+router.patch('/:id', ...adminOnly, invalidateBenefactors, updateBenefactor);
 
 module.exports = router;

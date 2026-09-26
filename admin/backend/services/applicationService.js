@@ -859,7 +859,10 @@ async function relayStudentNotification({
     referenceType = null,
     createdAt = null,
 }) {
-    const endpoint = new URL('/api/internal/notifications/user', STUDENT_BACKEND_BASE_URL);
+    const endpoint = new URL(
+        '/api/notifications/internal',
+        STUDENT_BACKEND_BASE_URL
+    );
     const abortController = new AbortController();
     const timeoutId = setTimeout(
         () => abortController.abort(),
@@ -4103,8 +4106,8 @@ exports.saveApplicationDocumentReview = async ({
     const provisionalDocumentStatus = hasRequiredReupload
         ? 'Requires Reupload'
         : allRequiredUploadsPresent
-          ? 'Under Review'
-          : 'Missing Docs';
+            ? 'Under Review'
+            : 'Missing Docs';
 
     const { error: applicationUpdateError } = await supabase
         .from('applications')
@@ -4818,9 +4821,8 @@ exports.approveApplicationWithSlotCheck = async (applicationId, actor = {}) => {
 
             throw buildHttpError(
                 409,
-                `Scholar activation is blocked: ${
-                    blockers.join(', ') ||
-                    'requirements, endorsement, FCFS ranking, or reserved-slot status is incomplete'
+                `Scholar activation is blocked: ${blockers.join(', ') ||
+                'requirements, endorsement, FCFS ranking, or reserved-slot status is incomplete'
                 }.`
             );
         }

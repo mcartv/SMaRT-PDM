@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
@@ -17,7 +19,8 @@ import 'package:smartpdm_mobileapp/features/applicant/data/services/applicant_do
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/applicant_documents_package.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
-import 'package:url_launcher/url_launcher.dart';
+
+enum _DocumentUploadSource { camera, file }
 
 class ApplicantDocumentsScreen extends StatefulWidget {
   const ApplicantDocumentsScreen({
@@ -249,7 +252,10 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                 'Your current uploaded file will remain available until the '
                 'replacement finishes successfully. After replacement, the new '
                 'file becomes the current document and returns to Pending Review.',
-                style: TextStyle(color: bodyColor, height: 1.4),
+                style: TextStyle(
+                  color: bodyColor,
+                  height: 1.4,
+                ),
               ),
               const SizedBox(height: 10),
               Text(
@@ -278,6 +284,57 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     );
 
     return confirmed == true;
+  }
+
+  Future<_DocumentUploadSource?> _chooseUploadSource(
+    ApplicantRequirementDocument document,
+  ) {
+    return showModalBottomSheet<_DocumentUploadSource>(
+      context: context,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              document.isSubmitted ? 'Replace document' : 'Upload document',
+              style: Theme.of(
+                sheetContext,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              document.documentType,
+              style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 18),
+            if (!kIsWeb)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Take Photo'),
+                subtitle: const Text('Capture the document using your camera'),
+                onTap: () => Navigator.of(
+                  sheetContext,
+                ).pop(_DocumentUploadSource.camera),
+              ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.folder_open_outlined),
+              title: const Text('Choose File'),
+              subtitle: const Text('Select a PDF or image from your device'),
+              onTap: () =>
+                  Navigator.of(sheetContext).pop(_DocumentUploadSource.file),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _pickAndUploadDocument(
@@ -335,7 +392,6 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     }
 
     final extension = fileName.split('.').last.toLowerCase();
-
     const maxFileSizeBytes = 10 * 1024 * 1024;
     if (fileSize > maxFileSizeBytes) {
       _showUploadMessage(
@@ -354,7 +410,8 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
       return;
     }
 
-    if (kIsWeb && (fileBytes == null || fileBytes.isEmpty)) {
+    if (kIsWeb && source == _DocumentUploadSource.file &&
+        (fileBytes == null || fileBytes.isEmpty)) {
       _showUploadMessage(
         'The selected file could not be read. Try another file.',
         isError: true,
@@ -402,57 +459,6 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
       setState(() => _uploadingDocuments.remove(document.id));
       unawaited(_loadPackage(silent: true));
     }
-  }
-
-  Future<_DocumentUploadSource?> _chooseUploadSource(
-    ApplicantRequirementDocument document,
-  ) {
-    return showModalBottomSheet<_DocumentUploadSource>(
-      context: context,
-      showDragHandle: true,
-      useSafeArea: true,
-      builder: (sheetContext) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              document.isSubmitted ? 'Replace document' : 'Upload document',
-              style: Theme.of(
-                sheetContext,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              document.documentType,
-              style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 18),
-            if (!kIsWeb)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.photo_camera_outlined),
-                title: const Text('Take Photo'),
-                subtitle: const Text('Capture the document using your camera'),
-                onTap: () => Navigator.of(
-                  sheetContext,
-                ).pop(_DocumentUploadSource.camera),
-              ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.folder_open_outlined),
-              title: const Text('Choose File'),
-              subtitle: const Text('Select a PDF or image from your device'),
-              onTap: () =>
-                  Navigator.of(sheetContext).pop(_DocumentUploadSource.file),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Future<void> _showDocumentPreview(
@@ -503,7 +509,9 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
             horizontal: 22,
             vertical: 28,
           ),
-          shape: RoundedRectangleBorder(borderRadius: AppRadii.card),
+          shape: RoundedRectangleBorder(
+            borderRadius: AppRadii.card,
+          ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
             child: Padding(
@@ -716,12 +724,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
           key: const PageStorageKey<String>('applicant-required-documents'),
           controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.lg,
-            AppSpacing.lg,
-            AppSpacing.xxl,
-          ),
+          padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xxl),
           children: [
             _HeaderCard(
               title:
@@ -773,22 +776,18 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                           const SizedBox(height: AppSpacing.sm),
                           Text(
                             applicationRejected
-                                ? ((package?.rejectionReason
-                                              ?.trim()
-                                              .isNotEmpty ??
-                                          false)
+                                ? ((package?.rejectionReason?.trim().isNotEmpty ?? false)
                                       ? 'Application rejected. Admin feedback: ${package!.rejectionReason}'
                                       : 'Application rejected by Admin. Document upload and replacement are locked.')
                                 : (package?.uploadLockReason ??
                                       'Documents verified by Admin. Upload and replacement are locked unless a correction is requested.'),
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: applicationRejected
-                                      ? lockColors.onDangerContainer
-                                      : lockColors.onSuccessContainer,
-                                  height: 1.4,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: applicationRejected
+                                  ? lockColors.onDangerContainer
+                                  : lockColors.onSuccessContainer,
+                              height: 1.4,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ],
                       ),
@@ -799,42 +798,69 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
             ],
             const SizedBox(height: 12),
             if (package != null)
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => Navigator.pushNamed(
-                        context,
-                        AppRoutes.applicationFormPreview,
-                      ),
-                      icon: const Icon(Icons.description_outlined, size: 20),
-                      label: const Text(
-                        'View Application Form',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(0, 52),
+              LayoutBuilder(
+                builder: (context, actionConstraints) {
+                  final stackActions = actionConstraints.maxWidth < 430;
+
+                  final applicationButton = ElevatedButton.icon(
+                    onPressed: () => Navigator.pushNamed(
+                      context,
+                      AppRoutes.applicationFormPreview,
+                    ),
+                    icon: const Icon(Icons.description_outlined, size: 20),
+                    label: const Text(
+                      'View Application Form',
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      softWrap: true,
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () =>
-                          AppNavigator.goToTopLevel(context, AppRoutes.home),
-                      icon: const Icon(Icons.dashboard_outlined, size: 20),
-                      label: const Text(
-                        'Back to Dashboard',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(0, 52),
+                  );
+
+                  final dashboardButton = OutlinedButton.icon(
+                    onPressed: () =>
+                        AppNavigator.goToTopLevel(context, AppRoutes.home),
+                    icon: const Icon(Icons.dashboard_outlined, size: 20),
+                    label: const Text(
+                      'Back to Dashboard',
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      softWrap: true,
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
                       ),
                     ),
-                  ),
-                ],
+                  );
+
+                  if (stackActions) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        applicationButton,
+                        const SizedBox(height: 10),
+                        dashboardButton,
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      Expanded(child: applicationButton),
+                      const SizedBox(width: 10),
+                      Expanded(child: dashboardButton),
+                    ],
+                  );
+                },
               )
             else
               SizedBox(
@@ -843,9 +869,14 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                   onPressed: () =>
                       AppNavigator.goToTopLevel(context, AppRoutes.home),
                   icon: const Icon(Icons.dashboard_outlined, size: 20),
-                  label: const Text('Back to Dashboard'),
+                  label: const Text(
+                    'Back to Dashboard',
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    softWrap: true,
+                  ),
                   style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 52),
+                    minimumSize: const Size.fromHeight(52),
                   ),
                 ),
               ),
@@ -952,47 +983,65 @@ class _HeaderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final uploaded = package?.uploadedCount ?? 0;
     final total = package?.requiredCount ?? 0;
-    final progress = total == 0 ? 0.0 : uploaded / total;
+    final verified = package?.verifiedCount ?? 0;
+    final missing = package?.missingCount ?? 0;
+    final needsAction = package?.needsReplacementCount ?? 0;
+    final progress = total == 0
+        ? 0.0
+        : (uploaded / total).clamp(0.0, 1.0).toDouble();
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Theme.of(context).brightness == Brightness.dark
             ? AppColors.applicantDarkSurface
             : AppColors.applicantLightSurface,
         borderRadius: AppRadii.card,
-        border: Border.all(color: accentColor.withOpacity(0.16)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        border: Border.all(color: AppSurfacePalette.outline(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w900,
-              color: titleColor,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            programName,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: accentColor,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AppIconTile(
+                icon: Icons.folder_copy_outlined,
+                accent: accentColor,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: titleColor,
+                        height: 1.2,
+                      ),
+                    ),
+                    if (programName.trim().isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        programName,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: accentColor,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           Text(
             description,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              height: 1.45,
+              height: 1.4,
               color: subtitleColor,
             ),
           ),
@@ -1001,37 +1050,53 @@ class _HeaderCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    minHeight: 8,
-                    borderRadius: AppRadii.status,
+                  child: Text(
+                    'Required document progress',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: titleColor,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Text(
-                  '$uploaded/$total uploaded',
+                  '$uploaded of $total',
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
                     color: accentColor,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              borderRadius: AppRadii.status,
+            ),
+            const SizedBox(height: 12),
             Wrap(
-              spacing: 10,
-              runSpacing: 10,
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 _InfoChip(
-                  label: 'Application',
-                  value: package!.applicationStatus,
+                  label: 'Verified',
+                  value: '$verified/$total',
                   accentColor: accentColor,
                 ),
                 _InfoChip(
-                  label: 'Verified',
-                  value: '${package!.verifiedCount}/${package!.requiredCount}',
-                  accentColor: accentColor,
+                  label: 'Missing',
+                  value: '$missing',
+                  accentColor: missing > 0
+                      ? Theme.of(context).colorScheme.error
+                      : accentColor,
                 ),
+                if (needsAction > 0)
+                  _InfoChip(
+                    label: 'Needs action',
+                    value: '$needsAction',
+                    accentColor: Theme.of(context).colorScheme.error,
+                  ),
               ],
             ),
           ],
@@ -1109,7 +1174,18 @@ class _SimpleCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(message, style: const TextStyle(height: 1.45)),
           const SizedBox(height: 14),
-          ElevatedButton(onPressed: onPressed, child: Text(buttonLabel)),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: onPressed,
+              child: Text(
+                buttonLabel,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                softWrap: true,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1195,19 +1271,20 @@ class _DocumentCard extends StatelessWidget {
                   children: [
                     Text(
                       document.documentType,
+                      softWrap: true,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         fontWeight: FontWeight.w900,
                         color: titleColor,
+                        height: 1.25,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text.rich(
                       TextSpan(
-                        style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(
-                              color: subtitleColor,
-                              fontWeight: FontWeight.w700,
-                            ),
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: subtitleColor,
+                          fontWeight: FontWeight.w700,
+                        ),
                         children: document.isRequired
                             ? [
                                 const TextSpan(text: 'Required'),
@@ -1237,13 +1314,14 @@ class _DocumentCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: _StatusPill(label: statusLabel, color: statusColor),
-              ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: _StatusPill(label: statusLabel, color: statusColor),
+          ),
+          const SizedBox(height: 10),
           Text(
             document.isSubmitted
                 ? 'Uploaded: $uploadedText'
@@ -1274,11 +1352,11 @@ class _DocumentCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              ElevatedButton.icon(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stackActions = constraints.maxWidth < 390;
+
+              final uploadButton = ElevatedButton.icon(
                 onPressed: isUploading || onUpload == null ? null : onUpload,
                 icon: Icon(
                   onUpload == null
@@ -1295,15 +1373,60 @@ class _DocumentCard extends StatelessWidget {
                       : document.isSubmitted
                       ? 'Replace Document'
                       : 'Upload File',
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  softWrap: true,
                 ),
-              ),
-              if (onOpen != null)
-                OutlinedButton.icon(
-                  onPressed: isUploading ? null : onOpen,
-                  icon: const Icon(Icons.visibility_outlined),
-                  label: const Text('Preview'),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 11,
+                  ),
                 ),
-            ],
+              );
+
+              final previewButton = onOpen == null
+                  ? null
+                  : OutlinedButton.icon(
+                      onPressed: isUploading ? null : onOpen,
+                      icon: const Icon(Icons.visibility_outlined),
+                      label: const Text(
+                        'Preview',
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        softWrap: true,
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                      ),
+                    );
+
+              if (stackActions) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    uploadButton,
+                    if (previewButton != null) ...[
+                      const SizedBox(height: 8),
+                      previewButton,
+                    ],
+                  ],
+                );
+              }
+
+              if (previewButton == null) {
+                return SizedBox(width: double.infinity, child: uploadButton);
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: uploadButton),
+                  const SizedBox(width: 10),
+                  Expanded(child: previewButton),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -1324,8 +1447,6 @@ class _DocumentCard extends StatelessWidget {
     return Icons.description_outlined;
   }
 }
-
-enum _DocumentUploadSource { camera, file }
 
 class _PreviewUnavailable extends StatelessWidget {
   const _PreviewUnavailable({

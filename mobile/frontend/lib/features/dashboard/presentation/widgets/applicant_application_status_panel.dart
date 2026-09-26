@@ -26,6 +26,7 @@ class ApplicantApplicationStatusPanel extends StatelessWidget {
       container: true,
       label: application.semanticLabel,
       child: Container(
+        width: double.infinity,
         padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
           color: surface,
@@ -36,7 +37,6 @@ class ApplicantApplicationStatusPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 ExcludeSemantics(
                   child: Container(
@@ -57,6 +57,8 @@ class ApplicantApplicationStatusPanel extends StatelessWidget {
                 Expanded(
                   child: Text(
                     'APPLICATION STATUS',
+                    maxLines: 2,
+                    softWrap: true,
                     style: theme.textTheme.labelLarge?.copyWith(
                       color: textColor,
                       fontWeight: FontWeight.w900,
@@ -64,35 +66,51 @@ class ApplicantApplicationStatusPanel extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (stepLabel.isNotEmpty)
-                  Semantics(
-                    label: 'Application progress: $stepLabel',
-                    child: Container(
-                      constraints: const BoxConstraints(maxWidth: 150),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: palette.container,
-                        borderRadius: AppRadii.status,
-                        border: Border.all(
-                          color: palette.outline.withValues(alpha: .75),
-                        ),
-                      ),
-                      child: Text(
-                        stepLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: palette.foreground,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ),
               ],
             ),
+            if (stepLabel.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Semantics(
+                label: 'Application progress: $stepLabel',
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 9,
+                  ),
+                  decoration: BoxDecoration(
+                    color: palette.container,
+                    borderRadius: AppRadii.control,
+                    border: Border.all(
+                      color: palette.outline.withValues(alpha: .75),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.route_outlined,
+                        size: 17,
+                        color: palette.foreground,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          stepLabel,
+                          maxLines: 3,
+                          softWrap: true,
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: palette.foreground,
+                            fontWeight: FontWeight.w800,
+                            height: 1.25,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: AppSpacing.md),
             Container(
               width: double.infinity,
@@ -117,6 +135,7 @@ class ApplicantApplicationStatusPanel extends StatelessWidget {
                     header: true,
                     child: Text(
                       application.title,
+                      softWrap: true,
                       style: theme.textTheme.titleLarge?.copyWith(
                         color: palette.foreground,
                         fontWeight: FontWeight.w900,
@@ -127,6 +146,7 @@ class ApplicantApplicationStatusPanel extends StatelessWidget {
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     application.description,
+                    softWrap: true,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: palette.foreground.withValues(alpha: .9),
                       height: 1.45,
@@ -141,14 +161,19 @@ class ApplicantApplicationStatusPanel extends StatelessWidget {
               child: FilledButton.icon(
                 onPressed: () => onAction(application.primaryAction),
                 icon: const Icon(Icons.arrow_forward_rounded, size: 20),
-                label: Text(application.primaryAction.label),
+                label: Text(
+                  application.primaryAction.label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  softWrap: true,
+                ),
                 style: FilledButton.styleFrom(
                   backgroundColor: palette.foreground,
                   foregroundColor: palette.container,
                   minimumSize: const Size.fromHeight(52),
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.md,
-                    vertical: AppSpacing.sm,
+                    vertical: 12,
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: AppRadii.control,

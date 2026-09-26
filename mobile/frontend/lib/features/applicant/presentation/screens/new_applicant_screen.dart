@@ -367,6 +367,75 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     }
   }
 
+  static const String _parentGuardianMobileRequiredMessage =
+      'Provide at least one parent or guardian mobile number.';
+
+  bool _hasUsableParentGuardianMobile() {
+    return <String>[
+      _data.fatherMobile,
+      _data.motherMobile,
+      _data.guardianMobile,
+    ].any((value) {
+      final normalized = value.trim();
+      return normalized.isNotEmpty && normalized.toUpperCase() != 'N/A';
+    });
+  }
+
+  List<String> _parentGuardianMobileSnapshot() => <String>[
+    _data.fatherMobile,
+    _data.motherMobile,
+    _data.guardianMobile,
+  ];
+
+  void _fillBlankParentGuardianMobilesWithNA() {
+    if (_data.fatherMobile.trim().isEmpty) _data.fatherMobile = 'N/A';
+    if (_data.motherMobile.trim().isEmpty) _data.motherMobile = 'N/A';
+    if (_data.guardianMobile.trim().isEmpty) _data.guardianMobile = 'N/A';
+  }
+
+  void _restoreParentGuardianMobiles(List<String> snapshot) {
+    _data.fatherMobile = snapshot[0];
+    _data.motherMobile = snapshot[1];
+    _data.guardianMobile = snapshot[2];
+  }
+
+  String? _validateFamilyWithOptionalMobiles() {
+    if (!_hasUsableParentGuardianMobile()) {
+      return _parentGuardianMobileRequiredMessage;
+    }
+
+    final snapshot = _parentGuardianMobileSnapshot();
+    _fillBlankParentGuardianMobilesWithNA();
+    try {
+      return _submissionValidator.validateFamilyProgression(_data).firstMessage;
+    } finally {
+      _restoreParentGuardianMobiles(snapshot);
+    }
+  }
+
+  ApplicationSubmissionValidationResult
+  _validateSubmissionWithOptionalFamilyMobiles() {
+    if (!_hasUsableParentGuardianMobile()) {
+      return const ApplicationSubmissionValidationResult([
+        ApplicationSubmissionIssue(
+          code: 'family.mobile.contact.required',
+          section: ApplicationSubmissionSection.family,
+          field: 'familyMobileContact',
+          message: _parentGuardianMobileRequiredMessage,
+          repairAction: 'Enter one valid parent or guardian mobile number.',
+        ),
+      ]);
+    }
+
+    final snapshot = _parentGuardianMobileSnapshot();
+    _fillBlankParentGuardianMobilesWithNA();
+    try {
+      return _submissionValidator.validateSubmissionPreflight(_data);
+    } finally {
+      _restoreParentGuardianMobiles(snapshot);
+    }
+  }
+
   void _next() {
     final validationError = _validateCurrentForm();
     if (validationError != null) {
@@ -658,9 +727,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       return;
     }
 
-    final validationResult = _submissionValidator.validateSubmissionPreflight(
-      _data,
-    );
+    final validationResult = _validateSubmissionWithOptionalFamilyMobiles();
     if (!validationResult.isValid) {
       final firstIssue = validationResult.issues.first;
       setState(() {
@@ -684,6 +751,11 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
         return;
       }
     }
+
+    // The form requires at least one reachable parent/guardian contact. Empty
+    // secondary contact fields are persisted as N/A so existing backend/PDF
+    // contracts remain compatible without forcing duplicate phone numbers.
+    _fillBlankParentGuardianMobilesWithNA();
 
     final submissionPayload = _data.toSubmissionPayload();
     final provider = context.read<NewScholarProvider>();
@@ -749,9 +821,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             .validatePersonalProgression(_data)
             .firstMessage;
       case 1:
-        return _submissionValidator
-            .validateFamilyProgression(_data)
-            .firstMessage;
+        return _validateFamilyWithOptionalMobiles();
       case 2:
         return _submissionValidator
             .validateAcademicProgression(_data)
@@ -761,9 +831,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             .validateEssayProgression(_data)
             .firstMessage;
       case 4:
-        return _submissionValidator
-            .validateSubmissionPreflight(_data)
-            .firstMessage;
+        return _validateSubmissionWithOptionalFamilyMobiles().firstMessage;
       default:
         return null;
     }
@@ -844,7 +912,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<NewScholarProvider>();
     final cardColor = AppSurfacePalette.surface(context);
-    final borderColor = AppSurfacePalette.outline(context);
     final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
 
     return Scaffold(
@@ -871,21 +938,15 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
               return Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(
-                    maxWidth: IntakeLayout.contentMaxWidth,
+                    maxWidth: 920,
                   ),
                   child: Theme(
                     data: formTheme,
                     child: Card(
                       color: cardColor,
-                      margin: EdgeInsets.fromLTRB(
-                        gutter,
-                        0,
-                        gutter,
-                        compact ? 6 : 12,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: AppRadii.card,
-                        side: BorderSide(color: borderColor, width: 1),
+                      margin: EdgeInsets.zero,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.zero,
                       ),
                       elevation: 0,
                       shadowColor: Colors.transparent,
@@ -1022,97 +1083,105 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   Widget _buildSelectedOpeningCard(BuildContext context) {
     final textColor = AppSurfacePalette.text(context);
     final mutedColor = AppSurfacePalette.mutedText(context);
+    final feedback = _formFeedbackError != null
+        ? _formFeedbackError!
+        : widget.editExistingApplication
+        ? 'Changes are saved when you submit the updated form.'
+        : _isAutosaving
+        ? 'Saving draft...'
+        : _autosaveError == null
+        ? 'Draft autosaves automatically.'
+        : _autosaveError!;
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: BoxDecoration(
         color: AppSurfacePalette.surfaceMuted(context),
-        borderRadius: AppRadii.card,
+        borderRadius: AppRadii.control,
         border: Border.all(color: AppSurfacePalette.outline(context)),
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.gold.withValues(alpha: 0.14),
-                  borderRadius: AppRadii.status,
-                ),
-                child: Text(
-                  'Selected Opening',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: mutedColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            _data.openingTitle.isNotEmpty
-                ? _data.openingTitle
-                : 'Scholarship Opening',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: textColor,
-              height: 1.15,
-            ),
-          ),
-          if (_data.openingProgramName.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              _data.openingProgramName,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: mutedColor,
-              ),
-            ),
-          ],
-          const SizedBox(height: 16),
           Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              color: AppSurfacePalette.surface(context),
+              color: AppColors.gold.withValues(alpha: 0.15),
               borderRadius: AppRadii.control,
             ),
-            child: Row(
+            child: const Icon(
+              Icons.workspace_premium_outlined,
+              size: 20,
+              color: AppColors.gold,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  _isAutosaving ? Icons.sync : Icons.save_outlined,
-                  size: 18,
-                  color: mutedColor,
+                Text(
+                  'Selected scholarship',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: mutedColor,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    _formFeedbackError != null
-                        ? _formFeedbackError!
-                        : widget.editExistingApplication
-                        ? 'Changes are saved only when you tap Save Updated Application.'
-                        : _isAutosaving
-                        ? 'Saving draft...'
-                        : _autosaveError == null
-                        ? 'Draft autosaves as you complete the form.'
-                        : _autosaveError!,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                const SizedBox(height: 2),
+                Text(
+                  _data.openingTitle.isNotEmpty
+                      ? _data.openingTitle
+                      : 'Scholarship Opening',
+                  maxLines: 2,
+                  overflow: TextOverflow.fade,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: textColor,
+                    fontWeight: FontWeight.w900,
+                    height: 1.2,
+                  ),
+                ),
+                if (_data.openingProgramName.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    _data.openingProgramName,
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: mutedColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 5),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      _isAutosaving ? Icons.sync_rounded : Icons.save_outlined,
+                      size: 14,
                       color: _formFeedbackError != null
                           ? Theme.of(context).colorScheme.error
                           : mutedColor,
-                      fontWeight: _formFeedbackError != null
-                          ? FontWeight.w700
-                          : FontWeight.w400,
-                      height: 1.35,
                     ),
-                  ),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        feedback,
+                        maxLines: 2,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: _formFeedbackError != null
+                              ? Theme.of(context).colorScheme.error
+                              : mutedColor,
+                          fontWeight: _formFeedbackError != null
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          height: 1.25,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1138,11 +1207,11 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
 
   String get _nextButtonLabel {
     if (_step == 2 && !_requiredStepGateComplete) {
-      return 'Answer Required Questions';
+      return 'Complete Questions';
     }
 
     if (_step == 3 && !_requiredStepGateComplete) {
-      return 'Complete Personal Statement';
+      return 'Finish Essay';
     }
 
     return 'Next';
@@ -1208,7 +1277,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                     ),
                     child: Text(
                       widget.editExistingApplication
-                          ? 'Save Updated Application'
+                          ? 'Save Updates'
                           : 'Submit Application',
                       style: const TextStyle(fontWeight: FontWeight.w900),
                     ),

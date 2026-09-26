@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/widgets/intake_form_ui.dart';
 import 'package:smartpdm_mobileapp/features/forms/domain/validation/application_field_limits.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
@@ -108,7 +109,9 @@ class _StepFamilyState extends State<StepFamily> {
       text: widget.data.fatherMiddleName,
     );
     fatherMobileController = TextEditingController(
-      text: ApplicationData.normalizeMobileNumber(widget.data.fatherMobile),
+      text: widget.data.fatherMobile.trim().toUpperCase() == 'N/A'
+          ? ''
+          : ApplicationData.normalizeMobileNumber(widget.data.fatherMobile),
     );
     fatherOccupationController = TextEditingController(
       text: widget.data.fatherOccupation,
@@ -126,7 +129,9 @@ class _StepFamilyState extends State<StepFamily> {
       text: widget.data.motherMiddleName,
     );
     motherMobileController = TextEditingController(
-      text: ApplicationData.normalizeMobileNumber(widget.data.motherMobile),
+      text: widget.data.motherMobile.trim().toUpperCase() == 'N/A'
+          ? ''
+          : ApplicationData.normalizeMobileNumber(widget.data.motherMobile),
     );
     motherOccupationController = TextEditingController(
       text: widget.data.motherOccupation,
@@ -165,7 +170,9 @@ class _StepFamilyState extends State<StepFamily> {
       text: widget.data.guardianMiddleName,
     );
     guardianMobileController = TextEditingController(
-      text: ApplicationData.normalizeMobileNumber(widget.data.guardianMobile),
+      text: widget.data.guardianMobile.trim().toUpperCase() == 'N/A'
+          ? ''
+          : ApplicationData.normalizeMobileNumber(widget.data.guardianMobile),
     );
     widget.data.fatherMobile = fatherMobileController.text;
     widget.data.motherMobile = motherMobileController.text;
@@ -692,10 +699,15 @@ class _StepFamilyState extends State<StepFamily> {
         value.trim().isNotEmpty;
   }
 
-  String? _familyMobileError(String value) {
+  String? _familyMobileError(String value, {bool required = false}) {
     if (!widget.showErrors) return null;
-    if (value.trim().toUpperCase() == 'N/A') return null;
-    return AppFieldValidators.philippineMobile(value);
+    final normalized = value.trim();
+    if (normalized.toUpperCase() == 'N/A') return null;
+    if (!required && normalized.isEmpty) return null;
+    return AppFieldValidators.philippineMobile(
+      value,
+      required: required,
+    );
   }
 
   String? _familyNameError(String value, String label, {int minLength = 2}) {
@@ -711,7 +723,8 @@ class _StepFamilyState extends State<StepFamily> {
   }
 
   List<TextInputFormatter> get _familyMobileInputFormatters => [
-    LengthLimitingTextInputFormatter(13),
+    FilteringTextInputFormatter.digitsOnly,
+    LengthLimitingTextInputFormatter(11),
   ];
 
   Widget _personSection({
@@ -823,7 +836,7 @@ class _StepFamilyState extends State<StepFamily> {
               TextFormField(
                 style: intakeInputTextStyle(context),
                 controller: mobileController,
-                keyboardType: TextInputType.text,
+                keyboardType: TextInputType.number,
                 inputFormatters: _familyMobileInputFormatters,
                 decoration: _dec(
                   '09171234567',
@@ -837,7 +850,7 @@ class _StepFamilyState extends State<StepFamily> {
                   ),
                 ),
               ),
-              required: true,
+              required: false,
             ),
           ]),
           const SizedBox(height: 16),
@@ -1067,6 +1080,37 @@ class _StepFamilyState extends State<StepFamily> {
                 selected: hasMother && !guardianOnly,
                 onTap: () => _setHasMother(!hasMother),
               ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: intakeSurfaceTintColor(context),
+                  borderRadius: AppRadii.control,
+                  border: Border.all(color: intakeBorderColor(context)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.phone_android_rounded,
+                      size: 18,
+                      color: intakeSubtextColor(context),
+                    ),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Text(
+                        'Provide at least one parent or guardian mobile number. The other parent or guardian mobile fields may be left blank.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: intakeSubtextColor(context),
+                          height: 1.4,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -1179,12 +1223,15 @@ class _StepFamilyState extends State<StepFamily> {
                     style: intakeInputTextStyle(context),
                     controller: siblingMobileController,
                     readOnly: noSibling,
-                    keyboardType: TextInputType.text,
+                    keyboardType: TextInputType.number,
                     inputFormatters: _familyMobileInputFormatters,
                     decoration: _dec(
                       '09171234567',
                       errorText: widget.showErrors
-                          ? _familyMobileError(siblingMobileController.text)
+                          ? _familyMobileError(
+                              siblingMobileController.text,
+                              required: !noSibling,
+                            )
                           : null,
                       suffixIcon: intakeCompletionIcon(
                         _isValidFamilyMobile(siblingMobileController.text)

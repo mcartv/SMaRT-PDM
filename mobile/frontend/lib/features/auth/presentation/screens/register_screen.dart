@@ -220,8 +220,75 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  Widget _policyLink({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? AppColors.applicantDarkText : AppColors.darkBrown;
+    final mutedColor = isDark
+        ? AppColors.applicantDarkTextMuted
+        : Colors.grey.shade700;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          decoration: BoxDecoration(
+            color: isDark
+                ? AppColors.applicantDarkSurface
+                : Colors.white.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isDark
+                  ? AppColors.applicantDarkOutline
+                  : Colors.grey.shade300,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 20, color: accentColor),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: textColor,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: mutedColor,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right_rounded, color: mutedColor),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildPolicyAgreement() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? AppColors.applicantDarkText : AppColors.darkBrown;
     final mutedColor = isDark
         ? AppColors.applicantDarkTextMuted
         : Colors.grey.shade800;
@@ -232,88 +299,78 @@ class _RegisterScreenState extends State<RegisterScreen> {
         color: isDark
             ? AppColors.applicantDarkSurfaceMuted
             : Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: _acceptedPolicies
-              ? accentColor.withValues(alpha: 0.45)
+              ? accentColor.withValues(alpha: 0.50)
               : (isDark
                     ? AppColors.applicantDarkOutline
                     : Colors.grey.shade300),
         ),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Checkbox(
-            value: _acceptedPolicies,
-            onChanged: (value) {
-              setState(() {
-                _acceptedPolicies = value ?? false;
-              });
-            },
-            activeColor: accentColor,
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Checkbox(
+                value: _acceptedPolicies,
+                onChanged: (value) {
+                  setState(() {
+                    _acceptedPolicies = value ?? false;
+                  });
+                },
+                activeColor: accentColor,
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'I have read and agree to the ',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: mutedColor,
-                          height: 1.5,
+                        'Terms & Privacy',
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: textColor,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
-                      GestureDetector(
-                        onTap: () => showLegalDocumentSheet(
-                          context,
-                          title: LegalDocuments.termsOfServiceTitle,
-                          content: LegalDocuments.termsOfService,
-                        ),
-                        child: const Text(
-                          'Terms of Service',
-                          style: TextStyle(
-                            color: Colors.orange,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
+                      const SizedBox(height: 4),
                       Text(
-                        ' and the ',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        'I have read and agree to the documents below.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: mutedColor,
-                          height: 1.5,
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => showLegalDocumentSheet(
-                          context,
-                          title: LegalDocuments.privacyStatementTitle,
-                          content: LegalDocuments.privacyStatement,
-                        ),
-                        child: const Text(
-                          'SMaRT-PDM Privacy Statement',
-                          style: TextStyle(
-                            color: Colors.orange,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        '.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: mutedColor,
-                          height: 1.5,
+                          height: 1.4,
                         ),
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _policyLink(
+            icon: Icons.description_outlined,
+            title: 'Terms of Service',
+            subtitle: 'Read the conditions for using SMaRT-PDM.',
+            onTap: () => showLegalDocumentSheet(
+              context,
+              title: LegalDocuments.termsOfServiceTitle,
+              content: LegalDocuments.termsOfService,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _policyLink(
+            icon: Icons.privacy_tip_outlined,
+            title: 'Privacy Statement',
+            subtitle: 'Review how account and application data are handled.',
+            onTap: () => showLegalDocumentSheet(
+              context,
+              title: LegalDocuments.privacyStatementTitle,
+              content: LegalDocuments.privacyStatement,
             ),
           ),
         ],

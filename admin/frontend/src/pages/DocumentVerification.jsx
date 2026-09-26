@@ -1698,13 +1698,19 @@ const BIRTH_REGION_STYLE = {
   item13: { color: 'var(--portal-base)', label: 'Item 13 / Father' },
 };
 
-function BirthV2ReviewImage({ src, regions, regionMode, activeRegion, status, error }) {
-  if (status === 'error') {
+function BirthV2ReviewImage({ src, regions, regionMode, activeRegion, status, error, onRetry }) {
+  if (['error', 'missing', 'access_error'].includes(status)) {
     return (
       <div className="flex min-h-64 items-center justify-center rounded-lg border border-dashed border-rose-300 bg-rose-50 px-4 text-center text-sm text-rose-700" role="alert">
-        {error || 'The private Birth review image is unavailable. Request a rescan to capture it again.'}
+        <div>
+          <p>{error || 'The private Birth review image is unavailable.'}</p>
+          {onRetry && status !== 'missing' ? <Button variant="outline" className="mt-3 border-rose-200 bg-white text-rose-700 hover:bg-rose-100" onClick={onRetry}>Retry Preview</Button> : null}
+        </div>
       </div>
     );
+  }
+  if (status === 'retrying') {
+    return <div className="flex min-h-64 items-center justify-center rounded-lg border border-dashed border-amber-300 bg-amber-50 px-4 text-center text-sm text-amber-800" role="status">Preview is taking longer than expected. Retrying...</div>;
   }
   if (!src) {
     return (
@@ -1790,6 +1796,7 @@ function OCRPanel({
   birthReviewImageUrl,
   birthReviewImageStatus,
   birthReviewImageError,
+  onRetryBirthReviewImage,
   birthReviewReason,
   onBirthReviewReasonChange,
   onRejectCandidate,
@@ -2165,6 +2172,7 @@ function OCRPanel({
                     activeRegion={activeBirthRegion}
                     status={birthReviewImageStatus}
                     error={birthReviewImageError}
+                    onRetry={onRetryBirthReviewImage}
                   />
                   <p className="text-sm leading-5 text-stone-500">All scan cells remain visible. Focus a field to emphasize its source cell.</p>
                 </div>
@@ -3401,6 +3409,7 @@ export default function DocumentVerification() {
   const [birthReviewImageUrl, setBirthReviewImageUrl] = useState('');
   const [birthReviewImageStatus, setBirthReviewImageStatus] = useState('idle');
   const [birthReviewImageError, setBirthReviewImageError] = useState('');
+  const [birthReviewImageRetryNonce, setBirthReviewImageRetryNonce] = useState(0);
   const [birthReviewReason, setBirthReviewReason] = useState('');
   const [birthValidationContext, setBirthValidationContext] = useState({
     request: null,
@@ -4313,52 +4322,59 @@ export default function DocumentVerification() {
     ) return undefined;
     let cancelled = false;
     let objectUrl = '';
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 15000);
+    let activeController = null;
     setBirthReviewImageStatus('loading');
-    fetch(
-      `${API_BASE}/api/applications/${id}/documents/${activeDoc.id}/iot-ocr/${reviewCandidate.request_id}/review-image`,
-      {
-        headers: { Authorization: `Bearer ${sessionStorage.getItem('adminToken')}` },
-        cache: 'no-store',
-        signal: controller.signal,
+    const loadPreview = async () => {
+      let lastError = null;
+      for (const [attempt, timeoutMs] of [[1, 15000], [2, 20000]]) {
+        const controller = new AbortController();
+        activeController = controller;
+        const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          if (attempt === 2 && !cancelled) setBirthReviewImageStatus('retrying');
+          const response = await fetch(
+            `${API_BASE}/api/applications/${id}/documents/${activeDoc.id}/iot-ocr/${reviewCandidate.request_id}/review-image`,
+            { headers: { Authorization: `Bearer ${sessionStorage.getItem('adminToken')}` }, cache: 'no-store', signal: controller.signal }
+          );
+          if (!response.ok) {
+            const failure = new Error(`Private Birth review image request failed (${response.status})`);
+            failure.status = response.status;
+            throw failure;
+          }
+          const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+          if (!contentType.startsWith('image/')) throw new Error('Private Birth review image returned an unsupported file type');
+          const blob = await response.blob();
+          if (!blob.size) throw new Error('Private Birth review image is empty');
+          if (cancelled) return;
+          objectUrl = URL.createObjectURL(blob);
+          setBirthReviewImageUrl(objectUrl);
+          setBirthReviewImageStatus('loaded');
+          return;
+        } catch (loadError) {
+          lastError = loadError;
+          if (loadError.status === 404 || loadError.status === 401 || loadError.status === 403) break;
+          if (attempt === 1 && !cancelled) await new Promise((resolve) => window.setTimeout(resolve, 1000));
+        } finally {
+          window.clearTimeout(timeoutId);
+        }
       }
-    )
-      .then(async (response) => {
-        if (!response.ok) {
-          const payload = await response.json().catch(() => ({}));
-          throw new Error(payload.error || 'Private Birth review image is unavailable');
-        }
-        const contentType = String(response.headers.get('content-type') || '').toLowerCase();
-        if (!contentType.startsWith('image/')) {
-          throw new Error('Private Birth review image returned an unsupported file type');
-        }
-        return response.blob();
-      })
-      .then((blob) => {
-        if (cancelled) return;
-        if (!blob.size) throw new Error('Private Birth review image is empty');
-        objectUrl = URL.createObjectURL(blob);
-        setBirthReviewImageUrl(objectUrl);
-        setBirthReviewImageStatus('loaded');
-      })
-      .catch((loadError) => {
-        if (!cancelled) {
-          const message = loadError?.name === 'AbortError'
-            ? 'Private Birth review image timed out. Request a rescan if the image remains unavailable.'
-            : loadError.message;
-          setBirthReviewImageStatus('error');
-          setBirthReviewImageError(message);
-          setIotOcrError(message);
-        }
-      });
+      if (cancelled || !lastError) return;
+      const status = lastError.status === 404 ? 'missing' : lastError.status === 401 || lastError.status === 403 ? 'access_error' : 'error';
+      const message = status === 'missing'
+        ? 'Captured Birth image unavailable. Request a rescan to capture it again.'
+        : status === 'access_error'
+          ? 'Birth Certificate preview access is temporarily unavailable. OCR results remain available for review.'
+          : 'Birth Certificate preview is temporarily unavailable. OCR results remain available for review.';
+      setBirthReviewImageStatus(status);
+      setBirthReviewImageError(message);
+    };
+    loadPreview();
     return () => {
       cancelled = true;
-      window.clearTimeout(timeoutId);
-      controller.abort();
+      activeController?.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [activeDoc?.id, id, reviewCandidate?.ocr_version, reviewCandidate?.request_id, reviewCandidate?.status]);
+  }, [activeDoc?.id, id, reviewCandidate?.ocr_version, reviewCandidate?.request_id, reviewCandidate?.status, birthReviewImageRetryNonce]);
   const persistActiveDocStatus = async (
     nextStatus,
     nextComment = null,
@@ -5454,6 +5470,7 @@ export default function DocumentVerification() {
                   birthReviewImageUrl={birthReviewImageUrl}
                   birthReviewImageStatus={birthReviewImageStatus}
                   birthReviewImageError={birthReviewImageError}
+                  onRetryBirthReviewImage={() => setBirthReviewImageRetryNonce((value) => value + 1)}
                   birthReviewReason={birthReviewReason}
                   onBirthReviewReasonChange={setBirthReviewReason}
                   onRejectCandidate={() => handleBirthReviewAction('reject')}
@@ -5490,6 +5507,7 @@ export default function DocumentVerification() {
                     birthReviewImageUrl={birthReviewImageUrl}
                     birthReviewImageStatus={birthReviewImageStatus}
                     birthReviewImageError={birthReviewImageError}
+                    onRetryBirthReviewImage={() => setBirthReviewImageRetryNonce((value) => value + 1)}
                     birthReviewReason={birthReviewReason}
                     onBirthReviewReasonChange={setBirthReviewReason}
                     onRejectCandidate={() => handleBirthReviewAction('reject')}

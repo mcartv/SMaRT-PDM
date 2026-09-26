@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 
 const applicationController = require('../controllers/applicationController');
+const applicationRegistryController = require('../controllers/applicationRegistryController');
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
 const {
     notifySdoAfterSuccessfulVerification,
@@ -14,7 +15,7 @@ const upload = multer({
     limits: { fileSize: 10 * 1024 * 1024 },
 });
 
-router.get('/', ...adminOnly, applicationController.getApplications);
+router.get('/', ...adminOnly, applicationRegistryController.getApplications);
 router.get('/iot-ocr/availability', ...adminOnly, applicationController.getIotOcrAvailability);
 router.get('/iot-ocr/review-queue', ...adminOnly, applicationController.listIotOcrReviewQueue);
 router.get('/:id', ...adminOnly, applicationController.getApplicationDetails);

@@ -50,7 +50,8 @@ const C = {
   line: 'var(--portal-border)',
 };
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 10;
+const SEARCH_DEBOUNCE_MS = 300;
 
 const DEFAULT_FILTERS = {
   academicYear: 'all',
@@ -58,6 +59,40 @@ const DEFAULT_FILTERS = {
   applicationStatus: 'all',
   documentStatus: 'all',
 };
+
+function buildApplicationsQuery({ viewType, page, search, filters, includeSummary = false }) {
+  const params = new URLSearchParams();
+  const apiView = viewType === 'action'
+    ? 'readiness'
+    : viewType === 'cards'
+      ? 'summary'
+      : 'registry';
+
+  params.set('view', apiView);
+  if (includeSummary) params.set('includeSummary', '1');
+
+  if (apiView === 'registry') {
+    params.set('page', String(Math.max(1, Number(page) || 1)));
+    params.set('limit', String(PAGE_SIZE));
+  }
+
+  if (apiView !== 'summary') {
+    const query = String(search || '').trim();
+    if (query) params.set('search', query);
+
+    if (filters.academicYear !== 'all') {
+      params.set('academicYear', filters.academicYear);
+    }
+    if (filters.applicationStatus !== 'all') {
+      params.set('applicationStatus', filters.applicationStatus);
+    }
+    if (filters.documentStatus !== 'all') {
+      params.set('documentStatus', filters.documentStatus);
+    }
+  }
+
+  return `/api/applications?${params.toString()}`;
+}
 
 const READINESS_SEEN_STORAGE_PREFIX = 'smart-pdm:admin:readiness-seen:v1';
 
@@ -88,30 +123,8 @@ function writeReadinessSeenState(value) {
   }
 }
 
-function buildReadinessOpeningSignature(rows = []) {
-  return rows
-    .map((row) =>
-      [
-        row.application_id || '',
-        normalizeStatus(row.selection_status),
-        Number(row.queue_position || 0),
-        Number(row.waitlist_position || 0),
-        row.fcfs_completed_at || '',
-      ].join(':')
-    )
-    .sort()
-    .join('|');
-}
-
 function normalizeStatus(value = '') {
   return String(value).trim().toLowerCase();
-}
-
-function normalizePdmSearchValue(value = '') {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '');
 }
 
 function formatDate(value) {
@@ -1597,7 +1610,6 @@ function RegistryTable({
                   const documentsReady =
                     row.documents_ready === true ||
                     Number(row.uploaded_required_count || 0) >= 4;
-
                   const requirementsMeta = row.requirements_complete === true
                     ? { label: 'Verified', bg: C.greenSoft, color: C.green }
                     : documentsReady
@@ -1833,11 +1845,22 @@ export default function ApplicationReview() {
   const location = useLocation();
 
   const [registryRows, setRegistryRows] = useState([]);
+  const [readinessRows, setReadinessRows] = useState([]);
+  const [openingSummaries, setOpeningSummaries] = useState([]);
+  const [summaryLoaded, setSummaryLoaded] = useState(false);
+  const [openingsLoaded, setOpeningsLoaded] = useState(false);
+  const [registryPagination, setRegistryPagination] = useState({
+    page: 1,
+    limit: PAGE_SIZE,
+    total: 0,
+    totalPages: 1,
+  });
   const [viewType, setViewType] = useState('table');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [draftFilters, setDraftFilters] = useState(DEFAULT_FILTERS);
@@ -1846,6 +1869,7 @@ export default function ApplicationReview() {
   const [activationCandidate, setActivationCandidate] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const softRefreshTimerRef = useRef(null);
+  const loadRequestIdRef = useRef(0);
   const [readinessSeenSignatures, setReadinessSeenSignatures] = useState(() =>
     readReadinessSeenState()
   );
@@ -1945,6 +1969,11 @@ export default function ApplicationReview() {
             : item
         )
       );
+      setReadinessRows((currentRows) =>
+        currentRows.filter(
+          (item) => String(item.application_id) !== String(row.application_id)
+        )
+      );
       setActivationCandidate(null);
       showAppToast(
         'success',
@@ -1963,7 +1992,9 @@ export default function ApplicationReview() {
     }
   };
 
-  const loadData = async ({ soft = false } = {}) => {
+  const loadData = async ({ soft = false, forceOpenings = false } = {}) => {
+    const requestId = ++loadRequestIdRef.current;
+
     try {
       if (soft) {
         setRefreshing(true);
@@ -1973,20 +2004,31 @@ export default function ApplicationReview() {
       }
 
       const token = sessionStorage.getItem('adminToken');
+      const shouldRefreshSummary = forceOpenings || soft || !summaryLoaded;
+      const applicationsPath = buildApplicationsQuery({
+        viewType,
+        page,
+        search: debouncedSearch,
+        filters,
+        includeSummary: shouldRefreshSummary,
+      });
+      const shouldFetchOpenings = forceOpenings || soft || !openingsLoaded;
 
       const [applicationsRes, openingsRes] = await Promise.all([
-        fetch(buildApiUrl('/api/applications'), {
+        fetch(buildApiUrl(applicationsPath), {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
         }),
-        fetch(buildApiUrl('/api/program-openings'), {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }),
+        shouldFetchOpenings
+          ? fetch(buildApiUrl('/api/program-openings'), {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+            })
+          : Promise.resolve(null),
       ]);
 
       if (!applicationsRes.ok) {
@@ -1995,38 +2037,72 @@ export default function ApplicationReview() {
         );
       }
 
-      if (!openingsRes.ok) {
+      if (openingsRes && !openingsRes.ok) {
         throw new Error(
           await parseErrorResponse(openingsRes, 'Failed to fetch openings')
         );
       }
 
-      const applicationsData = await applicationsRes.json();
-      const openingsPayload = await openingsRes.json();
+      const applicationsPayload = await applicationsRes.json();
+      if (requestId !== loadRequestIdRef.current) return;
 
-      const normalizedOpenings = Array.isArray(openingsPayload)
-        ? openingsPayload
-        : Array.isArray(openingsPayload?.items)
-          ? openingsPayload.items
-          : Array.isArray(openingsPayload?.data)
-            ? openingsPayload.data
-            : Array.isArray(openingsPayload?.rows)
-              ? openingsPayload.rows
-              : [];
+      const responseRows = Array.isArray(applicationsPayload?.items)
+        ? applicationsPayload.items.map(normalizeApplicantRow)
+        : [];
 
-      setRegistryRows(
-        Array.isArray(applicationsData)
-          ? applicationsData.map(normalizeApplicantRow)
-          : []
-      );
+      if (viewType === 'action') {
+        setReadinessRows(responseRows);
+      } else if (viewType === 'table') {
+        const responseTotalPages = Math.max(
+          1,
+          Number(applicationsPayload?.pagination?.totalPages || 1)
+        );
 
-      setOpenings(normalizedOpenings);
+        if (page > responseTotalPages) {
+          setPage(responseTotalPages);
+          return;
+        }
+
+        setRegistryRows(responseRows);
+        setRegistryPagination({
+          page: Number(applicationsPayload?.pagination?.page || page || 1),
+          limit: Number(applicationsPayload?.pagination?.limit || PAGE_SIZE),
+          total: Number(applicationsPayload?.pagination?.total || 0),
+          totalPages: responseTotalPages,
+        });
+      }
+
+      if (Array.isArray(applicationsPayload?.opening_summaries)) {
+        setOpeningSummaries(applicationsPayload.opening_summaries);
+        setSummaryLoaded(true);
+      }
+
+      if (openingsRes) {
+        const openingsPayload = await openingsRes.json();
+        if (requestId !== loadRequestIdRef.current) return;
+
+        const normalizedOpenings = Array.isArray(openingsPayload)
+          ? openingsPayload
+          : Array.isArray(openingsPayload?.items)
+            ? openingsPayload.items
+            : Array.isArray(openingsPayload?.data)
+              ? openingsPayload.data
+              : Array.isArray(openingsPayload?.rows)
+                ? openingsPayload.rows
+                : [];
+
+        setOpenings(normalizedOpenings);
+        setOpeningsLoaded(true);
+      }
     } catch (err) {
+      if (requestId !== loadRequestIdRef.current) return;
       console.error('APPLICATION REVIEW LOAD ERROR:', err);
       setError(err.message || 'Failed to load application review data');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (requestId === loadRequestIdRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 
@@ -2042,8 +2118,37 @@ export default function ApplicationReview() {
   };
 
   useEffect(() => {
-    loadData();
+    const timer = window.setTimeout(() => {
+      setPage(1);
+      setDebouncedSearch(search.trim());
+    }, SEARCH_DEBOUNCE_MS);
 
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    // Cards are paginated locally from the much smaller openings list. Their
+    // server summaries are already returned by Registry/Readiness requests.
+    if (
+      viewType === 'cards' &&
+      summaryLoaded &&
+      openingsLoaded
+    ) {
+      return;
+    }
+
+    const hasExistingData =
+      openingsLoaded ||
+      summaryLoaded ||
+      registryRows.length > 0 ||
+      readinessRows.length > 0;
+
+    loadData({ soft: hasExistingData });
+    // loadData intentionally follows the active server-side view/query state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewType, page, debouncedSearch, filters]);
+
+  useEffect(() => {
     return () => {
       if (softRefreshTimerRef.current) {
         window.clearTimeout(softRefreshTimerRef.current);
@@ -2067,7 +2172,8 @@ export default function ApplicationReview() {
     );
 
     return () => window.clearInterval(timer);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewType, page, debouncedSearch, filters]);
 
   useSocketEvent('application:updated', scheduleSoftRefresh, []);
   useSocketEvent('application:approved', scheduleSoftRefresh, []);
@@ -2075,10 +2181,6 @@ export default function ApplicationReview() {
   useSocketEvent('application-document:uploaded', scheduleSoftRefresh, []);
   useSocketEvent('application-document:reviewed', scheduleSoftRefresh, []);
   useSocketEvent('endorsement:updated', scheduleSoftRefresh, []);
-
-  useEffect(() => {
-    setPage(1);
-  }, [search, filters, viewType]);
 
   const openingCards = useMemo(() => {
     return openings.map((opening) => ({
@@ -2094,48 +2196,31 @@ export default function ApplicationReview() {
   }, [openings]);
 
   const academicYearOptions = useMemo(() => {
-    const years = [
-      ...openingCards.map((item) => item.academic_year),
-      ...registryRows.map((item) => item.academic_year),
-    ]
+    const years = openingCards
+      .map((item) => item.academic_year)
       .map((value) => String(value || '').trim())
       .filter((value) => value && value !== '\u2014');
 
     return [...new Set(years)].sort((a, b) =>
       b.localeCompare(a, undefined, { numeric: true })
     );
-  }, [openingCards, registryRows]);
+  }, [openingCards]);
 
   const openingCountsMap = useMemo(() => {
-    const map = new Map();
-
-    registryRows.forEach((row) => {
-      if (!row.opening_id) return;
-
-      const current = map.get(row.opening_id) || {
-        applicants: 0,
-        requirementsComplete: 0,
-        endorsementComplete: 0,
-        scholarReady: 0,
-        fcfsQueued: 0,
-        fcfsApplicants: [],
-        nextFcfsApplicant: null,
-      };
-      current.applicants += 1;
-      if (row.requirements_complete) current.requirementsComplete += 1;
-      if (row.endorsement_complete) current.endorsementComplete += 1;
-      if (row.scholar_activation_ready) current.scholarReady += 1;
-      if (row.scholar_activation_ready && (row.fcfs_completed_at || Number(row.queue_position) > 0)) {
-        current.fcfsQueued += 1;
-        current.fcfsApplicants.push(row);
-        current.fcfsApplicants.sort(compareFcfs);
-        current.nextFcfsApplicant = current.fcfsApplicants[0] || null;
-      }
-      map.set(row.opening_id, current);
-    });
-
-    return map;
-  }, [registryRows]);
+    return new Map(
+      openingSummaries.map((summary) => [
+        summary.opening_id,
+        {
+          applicants: Number(summary.applicants || 0),
+          requirementsComplete: Number(summary.requirements_complete || 0),
+          endorsementComplete: Number(summary.endorsement_complete || 0),
+          scholarReady: Number(summary.scholar_ready || 0),
+          fcfsQueued: Number(summary.fcfs_queued || 0),
+          nextFcfsApplicant: summary.next_fcfs_applicant || null,
+        },
+      ])
+    );
+  }, [openingSummaries]);
 
   const filteredOpeningCards = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -2160,104 +2245,16 @@ export default function ApplicationReview() {
     });
   }, [openingCards, search, filters]);
 
-  const filteredRegistryRows = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const normalizedPdmQuery = normalizePdmSearchValue(search);
-
-    return registryRows.filter((row) => {
-      const applicationGroup = getStatusGroup(row.application_status);
-      const documentGroup = getDocumentGroup(row.document_status);
-      const pdmId = String(row.pdm_id || '').toLowerCase();
-      const normalizedPdmId = normalizePdmSearchValue(row.pdm_id);
-
-      const matchesPdmId =
-        pdmId.includes(q) ||
-        (
-          normalizedPdmQuery.length > 0 &&
-          normalizedPdmId.includes(normalizedPdmQuery)
-        );
-
-      const matchesSearch =
-        !q ||
-        (row.applicant_name || '').toLowerCase().includes(q) ||
-        matchesPdmId ||
-        (row.program_name || '').toLowerCase().includes(q) ||
-        (row.application_status || '').toLowerCase().includes(q) ||
-        (row.document_status || '').toLowerCase().includes(q) ||
-        (row.opening_title || '').toLowerCase().includes(q) ||
-        (row.academic_year || '').toLowerCase().includes(q);
-
-      const matchesAcademicYear =
-        filters.academicYear === 'all' ||
-        String(row.academic_year || '') === String(filters.academicYear);
-
-      const matchesApplication =
-        filters.applicationStatus === 'all' ||
-        filters.applicationStatus === applicationGroup;
-
-      const matchesDocument =
-        filters.documentStatus === 'all' ||
-        filters.documentStatus === documentGroup;
-
-      return (
-        matchesSearch &&
-        matchesAcademicYear &&
-        matchesApplication &&
-        matchesDocument
-      );
-    });
-  }, [registryRows, search, filters]);
-
-  const isReadyForScholarHandling = (row) => {
-    const status = normalizeStatus(row.selection_status);
-    const isQueueStatus = ['reserved', 'promoted', 'waitlisted'].includes(status);
-    const hasFcfsRank = Number(row.queue_position || 0) > 0 && Boolean(row.fcfs_completed_at);
-    const isApproved = normalizeStatus(row.application_status) === 'approved';
-
-    return (
-      row.requirements_complete === true &&
-      row.endorsement_complete === true &&
-      hasFcfsRank &&
-      isQueueStatus &&
-      !isApproved
-    );
-  };
-
-  const pendingRegistryRows = useMemo(
-    () => filteredRegistryRows.filter((row) => !isReadyForScholarHandling(row)),
-    [filteredRegistryRows]
-  );
-
-  const allReadinessRows = useMemo(
-    () => registryRows.filter(isReadyForScholarHandling).sort(compareFcfs),
-    [registryRows]
-  );
-
-  const readinessRows = useMemo(
-    () =>
-      filteredRegistryRows
-        .filter(isReadyForScholarHandling)
-        .sort(compareFcfs),
-    [filteredRegistryRows]
-  );
-
   const readinessAttentionSignatures = useMemo(() => {
-    const grouped = new Map();
-
-    allReadinessRows.forEach((row) => {
-      const openingId = String(row.opening_id || '');
-      if (!openingId) return;
-      if (!grouped.has(openingId)) grouped.set(openingId, []);
-      grouped.get(openingId).push(row);
-    });
-
     return new Map(
-      [...grouped.entries()].map(([openingId, rows]) => [
-        openingId,
-        buildReadinessOpeningSignature(rows),
-      ])
+      openingSummaries
+        .filter((summary) => summary.opening_id && summary.readiness_signature)
+        .map((summary) => [
+          String(summary.opening_id),
+          String(summary.readiness_signature),
+        ])
     );
-  }, [allReadinessRows]);
+  }, [openingSummaries]);
 
   const unseenReadinessOpeningIds = useMemo(() => {
     return new Set(
@@ -2284,22 +2281,23 @@ export default function ApplicationReview() {
 
   const hasNeedsAttention = unseenReadinessOpeningIds.size > 0;
 
-  const tableTotalPages = Math.max(1, Math.ceil(pendingRegistryRows.length / PAGE_SIZE));
+  const pendingRegistryRows = registryRows;
+  const tableTotalPages = Math.max(1, Number(registryPagination.totalPages || 1));
+  const tablePageData = registryRows;
   const cardsTotalPages = Math.max(1, Math.ceil(filteredOpeningCards.length / PAGE_SIZE));
-
-  const tablePageData = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return pendingRegistryRows.slice(start, start + PAGE_SIZE);
-  }, [pendingRegistryRows, page]);
 
   const cardsPageData = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
     return filteredOpeningCards.slice(start, start + PAGE_SIZE);
   }, [filteredOpeningCards, page]);
 
-  const applyFilters = () => setFilters(draftFilters);
+  const applyFilters = () => {
+    setPage(1);
+    setFilters(draftFilters);
+  };
 
   const clearFilters = () => {
+    setPage(1);
     setFilters(DEFAULT_FILTERS);
     setDraftFilters(DEFAULT_FILTERS);
   };
@@ -2399,7 +2397,10 @@ export default function ApplicationReview() {
         search={search}
         setSearch={setSearch}
         viewType={viewType}
-        setViewType={setViewType}
+        setViewType={(nextView) => {
+          setPage(1);
+          setViewType(nextView);
+        }}
         hasNeedsAttention={hasNeedsAttention}
         refreshing={refreshing}
         onRefresh={() => loadData({ soft: true })}
@@ -2467,7 +2468,7 @@ export default function ApplicationReview() {
             mode="registry"
             page={page}
             totalPages={tableTotalPages}
-            totalItems={pendingRegistryRows.length}
+            totalItems={Number(registryPagination.total || 0)}
             onPrev={() => setPage((p) => Math.max(1, p - 1))}
             onNext={() => setPage((p) => Math.min(tableTotalPages, p + 1))}
           />

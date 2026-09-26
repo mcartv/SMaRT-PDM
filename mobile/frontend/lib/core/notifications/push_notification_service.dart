@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/data/services/notification_service.dart';
 import 'package:smartpdm_mobileapp/firebase_options.dart';
@@ -173,6 +174,14 @@ class PushNotificationService {
       '[FCM] Foreground message: '
       '${message.messageId}',
     );
+
+    if (MobileRealtimeService.instance.isConnected) {
+      debugPrint(
+        '[FCM] Foreground system notification suppressed because '
+        'the realtime in-app banner is active.',
+      );
+      return;
+    }
 
     final notification = message.notification;
 

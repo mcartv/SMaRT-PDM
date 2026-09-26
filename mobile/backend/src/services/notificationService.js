@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const supabase = require('../config/supabase');
 const { relayNotificationCreated } = require('./adminRealtimeRelayService');
+const pushNotificationService = require('./pushNotificationService');
 
 let ioInstance = null;
 
@@ -353,7 +354,23 @@ async function createUserNotification({
     }
   );
 
-  return data;
+  let pushResult = null;
+
+  try {
+    pushResult = await pushNotificationService.sendUserNotificationPush({
+      userId,
+      notification: data,
+    });
+  } catch (error) {
+    console.error(
+      '[FCM] Notification push failed:',
+      error?.message || error
+    );
+  }
+
+  return pushResult?.sent
+    ? { ...data, push_sent: true }
+    : data;
 }
 
 function resolveStaffRole(profile = {}) {
@@ -601,10 +618,21 @@ async function registerDeviceToken(userId, body = {}) {
     throw createHttpError(400, 'deviceToken is required.');
   }
 
+  // One FCM token belongs to the currently authenticated account on the
+  // device. Remove stale ownership before upserting the current user.
+  const { error: staleOwnerError } = await supabase
+    .from('user_device_tokens')
+    .delete()
+    .eq('device_token', deviceToken)
+    .neq('user_id', userId);
+
+  if (staleOwnerError) throw staleOwnerError;
+
   const payload = {
     user_id: userId,
     device_token: deviceToken,
     platform,
+    updated_at: new Date().toISOString(),
   };
 
   const { data, error } = await supabase

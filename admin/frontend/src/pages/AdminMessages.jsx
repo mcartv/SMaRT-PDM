@@ -154,8 +154,10 @@ function normalizeRoom(raw = {}) {
     lastAttachmentUrl: raw.lastAttachmentUrl?.toString() || raw.last_attachment_url?.toString() || '',
     lastSentAt: raw.lastSentAt?.toString() || raw.last_sent_at?.toString() || '',
     createdAt: raw.createdAt?.toString() || raw.created_at?.toString() || '',
+    createdBy: raw.createdBy?.toString() || raw.created_by?.toString() || '',
     unreadCount: Number(raw.unreadCount ?? raw.unread_count ?? 0),
     viewerIsAdmin: raw.viewerIsAdmin === true || raw.viewer_is_admin === true || raw.is_admin === true,
+    viewerIsCreator: raw.viewerIsCreator === true || raw.viewer_is_creator === true,
   }
 }
 
@@ -1477,6 +1479,7 @@ function GroupInfoModal({
   onMessage,
   onRemove,
   onPromote,
+  onDemote,
   onAddMember,
   onLeave,
 }) {
@@ -1504,6 +1507,9 @@ function GroupInfoModal({
   )
   const viewerIsAdmin =
     currentMember?.isAdmin === true || room.viewerIsAdmin === true
+  const viewerIsCreator =
+    room.viewerIsCreator === true ||
+    (Boolean(room.createdBy) && String(room.createdBy) === String(currentUserId || ''))
   const adminCount = members.filter((member) => member.isAdmin).length
   const displayedMemberCount = Number(room.memberCount || members.length || 0)
   const mustAssignAdminBeforeLeaving =
@@ -1528,10 +1534,15 @@ function GroupInfoModal({
 
   const renderMemberRow = (member) => {
     const canPromote =
-      viewerIsAdmin &&
+      viewerIsCreator &&
       !member.isCurrentUser &&
       member.userId !== currentUserId &&
       !member.isAdmin
+    const canDemote =
+      viewerIsCreator &&
+      !member.isCurrentUser &&
+      member.userId !== currentUserId &&
+      member.isAdmin
     const canRemove =
       viewerIsAdmin &&
       !member.isCurrentUser &&
@@ -1615,6 +1626,19 @@ function GroupInfoModal({
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-[var(--portal-base)] hover:bg-[var(--portal-accent-soft)]"
               >
                 <ShieldCheck className="h-3.5 w-3.5" /> Make group admin
+              </button>
+            ) : null}
+
+            {canDemote ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuMemberId('')
+                  onDemote(member)
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-red-700 hover:bg-red-50"
+              >
+                <ShieldCheck className="h-3.5 w-3.5" /> Remove group admin
               </button>
             ) : null}
 
@@ -2224,6 +2248,8 @@ export default function AdminMessages({
   const [removeMemberBusy, setRemoveMemberBusy] = useState(false)
   const [pendingPromoteMember, setPendingPromoteMember] = useState(null)
   const [promoteMemberBusy, setPromoteMemberBusy] = useState(false)
+  const [pendingDemoteMember, setPendingDemoteMember] = useState(null)
+  const [demoteMemberBusy, setDemoteMemberBusy] = useState(false)
   const [leaveGroupOpen, setLeaveGroupOpen] = useState(false)
   const [leaveGroupBusy, setLeaveGroupBusy] = useState(false)
   const [chatSearchOpen, setChatSearchOpen] = useState(false)
@@ -3742,12 +3768,59 @@ export default function AdminMessages({
           : room
       ))
       setPendingPromoteMember(null)
-      await Promise.all([fetchRoomMembers(activeRoomId), fetchRooms(activeRoomId)])
+      await Promise.all([
+        fetchRoomMembers(activeRoomId),
+        fetchRooms(activeRoomId),
+        fetchRoomMessages(activeRoomId, { silent: true }),
+      ])
       setError('')
     } catch (err) {
       setError(err.message || 'Failed to make member a group admin.')
     } finally {
       setPromoteMemberBusy(false)
+    }
+  }
+
+  async function handleDemoteMember(member) {
+    if (!activeRoomId || !member?.userId) return
+
+    try {
+      setDemoteMemberBusy(true)
+      const response = await fetch(
+        `${MESSAGING_API_BASE}/api/messages/rooms/${activeRoomId}/members`,
+        {
+          method: 'POST',
+          headers: buildMessagingHeaders(token, { json: true }),
+          body: JSON.stringify({ action: 'demote_admin', memberId: member.userId }),
+        }
+      )
+      const memberPayload = await parseApiResponse(response, 'Failed to remove group admin role.')
+      const refreshedMembers = (memberPayload.members || memberPayload.roomMembers || []).map(normalizeRoomMember)
+      const refreshedCount = Number(memberPayload.member_count ?? memberPayload.memberCount ?? refreshedMembers.length)
+
+      if (Array.isArray(memberPayload.members) || Array.isArray(memberPayload.roomMembers)) {
+        setGroupMembers(refreshedMembers)
+      }
+      setRooms((current) => current.map((room) =>
+        room.id === activeRoomId
+          ? {
+            ...room,
+            memberCount: refreshedCount,
+            studentNumber: `${refreshedCount} member${refreshedCount === 1 ? '' : 's'}`,
+          }
+          : room
+      ))
+      setPendingDemoteMember(null)
+      await Promise.all([
+        fetchRoomMembers(activeRoomId),
+        fetchRooms(activeRoomId),
+        fetchRoomMessages(activeRoomId, { silent: true }),
+      ])
+      setError('')
+    } catch (err) {
+      setError(err.message || 'Failed to remove group admin role.')
+    } finally {
+      setDemoteMemberBusy(false)
     }
   }
 
@@ -4548,6 +4621,34 @@ export default function AdminMessages({
   )
 
   useSocketEvent(
+    'room:member-demoted',
+    async (data) => {
+      const roomId = data?.room_id?.toString?.() || data?.roomId?.toString?.() || ''
+
+      await fetchRooms(activeRoomRef.current || activeRoomId)
+
+      if (
+        isOpen &&
+        activeType === 'group' &&
+        roomId &&
+        (activeRoomRef.current === roomId || activeRoomId === roomId)
+      ) {
+        await fetchRoomMessages(roomId, { silent: true })
+        if (groupInfoOpen) await fetchRoomMembers(roomId)
+      }
+    },
+    [
+      isOpen,
+      activeType,
+      activeRoomId,
+      groupInfoOpen,
+      fetchRooms,
+      fetchRoomMessages,
+      fetchRoomMembers,
+    ]
+  )
+
+  useSocketEvent(
     'room:members-removed',
     async (data) => {
       const roomId = data?.room_id?.toString?.() || data?.roomId?.toString?.() || ''
@@ -4674,6 +4775,7 @@ export default function AdminMessages({
       onMessage={handleMessageMember}
       onRemove={setPendingRemoveMember}
       onPromote={setPendingPromoteMember}
+      onDemote={setPendingDemoteMember}
       onAddMember={() => {
         setAddMembersOpen(true)
         setGroupInfoOpen(false)
@@ -4788,12 +4890,22 @@ export default function AdminMessages({
       <ConfirmActionModal
         open={Boolean(pendingPromoteMember)}
         title="Make group admin?"
-        description={pendingPromoteMember ? `${pendingPromoteMember.name} will be able to add members, remove regular members, and promote other members to group admin.` : ''}
+        description={pendingPromoteMember ? `${pendingPromoteMember.name} will be able to add members and remove regular members. Only the group creator can promote or demote group admins.` : ''}
         confirmLabel="Make admin"
         busy={promoteMemberBusy}
         variant="primary"
         onCancel={() => setPendingPromoteMember(null)}
         onConfirm={() => handlePromoteMember(pendingPromoteMember)}
+      />
+
+      <ConfirmActionModal
+        open={Boolean(pendingDemoteMember)}
+        title="Remove group admin?"
+        description={pendingDemoteMember ? `${pendingDemoteMember.name} will remain in the group as a regular member.` : ''}
+        confirmLabel="Remove admin"
+        busy={demoteMemberBusy}
+        onCancel={() => setPendingDemoteMember(null)}
+        onConfirm={() => handleDemoteMember(pendingDemoteMember)}
       />
 
       <ConfirmActionModal

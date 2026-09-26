@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 
 const messageController = require('../controllers/messageController');
+const roomAdminController = require('../controllers/roomAdminController');
 const { protect } = require('../middleware/authMiddleware');
 const { authorizeRoleGroup } = require('../middleware/rbacMiddleware');
 
@@ -57,7 +58,11 @@ router.get('/rooms/:roomId/messages', messageController.getRoomMessages);
 router.post('/rooms/:roomId/messages', messageController.sendRoomMessage);
 
 router.get('/rooms/:roomId/members', messageController.getRoomMembers);
-router.post('/rooms/:roomId/members', messageController.addRoomMembers);
+router.post(
+  '/rooms/:roomId/members',
+  roomAdminController.manageRoomAdminRole,
+  messageController.addRoomMembers
+);
 router.delete('/rooms/:roomId/members/:memberId', messageController.removeRoomMember);
 router.delete('/rooms/:roomId/leave', messageController.leaveRoom);
 router.post('/rooms/:roomId/leave', messageController.leaveRoom);

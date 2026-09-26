@@ -73,6 +73,16 @@ class MessagingProvider extends ChangeNotifier {
   String get currentUserId => _currentUserId;
   String get counterpartyId => _counterpartyId;
   String? get activeGroupId => _activeGroupId;
+  ChatRoom? get activeGroupRoom {
+    final roomId = _activeGroupId;
+    if (roomId == null) return null;
+    for (final room in _rooms) {
+      if (room.roomId == roomId) return room;
+    }
+    return null;
+  }
+  bool get isActiveGroupReadOnly => activeGroupRoom?.readOnly == true;
+  DateTime? get activeGroupCutoffAt => activeGroupRoom?.cutoffAt;
 
   int groupUnreadCount(String roomId) {
     final normalizedRoomId = roomId.trim();
@@ -218,6 +228,10 @@ class MessagingProvider extends ChangeNotifier {
     _isViewingThread = true;
     _activeGroupId = normalizedRoomId;
 
+    if (!_rooms.any((room) => room.roomId == normalizedRoomId)) {
+      await fetchGroups(notify: false);
+    }
+
     await _refreshThread();
     await markThreadRead();
   }
@@ -264,6 +278,8 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   Future<void> archiveRoom(String roomId) async {
+    final readOnly = _rooms.any((item) => item.roomId == roomId && item.readOnly);
+    if (readOnly) return;
     await _messageService.archiveRoom(roomId);
     if (_activeGroupId == roomId) {
       _threadRevision += 1;
@@ -388,6 +404,9 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   Future<void> sendMessage(String text) async {
+    if (_activeGroupId != null && isActiveGroupReadOnly) {
+      throw Exception('This group is read-only because you are no longer a member.');
+    }
     final trimmed = text.trim();
 
     if (trimmed.isEmpty) {
@@ -750,6 +769,10 @@ class MessagingProvider extends ChangeNotifier {
     }
 
     if (isActiveGroupMessage) {
+      if (isActiveGroupReadOnly) {
+        final cutoff = activeGroupCutoffAt;
+        if (cutoff == null || message.sentAt.isAfter(cutoff)) return;
+      }
       _upsertMessage(message);
       _updateGroupPreview(roomId, message);
       _setGroupUnreadCount(roomId, 0);
@@ -954,6 +977,9 @@ class MessagingProvider extends ChangeNotifier {
       memberCount: room.memberCount,
       lastMessage: room.lastMessage,
       lastSentAt: room.lastSentAt,
+      readOnly: room.readOnly,
+      formerMember: room.formerMember,
+      cutoffAt: room.cutoffAt,
     );
 
     _syncTotalUnreadCount();
@@ -982,6 +1008,9 @@ class MessagingProvider extends ChangeNotifier {
       memberCount: room.memberCount,
       lastMessage: room.lastMessage,
       lastSentAt: room.lastSentAt,
+      readOnly: room.readOnly,
+      formerMember: room.formerMember,
+      cutoffAt: room.cutoffAt,
     );
 
     _syncTotalUnreadCount();
@@ -1003,8 +1032,11 @@ class MessagingProvider extends ChangeNotifier {
       roomName: room.roomName,
       unreadCount: room.unreadCount,
       memberCount: room.memberCount,
-      lastMessage: message.messageBody,
-      lastSentAt: message.sentAt,
+      lastMessage: room.readOnly ? room.lastMessage : message.messageBody,
+      lastSentAt: room.readOnly ? room.lastSentAt : message.sentAt,
+      readOnly: room.readOnly,
+      formerMember: room.formerMember,
+      cutoffAt: room.cutoffAt,
     );
 
     _rooms.sort((left, right) {

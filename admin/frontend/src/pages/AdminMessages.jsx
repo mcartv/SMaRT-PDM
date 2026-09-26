@@ -208,6 +208,8 @@ function normalizeArchivedThread(raw = {}) {
     archivedAt: raw.archivedAt?.toString() || raw.archived_at?.toString() || '',
     isDisabled: raw.isDisabled === true || raw.is_disabled === true,
     canRestore: type !== 'group' || raw.canRestore === true || raw.can_restore === true,
+    readOnly: raw.readOnly === true || raw.read_only === true || (type === 'group' && raw.canRestore !== true && raw.can_restore !== true),
+    formerMember: raw.formerMember === true || raw.former_member === true,
   }
 }
 
@@ -780,6 +782,7 @@ function ArchivedThreadsModal({
   restoringId,
   onRestore,
   onRefresh,
+  onViewHistory,
 }) {
   if (!open) return null
 
@@ -836,7 +839,7 @@ function ArchivedThreadsModal({
                       <p className="truncate text-xs text-stone-500">
                         {item.studentNumber || (item.type === 'group' ? 'Group chat' : 'Private chat')}
                       </p>
-                      <p className="mt-1 truncate text-xs text-stone-500">{item.lastMessage || 'No message preview'}</p>
+                      <p className="mt-1 truncate text-xs text-stone-500">{item.type === 'group' && !item.canRestore ? 'Read-only history is available up to when your membership ended.' : (item.lastMessage || 'No message preview')}</p>
                       <p className="mt-1 text-xs text-stone-400">Archived {formatMessageTime(item.archivedAt)}</p>
                     </div>
                   </div>
@@ -851,10 +854,19 @@ function ArchivedThreadsModal({
                       {restoringId === itemKey ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <ArchiveRestore className="h-3.5 w-3.5" />}
                       Restore
                     </button>
+                  ) : item.type === 'group' ? (
+                    <button
+                      type="button"
+                      onClick={() => onViewHistory?.(item)}
+                      className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700 transition hover:bg-stone-50"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      View history
+                    </button>
                   ) : (
                     <span className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 text-xs font-medium text-stone-500">
                       <LogOut className="h-3.5 w-3.5" />
-                      Left group
+                      Unavailable
                     </span>
                   )}
                 </div>
@@ -869,6 +881,65 @@ function ArchivedThreadsModal({
             <p className="mt-3 text-sm font-semibold text-stone-900">No archived threads</p>
             <p className="mt-1 text-xs text-stone-500">Archived chats will show here.</p>
           </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+
+function FormerGroupHistoryPanel({ thread, messages, loading, error, currentUserId, onClose }) {
+  return (
+    <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
+      <div className="flex items-center gap-3 border-b border-stone-100 px-5 py-4">
+        <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-600 hover:bg-stone-50" title="Back to archived messages">
+          <ArrowLeft className="h-4 w-4" />
+        </button>
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-base font-semibold text-stone-900">{thread?.name || 'Previous group'}</h3>
+          <p className="mt-1 text-xs font-medium text-stone-500">Read-only history</p>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
+          <ShieldCheck className="h-3.5 w-3.5" /> Read only
+        </span>
+      </div>
+      <div className="border-b border-amber-100 bg-amber-50/70 px-5 py-3 text-xs leading-5 text-amber-800">
+        You were removed from this group. The final activity message shows who removed you. Earlier messages remain available; newer messages and member updates are not available.
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto bg-stone-50 px-4 py-5 sm:px-6">
+        {loading ? (
+          <div className="flex h-full items-center justify-center gap-2 text-sm text-stone-500"><LoaderCircle className="h-4 w-4 animate-spin" /> Loading previous messages</div>
+        ) : error ? (
+          <div className="mx-auto max-w-md rounded-2xl border border-red-200 bg-white p-5 text-center text-sm text-red-700">{error}</div>
+        ) : messages.length ? (
+          <div className="mx-auto flex max-w-3xl flex-col gap-2">
+            {messages.map((message) => {
+              const systemMessage = String(message.subject || '').toLowerCase() === 'system'
+              const removalEvent = systemMessage && /\bremoved\b.*\bfrom the group\b/i.test(message.messageBody || '')
+              if (systemMessage) {
+                return (
+                  <div key={message.messageId} className="flex justify-center py-1">
+                    <div className={`inline-flex max-w-[88%] items-center gap-2 rounded-xl border px-3 py-2 text-center text-xs font-semibold ${removalEvent ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-stone-200 bg-white text-stone-500'}`}>
+                      {removalEvent ? <UserMinus className="h-3.5 w-3.5 shrink-0" /> : <Info className="h-3.5 w-3.5 shrink-0" />}
+                      <span>{message.messageBody}</span>
+                    </div>
+                  </div>
+                )
+              }
+              const mine = message.senderId === currentUserId
+              return (
+                <div key={message.messageId} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 shadow-sm ${mine ? 'bg-[var(--portal-base)] text-white' : 'border border-stone-200 bg-white text-stone-800'}`}>
+                    {!mine && message.senderName ? <p className="mb-1 text-[11px] font-semibold opacity-70">{message.senderName}</p> : null}
+                    <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.messageBody}</p>
+                    <p className={`mt-1 text-[10px] ${mine ? 'text-white/65' : 'text-stone-400'}`}>{formatMessageTime(message.sentAt)}</p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-stone-500">No previous messages are available.</div>
         )}
       </div>
     </section>
@@ -1076,9 +1147,13 @@ function MessageBubble({
   }, [message.messageId])
 
   if (String(message.subject || '').toLowerCase() === 'system') {
+    const removalEvent = /\bremoved\b.*\bfrom the group\b/i.test(message.messageBody || '')
     return (
-      <div ref={messageRootRef} className="my-4 flex w-full justify-center px-4 text-center text-xs font-medium text-stone-500">
-        <span className="rounded-full bg-stone-100 px-3 py-1">{message.messageBody}</span>
+      <div ref={messageRootRef} className="my-4 flex w-full justify-center px-4 text-center">
+        <span className={`inline-flex max-w-[min(92%,560px)] items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${removalEvent ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-stone-200 bg-stone-50 text-stone-500'}`}>
+          {removalEvent ? <UserMinus className="h-3.5 w-3.5 shrink-0" /> : <Info className="h-3.5 w-3.5 shrink-0" />}
+          <span>{message.messageBody}</span>
+        </span>
       </div>
     )
   }
@@ -2334,6 +2409,10 @@ export default function AdminMessages({
   const [restoringArchiveId, setRestoringArchiveId] = useState('')
   const [pendingArchiveThread, setPendingArchiveThread] = useState(null)
   const [archiveThreadBusy, setArchiveThreadBusy] = useState(false)
+  const [formerHistoryThread, setFormerHistoryThread] = useState(null)
+  const [formerHistoryMessages, setFormerHistoryMessages] = useState([])
+  const [loadingFormerHistory, setLoadingFormerHistory] = useState(false)
+  const [formerHistoryError, setFormerHistoryError] = useState('')
 
   const activeConversationRef = useRef('')
   const activeRoomRef = useRef('')
@@ -3395,6 +3474,25 @@ export default function AdminMessages({
     setGroupInfoOpen(false)
     fetchArchivedThreads()
   }, [fetchArchivedThreads])
+
+  const openFormerGroupHistory = useCallback(async (item) => {
+    if (!item?.id || item.type !== 'group') return
+    setFormerHistoryThread(item)
+    setFormerHistoryMessages([])
+    setFormerHistoryError('')
+    setLoadingFormerHistory(true)
+    try {
+      const response = await fetch(`${MESSAGING_API_BASE}/api/messages/former-rooms/${item.id}/window?limit=50`, {
+        headers: buildMessagingHeaders(token),
+      })
+      const payload = await parseApiResponse(response, 'Failed to load previous group messages.')
+      setFormerHistoryMessages(sortMessages((payload.items || []).map(normalizeMessage)))
+    } catch (err) {
+      setFormerHistoryError(err.message || 'Failed to load previous group messages.')
+    } finally {
+      setLoadingFormerHistory(false)
+    }
+  }, [token])
 
   const archiveThread = useCallback(
     async (item) => {
@@ -5258,15 +5356,27 @@ export default function AdminMessages({
             )}
 
             {mainView === 'archived' ? (
-              <ArchivedThreadsModal
-                open={archivedOpen}
-                onClose={() => { setArchivedOpen(false); setMainView('chats') }}
-                items={archivedItems}
-                loading={loadingArchived}
-                restoringId={restoringArchiveId}
-                onRestore={restoreArchivedThread}
-                onRefresh={fetchArchivedThreads}
-              />
+              formerHistoryThread ? (
+                <FormerGroupHistoryPanel
+                  thread={formerHistoryThread}
+                  messages={formerHistoryMessages}
+                  loading={loadingFormerHistory}
+                  error={formerHistoryError}
+                  currentUserId={currentUserId}
+                  onClose={() => { setFormerHistoryThread(null); setFormerHistoryMessages([]); setFormerHistoryError('') }}
+                />
+              ) : (
+                <ArchivedThreadsModal
+                  open={archivedOpen}
+                  onClose={() => { setArchivedOpen(false); setMainView('chats') }}
+                  items={archivedItems}
+                  loading={loadingArchived}
+                  restoringId={restoringArchiveId}
+                  onRestore={restoreArchivedThread}
+                  onRefresh={fetchArchivedThreads}
+                  onViewHistory={openFormerGroupHistory}
+                />
+              )
             ) : mainView === 'create-group' ? (
               <CreateGroupModal
                 open={createRoomOpen}

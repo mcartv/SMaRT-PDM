@@ -22,7 +22,6 @@ String _messagePreview(String? value, String fallback) {
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
-
   @override
   State<ChatListScreen> createState() => _ChatListScreenState();
 }
@@ -34,7 +33,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
   @override
   void initState() {
     super.initState();
-
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       await _refreshMessaging();
@@ -54,7 +52,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
   Future<void> _refreshMessaging() async {
     if (_refreshing) return;
     _refreshing = true;
-
     try {
       final provider = context.read<MessagingProvider>();
       await provider.initializeChat();
@@ -73,9 +70,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     super.dispose();
   }
 
-  void _openAdminThread() {
-    AppNavigator.pushDetail(context, AppRoutes.chatThread);
-  }
+  void _openAdminThread() => AppNavigator.pushDetail(context, AppRoutes.chatThread);
 
   void _openGroupThread(String roomId, String roomName) {
     AppNavigator.pushDetail(
@@ -90,9 +85,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
           context: context,
           builder: (dialogContext) => AlertDialog(
             title: const Text('Archive conversation?'),
-            content: Text(
-              '$title will be hidden from your conversation list. A new message will automatically bring it back.',
-            ),
+            content: Text('$title will be hidden from your conversation list. A new message will automatically bring it back.'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -106,8 +99,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
               ),
             ],
           ),
-        ) ??
-        false;
+        ) ?? false;
   }
 
   Future<void> _archivePrivateThread() async {
@@ -116,21 +108,18 @@ class _ChatListScreenState extends State<ChatListScreen> {
       await context.read<MessagingProvider>().archivePrivateThread();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to archive conversation.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unable to archive conversation.')));
     }
   }
 
   Future<void> _archiveGroup(ChatRoom room) async {
+    if (room.readOnly) return;
     if (!await _confirmArchive(room.roomName) || !mounted) return;
     try {
       await context.read<MessagingProvider>().archiveRoom(room.roomId);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to archive group conversation.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unable to archive group conversation.')));
     }
   }
 
@@ -141,11 +130,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (sheetContext) =>
-          ChangeNotifierProvider<MessagingProvider>.value(
-            value: provider,
-            child: const _ArchivedThreadsSheet(),
-          ),
+      builder: (sheetContext) => ChangeNotifierProvider<MessagingProvider>.value(
+        value: provider,
+        child: const _ArchivedThreadsSheet(),
+      ),
     );
   }
 
@@ -157,10 +145,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => AppNavigator.goBackOrHome(context),
-        ),
+        leading: IconButton(icon: const Icon(Icons.arrow_back_rounded), onPressed: () => AppNavigator.goBackOrHome(context)),
         title: const Text('Chats'),
         centerTitle: false,
         elevation: 0,
@@ -168,11 +153,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         backgroundColor: AppSurfacePalette.surface(context),
         foregroundColor: titleColor,
         actions: [
-          IconButton(
-            tooltip: 'Archived messages',
-            onPressed: _showArchivedThreads,
-            icon: const Icon(Icons.archive_outlined),
-          ),
+          IconButton(tooltip: 'Archived messages', onPressed: _showArchivedThreads, icon: const Icon(Icons.archive_outlined)),
         ],
       ),
       selectedIndex: 0,
@@ -185,39 +166,19 @@ class _ChatListScreenState extends State<ChatListScreen> {
           onRefresh: _refreshMessaging,
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.lg,
-              AppSpacing.lg,
-              AppSpacing.xxl,
-            ),
+            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xxl),
             children: [
               _MessagesHeader(totalUnread: provider.unreadCount),
               const SizedBox(height: 18),
-              Text(
-                'OSFA Support',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: titleColor,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
+              Text('OSFA Support', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: titleColor, fontWeight: FontWeight.w900)),
               const SizedBox(height: 8),
-              Text(
-                'Use this private conversation for questions, document concerns, and application follow-ups.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: mutedColor,
-                  height: 1.45,
-                ),
-              ),
+              Text('Use this private conversation for questions, document concerns, and application follow-ups.', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: mutedColor, height: 1.45)),
               const SizedBox(height: 12),
               if (!provider.isPrivateThreadArchived)
                 _ConversationTile(
                   icon: Icons.support_agent_rounded,
                   title: 'OSFA Administrator',
-                  subtitle: _messagePreview(
-                    provider.privatePreview?.messageBody,
-                    'Direct support conversation',
-                  ),
+                  subtitle: _messagePreview(provider.privatePreview?.messageBody, 'Direct support conversation'),
                   unreadCount: provider.privateUnreadCount,
                   onTap: _openAdminThread,
                   onArchive: _archivePrivateThread,
@@ -225,53 +186,28 @@ class _ChatListScreenState extends State<ChatListScreen> {
               else
                 _ArchivedHint(onOpenArchived: _showArchivedThreads),
               const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Scholarship Group Chats',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: titleColor,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                  if (provider.isLoading)
-                    const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                ],
-              ),
+              Row(children: [
+                Expanded(child: Text('Scholarship Group Chats', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: titleColor, fontWeight: FontWeight.w900))),
+                if (provider.isLoading) const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+              ]),
               const SizedBox(height: 8),
-              Text(
-                'Groups assigned by OSFA will appear here.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: mutedColor),
-              ),
+              Text('Groups assigned by OSFA will appear here. Previous groups remain available as read-only history.', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: mutedColor)),
               const SizedBox(height: 12),
               if (provider.rooms.isEmpty)
-                _EmptyGroupsCard(
-                  isLoading: provider.isLoading,
-                  errorMessage: provider.errorMessage,
-                  onRetry: _refreshMessaging,
-                )
+                _EmptyGroupsCard(isLoading: provider.isLoading, errorMessage: provider.errorMessage, onRetry: _refreshMessaging)
               else
-                ...provider.rooms.map(
-                  (room) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _ConversationTile(
-                      icon: Icons.groups_rounded,
-                      title: room.roomName,
-                      subtitle: _messagePreview(room.lastMessage, 'Group chat'),
-                      unreadCount: room.unreadCount,
-                      onTap: () => _openGroupThread(room.roomId, room.roomName),
-                      onArchive: () => _archiveGroup(room),
-                    ),
+                ...provider.rooms.map((room) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _ConversationTile(
+                    icon: room.readOnly ? Icons.history_rounded : Icons.groups_rounded,
+                    title: room.roomName,
+                    subtitle: _messagePreview(room.lastMessage, room.readOnly ? 'Previous group · read-only history' : 'Group chat'),
+                    unreadCount: room.readOnly ? 0 : room.unreadCount,
+                    readOnly: room.readOnly,
+                    onTap: () => _openGroupThread(room.roomId, room.roomName),
+                    onArchive: room.readOnly ? null : () => _archiveGroup(room),
                   ),
-                ),
+                )),
             ],
           ),
         ),
@@ -282,177 +218,85 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
 class _MessagesHeader extends StatelessWidget {
   const _MessagesHeader({required this.totalUnread});
-
   final int totalUnread;
-
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const AppIconTile(icon: Icons.forum_rounded),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Conversations',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppSurfacePalette.text(context),
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                totalUnread > 0
-                    ? '$totalUnread unread message${totalUnread == 1 ? '' : 's'}'
-                    : 'You are all caught up.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppSurfacePalette.mutedText(context),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
+    return Row(children: [
+      const AppIconTile(icon: Icons.forum_rounded),
+      const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Conversations', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppSurfacePalette.text(context), fontWeight: FontWeight.w900)),
+        const SizedBox(height: 3),
+        Text(totalUnread > 0 ? '$totalUnread unread message${totalUnread == 1 ? '' : 's'}' : 'You are all caught up.', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppSurfacePalette.mutedText(context))),
+      ])),
+    ]);
   }
 }
 
 class _ConversationTile extends StatelessWidget {
-  const _ConversationTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.unreadCount,
-    required this.onTap,
-    this.onArchive,
-  });
-
+  const _ConversationTile({required this.icon, required this.title, required this.subtitle, required this.unreadCount, required this.onTap, this.onArchive, this.readOnly = false});
   final IconData icon;
   final String title;
   final String subtitle;
   final int unreadCount;
   final VoidCallback onTap;
   final Future<void> Function()? onArchive;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
     final hasUnread = unreadCount > 0;
     final status = Theme.of(context).extension<AppStatusColors>()!;
-
     return Material(
-      color: hasUnread
-          ? AppColors.gold.withValues(
-              alpha: Theme.of(context).brightness == Brightness.dark ? 0.12 : 0.08,
-            )
-          : AppSurfacePalette.surface(context),
+      color: hasUnread ? AppColors.gold.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? 0.12 : 0.08) : AppSurfacePalette.surface(context),
       borderRadius: AppRadii.card,
       child: InkWell(
         onTap: onTap,
         borderRadius: AppRadii.card,
         child: Container(
           padding: const EdgeInsets.all(AppSpacing.lg),
-          decoration: BoxDecoration(
-            borderRadius: AppRadii.card,
-            border: Border.all(color: AppSurfacePalette.outline(context)),
-          ),
-          child: Row(
-            children: [
-              AppIconTile(icon: icon),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: AppSurfacePalette.text(context),
-                        fontWeight: hasUnread
-                            ? FontWeight.w900
-                            : FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: hasUnread
-                            ? AppSurfacePalette.text(context)
-                            : AppSurfacePalette.mutedText(context),
-                        fontWeight: hasUnread
-                            ? FontWeight.w700
-                            : FontWeight.w500,
-                        height: 1.3,
-                      ),
-                    ),
-                  ],
-                ),
+          decoration: BoxDecoration(borderRadius: AppRadii.card, border: Border.all(color: AppSurfacePalette.outline(context))),
+          child: Row(children: [
+            AppIconTile(icon: icon),
+            const SizedBox(width: 13),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleSmall?.copyWith(color: AppSurfacePalette.text(context), fontWeight: hasUnread ? FontWeight.w900 : FontWeight.w700))),
+                if (readOnly) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.13), borderRadius: AppRadii.status),
+                    child: Text('REMOVED · READ ONLY', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.gold, fontWeight: FontWeight.w900, fontSize: 9)),
+                  ),
+                ],
+              ]),
+              const SizedBox(height: 5),
+              Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: hasUnread ? AppSurfacePalette.text(context) : AppSurfacePalette.mutedText(context), fontWeight: hasUnread ? FontWeight.w700 : FontWeight.w500, height: 1.3)),
+            ])),
+            const SizedBox(width: 10),
+            if (unreadCount > 0)
+              Container(
+                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                decoration: BoxDecoration(color: status.dangerOutline, borderRadius: AppRadii.status),
+                child: Text(unreadCount > 99 ? '99+' : '$unreadCount', textAlign: TextAlign.center, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w900)),
               ),
-              const SizedBox(width: 10),
-              if (unreadCount > 0)
-                Container(
-                  constraints: const BoxConstraints(
-                    minWidth: 24,
-                    minHeight: 24,
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: status.dangerOutline,
-                    borderRadius: AppRadii.status,
-                  ),
-                  child: Text(
-                    unreadCount > 99 ? '99+' : '$unreadCount',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              if (onArchive != null)
-                PopupMenuButton<String>(
-                  tooltip: 'Conversation options',
-                  onSelected: (value) {
-                    if (value == 'archive') onArchive!();
-                  },
-                  itemBuilder: (context) => [
-                    PopupMenuItem<String>(
-                      value: 'archive',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.archive_outlined,
-                            size: 19,
-                            color: AppButtonStyles.destructiveColor(context),
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            'Archive',
-                            style: TextStyle(
-                              color: AppButtonStyles.destructiveColor(context),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                )
-              else if (unreadCount == 0)
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: AppSurfacePalette.mutedText(context),
-                ),
-            ],
-          ),
+            if (onArchive != null)
+              PopupMenuButton<String>(
+                tooltip: 'Conversation options',
+                onSelected: (value) { if (value == 'archive') onArchive!(); },
+                itemBuilder: (context) => [
+                  PopupMenuItem<String>(value: 'archive', child: Row(children: [
+                    Icon(Icons.archive_outlined, size: 19, color: AppButtonStyles.destructiveColor(context)),
+                    const SizedBox(width: 10),
+                    Text('Archive', style: TextStyle(color: AppButtonStyles.destructiveColor(context))),
+                  ])),
+                ],
+              )
+            else if (unreadCount == 0)
+              Icon(readOnly ? Icons.history_rounded : Icons.chevron_right_rounded, color: readOnly ? AppColors.gold : AppSurfacePalette.mutedText(context)),
+          ]),
         ),
       ),
     );
@@ -463,20 +307,13 @@ class _ArchivedHint extends StatelessWidget {
   const _ArchivedHint({required this.onOpenArchived});
   final VoidCallback onOpenArchived;
   @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: const Icon(Icons.archive_outlined),
-      title: const Text('Support conversation archived'),
-      subtitle: const Text(
-        'It will return automatically when a new message arrives.',
-      ),
-      trailing: TextButton(
-        onPressed: onOpenArchived,
-        child: const Text('View'),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => ListTile(
+    contentPadding: EdgeInsets.zero,
+    leading: const Icon(Icons.archive_outlined),
+    title: const Text('Support conversation archived'),
+    subtitle: const Text('It will return automatically when a new message arrives.'),
+    trailing: TextButton(onPressed: onOpenArchived, child: const Text('View')),
+  );
 }
 
 class _ArchivedThreadsSheet extends StatelessWidget {
@@ -487,154 +324,73 @@ class _ArchivedThreadsSheet extends StatelessWidget {
     final items = provider.archivedThreads;
     return SafeArea(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          20,
-          18,
-          20,
-          20 + MediaQuery.viewInsetsOf(context).bottom,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Archived Messages',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
+        padding: EdgeInsets.fromLTRB(20, 18, 20, 20 + MediaQuery.viewInsetsOf(context).bottom),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text('Archived Messages', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900))),
+            IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.close_rounded)),
+          ]),
+          const SizedBox(height: 8),
+          if (items.isEmpty)
+            const Padding(padding: EdgeInsets.symmetric(vertical: 28), child: Center(child: Text('No archived conversations.')))
+          else
+            ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.55),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(item.isGroup ? Icons.groups_rounded : Icons.support_agent_rounded),
+                    title: Text(item.name),
+                    subtitle: Text(item.isGroup ? 'Group conversation' : 'Private conversation'),
+                    trailing: TextButton(
+                      onPressed: () async {
+                        try {
+                          await provider.restoreArchivedThread(item);
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Conversation restored.')));
+                        } catch (_) {
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unable to restore conversation.')));
+                        }
+                      },
+                      child: const Text('Restore'),
                     ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close_rounded),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (items.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 28),
-                child: Center(child: Text('No archived conversations.')),
-              )
-            else
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.sizeOf(context).height * 0.55,
-                ),
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: items.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final item = items[index];
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(
-                        item.isGroup
-                            ? Icons.groups_rounded
-                            : Icons.support_agent_rounded,
-                      ),
-                      title: Text(item.name),
-                      subtitle: Text(
-                        item.isGroup
-                            ? 'Group conversation'
-                            : 'Private conversation',
-                      ),
-                      trailing: TextButton(
-                        onPressed: () async {
-                          try {
-                            await provider.restoreArchivedThread(item);
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Conversation restored.'),
-                              ),
-                            );
-                          } catch (_) {
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Unable to restore conversation.',
-                                ),
-                              ),
-                            );
-                          }
-                        },
-                        child: const Text('Restore'),
-                      ),
-                    );
-                  },
-                ),
+                  );
+                },
               ),
-          ],
-        ),
+            ),
+        ]),
       ),
     );
   }
 }
 
 class _EmptyGroupsCard extends StatelessWidget {
-  const _EmptyGroupsCard({
-    required this.isLoading,
-    required this.errorMessage,
-    required this.onRetry,
-  });
-
+  const _EmptyGroupsCard({required this.isLoading, required this.errorMessage, required this.onRetry});
   final bool isLoading;
   final String? errorMessage;
   final Future<void> Function() onRetry;
-
   @override
   Widget build(BuildContext context) {
     final status = Theme.of(context).extension<AppStatusColors>()!;
-
     return AppSurfaceCard(
       padding: const EdgeInsets.all(AppSpacing.xl),
-      child: Column(
-        children: [
-          Icon(
-            errorMessage != null
-                ? Icons.cloud_off_rounded
-                : Icons.groups_outlined,
-            color: errorMessage != null ? status.dangerOutline : AppColors.gold,
-            size: 34,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            isLoading
-                ? 'Loading group chats...'
-                : errorMessage != null
-                ? 'Unable to load group chats'
-                : 'No group chats yet',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: AppSurfacePalette.text(context),
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            errorMessage ??
-                'Once OSFA adds you to a scholarship group, it will appear here.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppSurfacePalette.mutedText(context),
-              height: 1.4,
-            ),
-          ),
-          if (errorMessage != null) ...[
-            const SizedBox(height: 12),
-            TextButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Try Again'),
-            ),
-          ],
+      child: Column(children: [
+        Icon(errorMessage != null ? Icons.cloud_off_rounded : Icons.groups_outlined, color: errorMessage != null ? status.dangerOutline : AppColors.gold, size: 34),
+        const SizedBox(height: 10),
+        Text(isLoading ? 'Loading group chats...' : errorMessage != null ? 'Unable to load group chats' : 'No group chats yet', style: Theme.of(context).textTheme.titleSmall?.copyWith(color: AppSurfacePalette.text(context), fontWeight: FontWeight.w900)),
+        const SizedBox(height: 6),
+        Text(errorMessage ?? 'Once OSFA adds you to a scholarship group, it will appear here.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppSurfacePalette.mutedText(context), height: 1.4)),
+        if (errorMessage != null) ...[
+          const SizedBox(height: 12),
+          TextButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded), label: const Text('Try Again')),
         ],
-      ),
+      ]),
     );
   }
 }

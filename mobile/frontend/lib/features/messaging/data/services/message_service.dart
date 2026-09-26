@@ -39,6 +39,9 @@ class ArchivedMessageThread {
   final String? roomId;
   final String name;
   final DateTime? archivedAt;
+  final bool canRestore;
+  final bool readOnly;
+  final bool formerMember;
 
   const ArchivedMessageThread({
     required this.archiveId,
@@ -47,6 +50,9 @@ class ArchivedMessageThread {
     this.counterpartyId,
     this.roomId,
     this.archivedAt,
+    this.canRestore = true,
+    this.readOnly = false,
+    this.formerMember = false,
   });
 
   bool get isGroup => threadType == 'group';
@@ -68,6 +74,9 @@ class ArchivedMessageThread {
       roomId: json['roomId']?.toString() ?? json['room_id']?.toString(),
       name: json['name']?.toString() ?? 'Conversation',
       archivedAt: archivedAtRaw == null ? null : DateTime.tryParse(archivedAtRaw),
+      canRestore: json['canRestore'] == true || json['can_restore'] == true || json['canRestore'] == null && json['can_restore'] == null,
+      readOnly: json['readOnly'] == true || json['read_only'] == true,
+      formerMember: json['formerMember'] == true || json['former_member'] == true,
     );
   }
 }
@@ -79,6 +88,9 @@ class ChatRoom {
   final int memberCount;
   final String lastMessage;
   final DateTime? lastSentAt;
+  final bool readOnly;
+  final bool formerMember;
+  final DateTime? cutoffAt;
 
   const ChatRoom({
     required this.roomId,
@@ -87,6 +99,9 @@ class ChatRoom {
     this.memberCount = 0,
     this.lastMessage = '',
     this.lastSentAt,
+    this.readOnly = false,
+    this.formerMember = false,
+    this.cutoffAt,
   });
 
   factory ChatRoom.fromJson(Map<String, dynamic> json) {
@@ -114,6 +129,9 @@ class ChatRoom {
           json['last_message']?.toString() ??
           '',
       lastSentAt: rawLastSentAt.isEmpty ? null : DateTime.tryParse(rawLastSentAt),
+      readOnly: json['readOnly'] == true || json['read_only'] == true,
+      formerMember: json['formerMember'] == true || json['former_member'] == true,
+      cutoffAt: DateTime.tryParse(json['cutoffAt']?.toString() ?? json['cutoff_at']?.toString() ?? json['archivedAt']?.toString() ?? json['archived_at']?.toString() ?? ''),
     );
   }
 }
@@ -357,10 +375,44 @@ class MessageService {
   }
 
   Future<List<ChatRoom>> fetchGroups() async {
-    final items = await _getItems('/api/messages/rooms');
-    return items
+    final activeItems = await _getItems('/api/messages/rooms');
+    final rooms = activeItems
         .map((item) => ChatRoom.fromJson(Map<String, dynamic>.from(item)))
         .toList();
+
+    try {
+      final formerItems = await _getItems('/api/messages/former-rooms');
+      final activeIds = rooms.map((room) => room.roomId).toSet();
+      for (final item in formerItems) {
+        final room = ChatRoom.fromJson(Map<String, dynamic>.from(item));
+        if (room.roomId.isNotEmpty && !activeIds.contains(room.roomId)) {
+          rooms.add(
+            ChatRoom(
+              roomId: room.roomId,
+              roomName: room.roomName,
+              unreadCount: 0,
+              memberCount: room.memberCount,
+              lastMessage: room.lastMessage.isEmpty
+                  ? 'Read-only history — you are no longer a member'
+                  : 'Read-only · ${room.lastMessage}',
+              lastSentAt: room.lastSentAt,
+              readOnly: true,
+              formerMember: true,
+              cutoffAt: room.cutoffAt,
+            ),
+          );
+        }
+      }
+    } on ApiException catch (error) {
+      if (error.statusCode != 404 && error.statusCode != 405) rethrow;
+    }
+
+    rooms.sort((left, right) {
+      final leftTime = left.lastSentAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final rightTime = right.lastSentAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return rightTime.compareTo(leftTime);
+    });
+    return rooms;
   }
 
   Future<List<GroupMember>> fetchRoomMembers(String roomId) async {
@@ -422,19 +474,22 @@ class MessageService {
       );
       return _parseItems(response['items']);
     } on ApiException catch (error) {
-      if (error.statusCode != 404 && error.statusCode != 405) rethrow;
-      try {
-        final response = await _apiClient.getObject(
-          '/api/messages/rooms/$normalizedRoomId/thread',
-        );
-        return _parseItems(response['items']);
-      } catch (_) {
-        final response = await _apiClient.getObject(
-          '/api/messages/rooms/$normalizedRoomId/messages',
-        );
-        return _parseItems(response['items']);
-      }
+      if (error.statusCode != 404 && error.statusCode != 405 && error.statusCode != 403) rethrow;
     }
+
+    try {
+      final response = await _apiClient.getObject(
+        '/api/messages/rooms/$normalizedRoomId/thread',
+      );
+      return _parseItems(response['items']);
+    } on ApiException catch (error) {
+      if (error.statusCode != 403 && error.statusCode != 404 && error.statusCode != 405) rethrow;
+    }
+
+    final former = await _apiClient.getObject(
+      '/api/messages/former-rooms/$normalizedRoomId/window?limit=$historyBatchSize',
+    );
+    return _parseItems(former['items']);
   }
 
   Future<MessageHistoryPage> fetchOlderRoomThread(
@@ -442,8 +497,21 @@ class MessageService {
     required ChatMessage before,
   }) async {
     final normalizedRoomId = roomId.trim();
+    final query = _historyQuery(before: before);
+    try {
+      final response = await _apiClient.getObject(
+        '/api/messages/rooms/$normalizedRoomId/window?$query',
+      );
+      return MessageHistoryPage(
+        items: _parseItems(response['items']),
+        hasMore: _readHasMore(response),
+      );
+    } on ApiException catch (error) {
+      if (error.statusCode != 403 && error.statusCode != 404 && error.statusCode != 405) rethrow;
+    }
+
     final response = await _apiClient.getObject(
-      '/api/messages/rooms/$normalizedRoomId/window?${_historyQuery(before: before)}',
+      '/api/messages/former-rooms/$normalizedRoomId/window?$query',
     );
     return MessageHistoryPage(
       items: _parseItems(response['items']),

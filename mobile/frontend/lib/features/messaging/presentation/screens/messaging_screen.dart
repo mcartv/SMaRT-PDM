@@ -784,7 +784,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
                   ),
                   Text(
                     _isGroupChat
-                        ? 'Group chat'
+                        ? (provider.isActiveGroupReadOnly ? 'Read-only history' : 'Group chat')
                         : (provider.isConnected ? 'Private conversation' : 'Reconnecting...'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -813,7 +813,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
               _chatSearchOpen ? Icons.close_rounded : Icons.search_rounded,
             ),
           ),
-          if (_isGroupChat)
+          if (_isGroupChat && !provider.isActiveGroupReadOnly)
             IconButton(
               tooltip: 'Group information',
               onPressed: _showGroupInfo,
@@ -889,12 +889,15 @@ class _MessagingScreenState extends State<MessagingScreen> {
                 ),
               ),
             ),
-            _MessageComposer(
-              controller: _messageController,
-              isSending: _isSending,
-              onSend: _sendMessage,
-              onLike: _sendQuickLike,
-            ),
+            if (provider.isActiveGroupReadOnly)
+              _FormerGroupReadOnlyBanner(cutoffAt: provider.activeGroupCutoffAt)
+            else
+              _MessageComposer(
+                controller: _messageController,
+                isSending: _isSending,
+                onSend: _sendMessage,
+                onLike: _sendQuickLike,
+              ),
           ],
         ),
       ),
@@ -1147,15 +1150,46 @@ class _MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (message.subject?.toLowerCase() == 'system') {
+      final removalEvent = RegExp(r'\bremoved\b.*\bfrom the group\b', caseSensitive: false)
+          .hasMatch(message.messageBody);
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
         child: Center(
-          child: Text(
-            message.messageBody,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: AppSurfacePalette.mutedText(context),
-              fontWeight: FontWeight.w700,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 430),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: removalEvent
+                  ? AppColors.gold.withValues(alpha: 0.10)
+                  : AppSurfacePalette.surface(context),
+              borderRadius: AppRadii.status,
+              border: Border.all(
+                color: removalEvent
+                    ? AppColors.gold.withValues(alpha: 0.28)
+                    : AppSurfacePalette.outline(context),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  removalEvent ? Icons.person_remove_alt_1_rounded : Icons.info_outline_rounded,
+                  size: 16,
+                  color: removalEvent ? AppColors.gold : AppSurfacePalette.mutedText(context),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    message.messageBody,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: AppSurfacePalette.mutedText(context),
+                      fontWeight: FontWeight.w700,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -1480,6 +1514,53 @@ class _SenderAvatar extends StatelessWidget {
       child: avatarUrl == null || avatarUrl.isEmpty
           ? const Icon(Icons.person_rounded, color: AppColors.gold, size: 18)
           : null,
+    );
+  }
+}
+
+
+class _FormerGroupReadOnlyBanner extends StatelessWidget {
+  const _FormerGroupReadOnlyBanner({this.cutoffAt});
+  final DateTime? cutoffAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final cutoff = cutoffAt?.toLocal();
+    final cutoffLabel = cutoff == null
+        ? ''
+        : ' History is limited to messages before ${cutoff.month}/${cutoff.day}/${cutoff.year}.';
+    return SafeArea(
+      top: false,
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppSurfacePalette.surface(context),
+          borderRadius: AppRadii.card,
+          border: Border.all(color: AppSurfacePalette.outline(context)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.person_remove_alt_1_rounded, color: AppColors.gold, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('You are no longer in this group', style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 3),
+                  Text(
+                    'You were removed from this group. Your previous messages are kept as read-only history, and the removal notice above shows who removed you. New messages, member changes, and replies are not available.$cutoffLabel',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppSurfacePalette.mutedText(context), height: 1.4),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

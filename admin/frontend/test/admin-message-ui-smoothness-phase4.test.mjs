@@ -26,3 +26,10 @@ test('optimistic and confirmed messages keep a stable React key', () => {
   assert.match(source, /key=\{message\.clientMessageId \|\| message\.messageId\}/)
   assert.match(source, /data-message-id=\{message\.messageId\}/)
 })
+
+test('former group archives open a cutoff-limited read-only history panel', () => {
+  assert.match(source, /View history/)
+  assert.match(source, /FormerGroupHistoryPanel/)
+  assert.match(source, /\/api\/messages\/former-rooms\/\$\{item\.id\}\/window\?limit=50/)
+  assert.match(source, /newer messages and member updates are not available/)
+})

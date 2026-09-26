@@ -2345,6 +2345,9 @@ export default function AdminMessages({
   const forceScrollToBottomRef = useRef(true)
   const sendingRef = useRef(false)
   const processedRealtimeMessageIdsRef = useRef(new Set())
+  const lastAnimatedMessageIdRef = useRef('')
+  const lastAnimatedThreadKeyRef = useRef('')
+  const realtimeListSyncTimerRef = useRef(null)
   const pendingUnreadOpenRef = useRef(null)
   const typingStopTimerRef = useRef(null)
   const typingActiveRef = useRef(false)
@@ -2500,6 +2503,62 @@ export default function AdminMessages({
     }
     return ''
   }, [messages, currentUserId])
+
+  useEffect(() => {
+    if (!isOpen || loadingMessages || !messages.length) return
+
+    const latestMessage = messages[messages.length - 1]
+    const animationKey = latestMessage?.clientMessageId || latestMessage?.messageId || ''
+    if (!animationKey || lastAnimatedMessageIdRef.current === animationKey) return
+
+    lastAnimatedMessageIdRef.current = animationKey
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+
+    const frameId = window.requestAnimationFrame(() => {
+      const messageId = latestMessage?.messageId || ''
+      const element = messageId
+        ? messagesScrollRef.current?.querySelector(`[data-message-id=\"${messageId}\"]`)
+        : null
+      if (!element || typeof element.animate !== 'function') return
+
+      element.animate(
+        [
+          { opacity: 0.55, transform: 'translateY(6px)' },
+          { opacity: 1, transform: 'translateY(0)' },
+        ],
+        { duration: 170, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+      )
+    })
+
+    return () => window.cancelAnimationFrame(frameId)
+  }, [messages, isOpen, loadingMessages])
+
+  useEffect(() => {
+    const activeId = activeType === 'group' ? activeRoomId : activeConversationId
+    if (!isOpen || !activeId) return
+
+    const threadKey = `${activeType}:${activeId}`
+    if (lastAnimatedThreadKeyRef.current === threadKey) return
+    lastAnimatedThreadKeyRef.current = threadKey
+    lastAnimatedMessageIdRef.current = ''
+
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+
+    const frameId = window.requestAnimationFrame(() => {
+      const surface = messagesScrollRef.current
+      if (!surface || typeof surface.animate !== 'function') return
+
+      surface.animate(
+        [
+          { opacity: 0.72, transform: 'translateY(3px)' },
+          { opacity: 1, transform: 'translateY(0)' },
+        ],
+        { duration: 150, easing: 'ease-out' }
+      )
+    })
+
+    return () => window.cancelAnimationFrame(frameId)
+  }, [isOpen, activeType, activeConversationId, activeRoomId])
 
   const groupSeenByByMessageId = useMemo(() => {
     const latestPositionByMember = new Map()
@@ -4035,49 +4094,6 @@ export default function AdminMessages({
     }
   }
 
-  async function handleDemoteMember(member) {
-    if (!activeRoomId || !member?.userId) return
-
-    try {
-      setDemoteMemberBusy(true)
-      const response = await fetch(
-        `${MESSAGING_API_BASE}/api/messages/rooms/${activeRoomId}/members`,
-        {
-          method: 'POST',
-          headers: buildMessagingHeaders(token, { json: true }),
-          body: JSON.stringify({ action: 'demote_admin', memberId: member.userId }),
-        }
-      )
-      const memberPayload = await parseApiResponse(response, 'Failed to remove group admin role.')
-      const refreshedMembers = (memberPayload.members || memberPayload.roomMembers || []).map(normalizeRoomMember)
-      const refreshedCount = Number(memberPayload.member_count ?? memberPayload.memberCount ?? refreshedMembers.length)
-
-      if (Array.isArray(memberPayload.members) || Array.isArray(memberPayload.roomMembers)) {
-        setGroupMembers(refreshedMembers)
-      }
-      setRooms((current) => current.map((room) =>
-        room.id === activeRoomId
-          ? {
-            ...room,
-            memberCount: refreshedCount,
-            studentNumber: `${refreshedCount} member${refreshedCount === 1 ? '' : 's'}`,
-          }
-          : room
-      ))
-      setPendingDemoteMember(null)
-      await Promise.all([
-        fetchRoomMembers(activeRoomId),
-        fetchRooms(activeRoomId),
-        fetchRoomMessages(activeRoomId, { silent: true }),
-      ])
-      setError('')
-    } catch (err) {
-      setError(err.message || 'Failed to remove group admin role.')
-    } finally {
-      setDemoteMemberBusy(false)
-    }
-  }
-
   async function handleRemoveMember(member) {
     if (!activeRoomId || !member?.userId) return
 
@@ -4339,8 +4355,31 @@ export default function AdminMessages({
     }
   }, [filteredItems, selectedItem, searchTerm])
 
+  const scheduleRealtimeListSync = useCallback(() => {
+    if (realtimeListSyncTimerRef.current) {
+      window.clearTimeout(realtimeListSyncTimerRef.current)
+    }
+
+    realtimeListSyncTimerRef.current = window.setTimeout(() => {
+      realtimeListSyncTimerRef.current = null
+      Promise.all([
+        fetchConversations(activeConversationRef.current),
+        fetchRooms(activeRoomRef.current),
+      ]).catch((error) => {
+        console.error('[Admin Messaging Realtime] list sync error:', error)
+      })
+    }, 180)
+  }, [fetchConversations, fetchRooms])
+
+  useEffect(() => () => {
+    if (realtimeListSyncTimerRef.current) {
+      window.clearTimeout(realtimeListSyncTimerRef.current)
+      realtimeListSyncTimerRef.current = null
+    }
+  }, [])
+
   const handleIncomingMessageRealtime = useCallback(
-    async (rawPayload = {}, eventName = 'message:created') => {
+    async (rawPayload = {}) => {
       const message = normalizeMessage(rawPayload)
 
       const messageId = message.messageId || ''
@@ -4365,10 +4404,7 @@ export default function AdminMessages({
       const activeRoom = activeRoomRef.current || activeRoomId || ''
 
       if (!messageId) {
-        await Promise.all([
-          fetchConversations(activeConversation),
-          fetchRooms(activeRoom),
-        ])
+        scheduleRealtimeListSync()
         return
       }
 
@@ -4477,12 +4513,7 @@ export default function AdminMessages({
       /*
         4. Silently sync lists with backend after UI updates.
       */
-      Promise.all([
-        fetchConversations(activeConversation),
-        fetchRooms(activeRoom),
-      ]).catch((error) => {
-        console.error('[Admin Messaging Realtime] silent sync error:', error)
-      })
+      scheduleRealtimeListSync()
 
       /*
         5. If the active thread received an incoming message, mark it read.
@@ -4505,8 +4536,7 @@ export default function AdminMessages({
       activeRoomId,
       currentUserId,
       isOpen,
-      fetchConversations,
-      fetchRooms,
+      scheduleRealtimeListSync,
       markConversationRead,
       markRoomMessagesRead,
     ]
@@ -4605,7 +4635,7 @@ export default function AdminMessages({
   useSocketEvent(
     'message:new',
     (data) => {
-      handleIncomingMessageRealtime(data, 'message:new')
+      handleIncomingMessageRealtime(data)
     },
     [handleIncomingMessageRealtime]
   )
@@ -4613,14 +4643,14 @@ export default function AdminMessages({
   useSocketEvent(
     'message:created',
     (data) => {
-      handleIncomingMessageRealtime(data, 'message:created')
+      handleIncomingMessageRealtime(data)
     },
     [handleIncomingMessageRealtime]
   )
 
   useSocketEvent(
     'message:updated',
-    async (data = {}) => {
+    (data = {}) => {
       const updated = normalizeMessage(data)
       if (!updated.messageId) return
 
@@ -4640,17 +4670,14 @@ export default function AdminMessages({
         }
         return message
       }))
-      await Promise.all([
-        fetchConversations(activeConversationRef.current || activeConversationId),
-        fetchRooms(activeRoomRef.current || activeRoomId),
-      ])
+      scheduleRealtimeListSync()
     },
-    [activeConversationId, activeRoomId, fetchConversations, fetchRooms]
+    [scheduleRealtimeListSync]
   )
 
   useSocketEvent(
     'message:read',
-    async (data) => {
+    (data) => {
       const messageIds = (data?.message_ids || data?.messageIds || [])
         .map((item) => item?.toString?.() || '')
         .filter(Boolean)
@@ -4686,24 +4713,18 @@ export default function AdminMessages({
         )
       }
 
-      await Promise.all([
-        fetchConversations(activeConversationRef.current || activeConversationId),
-        fetchRooms(activeRoomRef.current || activeRoomId),
-      ])
+      scheduleRealtimeListSync()
     },
     [
-      activeConversationId,
-      activeRoomId,
       currentUserId,
-      fetchConversations,
-      fetchRooms,
+      scheduleRealtimeListSync,
       groupMembers,
     ]
   )
 
   useSocketEvent(
     'message:unread',
-    async (data) => {
+    (data) => {
       const messageIds = (data?.message_ids || data?.messageIds || [])
         .map((item) => item?.toString?.() || '')
         .filter(Boolean)
@@ -4712,22 +4733,14 @@ export default function AdminMessages({
         setMessages((current) => markMessagesUnread(current, messageIds))
       }
 
-      await Promise.all([
-        fetchConversations(activeConversationRef.current || activeConversationId),
-        fetchRooms(activeRoomRef.current || activeRoomId),
-      ])
+      scheduleRealtimeListSync()
     },
-    [
-      activeConversationId,
-      activeRoomId,
-      fetchConversations,
-      fetchRooms,
-    ]
+    [scheduleRealtimeListSync]
   )
 
   useSocketEvent(
     'message:hidden',
-    async (data = {}) => {
+    (data = {}) => {
       const hiddenBy = data?.hidden_by?.toString?.() || data?.hiddenBy?.toString?.() || ''
       const messageId = data?.message_id?.toString?.() || data?.messageId?.toString?.() || ''
       if (!messageId || hiddenBy !== currentUserId) return
@@ -4735,12 +4748,9 @@ export default function AdminMessages({
       setMessages((current) => current.filter((message) => message.messageId !== messageId))
       if (firstUnreadMessageId === messageId) setFirstUnreadMessageId('')
       if (replyingTo?.messageId === messageId) setReplyingTo(null)
-      await Promise.all([
-        fetchConversations(activeConversationRef.current || activeConversationId),
-        fetchRooms(activeRoomRef.current || activeRoomId),
-      ])
+      scheduleRealtimeListSync()
     },
-    [currentUserId, firstUnreadMessageId, replyingTo, activeConversationId, activeRoomId, fetchConversations, fetchRooms]
+    [currentUserId, firstUnreadMessageId, replyingTo, scheduleRealtimeListSync]
   )
 
   useSocketEvent(
@@ -5579,7 +5589,7 @@ export default function AdminMessages({
 
                               return (
                                 <div
-                                  key={message.messageId}
+                                  key={message.clientMessageId || message.messageId}
                                   data-message-id={message.messageId}
                                   className={editingMessage
                                     ? String(editingMessage.messageId) === String(message.messageId)

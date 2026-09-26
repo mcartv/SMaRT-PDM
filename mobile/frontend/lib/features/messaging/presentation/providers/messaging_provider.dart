@@ -50,6 +50,7 @@ class MessagingProvider extends ChangeNotifier {
   bool _activeThreadRefreshRunning = false;
   bool _activeThreadRefreshQueued = false;
   bool _activeThreadMarkReadQueued = false;
+  int _threadRevision = 0;
 
   static const int _maxRecentRealtimeMessageIds = 200;
   final Set<String> _recentRealtimeMessageIds = <String>{};
@@ -190,6 +191,7 @@ class MessagingProvider extends ChangeNotifier {
       return;
     }
 
+    _threadRevision += 1;
     _isViewingThread = true;
     _activeGroupId = null;
 
@@ -212,6 +214,7 @@ class MessagingProvider extends ChangeNotifier {
       return;
     }
 
+    _threadRevision += 1;
     _isViewingThread = true;
     _activeGroupId = normalizedRoomId;
 
@@ -220,6 +223,8 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   void leaveThread({bool notify = true}) {
+    _threadRevision += 1;
+    _isLoading = false;
     _isViewingThread = false;
     _activeGroupId = null;
     _messages = [];
@@ -261,6 +266,8 @@ class MessagingProvider extends ChangeNotifier {
   Future<void> archiveRoom(String roomId) async {
     await _messageService.archiveRoom(roomId);
     if (_activeGroupId == roomId) {
+      _threadRevision += 1;
+      _isLoading = false;
       _isViewingThread = false;
       _activeGroupId = null;
       _messages = [];
@@ -315,6 +322,8 @@ class MessagingProvider extends ChangeNotifier {
       await _messageService.leaveGroup(normalizedRoomId);
 
       if (_activeGroupId == normalizedRoomId) {
+        _threadRevision += 1;
+        _isLoading = false;
         _isViewingThread = false;
         _activeGroupId = null;
         _messages = [];
@@ -432,24 +441,44 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   Future<void> markThreadRead() async {
+    final revision = _threadRevision;
+    final targetGroupId = _activeGroupId;
+    final targetCounterpartyId = _counterpartyId;
+
     try {
-      if (_activeGroupId != null) {
-        await _messageService.markRoomThreadRead(_activeGroupId!);
+      if (targetGroupId != null) {
+        await _messageService.markRoomThreadRead(targetGroupId);
+
+        if (_isDisposed ||
+            revision != _threadRevision ||
+            _activeGroupId != targetGroupId ||
+            !_isViewingThread) {
+          return;
+        }
 
         _markMessagesRead(
           _messages.map((message) => message.messageId).toList(),
         );
 
-        _setGroupUnreadCount(_activeGroupId!, 0);
+        _setGroupUnreadCount(targetGroupId, 0);
 
         await refreshUnreadCount(notify: false);
-        _notify();
+        if (revision == _threadRevision && _activeGroupId == targetGroupId) {
+          _notify();
+        }
         return;
       }
 
       final result = await _messageService.markThreadRead(
-        counterpartyId: _counterpartyId,
+        counterpartyId: targetCounterpartyId,
       );
+
+      if (_isDisposed ||
+          revision != _threadRevision ||
+          _activeGroupId != null ||
+          !_isViewingThread) {
+        return;
+      }
 
       if (result.messageIds.isNotEmpty) {
         _markMessagesRead(result.messageIds);
@@ -464,6 +493,9 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   Future<void> _refreshThread({bool notify = true}) async {
+    final revision = _threadRevision;
+    final targetGroupId = _activeGroupId;
+
     _isLoading = true;
     _errorMessage = null;
 
@@ -472,14 +504,30 @@ class MessagingProvider extends ChangeNotifier {
     }
 
     try {
-      if (_activeGroupId != null) {
-        _messages = List<ChatMessage>.of(
-          await _messageService.fetchRoomThread(_activeGroupId!),
+      if (targetGroupId != null) {
+        final fetchedMessages = List<ChatMessage>.of(
+          await _messageService.fetchRoomThread(targetGroupId),
         );
-        _setGroupUnreadCount(_activeGroupId!, 0);
+
+        if (_isDisposed ||
+            revision != _threadRevision ||
+            _activeGroupId != targetGroupId ||
+            !_isViewingThread) {
+          return;
+        }
+
+        _messages = fetchedMessages;
+        _setGroupUnreadCount(targetGroupId, 0);
         await refreshUnreadCount(notify: false);
       } else {
         final result = await _messageService.fetchThread();
+
+        if (_isDisposed ||
+            revision != _threadRevision ||
+            _activeGroupId != null) {
+          return;
+        }
+
         _counterpartyId = result.counterpartyId;
         _messages = result.items.toList();
         _recalculatePrivateUnreadCount();
@@ -491,13 +539,17 @@ class MessagingProvider extends ChangeNotifier {
       }
       _errorMessage = null;
     } catch (error) {
-      _errorMessage = _readableError(error);
+      if (revision == _threadRevision) {
+        _errorMessage = _readableError(error);
+      }
       debugPrint('[MessagingProvider] refresh thread error: $error');
     } finally {
-      _isLoading = false;
+      if (revision == _threadRevision) {
+        _isLoading = false;
 
-      if (notify) {
-        _notify();
+        if (notify) {
+          _notify();
+        }
       }
     }
   }
@@ -563,8 +615,10 @@ class MessagingProvider extends ChangeNotifier {
       case MobileRealtimeEvents.messageNew:
       case MobileRealtimeEvents.messageCreated:
       case MobileRealtimeEvents.messageUpdated:
-        _handleMessageRealtimeFast(event);
-        _scheduleRealtimeMessageReconcile();
+        final handled = _handleMessageRealtimeFast(event);
+        if (handled) {
+          _scheduleRealtimeMessageReconcile();
+        }
         return;
 
       case MobileRealtimeEvents.messageRead:
@@ -598,6 +652,8 @@ class MessagingProvider extends ChangeNotifier {
         await refreshUnreadCount(notify: false);
         final activeRoomId = _activeGroupId;
         if (activeRoomId != null && !_rooms.any((room) => room.roomId == activeRoomId)) {
+          _threadRevision += 1;
+          _isLoading = false;
           _isViewingThread = false;
           _activeGroupId = null;
           _messages = [];
@@ -610,12 +666,12 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
-  void _handleMessageRealtimeFast(MobileRealtimeEvent event) {
+  bool _handleMessageRealtimeFast(MobileRealtimeEvent event) {
     final payload = event.payload;
 
     if (payload.isEmpty) {
       debugPrint('[MessagingProvider] realtime message ignored: empty payload');
-      return;
+      return false;
     }
 
     ChatMessage message;
@@ -624,13 +680,13 @@ class MessagingProvider extends ChangeNotifier {
       message = ChatMessage.fromJson(payload);
     } catch (error) {
       debugPrint('[MessagingProvider] message parse error: $error');
-      return;
+      return false;
     }
 
     if ((event.name == MobileRealtimeEvents.messageNew ||
             event.name == MobileRealtimeEvents.messageCreated) &&
         !_rememberRealtimeMessage(message.messageId)) {
-      return;
+      return false;
     }
 
     final roomId = (message.roomId ?? '').trim();
@@ -671,10 +727,18 @@ class MessagingProvider extends ChangeNotifier {
         _privatePreview = message;
       }
 
-      // Only place a private message in the visible message list while the
-      // private OSFA conversation is open. This prevents private messages from
-      // appearing inside an active scholarship group chat.
-      if (isViewingPrivateThread) {
+      final privateCounterpartyId =
+          senderId == _currentUserId ? receiverId : senderId;
+      final activeCounterpartyId = _counterpartyId.trim();
+      final isCurrentPrivateCounterparty =
+          activeCounterpartyId.isEmpty ||
+          activeCounterpartyId == privateCounterpartyId;
+
+      // A mobile private screen represents one backend counterparty at a time.
+      // If another authorized office starts a new conversation, let the
+      // authoritative reconciliation switch the thread instead of mixing that
+      // message into the currently rendered counterparty history.
+      if (isViewingPrivateThread && isCurrentPrivateCounterparty) {
         _upsertMessage(message);
         _recalculatePrivateUnreadCount();
         _notify();
@@ -682,7 +746,7 @@ class MessagingProvider extends ChangeNotifier {
       } else {
         _scheduleUnreadRefresh();
       }
-      return;
+      return true;
     }
 
     if (isActiveGroupMessage) {
@@ -691,7 +755,7 @@ class MessagingProvider extends ChangeNotifier {
       _setGroupUnreadCount(roomId, 0);
       _notify();
       unawaited(markThreadRead());
-      return;
+      return true;
     }
 
     if (isGroupMessage) {
@@ -703,10 +767,11 @@ class MessagingProvider extends ChangeNotifier {
       }
 
       _scheduleUnreadRefresh();
-      return;
+      return true;
     }
 
     _scheduleUnreadRefresh();
+    return false;
   }
 
   bool _rememberRealtimeMessage(String messageId) {
@@ -838,7 +903,11 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   void _sortMessagesNewestFirst() {
-    _messages.sort((left, right) => right.sentAt.compareTo(left.sentAt));
+    _messages.sort((left, right) {
+      final timeComparison = right.sentAt.compareTo(left.sentAt);
+      if (timeComparison != 0) return timeComparison;
+      return right.messageId.compareTo(left.messageId);
+    });
   }
 
   void _markMessagesRead(List<String> messageIds) {

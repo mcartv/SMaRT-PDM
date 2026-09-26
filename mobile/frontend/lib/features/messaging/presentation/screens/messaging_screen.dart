@@ -833,21 +833,62 @@ class _MessagingScreenState extends State<MessagingScreen> {
         color: background,
         child: Column(
           children: [
-            if (_chatSearchOpen)
-              _ChatSearchBar(
-                value: _chatSearchTerm,
-                matchCount: _chatSearchTerm.trim().isEmpty
-                    ? 0
-                    : visibleMessages
-                        .where((message) => message.messageBody.toLowerCase().contains(_chatSearchTerm.trim().toLowerCase()))
-                        .length,
-                onChanged: (value) => setState(() => _chatSearchTerm = value),
-                onClose: () => setState(() {
-                  _chatSearchOpen = false;
-                  _chatSearchTerm = '';
-                }),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOut,
+              alignment: Alignment.topCenter,
+              child: _chatSearchOpen
+                  ? _ChatSearchBar(
+                      key: const ValueKey<String>('chat-search-open'),
+                      value: _chatSearchTerm,
+                      matchCount: _chatSearchTerm.trim().isEmpty
+                          ? 0
+                          : visibleMessages
+                              .where(
+                                (message) => message.messageBody
+                                    .toLowerCase()
+                                    .contains(
+                                      _chatSearchTerm.trim().toLowerCase(),
+                                    ),
+                              )
+                              .length,
+                      onChanged: (value) =>
+                          setState(() => _chatSearchTerm = value),
+                      onClose: () => setState(() {
+                        _chatSearchOpen = false;
+                        _chatSearchTerm = '';
+                      }),
+                    )
+                  : const SizedBox.shrink(
+                      key: ValueKey<String>('chat-search-closed'),
+                    ),
+            ),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 170),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                transitionBuilder: (child, animation) {
+                  final offsetAnimation = Tween<Offset>(
+                    begin: const Offset(0, 0.012),
+                    end: Offset.zero,
+                  ).animate(animation);
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: offsetAnimation,
+                      child: child,
+                    ),
+                  );
+                },
+                child: KeyedSubtree(
+                  key: ValueKey<String>(
+                    'message-thread-${_normalizedRoomId ?? 'private'}',
+                  ),
+                  child: _buildMessageArea(provider, isDark),
+                ),
               ),
-            Expanded(child: _buildMessageArea(provider, isDark)),
+            ),
             _MessageComposer(
               controller: _messageController,
               isSending: _isSending,
@@ -932,19 +973,26 @@ class _MessagingScreenState extends State<MessagingScreen> {
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 14),
               child: Center(
-                child: _isLoadingOlder
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(
-                        'Scroll up to load earlier messages',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: AppSurfacePalette.mutedText(context),
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 150),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  child: _isLoadingOlder
+                      ? const SizedBox(
+                          key: ValueKey<String>('older-loading'),
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(
+                          'Scroll up to load earlier messages',
+                          key: const ValueKey<String>('older-ready'),
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: AppSurfacePalette.mutedText(context),
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                ),
               ),
             );
           }
@@ -1247,19 +1295,29 @@ class _MessageBubble extends StatelessWidget {
               ),
             ],
             messageRow,
-            if (isMe && showDeliveryStatus) ...[
-              const SizedBox(height: 4),
-              Padding(
-                padding: EdgeInsets.only(right: isGroupChat ? 40 : 2),
-                child: Text(
-                  'Delivered · $timeLabel',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: AppSurfacePalette.mutedText(context),
-                        fontWeight: FontWeight.w600,
+            AnimatedSize(
+              duration: const Duration(milliseconds: 140),
+              curve: Curves.easeOut,
+              alignment: Alignment.topRight,
+              child: isMe && showDeliveryStatus
+                  ? Padding(
+                      key: const ValueKey<String>('delivery-visible'),
+                      padding: EdgeInsets.only(
+                        top: 4,
+                        right: isGroupChat ? 40 : 2,
                       ),
-                ),
-              ),
-            ],
+                      child: Text(
+                        'Delivered · $timeLabel',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: AppSurfacePalette.mutedText(context),
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    )
+                  : const SizedBox.shrink(
+                      key: ValueKey<String>('delivery-hidden'),
+                    ),
+            ),
           ],
         ),
       ),
@@ -1269,6 +1327,7 @@ class _MessageBubble extends StatelessWidget {
 
 class _ChatSearchBar extends StatelessWidget {
   const _ChatSearchBar({
+    super.key,
     required this.value,
     required this.matchCount,
     required this.onChanged,
@@ -1502,18 +1561,35 @@ class _MessageComposer extends StatelessWidget {
                   disabledBackgroundColor: AppSurfacePalette.surfaceMuted(context),
                   shape: const CircleBorder(),
                 ),
-                child: isSending
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.darkBrown,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 140),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  transitionBuilder: (child, animation) => ScaleTransition(
+                    scale: Tween<double>(begin: 0.88, end: 1).animate(animation),
+                    child: FadeTransition(opacity: animation, child: child),
+                  ),
+                  child: isSending
+                      ? const SizedBox(
+                          key: ValueKey<String>('send-loading'),
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.darkBrown,
+                          ),
+                        )
+                      : canSend
+                      ? const Icon(
+                          Icons.send_rounded,
+                          key: ValueKey<String>('send-ready'),
+                        )
+                      : const Text(
+                          '👍',
+                          key: ValueKey<String>('send-like'),
+                          style: TextStyle(fontSize: 20),
                         ),
-                      )
-                    : canSend
-                    ? const Icon(Icons.send_rounded)
-                    : const Text('👍', style: TextStyle(fontSize: 20)),
+                ),
               ),
             ),
           ],

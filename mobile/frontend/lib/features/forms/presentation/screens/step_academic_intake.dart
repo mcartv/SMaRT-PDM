@@ -501,6 +501,15 @@ class _StepAcademicState extends State<StepAcademic> {
     return null;
   }
 
+  String? _lrnError() {
+    if (!widget.showErrors) return null;
+    final lrn = widget.data.learnersReferenceNumber.trim();
+    if (lrn.isEmpty) return 'Learner Reference Number is required.';
+    return RegExp(r'^\d{12}$').hasMatch(lrn)
+        ? null
+        : 'Learner Reference Number must contain exactly 12 digits.';
+  }
+
   String? _otherSupportError() {
     if (!widget.showErrors || !selectedFinancialSupports.contains('Other')) {
       return null;
@@ -998,6 +1007,9 @@ class _StepAcademicState extends State<StepAcademic> {
                           onPressed: () async {
                             await widget.onRepairCourse!();
                           },
+                          style: TextButton.styleFrom(
+                            minimumSize: const Size(0, 52),
+                          ),
                           child: const Text('Update Profile'),
                         ),
                       ],
@@ -1104,14 +1116,21 @@ class _StepAcademicState extends State<StepAcademic> {
                 TextFormField(
                   style: intakeInputTextStyle(context),
                   initialValue: widget.data.learnersReferenceNumber,
-                  inputFormatters: [LengthLimitingTextInputFormatter(12)],
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(12),
+                  ],
                   decoration: _dec(
                     'Learner Reference Number',
-                    errorText:
-                        widget.showErrors &&
-                            widget.data.learnersReferenceNumber.trim().isEmpty
-                        ? 'Learner Reference Number is required.'
-                        : null,
+                    errorText: _lrnError(),
+                    suffixIcon: intakeCompletionIcon(
+                      RegExp(r'^\d{12}$').hasMatch(
+                            widget.data.learnersReferenceNumber.trim(),
+                          )
+                          ? widget.data.learnersReferenceNumber
+                          : '',
+                    ),
                   ),
                   onChanged: (value) {
                     widget.data.learnersReferenceNumber = value;

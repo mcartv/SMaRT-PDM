@@ -19,6 +19,8 @@ class ApplicantApplicationStatusPanel extends StatelessWidget {
     final theme = Theme.of(context);
     final palette = _paletteFor(context, application.tone);
     final stepLabel = application.stepLabel?.trim() ?? '';
+    final surface = theme.colorScheme.surface;
+    final textColor = theme.colorScheme.onSurface;
 
     return Semantics(
       container: true,
@@ -26,91 +28,132 @@ class ApplicantApplicationStatusPanel extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
-          color: palette.container,
+          color: surface,
           borderRadius: BorderRadius.circular(AppRadii.xl),
-          border: Border.all(color: palette.outline),
+          border: Border.all(color: palette.outline.withValues(alpha: .72)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 ExcludeSemantics(
                   child: Container(
-                    width: AppSizes.minimumTapTarget,
-                    height: AppSizes.minimumTapTarget,
+                    width: 42,
+                    height: 42,
                     decoration: BoxDecoration(
-                      color: palette.foreground.withValues(alpha: .1),
-                      shape: BoxShape.circle,
+                      color: palette.container,
+                      borderRadius: AppRadii.control,
                     ),
-                    child: Icon(palette.icon, color: palette.foreground),
+                    child: Icon(
+                      palette.icon,
+                      color: palette.foreground,
+                      size: 22,
+                    ),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'APPLICATION STATUS',
+                  child: Text(
+                    'APPLICATION STATUS',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: textColor,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .65,
+                    ),
+                  ),
+                ),
+                if (stepLabel.isNotEmpty)
+                  Semantics(
+                    label: 'Application progress: $stepLabel',
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 150),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: palette.container,
+                        borderRadius: AppRadii.status,
+                        border: Border.all(
+                          color: palette.outline.withValues(alpha: .75),
+                        ),
+                      ),
+                      child: Text(
+                        stepLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.labelMedium?.copyWith(
                           color: palette.foreground,
                           fontWeight: FontWeight.w800,
-                          letterSpacing: .7,
                         ),
                       ),
-                      if (stepLabel.isNotEmpty) ...[
-                        const SizedBox(height: AppSpacing.xxs),
-                        Semantics(
-                          label: 'Application progress: $stepLabel',
-                          child: Text(
-                            stepLabel,
-                            style: theme.textTheme.labelLarge?.copyWith(
-                              color: palette.foreground,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
+                    ),
                   ),
-                ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
-            Semantics(
-              header: true,
-              child: Text(
-                application.title,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  color: palette.foreground,
-                  fontWeight: FontWeight.w800,
-                ),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: palette.container,
+                borderRadius: AppRadii.control,
+                border: Border.all(color: palette.outline),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Current status',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: palette.foreground.withValues(alpha: .8),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xxs),
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      application.title,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: palette.foreground,
+                        fontWeight: FontWeight.w900,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    application.description,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: palette.foreground.withValues(alpha: .9),
+                      height: 1.45,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              application.description,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: palette.foreground,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.md),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: () => onAction(application.primaryAction),
-                icon: const Icon(Icons.arrow_forward_rounded),
+                icon: const Icon(Icons.arrow_forward_rounded, size: 20),
                 label: Text(application.primaryAction.label),
                 style: FilledButton.styleFrom(
                   backgroundColor: palette.foreground,
                   foregroundColor: palette.container,
-                  minimumSize: const Size.fromHeight(AppSizes.minimumTapTarget),
+                  minimumSize: const Size.fromHeight(52),
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.md,
                     vertical: AppSpacing.sm,
                   ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: AppRadii.control,
+                  ),
+                  textStyle: const TextStyle(fontWeight: FontWeight.w900),
                 ),
               ),
             ),

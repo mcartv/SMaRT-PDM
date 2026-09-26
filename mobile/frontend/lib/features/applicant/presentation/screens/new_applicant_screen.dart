@@ -472,7 +472,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
           icon: const Icon(Icons.arrow_back_rounded, size: 18),
           label: const Text('Back to Edit'),
           style: OutlinedButton.styleFrom(
-            minimumSize: const Size(0, AppSizes.minimumTapTarget),
+            minimumSize: const Size(0, 52),
             foregroundColor: titleColor,
             side: BorderSide(color: borderColor),
             shape: RoundedRectangleBorder(borderRadius: AppRadii.control),
@@ -485,7 +485,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
           icon: const Icon(Icons.verified_outlined, size: 18),
           label: const Text('Submit for Verification'),
           style: FilledButton.styleFrom(
-            minimumSize: const Size(0, AppSizes.minimumTapTarget),
+            minimumSize: const Size(0, 52),
             backgroundColor: AppColors.gold,
             foregroundColor: const Color(0xFF3D2A1D),
             elevation: 0,
@@ -769,6 +769,21 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     }
   }
 
+  void _handleFormChanged() {
+    final validationError = _showValidationErrors
+        ? _validateCurrentForm()
+        : null;
+
+    setState(() {
+      if (_showValidationErrors && validationError == null) {
+        _showValidationErrors = false;
+      }
+      _formFeedbackError = validationError;
+    });
+
+    _queueAutosave();
+  }
+
   Widget _buildStep() =>
       KeyedSubtree(key: _stepContentKey, child: _buildStepContent());
 
@@ -777,47 +792,32 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       case 0:
         return StepPersonal(
           data: _data,
-          onChanged: () {
-            setState(() {});
-            _queueAutosave();
-          },
+          onChanged: _handleFormChanged,
           showErrors: _showValidationErrors,
         );
       case 1:
         return StepFamily(
           data: _data,
-          onChanged: () {
-            setState(() {});
-            _queueAutosave();
-          },
+          onChanged: _handleFormChanged,
           showErrors: _showValidationErrors,
         );
       case 2:
         return StepAcademic(
           data: _data,
           onRepairCourse: _repairMissingCourse,
-          onChanged: () {
-            setState(() {});
-            _queueAutosave();
-          },
+          onChanged: _handleFormChanged,
           showErrors: _showValidationErrors,
         );
       case 3:
         return StepEssay(
           data: _data,
-          onChanged: () {
-            setState(() {});
-            _queueAutosave();
-          },
+          onChanged: _handleFormChanged,
           showErrors: _showValidationErrors,
         );
       case 4:
         return StepSubmit(
           data: _data,
-          onChanged: () {
-            setState(() {});
-            _queueAutosave();
-          },
+          onChanged: _handleFormChanged,
           onEditStep: (step) {
             setState(() {
               _step = step;
@@ -845,6 +845,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     final provider = context.watch<NewScholarProvider>();
     final cardColor = AppSurfacePalette.surface(context);
     final borderColor = AppSurfacePalette.outline(context);
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
 
     return Scaffold(
       backgroundColor: AppSurfacePalette.background(context),
@@ -958,7 +959,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                               ),
                             ),
                           ),
-                          _buildFooter(provider),
+                          if (!keyboardOpen) _buildFooter(provider),
                         ],
                       ),
                     ),
@@ -1195,7 +1196,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                       disabledForegroundColor: AppSurfacePalette.mutedText(
                         context,
                       ),
-                      minimumSize: const Size(0, 56),
+                      minimumSize: const Size(0, 52),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 16,

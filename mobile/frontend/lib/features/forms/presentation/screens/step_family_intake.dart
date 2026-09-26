@@ -78,6 +78,7 @@ class _StepFamilyState extends State<StepFamily> {
   bool hasFather = true;
   bool hasMother = true;
   bool guardianOnly = false;
+  bool noSibling = false;
 
   @override
   void initState() {
@@ -87,6 +88,7 @@ class _StepFamilyState extends State<StepFamily> {
     hasFather = widget.data.fatherPresent;
     hasMother = widget.data.motherPresent;
     guardianOnly = widget.data.guardianOnly;
+    noSibling = _siblingDataIsNotApplicable();
 
     if (guardianOnly) {
       hasFather = false;
@@ -328,17 +330,17 @@ class _StepFamilyState extends State<StepFamily> {
     );
     _bind(parentPreviousTownMunicipalityController, (value) {
       widget.data.parentPreviousTownMunicipality = value;
-      _syncPreviousOrigin();
+      _syncPreviousOrigr();
     });
   }
 
-  void _syncPreviousOrigin() {
+  void _syncPreviousOrigr() {
     final town = widget.data.parentPreviousTownMunicipality.trim();
-    final origin = [
+    final origrn = [
       town,
       widget.data.parentPreviousProvince.trim(),
     ].where((part) => part.isNotEmpty).join(', ');
-    widget.data.parentPreviousTownProvince = origin;
+    widget.data.parentPreviousTownProvince = origrn;
     parentPreviousTownProvinceController.text = origin;
   }
 
@@ -516,7 +518,7 @@ class _StepFamilyState extends State<StepFamily> {
       widget.data.zipCode,
     ].map((value) => value.trim()).where((value) => value.isNotEmpty).toList();
 
-    return parts.join(', ');
+    return parts.jor(', ');
   }
 
   void _applySameAddress(bool value) {
@@ -580,6 +582,52 @@ class _StepFamilyState extends State<StepFamily> {
       } else {
         guardianOnly = true;
         widget.data.guardianOnly = true;
+      }
+    });
+    widget.onChanged();
+  }
+
+  bool _siblingDataIsNotApplicable() {
+    return [
+      widget.data.siblingLastName,
+      widget.data.siblingFirstName,
+      widget.data.siblingMiddleName,
+      widget.data.siblingMobile,
+      widget.data.siblingEducationalAttainment,
+      widget.data.siblingOccupation,
+      widget.data.siblingCompanyNameAndAddress,
+    ].every((value) => value.trim().toUpperCase() == 'N/A');
+  }
+
+  void _setNoSibling(bool value) {
+    setState(() {
+      noSibling = value;
+      if (value) {
+        siblingLastNameController.text = 'N/A';
+        siblingFirstNameController.text = 'N/A';
+        siblingMiddleNameController.text = 'N/A';
+        siblingMobileController.text = 'N/A';
+        siblingOccupationController.text = 'N/A';
+        siblingCompanyController.text = 'N/A';
+        selectedSiblingEducation = 'N/A';
+        widget.data.siblingEducationalAttainment = 'N/A';
+      } else {
+        for (final controller in [
+          siblingLastNameController,
+          siblingFirstNameController,
+          siblingMiddleNameController,
+          siblingMobileController,
+          siblingOccupationController,
+          siblingCompanyController,
+        ]) {
+          if (controller.text.trim().toUpperCase() == 'N/A') {
+            controller.clear();
+          }
+        }
+        if ((selectedSiblingEducation ?? '').toUpperCase() == 'N/A') {
+          selectedSiblingEducation = null;
+          widget.data.siblingEducationalAttainment = '';
+        }
       }
     });
     widget.onChanged();
@@ -678,7 +726,7 @@ class _StepFamilyState extends State<StepFamily> {
     required ValueChanged<String> onEducationChanged,
   }) {
     return IntakeCard(
-      margin: const EdgeInsets.only(bottom: 16),
+      margrn: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -932,7 +980,7 @@ class _StepFamilyState extends State<StepFamily> {
             ),
           ),
         IntakeCard(
-          margin: const EdgeInsets.only(bottom: 16),
+          margrn: const EdgeInsets.only(bottom: 16),
           padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1067,12 +1115,21 @@ class _StepFamilyState extends State<StepFamily> {
                 ),
               ),
               const SizedBox(height: 18),
+              IntakeChoiceCard(
+                title: 'No sibling',
+                subtitle:
+                    'Select this if you do not have a sibling to list. The printable application form will show N/A.',
+                selected: noSibling,
+                onTap: () => _setNoSibling(!noSibling),
+              ),
+              const SizedBox(height: 16),
               _row([
                 _field(
                   'Last Name *',
                   TextFormField(
                     style: intakeInputTextStyle(context),
                     controller: siblingLastNameController,
+                    readOnly: noSibling,
                     decoration: _dec(
                       'Last Name',
                       errorText: _familyNameError(
@@ -1087,6 +1144,7 @@ class _StepFamilyState extends State<StepFamily> {
                   TextFormField(
                     style: intakeInputTextStyle(context),
                     controller: siblingFirstNameController,
+                    readOnly: noSibling,
                     decoration: _dec(
                       'First Name',
                       errorText: _familyNameError(
@@ -1104,6 +1162,7 @@ class _StepFamilyState extends State<StepFamily> {
                   TextFormField(
                     style: intakeInputTextStyle(context),
                     controller: siblingMiddleNameController,
+                    readOnly: noSibling,
                     decoration: _dec(
                       'Middle Name',
                       errorText: _familyNameError(
@@ -1119,6 +1178,7 @@ class _StepFamilyState extends State<StepFamily> {
                   TextFormField(
                     style: intakeInputTextStyle(context),
                     controller: siblingMobileController,
+                    readOnly: noSibling,
                     keyboardType: TextInputType.text,
                     inputFormatters: _familyMobileInputFormatters,
                     decoration: _dec(
@@ -1160,12 +1220,14 @@ class _StepFamilyState extends State<StepFamily> {
                   items: educationalOptions
                       .map((v) => DropdownMenuItem(value: v, child: Text(v)))
                       .toList(),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() => selectedSiblingEducation = value);
-                    widget.data.siblingEducationalAttainment = value;
-                    widget.onChanged();
-                  },
+                  onChanged: noSibling
+                      ? null
+                      : (value) {
+                          if (value == null) return;
+                          setState(() => selectedSiblingEducation = value);
+                          widget.data.siblingEducationalAttainment = value;
+                          widget.onChanged();
+                        },
                 ),
               ),
               const SizedBox(height: 16),
@@ -1174,6 +1236,7 @@ class _StepFamilyState extends State<StepFamily> {
                 TextFormField(
                   style: intakeInputTextStyle(context),
                   controller: siblingOccupationController,
+                    readOnly: noSibling,
                   decoration: _dec(
                     'Occupation',
                     errorText: _requiredError(
@@ -1189,6 +1252,7 @@ class _StepFamilyState extends State<StepFamily> {
                 TextFormField(
                   style: intakeInputTextStyle(context),
                   controller: siblingCompanyController,
+                    readOnly: noSibling,
                   decoration: _dec(
                     'Company Name / Address',
                     errorText: _requiredError(
@@ -1208,9 +1272,16 @@ class _StepFamilyState extends State<StepFamily> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final relation in ['Father', 'Mother', 'Sibling'])
+                for (final relation in [
+                  'Father',
+                  'Mother',
+                  if (!noSibling) 'Sibling',
+                ])
                   OutlinedButton(
                     onPressed: () => _copyGuardian(relation),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 52),
+                    ),
                     child: Text('Use $relation as Guardian'),
                   ),
               ],
@@ -1371,7 +1442,7 @@ class _StepFamilyState extends State<StepFamily> {
                     ),
                     onChanged: (value) {
                       widget.data.parentPreviousProvince = value;
-                      _syncPreviousOrigin();
+                      _syncPreviousOrigrn();
                       widget.onChanged();
                     },
                   ),

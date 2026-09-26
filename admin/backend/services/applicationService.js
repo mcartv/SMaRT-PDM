@@ -117,11 +117,23 @@ function buildReplacementNotification(applicationId, reviews = []) {
         };
     }
 
+    const documentReview = reviews.find(
+        (review) => review.reviewStatus === 'reupload_required'
+    );
+
+    const documentName =
+        documentReview?.documentName ||
+        DOCUMENT_TYPE_TO_NAME[documentReview?.documentKey] ||
+        'Application Requirement';
+
+    const remark = String(documentReview?.comment || '').trim();
+
     return {
-        type: 'Application',
-        title: 'Application Correction Required',
-        message:
-            'One or more application requirements need correction. Open your application to review the administrator remarks.',
+        type: 'Application Requirement',
+        title: `${documentName} Re-upload Required`,
+        message: remark
+            ? `OSFA requested a new upload for ${documentName}. Remark: ${remark}`
+            : `OSFA requested a new upload for ${documentName}. Open your application and submit the corrected document.`,
         referenceType: 'application',
         referenceId: applicationId,
     };
@@ -3900,7 +3912,7 @@ exports.saveApplicationDocumentReview = async ({
 
     const { data: applicationRecord, error: applicationError } = await supabase
         .from('applications')
-        .select('application_id, verification_status')
+        .select('application_id, student_id, verification_status')
         .eq('application_id', applicationId)
         .maybeSingle();
 
@@ -4109,6 +4121,43 @@ exports.saveApplicationDocumentReview = async ({
         throw new Error(applicationUpdateError.message);
     }
 
+    let notification = null;
+
+    if (
+        reviewStatus === 'reupload_required' &&
+        applicationRecord?.student_id
+    ) {
+        const { data: studentRow, error: studentError } = await supabase
+            .from('students')
+            .select('user_id')
+            .eq('student_id', applicationRecord.student_id)
+            .maybeSingle();
+
+        if (studentError) {
+            console.error(
+                'SUPABASE DOCUMENT REVIEW STUDENT LOOKUP ERROR:',
+                studentError
+            );
+        }
+
+        if (studentRow?.user_id) {
+            notification = await deliverVerificationOutcomeNotification({
+                outcome: 'reupload_required',
+                applicationId,
+                userId: studentRow.user_id,
+                scholarId: null,
+                reviews: [
+                    {
+                        documentKey: normalizedDocumentKey,
+                        documentName,
+                        reviewStatus,
+                        comment: String(comment || '').trim(),
+                    },
+                ],
+            });
+        }
+    }
+
     return {
         application_id: applicationId,
         document_id: submittedDocument?.document_id || null,
@@ -4119,6 +4168,7 @@ exports.saveApplicationDocumentReview = async ({
         reason_code: normalizedReasonCode,
         admin_comment: String(comment || '').trim(),
         document_status: provisionalDocumentStatus,
+        notification,
         reviewed_at: savedReview?.reviewed_at || reviewedAt,
     };
 };

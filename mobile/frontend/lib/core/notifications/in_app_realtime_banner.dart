@@ -521,13 +521,16 @@ class _RealtimeBannerCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 4),
-                IconButton(
-                  onPressed: onDismiss,
-                  tooltip: 'Dismiss',
-                  visualDensity: VisualDensity.compact,
-                  iconSize: 18,
-                  color: scheme.onSurfaceVariant,
-                  icon: const Icon(Icons.close_rounded),
+                Semantics(
+                  button: true,
+                  label: 'Dismiss notification',
+                  child: IconButton(
+                    onPressed: onDismiss,
+                    visualDensity: VisualDensity.compact,
+                    iconSize: 18,
+                    color: scheme.onSurfaceVariant,
+                    icon: const Icon(Icons.close_rounded),
+                  ),
                 ),
               ],
             ),

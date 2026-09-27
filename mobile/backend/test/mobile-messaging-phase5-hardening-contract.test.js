@@ -35,7 +35,7 @@ test('former group API refuses post-cutoff messages', () => {
 test('mobile UI marks former groups as removed/read-only and removes active controls', () => {
   const list = mobile('lib/features/messaging/presentation/screens/chat_list_screen.dart');
   const screen = mobile('lib/features/messaging/presentation/screens/messaging_screen.dart');
-  assert.match(list, /REMOVED · READ ONLY/);
+  assert.match(list, /Read only/);
   assert.match(list, /Previous group · read-only history/);
   assert.match(screen, /You are no longer in this group/);
   assert.match(screen, /person_remove_alt_1_rounded/);

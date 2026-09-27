@@ -48,7 +48,7 @@ test('messaging errors are actionable and do not expose backend wording', () => 
   assert.match(messagingProvider, /We could not complete that messaging action/);
   assert.doesNotMatch(messagingProvider, /The messaging server took too long/);
   assert.match(messaging, /We could not send your message/);
-  assert.match(chatList, /Archived chats/);
+  assert.match(chatList, /Archived Messages/);
 });
 
 test('notifications use student-facing categories and safe errors', () => {

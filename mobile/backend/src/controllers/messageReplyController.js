@@ -1,4 +1,5 @@
 const replyService = require('../services/messageReplyCompatibility');
+const messageHistoryService = require('../services/messageHistoryService');
 const { getSafeStatusCode } = require('../utils/httpStatus');
 
 function userId(req) {
@@ -26,11 +27,16 @@ exports.sendThreadReply = async (req, res) => {
     const body = messageBody(req);
     if (!body) return res.status(400).json({ error: 'Message body is required.' });
 
+    const currentUserId = userId(req);
+    const supportCounterpartyId = await messageHistoryService.resolveSupportCounterpartyId(
+      currentUserId,
+      req.body?.counterpartyId ?? req.body?.counterparty_id ?? null
+    );
     const payload = await replyService.sendPrivateReply({
-      userId: userId(req),
+      userId: currentUserId,
       messageBody: body,
       replyToMessageId: replyToMessageId(req),
-      counterpartyId: req.body?.counterpartyId ?? req.body?.counterparty_id,
+      counterpartyId: supportCounterpartyId,
     });
     return res.status(201).json(payload);
   } catch (error) {

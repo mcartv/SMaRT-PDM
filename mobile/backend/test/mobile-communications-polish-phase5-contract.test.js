@@ -24,6 +24,13 @@ const messaging = readFrontend(
   'screens',
   'messaging_screen.dart'
 );
+const client = readFrontend(
+  'features',
+  'messaging',
+  'data',
+  'services',
+  'message_service.dart'
+);
 const notifications = readFrontend(
   'features',
   'notifications',
@@ -51,22 +58,27 @@ test('Phase 5 preserves communication workflows and realtime ownership', () => {
   assert.match(messaging, /_sendMessage/);
   assert.match(messaging, /_sendQuickLike/);
   assert.match(messaging, /_loadOlderMessages/);
-  assert.match(chatList, /archivePrivateThread/);
-  assert.match(chatList, /restoreArchivedThread/);
+  assert.match(chatList, /_archiveSupport/);
+  assert.match(chatList, /_archiveGroup/);
+  assert.match(client, /archiveSupportConversation/);
+  assert.match(client, /restoreSupportConversation/);
   assert.match(notifications, /markAsRead/);
   assert.match(notifications, /markAllAsRead/);
   assert.match(announcements, /markViewed/);
   assert.match(announcements, /announcementRevision/);
 });
 
-test('conversation cards keep read-only state below the full title', () => {
+test('conversation cards keep read-only state below the title', () => {
   assert.match(chatList, /SMART-PDM_MOBILE_MESSAGING_LIST_RESPONSIVE_PHASE5_V1/);
-  const tile = sectionBetween(chatList, 'class _ConversationTile', 'class _ArchivedHint');
+  const tile = sectionBetween(
+    chatList,
+    'class _ConversationTile',
+    'class _EmptyConversationState'
+  );
   const titleIndex = tile.indexOf('title,');
-  const stateIndex = tile.indexOf("'REMOVED · READ ONLY'");
+  const stateIndex = tile.indexOf("'Read only'");
   assert.ok(titleIndex >= 0, 'conversation title is missing');
   assert.ok(stateIndex > titleIndex, 'read-only state should follow the title');
-  assert.doesNotMatch(tile.slice(titleIndex, stateIndex), /TextOverflow\.ellipsis/);
   assert.match(tile, /PopupMenuButton<String>/);
 });
 

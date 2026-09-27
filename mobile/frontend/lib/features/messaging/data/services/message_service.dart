@@ -81,6 +81,92 @@ class ArchivedMessageThread {
   }
 }
 
+class SupportConversation {
+  final String counterpartyId;
+  final String title;
+  final String personName;
+  final String role;
+  final String roleLabel;
+  final String email;
+  final String department;
+  final String position;
+  final String lastMessage;
+  final DateTime? lastSentAt;
+  final int unreadCount;
+  final bool pinned;
+  final String? archiveId;
+  final DateTime? archivedAt;
+
+  const SupportConversation({
+    required this.counterpartyId,
+    required this.title,
+    this.personName = '',
+    this.role = '',
+    this.roleLabel = '',
+    this.email = '',
+    this.department = '',
+    this.position = '',
+    this.lastMessage = '',
+    this.lastSentAt,
+    this.unreadCount = 0,
+    this.pinned = false,
+    this.archiveId,
+    this.archivedAt,
+  });
+
+  factory SupportConversation.fromJson(Map<String, dynamic> json) {
+    String pick(List<String> keys) {
+      for (final key in keys) {
+        final value = json[key]?.toString().trim() ?? '';
+        if (value.isNotEmpty) return value;
+      }
+      return '';
+    }
+
+    bool pickBool(List<String> keys) {
+      for (final key in keys) {
+        final value = json[key];
+        if (value is bool) return value;
+        if (value is num) return value != 0;
+        if (value is String) {
+          final normalized = value.toLowerCase();
+          if (normalized == 'true' || normalized == '1') return true;
+        }
+      }
+      return false;
+    }
+
+    DateTime? pickDate(List<String> keys) {
+      final raw = pick(keys);
+      return raw.isEmpty ? null : DateTime.tryParse(raw);
+    }
+
+    return SupportConversation(
+      counterpartyId: pick(['counterpartyId', 'counterparty_id']),
+      title: pick(['title', 'name']).isNotEmpty
+          ? pick(['title', 'name'])
+          : 'Administrative Personnel',
+      personName: pick(['personName', 'person_name']),
+      role: pick(['role']),
+      roleLabel: pick(['roleLabel', 'role_label']),
+      email: pick(['email']),
+      department: pick(['department']),
+      position: pick(['position']),
+      lastMessage: pick(['lastMessage', 'last_message']),
+      lastSentAt: pickDate(['lastSentAt', 'last_sent_at']),
+      unreadCount:
+          (json['unreadCount'] as num?)?.toInt() ??
+          (json['unread_count'] as num?)?.toInt() ??
+          0,
+      pinned: pickBool(['pinned', 'isPinned', 'is_pinned']),
+      archiveId: pick(['archiveId', 'archive_id']).isEmpty
+          ? null
+          : pick(['archiveId', 'archive_id']),
+      archivedAt: pickDate(['archivedAt', 'archived_at']),
+    );
+  }
+}
+
 class ChatRoom {
   final String roomId;
   final String roomName;
@@ -206,12 +292,31 @@ class MessageService {
     : _apiClient = apiClient ?? ApiClient();
 
   static const int historyBatchSize = 30;
+  static SupportConversation? _selectedSupportConversation;
+
+  static SupportConversation? get selectedSupportConversation =>
+      _selectedSupportConversation;
+
+  static void selectSupportConversation(SupportConversation? conversation) {
+    _selectedSupportConversation = conversation;
+  }
+
   final ApiClient _apiClient;
 
   Future<MessageThreadResult> fetchThread() async {
+    final selectedCounterpartyId =
+        (_selectedSupportConversation?.counterpartyId ?? '').trim();
+    final query = Uri(
+      queryParameters: <String, String>{
+        'limit': '$historyBatchSize',
+        if (selectedCounterpartyId.isNotEmpty)
+          'counterpartyId': selectedCounterpartyId,
+      },
+    ).query;
+
     try {
       final response = await _apiClient.getObject(
-        '/api/messages/thread/window?limit=$historyBatchSize',
+        '/api/messages/thread/window?$query',
       );
       _lastConversationCounterpartyId = _readCounterpartyId(response);
       return MessageThreadResult(
@@ -221,7 +326,7 @@ class MessageService {
       );
     } on ApiException catch (error) {
       if (!_shouldFallbackToConversationList(error)) rethrow;
-      return _fetchThreadLegacy();
+      return _fetchThreadLegacy(counterpartyId: selectedCounterpartyId);
     }
   }
 
@@ -245,39 +350,20 @@ class MessageService {
     );
   }
 
-  Future<MessageThreadResult> _fetchThreadLegacy() async {
-    try {
-      final response = await _apiClient.getObject('/api/messages/thread');
-      _lastConversationCounterpartyId = _readCounterpartyId(response);
-      return MessageThreadResult(
-        counterpartyId: _lastConversationCounterpartyId,
-        items: _parseItems(response['items']),
-      );
-    } on ApiException catch (error) {
-      if (!_shouldFallbackToConversationList(error)) rethrow;
+  Future<MessageThreadResult> _fetchThreadLegacy({String? counterpartyId}) async {
+    final selectedCounterpartyId = (counterpartyId ?? '').trim();
+    final query = selectedCounterpartyId.isEmpty
+        ? ''
+        : '?${Uri(queryParameters: <String, String>{
+            'counterpartyId': selectedCounterpartyId,
+          }).query}';
 
-      final conversations = await _fetchConversationList();
-      if (conversations.isEmpty) {
-        return const MessageThreadResult(counterpartyId: '', items: []);
-      }
-
-      final preferred = _pickPreferredConversation(conversations);
-      final counterpartyId =
-          preferred['counterparty_id']?.toString().trim() ?? '';
-
-      if (counterpartyId.isEmpty) {
-        return const MessageThreadResult(counterpartyId: '', items: []);
-      }
-
-      final response = await _apiClient.getObject(
-        '/api/messages/conversations/$counterpartyId',
-      );
-
-      return MessageThreadResult(
-        counterpartyId: counterpartyId,
-        items: _parseItems(response['items']),
-      );
-    }
+    final response = await _apiClient.getObject('/api/messages/thread$query');
+    _lastConversationCounterpartyId = _readCounterpartyId(response);
+    return MessageThreadResult(
+      counterpartyId: _lastConversationCounterpartyId,
+      items: _parseItems(response['items']),
+    );
   }
 
   Future<ChatMessage> sendThreadMessage(
@@ -380,6 +466,73 @@ class MessageService {
 
       return MessageReadResult(updatedCount: ids.length, messageIds: ids);
     }
+  }
+
+  Future<List<SupportConversation>> fetchSupportConversations() async {
+    final response = await _apiClient.getObject(
+      '/api/messages/support-conversations',
+    );
+    final items = response['items'] as List<dynamic>? ?? const [];
+    return items
+        .whereType<Map>()
+        .map(
+          (item) => SupportConversation.fromJson(
+            Map<String, dynamic>.from(item),
+          ),
+        )
+        .where((item) => item.counterpartyId.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  Future<SupportConversation> resolveSupportConversation(
+    String referenceId,
+  ) async {
+    final normalizedReferenceId = referenceId.trim();
+    final query = Uri(
+      queryParameters: <String, String>{
+        'referenceId': normalizedReferenceId,
+      },
+    ).query;
+    final response = await _apiClient.getObject(
+      '/api/messages/support-conversations/resolve?$query',
+    );
+    final raw = response['conversation'];
+    if (raw is! Map) {
+      throw const FormatException('Support conversation was not returned.');
+    }
+    return SupportConversation.fromJson(Map<String, dynamic>.from(raw));
+  }
+
+  Future<List<SupportConversation>> fetchArchivedSupportConversations() async {
+    final response = await _apiClient.getObject(
+      '/api/messages/support-conversations/archived',
+    );
+    final items = response['items'] as List<dynamic>? ?? const [];
+    return items
+        .whereType<Map>()
+        .map(
+          (item) => SupportConversation.fromJson(
+            Map<String, dynamic>.from(item),
+          ),
+        )
+        .where((item) => item.counterpartyId.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  Future<void> archiveSupportConversation(String counterpartyId) async {
+    final id = counterpartyId.trim();
+    if (id.isEmpty) return;
+    await _apiClient.patchJson(
+      '/api/messages/support-conversations/$id/archive',
+    );
+  }
+
+  Future<void> restoreSupportConversation(String counterpartyId) async {
+    final id = counterpartyId.trim();
+    if (id.isEmpty) return;
+    await _apiClient.patchJson(
+      '/api/messages/support-conversations/$id/restore',
+    );
   }
 
   Future<int> fetchUnreadCount() async {
@@ -588,10 +741,20 @@ class MessageService {
   }
 
   Future<void> archivePrivateThread() async {
+    final selectedId = (_selectedSupportConversation?.counterpartyId ?? '').trim();
+    if (selectedId.isNotEmpty) {
+      await archiveSupportConversation(selectedId);
+      return;
+    }
     await _apiClient.patchJson('/api/messages/thread/archive');
   }
 
   Future<void> restorePrivateThread() async {
+    final selectedId = (_selectedSupportConversation?.counterpartyId ?? '').trim();
+    if (selectedId.isNotEmpty) {
+      await restoreSupportConversation(selectedId);
+      return;
+    }
     await _apiClient.patchJson('/api/messages/thread/restore');
   }
 

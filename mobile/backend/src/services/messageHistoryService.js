@@ -329,6 +329,68 @@ async function fetchRoomWindow(currentUserId, roomId, options = {}) {
   };
 }
 
+async function syncPrivateReadState(currentUserId, counterpartyId) {
+  const userId = safeText(currentUserId);
+  const supportUserId = safeText(counterpartyId);
+  if (!isUuid(userId) || !isUuid(supportUserId)) {
+    throw createHttpError(400, 'A valid private conversation is required.');
+  }
+
+  const target = await db.query(
+    `
+      SELECT message_id
+      FROM messages
+      WHERE room_id IS NULL
+        AND receiver_id = $1::uuid
+        AND sender_id = $2::uuid;
+    `,
+    [userId, supportUserId]
+  );
+
+  const messageIds = target.rows
+    .map((row) => safeText(row.message_id))
+    .filter((messageId) => isUuid(messageId));
+
+  if (!messageIds.length) {
+    return { updatedCount: 0, messageIds: [] };
+  }
+
+  await db.query(
+    `
+      INSERT INTO message_read_states (
+        message_id,
+        user_id,
+        is_read
+      )
+      SELECT
+        unnest($1::uuid[]),
+        $2::uuid,
+        true
+      ON CONFLICT (message_id, user_id)
+      DO UPDATE SET
+        is_read = true,
+        updated_at = now();
+    `,
+    [messageIds, userId]
+  );
+
+  await db.query(
+    `
+      UPDATE messages
+      SET is_read = true
+      WHERE message_id = ANY($1::uuid[])
+        AND receiver_id = $2::uuid
+        AND sender_id = $3::uuid;
+    `,
+    [messageIds, userId, supportUserId]
+  );
+
+  return {
+    updatedCount: messageIds.length,
+    messageIds,
+  };
+}
+
 async function getMobileUnreadCount(currentUserId) {
   const userId = safeText(currentUserId);
   if (!isUuid(userId)) {
@@ -347,5 +409,6 @@ module.exports = {
   resolveFixedOsfaCounterpartyId,
   fetchPrivateWindow,
   fetchRoomWindow,
+  syncPrivateReadState,
   getMobileUnreadCount,
 };

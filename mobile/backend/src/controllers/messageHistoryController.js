@@ -154,7 +154,29 @@ exports.markFixedThreadRead = async (req, res) => {
       currentUserId,
       supportCounterpartyId
     );
-    return res.status(200).json(payload);
+
+    // Keep the canonical per-user read-state table aligned with the legacy
+    // messages.is_read flag. This also repairs rows created before this fix,
+    // preventing an opened conversation from reappearing as unread.
+    const synchronized = await messageHistoryService.syncPrivateReadState(
+      currentUserId,
+      supportCounterpartyId
+    );
+
+    const messageIds = Array.from(
+      new Set([
+        ...(payload.messageIds || payload.message_ids || []),
+        ...synchronized.messageIds,
+      ])
+    );
+
+    return res.status(200).json({
+      ...payload,
+      updatedCount: messageIds.length,
+      updated_count: messageIds.length,
+      messageIds,
+      message_ids: messageIds,
+    });
   } catch (error) {
     console.error('MARK MOBILE FIXED MESSAGE THREAD READ ERROR:', error);
     return res.status(getSafeStatusCode(error)).json({

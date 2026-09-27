@@ -68,8 +68,9 @@ test('Phase 5 preserves communication workflows and realtime ownership', () => {
   assert.match(announcements, /announcementRevision/);
 });
 
-test('conversation cards keep read-only state below the title', () => {
+test('conversation rows keep read-only state and use compact long-press archive actions', () => {
   assert.match(chatList, /SMART-PDM_MOBILE_MESSAGING_LIST_RESPONSIVE_PHASE5_V1/);
+  assert.match(chatList, /SMART-PDM_MOBILE_MESSAGING_REFACTOR_FINAL_V3/);
   const tile = sectionBetween(
     chatList,
     'class _ConversationTile',
@@ -79,7 +80,9 @@ test('conversation cards keep read-only state below the title', () => {
   const stateIndex = tile.indexOf("'Read only'");
   assert.ok(titleIndex >= 0, 'conversation title is missing');
   assert.ok(stateIndex > titleIndex, 'read-only state should follow the title');
-  assert.match(tile, /PopupMenuButton<String>/);
+  assert.match(tile, /onLongPress:/);
+  assert.match(tile, /Icons\.chevron_right_rounded/);
+  assert.doesNotMatch(tile, /PopupMenuButton<String>/);
 });
 
 test('message thread scales its header and bounds bubbles on wide screens', () => {

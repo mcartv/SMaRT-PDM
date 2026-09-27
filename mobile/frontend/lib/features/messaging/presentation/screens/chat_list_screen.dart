@@ -22,8 +22,19 @@ String _messagePreview(String? value, String fallback) {
 
 // SMART-PDM_MOBILE_MESSAGING_LIST_RESPONSIVE_PHASE5_V1
 // SMART-PDM_MOBILE_MESSAGING_REFACTOR_FINAL_V2
+// SMART-PDM_MOBILE_MESSAGING_REFACTOR_FINAL_V3
 
 enum _MessageListFilter { all, unread, groups }
+
+class _ConversationListEntry {
+  const _ConversationListEntry.support(this.support) : room = null;
+  const _ConversationListEntry.room(this.room) : support = null;
+
+  final SupportConversation? support;
+  final ChatRoom? room;
+
+  DateTime? get lastSentAt => support?.lastSentAt ?? room?.lastSentAt;
+}
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
@@ -131,9 +142,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
     super.dispose();
   }
 
-  void _openSupportThread(SupportConversation conversation) {
+  Future<void> _openSupportThread(SupportConversation conversation) async {
     MessageService.selectSupportConversation(conversation);
-    AppNavigator.pushDetail(
+    await AppNavigator.pushDetail(
       context,
       AppRoutes.chatThread,
       arguments: {
@@ -141,14 +152,26 @@ class _ChatListScreenState extends State<ChatListScreen> {
         'title': conversation.title,
       },
     );
+    if (!mounted) return;
+    await (_provider ?? context.read<MessagingProvider>()).refreshUnreadCount(
+      notify: false,
+    );
+    await _refreshSupportConversations();
   }
 
-  void _openGroupThread(String roomId, String roomName) {
+  Future<void> _openGroupThread(String roomId, String roomName) async {
     MessageService.selectSupportConversation(null);
-    AppNavigator.pushDetail(
+    await AppNavigator.pushDetail(
       context,
       AppRoutes.chatThread,
       arguments: {'roomId': roomId, 'title': roomName},
+    );
+    if (!mounted) return;
+    await (_provider ?? context.read<MessagingProvider>()).fetchGroups(
+      notify: false,
+    );
+    await (_provider ?? context.read<MessagingProvider>()).refreshUnreadCount(
+      notify: false,
     );
   }
 
@@ -292,6 +315,21 @@ class _ChatListScreenState extends State<ChatListScreen> {
     }
   }
 
+  Color _supportAccent(BuildContext context, SupportConversation conversation) {
+    switch (conversation.role.toLowerCase()) {
+      case 'sdo':
+        return Theme.of(context).extension<AppStatusColors>()!.dangerOutline;
+      case 'guidance':
+        return AppColors.teal;
+      case 'pd':
+        return AppColors.magenta;
+      case 'ro_coordinator':
+        return AppColors.orange;
+      default:
+        return AppColors.gold;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<MessagingProvider>();
@@ -335,6 +373,15 @@ class _ChatListScreenState extends State<ChatListScreen> {
       return _matchesSearch(room.roomName, preview);
     }).toList(growable: false);
 
+    final remainingConversations = <_ConversationListEntry>[
+      ...otherSupport.map(_ConversationListEntry.support),
+      ...visibleRooms.map(_ConversationListEntry.room),
+    ]..sort((left, right) {
+        final leftTime = left.lastSentAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final rightTime = right.lastSentAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return rightTime.compareTo(leftTime);
+      });
+
     final totalUnread = _supportConversations.fold<int>(
           0,
           (sum, conversation) => sum + conversation.unreadCount,
@@ -344,8 +391,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
           (sum, room) => sum + (room.readOnly ? 0 : room.unreadCount),
         );
 
-    final hasOtherConversations =
-        otherSupport.isNotEmpty || visibleRooms.isNotEmpty;
+    final hasOtherConversations = remainingConversations.isNotEmpty;
     final hasVisibleConversation =
         pinnedConversation != null || hasOtherConversations;
     final errorMessage = _supportError ?? provider.errorMessage;
@@ -406,13 +452,18 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   filled: true,
                   fillColor: AppSurfacePalette.surfaceMuted(context),
                   border: OutlineInputBorder(
-                    borderRadius: AppRadii.control,
+                    borderRadius: BorderRadius.circular(18),
                     borderSide: BorderSide.none,
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: AppRadii.control,
-                    borderSide: BorderSide(
-                      color: AppSurfacePalette.outline(context),
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: const BorderSide(
+                      color: AppColors.gold,
+                      width: 1.2,
                     ),
                   ),
                 ),
@@ -457,6 +508,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   ),
                   timeLabel: _conversationTime(pinnedConversation.lastSentAt),
                   unreadCount: pinnedConversation.unreadCount,
+                  accentColor: _supportAccent(context, pinnedConversation),
+                  schoolLogo: true,
                   pinned: true,
                   onTap: () => _openSupportThread(pinnedConversation!),
                   onArchive: () => _archiveSupport(pinnedConversation!),
@@ -466,10 +519,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 Divider(color: AppSurfacePalette.outline(context)),
                 const SizedBox(height: 6),
               ],
-              ...otherSupport.map(
-                (conversation) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _ConversationTile(
+              ...remainingConversations.map((entry) {
+                final conversation = entry.support;
+                if (conversation != null) {
+                  return _ConversationTile(
                     icon: _supportIcon(conversation),
                     title: conversation.title,
                     subtitle: _messagePreview(
@@ -480,33 +533,34 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     ),
                     timeLabel: _conversationTime(conversation.lastSentAt),
                     unreadCount: conversation.unreadCount,
+                    accentColor: _supportAccent(context, conversation),
                     onTap: () => _openSupportThread(conversation),
                     onArchive: () => _archiveSupport(conversation),
+                  );
+                }
+
+                final room = entry.room!;
+                return _ConversationTile(
+                  icon: room.readOnly
+                      ? Icons.history_rounded
+                      : Icons.groups_rounded,
+                  title: room.roomName,
+                  subtitle: _messagePreview(
+                    room.lastMessage,
+                    room.readOnly
+                        ? 'Previous group · read-only history'
+                        : 'Group chat',
                   ),
-                ),
-              ),
-              ...visibleRooms.map(
-                (room) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _ConversationTile(
-                    icon: room.readOnly
-                        ? Icons.history_rounded
-                        : Icons.groups_rounded,
-                    title: room.roomName,
-                    subtitle: _messagePreview(
-                      room.lastMessage,
-                      room.readOnly
-                          ? 'Previous group · read-only history'
-                          : 'Group chat',
-                    ),
-                    timeLabel: _conversationTime(room.lastSentAt),
-                    unreadCount: room.readOnly ? 0 : room.unreadCount,
-                    readOnly: room.readOnly,
-                    onTap: () => _openGroupThread(room.roomId, room.roomName),
-                    onArchive: room.readOnly ? null : () => _archiveGroup(room),
-                  ),
-                ),
-              ),
+                  timeLabel: _conversationTime(room.lastSentAt),
+                  unreadCount: room.readOnly ? 0 : room.unreadCount,
+                  accentColor: room.readOnly
+                      ? AppColors.lightGray
+                      : AppColors.brown,
+                  readOnly: room.readOnly,
+                  onTap: () => _openGroupThread(room.roomId, room.roomName),
+                  onArchive: room.readOnly ? null : () => _archiveGroup(room),
+                );
+              }),
               if ((provider.isLoading || _supportRefreshing) &&
                   !hasVisibleConversation)
                 const Padding(
@@ -567,22 +621,17 @@ class _MessageFilterChip extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
       color: selected
-          ? AppColors.gold.withValues(alpha: isDark ? 0.28 : 0.20)
-          : AppSurfacePalette.surface(context),
+          ? (isDark ? AppColors.gold : AppColors.brown)
+          : AppSurfacePalette.surfaceMuted(context),
       borderRadius: AppRadii.status,
       child: InkWell(
         onTap: onTap,
         borderRadius: AppRadii.status,
         child: Container(
-          constraints: const BoxConstraints(minHeight: 42),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+          constraints: const BoxConstraints(minHeight: 38),
+          padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 8),
           decoration: BoxDecoration(
             borderRadius: AppRadii.status,
-            border: Border.all(
-              color: selected
-                  ? AppColors.gold.withValues(alpha: 0.65)
-                  : AppSurfacePalette.outline(context),
-            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -591,9 +640,7 @@ class _MessageFilterChip extends StatelessWidget {
                 label,
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
                   color: selected
-                      ? (isDark
-                            ? AppColors.applicantDarkText
-                            : AppColors.darkBrown)
+                      ? (isDark ? AppColors.darkBrown : Colors.white)
                       : AppSurfacePalette.text(context),
                   fontWeight: FontWeight.w800,
                 ),
@@ -636,6 +683,8 @@ class _ConversationTile extends StatelessWidget {
     this.onArchive,
     this.readOnly = false,
     this.pinned = false,
+    this.accentColor,
+    this.schoolLogo = false,
   });
 
   final IconData icon;
@@ -647,38 +696,64 @@ class _ConversationTile extends StatelessWidget {
   final Future<void> Function()? onArchive;
   final bool readOnly;
   final bool pinned;
+  final Color? accentColor;
+  final bool schoolLogo;
 
   @override
   Widget build(BuildContext context) {
     final hasUnread = unreadCount > 0;
     final status = Theme.of(context).extension<AppStatusColors>()!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = accentColor ?? AppColors.gold;
+    final tileColor = pinned
+        ? AppColors.gold.withValues(alpha: isDark ? 0.20 : 0.12)
+        : Colors.transparent;
 
     return Material(
-      color: pinned
-          ? AppColors.gold.withValues(alpha: isDark ? 0.16 : 0.10)
-          : hasUnread
-          ? AppColors.gold.withValues(alpha: isDark ? 0.12 : 0.08)
-          : AppSurfacePalette.surface(context),
-      borderRadius: AppRadii.card,
+      color: tileColor,
+      borderRadius: pinned ? AppRadii.card : BorderRadius.zero,
       child: InkWell(
         onTap: onTap,
-        borderRadius: AppRadii.card,
+        onLongPress: onArchive == null ? null : () => unawaited(onArchive!()),
+        borderRadius: pinned ? AppRadii.card : BorderRadius.zero,
         child: Container(
-          padding: const EdgeInsets.all(AppSpacing.md),
+          padding: EdgeInsets.fromLTRB(
+            pinned ? 12 : 4,
+            pinned ? 12 : 10,
+            pinned ? 10 : 2,
+            pinned ? 12 : 10,
+          ),
           decoration: BoxDecoration(
-            borderRadius: AppRadii.card,
-            border: Border.all(
-              color: pinned
-                  ? AppColors.gold.withValues(alpha: 0.58)
-                  : AppSurfacePalette.outline(context),
-            ),
+            borderRadius: pinned ? AppRadii.card : BorderRadius.zero,
+            border: pinned
+                ? Border.all(color: AppColors.gold.withValues(alpha: 0.48))
+                : Border(
+                    bottom: BorderSide(
+                      color: AppSurfacePalette.outline(context).withValues(alpha: 0.70),
+                    ),
+                  ),
           ),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              AppIconTile(icon: icon),
-              const SizedBox(width: AppSpacing.md),
+              CircleAvatar(
+                radius: pinned ? 25 : 23,
+                backgroundColor: accent.withValues(alpha: isDark ? 0.28 : 0.16),
+                child: schoolLogo
+                    ? Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Image.asset(
+                          'assets/images/school_logo.png',
+                          fit: BoxFit.contain,
+                        ),
+                      )
+                    : Icon(
+                        icon,
+                        size: pinned ? 23 : 21,
+                        color: pinned && !isDark ? AppColors.brown : accent,
+                      ),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -690,12 +765,11 @@ class _ConversationTile extends StatelessWidget {
                             title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleSmall
-                                ?.copyWith(
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
                                   color: AppSurfacePalette.text(context),
                                   fontWeight: hasUnread || pinned
                                       ? FontWeight.w900
-                                      : FontWeight.w700,
+                                      : FontWeight.w800,
                                 ),
                           ),
                         ),
@@ -703,130 +777,77 @@ class _ConversationTile extends StatelessWidget {
                           const SizedBox(width: 6),
                           const Icon(
                             Icons.push_pin_rounded,
-                            size: 16,
+                            size: 15,
                             color: AppColors.gold,
                           ),
                         ],
                       ],
                     ),
                     if (readOnly) ...[
-                      const SizedBox(height: AppSpacing.xs),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.gold.withValues(alpha: 0.13),
-                          borderRadius: AppRadii.status,
-                        ),
-                        child: Text(
-                          'Read only',
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                color: AppColors.gold,
-                                fontWeight: FontWeight.w800,
-                              ),
-                        ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Read only',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: AppColors.gold,
+                              fontWeight: FontWeight.w800,
+                            ),
                       ),
                     ],
-                    const SizedBox(height: AppSpacing.xs),
+                    const SizedBox(height: 4),
                     Text(
                       subtitle,
-                      maxLines: 2,
+                      maxLines: pinned ? 2 : 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: hasUnread
-                            ? AppSurfacePalette.text(context)
-                            : AppSurfacePalette.mutedText(context),
-                        fontWeight: hasUnread
-                            ? FontWeight.w700
-                            : FontWeight.w500,
-                        height: 1.3,
-                      ),
+                            color: hasUnread
+                                ? AppSurfacePalette.text(context)
+                                : AppSurfacePalette.mutedText(context),
+                            fontWeight: hasUnread ? FontWeight.w700 : FontWeight.w500,
+                            height: 1.3,
+                          ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
+              const SizedBox(width: 10),
               Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  if (timeLabel.isNotEmpty) ...[
+                  if (timeLabel.isNotEmpty)
                     Text(
                       timeLabel,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: AppSurfacePalette.mutedText(context),
-                        fontWeight: FontWeight.w600,
-                      ),
+                            color: AppSurfacePalette.mutedText(context),
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
-                    const SizedBox(height: 6),
-                  ],
+                  const SizedBox(height: 7),
                   if (unreadCount > 0)
                     Container(
-                      constraints: const BoxConstraints(
-                        minWidth: 24,
-                        minHeight: 24,
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 4,
-                      ),
+                      constraints: const BoxConstraints(minWidth: 23, minHeight: 23),
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
                       decoration: BoxDecoration(
-                        color: status.dangerOutline,
-                        borderRadius: AppRadii.status,
+                        color: pinned ? status.dangerOutline : AppColors.gold,
+                        shape: unreadCount < 10 ? BoxShape.circle : BoxShape.rectangle,
+                        borderRadius: unreadCount < 10 ? null : AppRadii.status,
                       ),
                       child: Text(
                         unreadCount > 99 ? '99+' : '$unreadCount',
-                        textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                        ),
+                              color: pinned ? Colors.white : AppColors.darkBrown,
+                              fontWeight: FontWeight.w900,
+                            ),
                       ),
-                    ),
-                  if (onArchive != null)
-                    PopupMenuButton<String>(
-                      tooltip: 'Conversation options',
-                      onSelected: (value) {
-                        if (value == 'archive') unawaited(onArchive!());
-                      },
-                      itemBuilder: (context) => [
-                        PopupMenuItem<String>(
-                          value: 'archive',
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.archive_outlined,
-                                size: 19,
-                                color: AppButtonStyles.destructiveColor(context),
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                'Archive',
-                                style: TextStyle(
-                                  color: AppButtonStyles.destructiveColor(
-                                    context,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
                     )
-                  else if (unreadCount == 0)
-                    Padding(
-                      padding: const EdgeInsets.only(top: AppSpacing.sm),
-                      child: Icon(
-                        readOnly
-                            ? Icons.history_rounded
-                            : Icons.chevron_right_rounded,
-                        color: readOnly
-                            ? AppColors.gold
-                            : AppSurfacePalette.mutedText(context),
-                      ),
+                  else
+                    Icon(
+                      readOnly ? Icons.history_rounded : Icons.chevron_right_rounded,
+                      size: 21,
+                      color: readOnly
+                          ? AppColors.gold
+                          : AppSurfacePalette.mutedText(context),
                     ),
                 ],
               ),

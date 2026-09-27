@@ -17,6 +17,7 @@ import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 // SMART-PDM_MOBILE_MESSAGING_THREAD_RESPONSIVE_PHASE5_V1
+// SMART-PDM_MOBILE_MESSAGING_VISUAL_V3
 
 class MessagingScreen extends StatefulWidget {
   const MessagingScreen({
@@ -69,6 +70,14 @@ class _MessagingScreenState extends State<MessagingScreen> {
     return supplied.isNotEmpty ? supplied : 'OSFA Administrator';
   }
 
+  String get _privateConversationSubtitle {
+    final contact = MessageService.selectedSupportConversation;
+    final position = (contact?.position ?? '').trim();
+    if (position.isNotEmpty) return position;
+    final role = (contact?.roleLabel ?? '').trim();
+    return role.isNotEmpty ? role : 'Private conversation';
+  }
+
   String? get _normalizedRoomId {
     final value = widget.roomId?.trim();
     return value == null || value.isEmpty ? null : value;
@@ -96,7 +105,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
   @override
   void didUpdateWidget(covariant MessagingScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.roomId?.trim() != widget.roomId?.trim()) {
+    if (oldWidget.roomId?.trim() != widget.roomId?.trim() ||
+        oldWidget.counterpartyId?.trim() != widget.counterpartyId?.trim() ||
+        oldWidget.messageReferenceId?.trim() != widget.messageReferenceId?.trim()) {
       _resetHistoryWindow();
       WidgetsBinding.instance.addPostFrameCallback((_) => _openThread());
     }
@@ -237,6 +248,10 @@ class _MessagingScreenState extends State<MessagingScreen> {
         if (mounted) setState(() {});
       }
       await provider.enterThread();
+      // enterThread marks this office conversation as read. Reconcile the
+      // global unread total afterward so unread messages from other offices
+      // remain counted correctly.
+      await provider.refreshUnreadCount(notify: false);
     }
 
     if (!mounted) return;
@@ -385,10 +400,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
       final provider = _provider ?? context.read<MessagingProvider>();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            provider.errorMessage ??
-                'We could not send your message. Please try again.',
-          ),
+          content: Text(provider.errorMessage ?? 'We could not send your message. Please try again.'),
         ),
       );
     } finally {
@@ -542,11 +554,19 @@ class _MessagingScreenState extends State<MessagingScreen> {
             CircleAvatar(
               radius: 34,
               backgroundColor: AppColors.gold.withValues(alpha: 0.14),
-              child: Icon(
-                _privateContactIcon(contact),
-                color: AppColors.gold,
-                size: 32,
-              ),
+              child: contact?.pinned == true
+                  ? Padding(
+                      padding: const EdgeInsets.all(5),
+                      child: Image.asset(
+                        'assets/images/school_logo.png',
+                        fit: BoxFit.contain,
+                      ),
+                    )
+                  : Icon(
+                      _privateContactIcon(contact),
+                      color: AppColors.gold,
+                      size: 32,
+                    ),
             ),
             const SizedBox(height: 12),
             Text(
@@ -816,7 +836,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
                     child: ListView.separated(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
                       itemCount: members.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 4),
+                      separatorBuilder: (_, __) => const SizedBox(height: 4),
                       itemBuilder: (context, index) {
                         final member = members[index];
                         return ListTile(
@@ -1035,15 +1055,26 @@ class _MessagingScreenState extends State<MessagingScreen> {
         title: Row(
           children: [
             CircleAvatar(
-              radius: 18,
+              radius: 21,
               backgroundColor: AppColors.gold.withValues(alpha: isDark ? 0.18 : 0.14),
-              child: Icon(
-                _isGroupChat
-                    ? Icons.groups_rounded
-                    : _privateContactIcon(MessageService.selectedSupportConversation),
-                size: 19,
-                color: AppColors.gold,
-              ),
+              child: !_isGroupChat &&
+                      MessageService.selectedSupportConversation?.pinned == true
+                  ? Padding(
+                      padding: const EdgeInsets.all(3),
+                      child: Image.asset(
+                        'assets/images/school_logo.png',
+                        fit: BoxFit.contain,
+                      ),
+                    )
+                  : Icon(
+                      _isGroupChat
+                          ? Icons.groups_rounded
+                          : _privateContactIcon(
+                              MessageService.selectedSupportConversation,
+                            ),
+                      size: 21,
+                      color: AppColors.gold,
+                    ),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -1069,7 +1100,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
                               : (provider.activeGroupRoom?.memberCount ?? 0) > 0
                               ? '${provider.activeGroupRoom!.memberCount} members'
                               : 'Group chat')
-                        : 'Private conversation',
+                        : _privateConversationSubtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -1376,32 +1407,22 @@ class _DateDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-      child: Row(
-        children: [
-          Expanded(
-            child: Divider(color: AppSurfacePalette.outline(context)),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppSurfacePalette.surfaceMuted(context),
+            borderRadius: AppRadii.status,
           ),
-          const SizedBox(width: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: AppSurfacePalette.surface(context),
-              borderRadius: AppRadii.status,
-            ),
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: AppSurfacePalette.mutedText(context),
-                fontWeight: FontWeight.w800,
-              ),
-            ),
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: AppSurfacePalette.mutedText(context),
+                  fontWeight: FontWeight.w700,
+                ),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Divider(color: AppSurfacePalette.outline(context)),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1495,7 +1516,7 @@ class _MessageBubble extends StatelessWidget {
       decoration: BoxDecoration(
         color: message.isUnsent
             ? AppSurfacePalette.surface(context)
-            : isMe ? AppColors.darkBrown : incomingSurface,
+            : isMe ? AppColors.brown : incomingSurface,
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(!isMe && groupedWithPrevious ? 6 : 18),
           topRight: Radius.circular(isMe && groupedWithPrevious ? 6 : 18),
@@ -1662,6 +1683,20 @@ class _MessageBubble extends StatelessWidget {
               ),
             ],
             messageRow,
+            if (!isMe)
+              Padding(
+                padding: EdgeInsets.only(
+                  top: 4,
+                  left: isGroupChat ? 40 : 2,
+                ),
+                child: Text(
+                  timeLabel,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: AppSurfacePalette.mutedText(context),
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+              ),
             AnimatedSize(
               duration: const Duration(milliseconds: 140),
               curve: Curves.easeOut,
@@ -1934,7 +1969,7 @@ class _MessageComposer extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppSurfacePalette.surface(context),
           border: Border(
-            top: BorderSide(color: AppSurfacePalette.outline(context)),
+            top: BorderSide(color: AppSurfacePalette.outline(context).withValues(alpha: 0.65)),
           ),
         ),
         child: Column(
@@ -2000,7 +2035,7 @@ class _MessageComposer extends StatelessWidget {
                     maxLines: 5,
                     textCapitalization: TextCapitalization.sentences,
                     decoration: InputDecoration(
-                      hintText: 'Message',
+                      hintText: 'Type a message...',
                       filled: true,
                       fillColor: AppSurfacePalette.surfaceMuted(context),
                       border: OutlineInputBorder(
@@ -2028,54 +2063,51 @@ class _MessageComposer extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 9),
-                Tooltip(
-                  message: canSend ? 'Send message' : 'Send a quick like',
-                  child: SizedBox(
-                    width: 48,
-                    height: 48,
-                    child: FilledButton(
-                      onPressed: isSending ? null : (canSend ? onSend : onLike),
-                      style: FilledButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        backgroundColor: AppColors.gold,
-                        foregroundColor: AppColors.darkBrown,
-                        disabledBackgroundColor: AppSurfacePalette.surfaceMuted(
-                          context,
-                        ),
-                        shape: const CircleBorder(),
+                SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: FilledButton(
+                    onPressed: isSending ? null : (canSend ? onSend : onLike),
+                    style: FilledButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: AppColors.darkBrown,
+                      disabledBackgroundColor: AppSurfacePalette.surfaceMuted(
+                        context,
                       ),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 140),
-                        switchInCurve: Curves.easeOut,
-                        switchOutCurve: Curves.easeIn,
-                        transitionBuilder: (child, animation) => ScaleTransition(
-                          scale: Tween<double>(
-                            begin: 0.88,
-                            end: 1,
-                          ).animate(animation),
-                          child: FadeTransition(opacity: animation, child: child),
-                        ),
-                        child: isSending
-                            ? const SizedBox(
-                                key: ValueKey<String>('send-loading'),
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColors.darkBrown,
-                                ),
-                              )
-                            : canSend
-                            ? const Icon(
-                                Icons.send_rounded,
-                                key: ValueKey<String>('send-ready'),
-                              )
-                            : const Icon(
-                                Icons.thumb_up_rounded,
-                                key: ValueKey<String>('send-like'),
-                                semanticLabel: 'Send a quick like',
+                      shape: const CircleBorder(),
+                    ),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 140),
+                      switchInCurve: Curves.easeOut,
+                      switchOutCurve: Curves.easeIn,
+                      transitionBuilder: (child, animation) => ScaleTransition(
+                        scale: Tween<double>(
+                          begin: 0.88,
+                          end: 1,
+                        ).animate(animation),
+                        child: FadeTransition(opacity: animation, child: child),
+                      ),
+                      child: isSending
+                          ? const SizedBox(
+                              key: ValueKey<String>('send-loading'),
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.darkBrown,
                               ),
-                      ),
+                            )
+                          : canSend
+                          ? const Icon(
+                              Icons.send_rounded,
+                              key: ValueKey<String>('send-ready'),
+                            )
+                          : const Text(
+                              '👍',
+                              key: ValueKey<String>('send-like'),
+                              style: TextStyle(fontSize: 20),
+                            ),
                     ),
                   ),
                 ),

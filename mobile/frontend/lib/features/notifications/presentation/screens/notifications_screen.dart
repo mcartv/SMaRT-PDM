@@ -350,10 +350,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         type.contains('message') ||
         title.contains('message') ||
         message.contains('message')) {
-      // A private-message notification commonly references the message ID,
-      // not a room ID. Opening the private support thread avoids treating a
-      // message UUID as a group room UUID.
-      Navigator.pushNamed(context, AppRoutes.chatThread);
+      final messageReferenceId = (notification.referenceId ?? '').trim();
+      if (messageReferenceId.isEmpty) {
+        Navigator.pushNamed(context, AppRoutes.messaging);
+        return;
+      }
+      Navigator.pushNamed(
+        context,
+        AppRoutes.chatThread,
+        arguments: {
+          'messageReferenceId': messageReferenceId,
+        },
+      );
       return;
     }
 

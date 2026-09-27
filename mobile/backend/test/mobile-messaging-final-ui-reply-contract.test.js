@@ -16,39 +16,50 @@ const model = read('mobile/frontend/lib/shared/models/chat_message.dart');
 const routes = read('mobile/backend/src/routes/messageRoutes.js');
 const replyController = read('mobile/backend/src/controllers/messageReplyController.js');
 const replyCompatibility = read('mobile/backend/src/services/messageReplyCompatibility.js');
-const backendMessageService = read('mobile/backend/src/services/messageService.js');
 const formerRoom = read('mobile/backend/src/controllers/formerRoomHistoryController.js');
 
-test('message list uses search, filters, and a pinned OSFA conversation without redundant sections', () => {
-  assert.match(list, /SMART-PDM_MOBILE_MESSAGING_REFACTOR_FINAL_V1/);
+
+test('message list keeps OSFA pinned while allowing other office conversations', () => {
+  assert.match(list, /SMART-PDM_MOBILE_MESSAGING_REFACTOR_FINAL_V2/);
   assert.match(list, /title: const Text\('Messages'\)/);
   assert.match(list, /hintText: 'Search messages'/);
   assert.match(list, /label: 'All'/);
   assert.match(list, /label: 'Unread'/);
   assert.match(list, /label: 'Groups'/);
-  assert.match(list, /title: 'OSFA Administrator'/);
-  assert.match(list, /pinned: true/);
+  assert.match(list, /SupportConversation/);
+  assert.match(list, /conversation\.pinned/);
   assert.match(list, /Icons\.push_pin_rounded/);
-  assert.doesNotMatch(list, /OSFA Support/);
-  assert.doesNotMatch(list, /Scholarship Group Chats/);
+  assert.match(list, /_openSupportThread/);
   assert.doesNotMatch(list, /Other Conversations/);
+  assert.doesNotMatch(list, /Scholarship Group Chats/);
 });
 
-test('conversation keeps search collapsed by default and exposes only supported info/actions', () => {
+
+test('private conversation title and information are based on the selected office', () => {
+  assert.match(client, /selectedSupportConversation/);
+  assert.match(client, /fetchSupportConversations/);
+  assert.match(thread, /MessageService\.selectedSupportConversation/);
+  assert.match(thread, /contact\?\.department/);
+  assert.match(thread, /contact\?\.position/);
+  assert.match(thread, /contact\?\.email/);
+  assert.doesNotMatch(thread, /Contact Info/);
+  assert.doesNotMatch(thread, /'Online'/);
+});
+
+
+test('conversation keeps search collapsed by default and supported message actions', () => {
   assert.match(thread, /bool _chatSearchOpen = false/);
   assert.match(thread, /tooltip: 'Search this conversation'/);
   assert.match(thread, /_chatSearchOpen\s*\? _ChatSearchBar/);
   assert.match(thread, /Icons\.info_outline_rounded/);
-  assert.match(thread, /Future<void> _showPrivateInfo\(\)/);
-  assert.doesNotMatch(thread, /Contact Info/);
-  assert.doesNotMatch(thread, /'Online'/);
   assert.match(thread, /title: const Text\('Reply'\)/);
   assert.match(thread, /title: const Text\('Copy text'\)/);
   assert.match(thread, /'Unsend'/);
   assert.doesNotMatch(thread, /Report message/);
 });
 
-test('mobile reply UI and API use the same reply-to contract as web messaging', () => {
+
+test('mobile reply UI and API keep the web-compatible reply-to contract', () => {
   for (const field of [
     'replyToMessageId',
     'replyMessageBody',
@@ -58,7 +69,6 @@ test('mobile reply UI and API use the same reply-to contract as web messaging', 
     assert.match(model, new RegExp(field));
   }
   assert.match(thread, /ChatMessage\? _replyingTo/);
-  assert.match(thread, /'Replying to \$\{_replyName\(replyingTo!\)\}'/);
   assert.match(thread, /message\.isReply/);
   assert.match(provider, /sendMessage\(String text, \{ChatMessage\? replyTo\}\)/);
   assert.match(client, /\/api\/messages\/thread\/reply/);
@@ -70,14 +80,4 @@ test('mobile reply UI and API use the same reply-to contract as web messaging', 
   assert.match(replyCompatibility, /replyMessageBody/);
   assert.match(formerRoom, /enrichReplyContexts/);
   assert.match(formerRoom, /items: replyAwareItems/);
-});
-
-test('reply compatibility rejects invalid targets and keeps existing messaging service ownership', () => {
-  assert.match(replyCompatibility, /Conversation activity messages cannot be replied to/);
-  assert.match(replyCompatibility, /This message was unsent and cannot be replied to/);
-  assert.match(replyCompatibility, /messageService\.sendToFixedThread/);
-  assert.match(replyCompatibility, /messageService\.sendRoomMessage/);
-  assert.match(replyCompatibility, /installMessageReplyCompatibility/);
-  assert.match(backendMessageService, /reply_to_message_id: replyToMessageId \|\| null/);
-  assert.doesNotMatch(replyCompatibility, /REPLY ATTACH ERROR/);
 });

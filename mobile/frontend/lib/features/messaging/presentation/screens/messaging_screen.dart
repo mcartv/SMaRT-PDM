@@ -19,10 +19,18 @@ import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 // SMART-PDM_MOBILE_MESSAGING_THREAD_RESPONSIVE_PHASE5_V1
 
 class MessagingScreen extends StatefulWidget {
-  const MessagingScreen({super.key, this.roomId, this.title});
+  const MessagingScreen({
+    super.key,
+    this.roomId,
+    this.title,
+    this.counterpartyId,
+    this.messageReferenceId,
+  });
 
   final String? roomId;
   final String? title;
+  final String? counterpartyId;
+  final String? messageReferenceId;
 
   @override
   State<MessagingScreen> createState() => _MessagingScreenState();
@@ -54,6 +62,13 @@ class _MessagingScreenState extends State<MessagingScreen> {
 
   bool get _isGroupChat => _normalizedRoomId != null;
 
+  String get _privateConversationTitle {
+    final resolved = MessageService.selectedSupportConversation?.title.trim() ?? '';
+    if (resolved.isNotEmpty) return resolved;
+    final supplied = widget.title?.trim() ?? '';
+    return supplied.isNotEmpty ? supplied : 'OSFA Administrator';
+  }
+
   String? get _normalizedRoomId {
     final value = widget.roomId?.trim();
     return value == null || value.isEmpty ? null : value;
@@ -62,6 +77,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
   @override
   void initState() {
     super.initState();
+    if (_normalizedRoomId == null) {
+      MessageService.selectSupportConversation(null);
+    }
     _messageController.addListener(_handleComposerChanged);
     _messageScrollController.addListener(_handleMessageScroll);
 
@@ -154,8 +172,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
       }
     }
 
-    if (newestOutgoingId == null ||
-        newestOutgoingId == _latestOutgoingMessageId) {
+    if (newestOutgoingId == null || newestOutgoingId == _latestOutgoingMessageId) {
       return;
     }
 
@@ -209,6 +226,16 @@ class _MessagingScreenState extends State<MessagingScreen> {
     if (_isGroupChat) {
       await provider.enterRoom(_normalizedRoomId!);
     } else {
+      final referenceId = (widget.counterpartyId ?? '').trim().isNotEmpty
+          ? widget.counterpartyId!.trim()
+          : (widget.messageReferenceId ?? '').trim();
+      if (referenceId.isNotEmpty) {
+        final conversation = await _historyService.resolveSupportConversation(
+          referenceId,
+        );
+        MessageService.selectSupportConversation(conversation);
+        if (mounted) setState(() {});
+      }
       await provider.enterThread();
     }
 
@@ -217,9 +244,8 @@ class _MessagingScreenState extends State<MessagingScreen> {
       _historyInitialized = true;
       _hasMoreHistory =
           provider.messages.length >= MessageService.historyBatchSize;
-      _lastRenderedMessageId = provider.messages.isEmpty
-          ? ''
-          : provider.messages.first.messageId;
+      _lastRenderedMessageId =
+          provider.messages.isEmpty ? '' : provider.messages.first.messageId;
       setState(() {});
     }
   }
@@ -265,9 +291,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
 
       if (!mounted || requestGeneration != _historyRequestGeneration) return;
 
-      final existingIds = _visibleMessages(
-        provider,
-      ).map((message) => message.messageId).toSet();
+      final existingIds = _visibleMessages(provider)
+          .map((message) => message.messageId)
+          .toSet();
       final additions = older
           .where((message) => !existingIds.contains(message.messageId))
           .toList(growable: false);
@@ -280,9 +306,10 @@ class _MessagingScreenState extends State<MessagingScreen> {
       if (additions.isNotEmpty) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted || !_messageScrollController.hasClients) return;
-          final target = oldOffset
-              .clamp(0.0, _messageScrollController.position.maxScrollExtent)
-              .toDouble();
+          final target = oldOffset.clamp(
+            0.0,
+            _messageScrollController.position.maxScrollExtent,
+          ).toDouble();
           _messageScrollController.jumpTo(target);
         });
       }
@@ -360,7 +387,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
         SnackBar(
           content: Text(
             provider.errorMessage ??
-                'We could not send your message. Check your connection and try again.',
+                'We could not send your message. Please try again.',
           ),
         ),
       );
@@ -380,9 +407,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
     if (body.isEmpty || message.isUnsent) return;
     await Clipboard.setData(ClipboardData(text: body));
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Message copied.')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Message copied.')),
+    );
   }
 
   Future<void> _showMessageActions(ChatMessage message) async {
@@ -456,8 +483,38 @@ class _MessagingScreenState extends State<MessagingScreen> {
     );
   }
 
+  IconData _privateContactIcon(SupportConversation? contact) {
+    switch ((contact?.role ?? '').toLowerCase()) {
+      case 'sdo':
+        return Icons.gavel_rounded;
+      case 'guidance':
+        return Icons.psychology_rounded;
+      case 'pd':
+        return Icons.school_rounded;
+      case 'ro_coordinator':
+        return Icons.assignment_turned_in_rounded;
+      default:
+        return Icons.support_agent_rounded;
+    }
+  }
+
   Future<void> _showPrivateInfo() async {
     if (!mounted) return;
+    final contact = MessageService.selectedSupportConversation;
+    final displayTitle = _privateConversationTitle;
+    final personName = (contact?.personName ?? '').trim();
+    final position = (contact?.position ?? '').trim();
+    final department = (contact?.department ?? '').trim();
+    final email = (contact?.email ?? '').trim();
+    final roleLabel = (contact?.roleLabel ?? '').trim();
+    final subtitle = personName.isNotEmpty
+        ? personName
+        : position.isNotEmpty
+        ? position
+        : roleLabel.isNotEmpty
+        ? roleLabel
+        : 'Administrative Personnel';
+
     await showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
@@ -485,15 +542,15 @@ class _MessagingScreenState extends State<MessagingScreen> {
             CircleAvatar(
               radius: 34,
               backgroundColor: AppColors.gold.withValues(alpha: 0.14),
-              child: const Icon(
-                Icons.support_agent_rounded,
+              child: Icon(
+                _privateContactIcon(contact),
                 color: AppColors.gold,
                 size: 32,
               ),
             ),
             const SizedBox(height: 12),
             Text(
-              'OSFA Administrator',
+              displayTitle,
               textAlign: TextAlign.center,
               style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
                 color: AppSurfacePalette.text(sheetContext),
@@ -502,7 +559,8 @@ class _MessagingScreenState extends State<MessagingScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Administrative Personnel',
+              subtitle,
+              textAlign: TextAlign.center,
               style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
                 color: AppSurfacePalette.mutedText(sheetContext),
                 fontWeight: FontWeight.w600,
@@ -510,12 +568,34 @@ class _MessagingScreenState extends State<MessagingScreen> {
             ),
             const SizedBox(height: 18),
             const Divider(height: 1),
-            const ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: AppIconTile(icon: Icons.account_balance_rounded),
-              title: Text('Office'),
-              subtitle: Text('Office for Scholarship and Financial Assistance'),
-            ),
+            if (position.isNotEmpty && position != subtitle)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const AppIconTile(icon: Icons.badge_outlined),
+                title: const Text('Position'),
+                subtitle: Text(position),
+              ),
+            if (department.isNotEmpty)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const AppIconTile(icon: Icons.account_balance_rounded),
+                title: const Text('Office'),
+                subtitle: Text(department),
+              )
+            else if (contact == null)
+              const ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: AppIconTile(icon: Icons.account_balance_rounded),
+                title: Text('Office'),
+                subtitle: Text('Office for Scholarship and Financial Assistance'),
+              ),
+            if (email.isNotEmpty)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const AppIconTile(icon: Icons.email_outlined),
+                title: const Text('Email'),
+                subtitle: Text(email),
+              ),
             const ListTile(
               contentPadding: EdgeInsets.zero,
               leading: AppIconTile(icon: Icons.chat_bubble_outline_rounded),
@@ -551,16 +631,12 @@ class _MessagingScreenState extends State<MessagingScreen> {
       );
       if (confirmed != true || !mounted) return;
       try {
-        await (_provider ?? context.read<MessagingProvider>()).unsendMessage(
-          message,
-        );
+        await (_provider ?? context.read<MessagingProvider>()).unsendMessage(message);
       } catch (_) {
         if (!mounted) return;
         final provider = _provider ?? context.read<MessagingProvider>();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(provider.errorMessage ?? 'Failed to unsend message.'),
-          ),
+          SnackBar(content: Text(provider.errorMessage ?? 'Failed to unsend message.')),
         );
       }
     }
@@ -647,11 +723,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            provider.errorMessage ?? 'Failed to load group members.',
-          ),
-        ),
+        SnackBar(content: Text(provider.errorMessage ?? 'Failed to load group members.')),
       );
       return;
     }
@@ -674,9 +746,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
                 refreshPending = true;
                 WidgetsBinding.instance.addPostFrameCallback((_) async {
                   try {
-                    final refreshed = await liveProvider.fetchRoomMembers(
-                      roomId,
-                    );
+                    final refreshed = await liveProvider.fetchRoomMembers(roomId);
                     if (!context.mounted) return;
                     setSheetState(() => members = refreshed);
                   } finally {
@@ -689,9 +759,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
               height: MediaQuery.of(context).size.height * 0.78,
               decoration: BoxDecoration(
                 color: AppSurfacePalette.surface(context),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(AppRadii.xl),
-                ),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.xl)),
               ),
               child: Column(
                 children: [
@@ -709,8 +777,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
                                 widget.title?.trim().isNotEmpty == true
                                     ? widget.title!.trim()
                                     : 'Group information',
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                       color: AppSurfacePalette.text(context),
                                       fontWeight: FontWeight.w900,
                                     ),
@@ -718,11 +785,8 @@ class _MessagingScreenState extends State<MessagingScreen> {
                               const SizedBox(height: 3),
                               Text(
                                 'Group chat',
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: AppSurfacePalette.mutedText(
-                                        context,
-                                      ),
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: AppSurfacePalette.mutedText(context),
                                     ),
                               ),
                             ],
@@ -742,9 +806,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
                       child: Text(
                         'All members',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: AppSurfacePalette.text(context),
-                          fontWeight: FontWeight.w800,
-                        ),
+                              color: AppSurfacePalette.text(context),
+                              fontWeight: FontWeight.w800,
+                            ),
                       ),
                     ),
                   ),
@@ -752,14 +816,12 @@ class _MessagingScreenState extends State<MessagingScreen> {
                     child: ListView.separated(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
                       itemCount: members.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 4),
+                      separatorBuilder: (_, _) => const SizedBox(height: 4),
                       itemBuilder: (context, index) {
                         final member = members[index];
                         return ListTile(
                           onTap: () => _showMemberProfile(member),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: AppRadii.card,
-                          ),
+                          shape: RoundedRectangleBorder(borderRadius: AppRadii.card),
                           leading: _GroupMemberAvatar(member: member),
                           title: Row(
                             children: [
@@ -768,22 +830,15 @@ class _MessagingScreenState extends State<MessagingScreen> {
                                   member.name,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                  ),
+                                  style: const TextStyle(fontWeight: FontWeight.w800),
                                 ),
                               ),
                               if (member.isAdmin) ...[
                                 const SizedBox(width: 7),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 7,
-                                    vertical: 3,
-                                  ),
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                                   decoration: BoxDecoration(
-                                    color: AppColors.gold.withValues(
-                                      alpha: 0.16,
-                                    ),
+                                    color: AppColors.gold.withValues(alpha: 0.16),
                                     borderRadius: AppRadii.status,
                                   ),
                                   child: Text(
@@ -803,9 +858,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
                           subtitle: Text(
                             member.isCurrentUser
                                 ? '${member.subtitle.isNotEmpty ? member.subtitle : 'Group member'} · You'
-                                : (member.subtitle.isNotEmpty
-                                      ? member.subtitle
-                                      : 'Group member'),
+                                : (member.subtitle.isNotEmpty ? member.subtitle : 'Group member'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -863,31 +916,23 @@ class _MessagingScreenState extends State<MessagingScreen> {
                     children: [
                       Text(
                         member.name,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w900),
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        member.subtitle.isNotEmpty
-                            ? member.subtitle
-                            : 'Group member',
-                      ),
+                      Text(member.subtitle.isNotEmpty ? member.subtitle : 'Group member'),
                     ],
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 18),
-            if (member.studentNumber.isNotEmpty)
-              _ProfileLine(label: 'ID', value: member.studentNumber),
-            if (member.position.isNotEmpty)
-              _ProfileLine(label: 'Position', value: member.position),
-            if (member.department.isNotEmpty)
-              _ProfileLine(label: 'Office', value: member.department),
-            if (member.role.isNotEmpty)
-              _ProfileLine(label: 'Role', value: member.role),
-            if (member.email.isNotEmpty)
-              _ProfileLine(label: 'Email', value: member.email),
+            if (member.studentNumber.isNotEmpty) _ProfileLine(label: 'ID', value: member.studentNumber),
+            if (member.position.isNotEmpty) _ProfileLine(label: 'Position', value: member.position),
+            if (member.department.isNotEmpty) _ProfileLine(label: 'Office', value: member.department),
+            if (member.role.isNotEmpty) _ProfileLine(label: 'Role', value: member.role),
+            if (member.email.isNotEmpty) _ProfileLine(label: 'Email', value: member.email),
           ],
         ),
       ),
@@ -902,9 +947,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Leave group?'),
-        content: const Text(
-          'You will stop receiving new messages from this group.',
-        ),
+        content: const Text('You will stop receiving new messages from this group.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -929,9 +972,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(provider.errorMessage ?? 'Failed to leave group.'),
-        ),
+        SnackBar(content: Text(provider.errorMessage ?? 'Failed to leave group.')),
       );
     }
   }
@@ -977,9 +1018,11 @@ class _MessagingScreenState extends State<MessagingScreen> {
     final provider = context.watch<MessagingProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final background = AppSurfacePalette.background(context);
-    final conversationTitle = widget.title?.trim().isNotEmpty == true
-        ? widget.title!.trim()
-        : 'OSFA Administrator';
+    final conversationTitle = _isGroupChat
+        ? ((widget.title ?? '').trim().isNotEmpty
+              ? widget.title!.trim()
+              : 'Group conversation')
+        : _privateConversationTitle;
     final visibleMessages = _visibleMessages(provider);
 
     return SmartPdmPageScaffold(
@@ -993,13 +1036,11 @@ class _MessagingScreenState extends State<MessagingScreen> {
           children: [
             CircleAvatar(
               radius: 18,
-              backgroundColor: AppColors.gold.withValues(
-                alpha: isDark ? 0.18 : 0.14,
-              ),
+              backgroundColor: AppColors.gold.withValues(alpha: isDark ? 0.18 : 0.14),
               child: Icon(
                 _isGroupChat
                     ? Icons.groups_rounded
-                    : Icons.support_agent_rounded,
+                    : _privateContactIcon(MessageService.selectedSupportConversation),
                 size: 19,
                 color: AppColors.gold,
               ),
@@ -1088,14 +1129,14 @@ class _MessagingScreenState extends State<MessagingScreen> {
                       matchCount: _chatSearchTerm.trim().isEmpty
                           ? 0
                           : visibleMessages
-                                .where(
-                                  (message) => message.messageBody
-                                      .toLowerCase()
-                                      .contains(
-                                        _chatSearchTerm.trim().toLowerCase(),
-                                      ),
-                                )
-                                .length,
+                              .where(
+                                (message) => message.messageBody
+                                    .toLowerCase()
+                                    .contains(
+                                      _chatSearchTerm.trim().toLowerCase(),
+                                    ),
+                              )
+                              .length,
                       onChanged: (value) =>
                           setState(() => _chatSearchTerm = value),
                       onClose: () => setState(() {
@@ -1193,7 +1234,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
             Text(
               _isGroupChat
                   ? 'Send a message to start this group conversation.'
-                  : 'Send a message to contact the OSFA Administrator.',
+                  : 'Send a message to contact $_privateConversationTitle.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: isDark
@@ -1237,8 +1278,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
                       : Text(
                           'Scroll up to load earlier messages',
                           key: const ValueKey<String>('older-ready'),
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
                                 color: AppSurfacePalette.mutedText(context),
                                 fontWeight: FontWeight.w700,
                               ),
@@ -1254,11 +1294,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
               ? messages[index + 1]
               : null;
           final newerMessage = index > 0 ? messages[index - 1] : null;
-          final groupedWithOlder =
-              olderMessage != null &&
+          final groupedWithOlder = olderMessage != null &&
               _messagesBelongTogether(olderMessage, message);
-          final groupedWithNewer =
-              newerMessage != null &&
+          final groupedWithNewer = newerMessage != null &&
               _messagesBelongTogether(message, newerMessage);
           final showDate =
               olderMessage == null ||
@@ -1280,11 +1318,8 @@ class _MessagingScreenState extends State<MessagingScreen> {
                 showAvatar: !groupedWithNewer,
                 showDeliveryStatus:
                     isMe && message.messageId == _deliveredStatusMessageId,
-                isSearchMatch:
-                    _chatSearchTerm.trim().isNotEmpty &&
-                    message.messageBody.toLowerCase().contains(
-                      _chatSearchTerm.trim().toLowerCase(),
-                    ),
+                isSearchMatch: _chatSearchTerm.trim().isNotEmpty &&
+                    message.messageBody.toLowerCase().contains(_chatSearchTerm.trim().toLowerCase()),
                 onLongPress: message.subject?.toLowerCase() != 'system'
                     ? () => _showMessageActions(message)
                     : null,
@@ -1292,8 +1327,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
             ],
           );
 
-          final shouldAnimateNewest =
-              index == 0 &&
+          final shouldAnimateNewest = index == 0 &&
               message.messageId == _lastRenderedMessageId &&
               !MediaQuery.of(context).disableAnimations;
           if (shouldAnimateNewest) {
@@ -1345,7 +1379,9 @@ class _DateDivider extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
       child: Row(
         children: [
-          Expanded(child: Divider(color: AppSurfacePalette.outline(context))),
+          Expanded(
+            child: Divider(color: AppSurfacePalette.outline(context)),
+          ),
           const SizedBox(width: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -1362,7 +1398,9 @@ class _DateDivider extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Expanded(child: Divider(color: AppSurfacePalette.outline(context))),
+          Expanded(
+            child: Divider(color: AppSurfacePalette.outline(context)),
+          ),
         ],
       ),
     );
@@ -1399,10 +1437,8 @@ class _MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (message.subject?.toLowerCase() == 'system') {
-      final removalEvent = RegExp(
-        r'\bremoved\b.*\bfrom the group\b',
-        caseSensitive: false,
-      ).hasMatch(message.messageBody);
+      final removalEvent = RegExp(r'\bremoved\b.*\bfrom the group\b', caseSensitive: false)
+          .hasMatch(message.messageBody);
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
         child: Center(
@@ -1424,13 +1460,9 @@ class _MessageBubble extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  removalEvent
-                      ? Icons.person_remove_alt_1_rounded
-                      : Icons.info_outline_rounded,
+                  removalEvent ? Icons.person_remove_alt_1_rounded : Icons.info_outline_rounded,
                   size: 16,
-                  color: removalEvent
-                      ? AppColors.gold
-                      : AppSurfacePalette.mutedText(context),
+                  color: removalEvent ? AppColors.gold : AppSurfacePalette.mutedText(context),
                 ),
                 const SizedBox(width: 8),
                 Flexible(
@@ -1463,9 +1495,7 @@ class _MessageBubble extends StatelessWidget {
       decoration: BoxDecoration(
         color: message.isUnsent
             ? AppSurfacePalette.surface(context)
-            : isMe
-            ? AppColors.darkBrown
-            : incomingSurface,
+            : isMe ? AppColors.darkBrown : incomingSurface,
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(!isMe && groupedWithPrevious ? 6 : 18),
           topRight: Radius.circular(isMe && groupedWithPrevious ? 6 : 18),
@@ -1492,9 +1522,8 @@ class _MessageBubble extends StatelessWidget {
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: isMe
-            ? CrossAxisAlignment.end
-            : CrossAxisAlignment.start,
+        crossAxisAlignment:
+            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           if (message.isReply &&
               (message.replyMessageBody ?? '').trim().isNotEmpty) ...[
@@ -1549,14 +1578,14 @@ class _MessageBubble extends StatelessWidget {
           Text(
             message.messageBody,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: message.isUnsent
-                  ? AppSurfacePalette.mutedText(context)
-                  : isMe
-                  ? Colors.white
-                  : (AppSurfacePalette.text(context)),
-              height: 1.38,
-              fontStyle: message.isUnsent ? FontStyle.italic : null,
-            ),
+                  color: message.isUnsent
+                      ? AppSurfacePalette.mutedText(context)
+                      : isMe
+                      ? Colors.white
+                      : (AppSurfacePalette.text(context)),
+                  height: 1.38,
+                  fontStyle: message.isUnsent ? FontStyle.italic : null,
+                ),
           ),
         ],
       ),
@@ -1565,38 +1594,36 @@ class _MessageBubble extends StatelessWidget {
     final messageRow = SizedBox(
       width: MediaQuery.of(context).size.width * 0.90,
       child: Row(
-        mainAxisAlignment: isMe
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
+        mainAxisAlignment:
+            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (isGroupChat && !isMe) ...[
-            if (showAvatar)
-              _SenderAvatar(message: message)
-            else
-              const SizedBox(width: 32, height: 32),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: Column(
-              crossAxisAlignment: isMe
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
-              children: [
-                Tooltip(
-                  message: timeLabel,
-                  triggerMode: onLongPress == null
-                      ? TooltipTriggerMode.longPress
-                      : TooltipTriggerMode.tap,
-                  preferBelow: false,
-                  child: GestureDetector(
-                    onLongPress: onLongPress,
-                    child: bubble,
-                  ),
+        if (isGroupChat && !isMe) ...[
+          if (showAvatar)
+            _SenderAvatar(message: message)
+          else
+            const SizedBox(width: 32, height: 32),
+          const SizedBox(width: 8),
+        ],
+        Flexible(
+          child: Column(
+            crossAxisAlignment:
+                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            children: [
+              Tooltip(
+                message: timeLabel,
+                triggerMode: onLongPress == null
+                    ? TooltipTriggerMode.longPress
+                    : TooltipTriggerMode.tap,
+                preferBelow: false,
+                child: GestureDetector(
+                  onLongPress: onLongPress,
+                  child: bubble,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+        ),
           if (isGroupChat && isMe) ...[
             const SizedBox(width: 8),
             if (showAvatar)
@@ -1614,9 +1641,8 @@ class _MessageBubble extends StatelessWidget {
         padding: EdgeInsets.only(bottom: groupedWithNext ? 3 : 11),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: isMe
-              ? CrossAxisAlignment.end
-              : CrossAxisAlignment.start,
+          crossAxisAlignment:
+              isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
             if (!isMe &&
                 isGroupChat &&
@@ -1627,11 +1653,11 @@ class _MessageBubble extends StatelessWidget {
                 child: Text(
                   senderName,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: isDark
-                        ? Colors.white60
-                        : AppColors.brown.withValues(alpha: 0.64),
-                    fontWeight: FontWeight.w800,
-                  ),
+                        color: isDark
+                            ? Colors.white60
+                            : AppColors.brown.withValues(alpha: 0.64),
+                        fontWeight: FontWeight.w800,
+                      ),
                 ),
               ),
             ],
@@ -1650,9 +1676,9 @@ class _MessageBubble extends StatelessWidget {
                       child: Text(
                         'Delivered · $timeLabel',
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: AppSurfacePalette.mutedText(context),
-                          fontWeight: FontWeight.w600,
-                        ),
+                              color: AppSurfacePalette.mutedText(context),
+                              fontWeight: FontWeight.w600,
+                            ),
                       ),
                     )
                   : const SizedBox.shrink(
@@ -1720,9 +1746,9 @@ class _ChatSearchBar extends StatelessWidget {
             Text(
               '$matchCount',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: AppSurfacePalette.mutedText(context),
-                fontWeight: FontWeight.w800,
-              ),
+                    color: AppSurfacePalette.mutedText(context),
+                    fontWeight: FontWeight.w800,
+                  ),
             ),
           IconButton(
             tooltip: 'Close search',
@@ -1784,18 +1810,18 @@ class _ProfileLine extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? Colors.white54
-                  : AppColors.brown.withValues(alpha: 0.62),
-              fontWeight: FontWeight.w800,
-            ),
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white54
+                      : AppColors.brown.withValues(alpha: 0.62),
+                  fontWeight: FontWeight.w800,
+                ),
           ),
           const SizedBox(height: 3),
           Text(
             value,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
           ),
         ],
       ),
@@ -1825,6 +1851,7 @@ class _SenderAvatar extends StatelessWidget {
   }
 }
 
+
 class _FormerGroupReadOnlyBanner extends StatelessWidget {
   const _FormerGroupReadOnlyBanner({this.cutoffAt});
   final DateTime? cutoffAt;
@@ -1849,29 +1876,17 @@ class _FormerGroupReadOnlyBanner extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(
-              Icons.person_remove_alt_1_rounded,
-              color: AppColors.gold,
-              size: 22,
-            ),
+            const Icon(Icons.person_remove_alt_1_rounded, color: AppColors.gold, size: 22),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'You are no longer in this group',
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
+                  Text('You are no longer in this group', style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900)),
                   const SizedBox(height: 3),
                   Text(
                     'You were removed from this group. Your previous messages are kept as read-only history, and the removal notice above shows who removed you. New messages, member changes, and replies are not available.$cutoffLabel',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppSurfacePalette.mutedText(context),
-                      height: 1.4,
-                    ),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppSurfacePalette.mutedText(context), height: 1.4),
                   ),
                 ],
               ),
@@ -1948,21 +1963,19 @@ class _MessageComposer extends StatelessWidget {
                             'Replying to ${_replyName(replyingTo!)}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(
-                                  color: AppSurfacePalette.text(context),
-                                  fontWeight: FontWeight.w900,
-                                ),
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: AppSurfacePalette.text(context),
+                              fontWeight: FontWeight.w900,
+                            ),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             replyingTo!.messageBody,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: AppSurfacePalette.mutedText(context),
-                                ),
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppSurfacePalette.mutedText(context),
+                            ),
                           ),
                         ],
                       ),
@@ -2035,17 +2048,13 @@ class _MessageComposer extends StatelessWidget {
                         duration: const Duration(milliseconds: 140),
                         switchInCurve: Curves.easeOut,
                         switchOutCurve: Curves.easeIn,
-                        transitionBuilder: (child, animation) =>
-                            ScaleTransition(
-                              scale: Tween<double>(
-                                begin: 0.88,
-                                end: 1,
-                              ).animate(animation),
-                              child: FadeTransition(
-                                opacity: animation,
-                                child: child,
-                              ),
-                            ),
+                        transitionBuilder: (child, animation) => ScaleTransition(
+                          scale: Tween<double>(
+                            begin: 0.88,
+                            end: 1,
+                          ).animate(animation),
+                          child: FadeTransition(opacity: animation, child: child),
+                        ),
                         child: isSending
                             ? const SizedBox(
                                 key: ValueKey<String>('send-loading'),

@@ -240,6 +240,8 @@ class AppRouter {
     return MessagingScreen(
       roomId: payload['roomId']?.toString(),
       title: payload['title']?.toString(),
+      counterpartyId: payload['counterpartyId']?.toString(),
+      messageReferenceId: payload['messageReferenceId']?.toString(),
     );
   }
 
@@ -257,22 +259,6 @@ class AppRouter {
     return MaterialPageRoute<void>(
       settings: settings,
       builder: (context) => ProfileCompletionGate(child: builder(context)),
-    );
-  }
-}
-
-class _PlaceholderScreen extends StatelessWidget {
-  const _PlaceholderScreen({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Text('This is the $title screen. Content coming soon!'),
-      ),
     );
   }
 }

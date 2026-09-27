@@ -19,6 +19,7 @@ class _InAppBannerItem {
     required this.title,
     required this.message,
     this.roomId,
+    this.counterpartyId,
   });
 
   final String id;
@@ -26,6 +27,7 @@ class _InAppBannerItem {
   final String title;
   final String message;
   final String? roomId;
+  final String? counterpartyId;
 }
 
 class InAppRealtimeBannerHost extends StatefulWidget {
@@ -203,6 +205,7 @@ class _InAppRealtimeBannerHostState extends State<InAppRealtimeBannerHost> {
       title: senderName.isEmpty ? 'New message' : senderName,
       message: safeBody,
       roomId: roomId.isEmpty ? null : roomId,
+      counterpartyId: roomId.isEmpty && senderId.isNotEmpty ? senderId : null,
     );
   }
 
@@ -272,10 +275,16 @@ class _InAppRealtimeBannerHostState extends State<InAppRealtimeBannerHost> {
     if (navigator == null) return;
 
     if (item.kind == _InAppBannerKind.message) {
+      if (item.roomId == null && item.counterpartyId == null) {
+        navigator.pushNamed(AppRoutes.messaging);
+        return;
+      }
       navigator.pushNamed(
         AppRoutes.chatThread,
         arguments: <String, dynamic>{
           if (item.roomId != null) 'roomId': item.roomId,
+          if (item.counterpartyId != null)
+            'counterpartyId': item.counterpartyId,
           'title': item.title,
         },
       );

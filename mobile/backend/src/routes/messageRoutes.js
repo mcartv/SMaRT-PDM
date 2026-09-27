@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 
 const messageController = require('../controllers/messageController');
+const messageHistoryController = require('../controllers/messageHistoryController');
+const studentSupportConversationController = require('../controllers/studentSupportConversationController');
 const formerRoomHistoryController = require('../controllers/formerRoomHistoryController');
 const groupRemovalController = require('../controllers/groupRemovalController');
 const messageReplyController = require('../controllers/messageReplyController');
@@ -10,14 +12,20 @@ const { protect } = require('../middleware/authMiddleware');
 
 messageReplyCompatibility.installMessageReplyCompatibility();
 
-router.get('/unread-count', protect, messageController.getUnreadCount);
-router.get('/thread', protect, messageController.getThread);
-router.post('/thread', protect, messageController.sendThreadMessage);
+router.get('/unread-count', protect, messageHistoryController.getUnreadCount);
+router.get('/thread/window', protect, messageHistoryController.getPrivateWindow);
+router.get('/thread', protect, messageHistoryController.getFixedThread);
+router.post('/thread', protect, messageHistoryController.sendFixedThreadMessage);
 router.post('/thread/reply', protect, messageReplyController.sendThreadReply);
-router.patch('/thread/read', protect, messageController.markThreadRead);
+router.patch('/thread/read', protect, messageHistoryController.markFixedThreadRead);
 router.patch('/thread/archive', protect, messageController.archiveThread);
 router.patch('/thread/restore', protect, messageController.restoreThread);
-router.get('/archived', protect, messageController.getArchivedThreads);
+router.get('/archived', protect, messageHistoryController.getArchivedThreads);
+router.get('/support-conversations', protect, studentSupportConversationController.list);
+router.get('/support-conversations/archived', protect, studentSupportConversationController.listArchived);
+router.get('/support-conversations/resolve', protect, studentSupportConversationController.resolve);
+router.patch('/support-conversations/:counterpartyId/archive', protect, studentSupportConversationController.archive);
+router.patch('/support-conversations/:counterpartyId/restore', protect, studentSupportConversationController.restore);
 router.get('/former-rooms', protect, formerRoomHistoryController.listFormerRooms);
 router.get('/former-rooms/:roomId/window', protect, formerRoomHistoryController.getFormerRoomWindow);
 router.patch('/message/:messageId/unsend', protect, messageController.unsendMessage);
@@ -27,6 +35,7 @@ router.post('/conversations/:counterpartyId', protect, messageController.sendCon
 router.patch('/conversations/:counterpartyId/read', protect, messageController.markConversationRead);
 router.get('/rooms', protect, messageController.getRooms);
 router.post('/rooms', protect, messageController.createRoom);
+router.get('/rooms/:roomId/window', protect, messageHistoryController.getRoomWindow);
 router.get('/rooms/:roomId/thread', protect, messageController.getRoomThread);
 router.get('/rooms/:roomId/messages', protect, messageController.getRoomThread);
 router.post('/rooms/:roomId/send', protect, messageController.sendRoomMessage);

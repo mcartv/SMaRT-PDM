@@ -1,15 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:provider/provider.dart';
 
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
-import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_button_styles.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_status_colors.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/features/messaging/data/services/message_service.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
@@ -21,22 +21,30 @@ String _messagePreview(String? value, String fallback) {
 }
 
 // SMART-PDM_MOBILE_MESSAGING_LIST_RESPONSIVE_PHASE5_V1
-// SMART-PDM_MOBILE_MESSAGING_REFACTOR_FINAL_V1
+// SMART-PDM_MOBILE_MESSAGING_REFACTOR_FINAL_V2
 
 enum _MessageListFilter { all, unread, groups }
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
+
   @override
   State<ChatListScreen> createState() => _ChatListScreenState();
 }
 
 class _ChatListScreenState extends State<ChatListScreen> {
-  Timer? _liveSyncTimer;
-  bool _refreshing = false;
+  final MessageService _messageService = MessageService();
   final TextEditingController _searchController = TextEditingController();
+
+  MessagingProvider? _provider;
+  Timer? _liveSyncTimer;
+  Timer? _supportRefreshDebounce;
+  bool _refreshing = false;
+  bool _supportRefreshing = false;
   String _searchQuery = '';
+  String? _supportError;
   _MessageListFilter _selectedFilter = _MessageListFilter.all;
+  List<SupportConversation> _supportConversations = const [];
 
   @override
   void initState() {
@@ -48,24 +56,67 @@ class _ChatListScreenState extends State<ChatListScreen> {
     });
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final provider = context.read<MessagingProvider>();
+    if (identical(provider, _provider)) return;
+
+    _provider?.removeListener(_handleMessagingChanged);
+    _provider = provider;
+    _provider?.addListener(_handleMessagingChanged);
+  }
+
+  void _handleMessagingChanged() {
+    _supportRefreshDebounce?.cancel();
+    _supportRefreshDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      unawaited(_refreshSupportConversations());
+    });
+  }
+
   void _startLiveSyncWatchdog() {
     _liveSyncTimer?.cancel();
-    _liveSyncTimer = Timer.periodic(const Duration(seconds: 12), (_) {
+    _liveSyncTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
-      if (MobileRealtimeService.instance.isRealtimeHealthy) return;
-      _refreshMessaging();
+      if (MobileRealtimeService.instance.isRealtimeHealthy) {
+        unawaited(_refreshSupportConversations());
+      } else {
+        unawaited(_refreshMessaging());
+      }
     });
+  }
+
+  Future<void> _refreshSupportConversations() async {
+    if (_supportRefreshing) return;
+    _supportRefreshing = true;
+    try {
+      final items = await _messageService.fetchSupportConversations();
+      if (!mounted) return;
+      setState(() {
+        _supportConversations = items;
+        _supportError = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _supportError = 'We could not load private conversations. Try again.';
+      });
+    } finally {
+      _supportRefreshing = false;
+    }
   }
 
   Future<void> _refreshMessaging() async {
     if (_refreshing) return;
     _refreshing = true;
     try {
-      final provider = context.read<MessagingProvider>();
+      final provider = _provider ?? context.read<MessagingProvider>();
       await provider.initializeChat();
       await provider.fetchArchivedThreads(notify: false);
       await provider.fetchGroups(notify: false);
-      await provider.refreshUnreadCount();
+      await provider.refreshUnreadCount(notify: false);
+      await _refreshSupportConversations();
     } finally {
       _refreshing = false;
     }
@@ -73,16 +124,27 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   @override
   void dispose() {
+    _provider?.removeListener(_handleMessagingChanged);
+    _supportRefreshDebounce?.cancel();
     _liveSyncTimer?.cancel();
-    _liveSyncTimer = null;
     _searchController.dispose();
     super.dispose();
   }
 
-  void _openAdminThread() =>
-      AppNavigator.pushDetail(context, AppRoutes.chatThread);
+  void _openSupportThread(SupportConversation conversation) {
+    MessageService.selectSupportConversation(conversation);
+    AppNavigator.pushDetail(
+      context,
+      AppRoutes.chatThread,
+      arguments: {
+        'counterpartyId': conversation.counterpartyId,
+        'title': conversation.title,
+      },
+    );
+  }
 
   void _openGroupThread(String roomId, String roomName) {
+    MessageService.selectSupportConversation(null);
     AppNavigator.pushDetail(
       context,
       AppRoutes.chatThread,
@@ -115,10 +177,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
         false;
   }
 
-  Future<void> _archivePrivateThread() async {
-    if (!await _confirmArchive('OSFA Administrator') || !mounted) return;
+  Future<void> _archiveSupport(SupportConversation conversation) async {
+    if (!await _confirmArchive(conversation.title) || !mounted) return;
     try {
-      await context.read<MessagingProvider>().archivePrivateThread();
+      await _messageService.archiveSupportConversation(
+        conversation.counterpartyId,
+      );
+      await _refreshSupportConversations();
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -131,7 +196,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
     if (room.readOnly) return;
     if (!await _confirmArchive(room.roomName) || !mounted) return;
     try {
-      await context.read<MessagingProvider>().archiveRoom(room.roomId);
+      await (_provider ?? context.read<MessagingProvider>()).archiveRoom(
+        room.roomId,
+      );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -141,17 +208,35 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Future<void> _showArchivedThreads() async {
-    final provider = context.read<MessagingProvider>();
-    await provider.fetchArchivedThreads();
+    final provider = _provider ?? context.read<MessagingProvider>();
+    List<SupportConversation> supportItems = const [];
+    try {
+      supportItems = await _messageService.fetchArchivedSupportConversations();
+    } catch (_) {
+      supportItems = const [];
+    }
+    await provider.fetchArchivedThreads(notify: false);
     if (!mounted) return;
+
+    final groupItems = provider.archivedThreads
+        .where((item) => item.isGroup)
+        .toList(growable: false);
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (sheetContext) =>
-          ChangeNotifierProvider<MessagingProvider>.value(
-            value: provider,
-            child: const _ArchivedThreadsSheet(),
-          ),
+      builder: (sheetContext) => _ArchivedThreadsSheet(
+        supportItems: supportItems,
+        groupItems: groupItems,
+        onRestoreSupport: (item) async {
+          await _messageService.restoreSupportConversation(item.counterpartyId);
+          await _refreshSupportConversations();
+        },
+        onRestoreGroup: (item) async {
+          await provider.restoreArchivedThread(item);
+          await _refreshMessaging();
+        },
+      ),
     );
   }
 
@@ -192,43 +277,78 @@ class _ChatListScreenState extends State<ChatListScreen> {
         preview.toLowerCase().contains(query);
   }
 
+  IconData _supportIcon(SupportConversation conversation) {
+    switch (conversation.role.toLowerCase()) {
+      case 'sdo':
+        return Icons.gavel_rounded;
+      case 'guidance':
+        return Icons.psychology_rounded;
+      case 'pd':
+        return Icons.school_rounded;
+      case 'ro_coordinator':
+        return Icons.assignment_turned_in_rounded;
+      default:
+        return Icons.support_agent_rounded;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<MessagingProvider>();
-    final titleColor = AppSurfacePalette.text(context);
     final mutedColor = AppSurfacePalette.mutedText(context);
-    final privatePreview = _messagePreview(
-      provider.privatePreview?.messageBody,
-      'Start a private conversation',
-    );
-    final privateMatches = _matchesSearch('OSFA Administrator', privatePreview);
-    final showPrivate =
-        !provider.isPrivateThreadArchived &&
-        _selectedFilter != _MessageListFilter.groups &&
-        (_selectedFilter != _MessageListFilter.unread ||
-            provider.privateUnreadCount > 0) &&
-        privateMatches;
 
-    final visibleRooms = provider.rooms
-        .where((room) {
-          if (_selectedFilter == _MessageListFilter.unread &&
-              room.unreadCount <= 0) {
-            return false;
-          }
-          final preview = _messagePreview(
-            room.lastMessage,
-            room.readOnly ? 'Previous group · read-only history' : 'Group chat',
-          );
-          return _matchesSearch(room.roomName, preview);
-        })
+    final visibleSupport = _selectedFilter == _MessageListFilter.groups
+        ? const <SupportConversation>[]
+        : _supportConversations.where((conversation) {
+            if (_selectedFilter == _MessageListFilter.unread &&
+                conversation.unreadCount <= 0) {
+              return false;
+            }
+            final preview = _messagePreview(
+              conversation.lastMessage,
+              'Private conversation',
+            );
+            return _matchesSearch(conversation.title, preview) ||
+                _matchesSearch(conversation.personName, preview);
+          }).toList(growable: false);
+
+    SupportConversation? pinnedConversation;
+    for (final conversation in visibleSupport) {
+      if (conversation.pinned) {
+        pinnedConversation = conversation;
+        break;
+      }
+    }
+    final otherSupport = visibleSupport
+        .where((conversation) => !conversation.pinned)
         .toList(growable: false);
 
-    final showArchivedPrivateHint =
-        provider.isPrivateThreadArchived &&
-        _selectedFilter == _MessageListFilter.all &&
-        _searchQuery.trim().isEmpty;
+    final visibleRooms = provider.rooms.where((room) {
+      if (_selectedFilter == _MessageListFilter.unread &&
+          room.unreadCount <= 0) {
+        return false;
+      }
+      final preview = _messagePreview(
+        room.lastMessage,
+        room.readOnly ? 'Previous group · read-only history' : 'Group chat',
+      );
+      return _matchesSearch(room.roomName, preview);
+    }).toList(growable: false);
+
+    final totalUnread = _supportConversations.fold<int>(
+          0,
+          (sum, conversation) => sum + conversation.unreadCount,
+        ) +
+        provider.rooms.fold<int>(
+          0,
+          (sum, room) => sum + (room.readOnly ? 0 : room.unreadCount),
+        );
+
+    final hasOtherConversations =
+        otherSupport.isNotEmpty || visibleRooms.isNotEmpty;
     final hasVisibleConversation =
-        showPrivate || visibleRooms.isNotEmpty || showArchivedPrivateHint;
+        pinnedConversation != null || hasOtherConversations;
+    final errorMessage = _supportError ?? provider.errorMessage;
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
@@ -241,7 +361,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         backgroundColor: AppSurfacePalette.surface(context),
-        foregroundColor: titleColor,
+        foregroundColor: AppSurfacePalette.text(context),
         actions: [
           IconButton(
             tooltip: 'Archived messages',
@@ -311,7 +431,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   ),
                   _MessageFilterChip(
                     label: 'Unread',
-                    count: provider.unreadCount,
+                    count: totalUnread,
                     selected: _selectedFilter == _MessageListFilter.unread,
                     onTap: () => setState(
                       () => _selectedFilter = _MessageListFilter.unread,
@@ -327,64 +447,83 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              if (showPrivate)
+              if (pinnedConversation != null)
                 _ConversationTile(
-                  icon: Icons.support_agent_rounded,
-                  title: 'OSFA Administrator',
-                  subtitle: privatePreview,
-                  timeLabel: _conversationTime(provider.privatePreview?.sentAt),
-                  unreadCount: provider.privateUnreadCount,
+                  icon: _supportIcon(pinnedConversation),
+                  title: pinnedConversation.title,
+                  subtitle: _messagePreview(
+                    pinnedConversation.lastMessage,
+                    'Start a private conversation',
+                  ),
+                  timeLabel: _conversationTime(pinnedConversation.lastSentAt),
+                  unreadCount: pinnedConversation.unreadCount,
                   pinned: true,
-                  onTap: _openAdminThread,
-                  onArchive: _archivePrivateThread,
-                )
-              else if (showArchivedPrivateHint)
-                _ArchivedHint(onOpenArchived: _showArchivedThreads),
-              if (showPrivate && visibleRooms.isNotEmpty) ...[
+                  onTap: () => _openSupportThread(pinnedConversation!),
+                  onArchive: () => _archiveSupport(pinnedConversation!),
+                ),
+              if (pinnedConversation != null && hasOtherConversations) ...[
                 const SizedBox(height: 14),
                 Divider(color: AppSurfacePalette.outline(context)),
                 const SizedBox(height: 6),
               ],
-              if (provider.isLoading && !hasVisibleConversation)
+              ...otherSupport.map(
+                (conversation) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _ConversationTile(
+                    icon: _supportIcon(conversation),
+                    title: conversation.title,
+                    subtitle: _messagePreview(
+                      conversation.lastMessage,
+                      conversation.position.isNotEmpty
+                          ? conversation.position
+                          : 'Private conversation',
+                    ),
+                    timeLabel: _conversationTime(conversation.lastSentAt),
+                    unreadCount: conversation.unreadCount,
+                    onTap: () => _openSupportThread(conversation),
+                    onArchive: () => _archiveSupport(conversation),
+                  ),
+                ),
+              ),
+              ...visibleRooms.map(
+                (room) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _ConversationTile(
+                    icon: room.readOnly
+                        ? Icons.history_rounded
+                        : Icons.groups_rounded,
+                    title: room.roomName,
+                    subtitle: _messagePreview(
+                      room.lastMessage,
+                      room.readOnly
+                          ? 'Previous group · read-only history'
+                          : 'Group chat',
+                    ),
+                    timeLabel: _conversationTime(room.lastSentAt),
+                    unreadCount: room.readOnly ? 0 : room.unreadCount,
+                    readOnly: room.readOnly,
+                    onTap: () => _openGroupThread(room.roomId, room.roomName),
+                    onArchive: room.readOnly ? null : () => _archiveGroup(room),
+                  ),
+                ),
+              ),
+              if ((provider.isLoading || _supportRefreshing) &&
+                  !hasVisibleConversation)
                 const Padding(
                   padding: EdgeInsets.only(top: 42),
                   child: Center(child: CircularProgressIndicator()),
-                )
-              else if (visibleRooms.isNotEmpty)
-                ...visibleRooms.map(
-                  (room) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: _ConversationTile(
-                      icon: room.readOnly
-                          ? Icons.history_rounded
-                          : Icons.groups_rounded,
-                      title: room.roomName,
-                      subtitle: _messagePreview(
-                        room.lastMessage,
-                        room.readOnly
-                            ? 'Previous group · read-only history'
-                            : 'Group chat',
-                      ),
-                      timeLabel: _conversationTime(room.lastSentAt),
-                      unreadCount: room.readOnly ? 0 : room.unreadCount,
-                      readOnly: room.readOnly,
-                      onTap: () => _openGroupThread(room.roomId, room.roomName),
-                      onArchive: room.readOnly
-                          ? null
-                          : () => _archiveGroup(room),
-                    ),
-                  ),
                 )
               else if (!hasVisibleConversation)
                 _EmptyConversationState(
                   filter: _selectedFilter,
                   hasSearch: _searchQuery.trim().isNotEmpty,
-                  errorMessage: provider.errorMessage,
+                  errorMessage: errorMessage,
                   onRetry: _refreshMessaging,
                 ),
-              if (provider.isLoading && hasVisibleConversation) ...[
+              if ((provider.isLoading || _supportRefreshing) &&
+                  hasVisibleConversation) ...[
                 const SizedBox(height: 8),
-                Center(
+                const Center(
                   child: SizedBox(
                     width: 18,
                     height: 18,
@@ -392,14 +531,14 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   ),
                 ),
               ],
-              if (provider.errorMessage != null && hasVisibleConversation) ...[
+              if (errorMessage != null && hasVisibleConversation) ...[
                 const SizedBox(height: 12),
                 Text(
-                  provider.errorMessage!,
+                  errorMessage,
                   textAlign: TextAlign.center,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: mutedColor),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: mutedColor,
+                  ),
                 ),
               ],
             ],
@@ -462,10 +601,7 @@ class _MessageFilterChip extends StatelessWidget {
               if (count > 0) ...[
                 const SizedBox(width: 7),
                 Container(
-                  constraints: const BoxConstraints(
-                    minWidth: 20,
-                    minHeight: 20,
-                  ),
+                  constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
                   alignment: Alignment.center,
                   padding: const EdgeInsets.symmetric(horizontal: 5),
                   decoration: BoxDecoration(
@@ -481,6 +617,219 @@ class _MessageFilterChip extends StatelessWidget {
                   ),
                 ),
               ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ConversationTile extends StatelessWidget {
+  const _ConversationTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.unreadCount,
+    required this.onTap,
+    this.timeLabel = '',
+    this.onArchive,
+    this.readOnly = false,
+    this.pinned = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final int unreadCount;
+  final VoidCallback onTap;
+  final String timeLabel;
+  final Future<void> Function()? onArchive;
+  final bool readOnly;
+  final bool pinned;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasUnread = unreadCount > 0;
+    final status = Theme.of(context).extension<AppStatusColors>()!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Material(
+      color: pinned
+          ? AppColors.gold.withValues(alpha: isDark ? 0.16 : 0.10)
+          : hasUnread
+          ? AppColors.gold.withValues(alpha: isDark ? 0.12 : 0.08)
+          : AppSurfacePalette.surface(context),
+      borderRadius: AppRadii.card,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadii.card,
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            borderRadius: AppRadii.card,
+            border: Border.all(
+              color: pinned
+                  ? AppColors.gold.withValues(alpha: 0.58)
+                  : AppSurfacePalette.outline(context),
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AppIconTile(icon: icon),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  color: AppSurfacePalette.text(context),
+                                  fontWeight: hasUnread || pinned
+                                      ? FontWeight.w900
+                                      : FontWeight.w700,
+                                ),
+                          ),
+                        ),
+                        if (pinned) ...[
+                          const SizedBox(width: 6),
+                          const Icon(
+                            Icons.push_pin_rounded,
+                            size: 16,
+                            color: AppColors.gold,
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (readOnly) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.gold.withValues(alpha: 0.13),
+                          borderRadius: AppRadii.status,
+                        ),
+                        child: Text(
+                          'Read only',
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: AppColors.gold,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: hasUnread
+                            ? AppSurfacePalette.text(context)
+                            : AppSurfacePalette.mutedText(context),
+                        fontWeight: hasUnread
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (timeLabel.isNotEmpty) ...[
+                    Text(
+                      timeLabel,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: AppSurfacePalette.mutedText(context),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+                  if (unreadCount > 0)
+                    Container(
+                      constraints: const BoxConstraints(
+                        minWidth: 24,
+                        minHeight: 24,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: status.dangerOutline,
+                        borderRadius: AppRadii.status,
+                      ),
+                      child: Text(
+                        unreadCount > 99 ? '99+' : '$unreadCount',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  if (onArchive != null)
+                    PopupMenuButton<String>(
+                      tooltip: 'Conversation options',
+                      onSelected: (value) {
+                        if (value == 'archive') unawaited(onArchive!());
+                      },
+                      itemBuilder: (context) => [
+                        PopupMenuItem<String>(
+                          value: 'archive',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.archive_outlined,
+                                size: 19,
+                                color: AppButtonStyles.destructiveColor(context),
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                'Archive',
+                                style: TextStyle(
+                                  color: AppButtonStyles.destructiveColor(
+                                    context,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    )
+                  else if (unreadCount == 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: AppSpacing.sm),
+                      child: Icon(
+                        readOnly
+                            ? Icons.history_rounded
+                            : Icons.chevron_right_rounded,
+                        color: readOnly
+                            ? AppColors.gold
+                            : AppSurfacePalette.mutedText(context),
+                      ),
+                    ),
+                ],
+              ),
             ],
           ),
         ),
@@ -563,249 +912,75 @@ class _EmptyConversationState extends StatelessWidget {
   }
 }
 
-class _ConversationTile extends StatelessWidget {
-  const _ConversationTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.unreadCount,
-    required this.onTap,
-    this.timeLabel = '',
-    this.onArchive,
-    this.readOnly = false,
-    this.pinned = false,
+class _ArchivedThreadsSheet extends StatefulWidget {
+  const _ArchivedThreadsSheet({
+    required this.supportItems,
+    required this.groupItems,
+    required this.onRestoreSupport,
+    required this.onRestoreGroup,
   });
 
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final int unreadCount;
-  final VoidCallback onTap;
-  final String timeLabel;
-  final Future<void> Function()? onArchive;
-  final bool readOnly;
-  final bool pinned;
+  final List<SupportConversation> supportItems;
+  final List<ArchivedMessageThread> groupItems;
+  final Future<void> Function(SupportConversation item) onRestoreSupport;
+  final Future<void> Function(ArchivedMessageThread item) onRestoreGroup;
 
   @override
-  Widget build(BuildContext context) {
-    final hasUnread = unreadCount > 0;
-    final status = Theme.of(context).extension<AppStatusColors>()!;
+  State<_ArchivedThreadsSheet> createState() => _ArchivedThreadsSheetState();
+}
 
-    return Material(
-      color: pinned
-          ? AppColors.gold.withValues(
-              alpha: Theme.of(context).brightness == Brightness.dark
-                  ? 0.16
-                  : 0.10,
-            )
-          : hasUnread
-          ? AppColors.gold.withValues(
-              alpha: Theme.of(context).brightness == Brightness.dark
-                  ? 0.12
-                  : 0.08,
-            )
-          : AppSurfacePalette.surface(context),
-      borderRadius: AppRadii.card,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: AppRadii.card,
-        child: Container(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
-            borderRadius: AppRadii.card,
-            border: Border.all(
-              color: pinned
-                  ? AppColors.gold.withValues(alpha: 0.58)
-                  : AppSurfacePalette.outline(context),
-            ),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AppIconTile(icon: icon),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            softWrap: true,
-                            style: Theme.of(context).textTheme.titleSmall
-                                ?.copyWith(
-                                  color: AppSurfacePalette.text(context),
-                                  fontWeight: hasUnread || pinned
-                                      ? FontWeight.w900
-                                      : FontWeight.w700,
-                                ),
-                          ),
-                        ),
-                        if (pinned) ...[
-                          const SizedBox(width: 6),
-                          const Icon(
-                            Icons.push_pin_rounded,
-                            size: 16,
-                            color: AppColors.gold,
-                          ),
-                        ],
-                      ],
-                    ),
-                    if (readOnly) ...[
-                      const SizedBox(height: AppSpacing.xs),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.gold.withValues(alpha: 0.13),
-                          borderRadius: AppRadii.status,
-                        ),
-                        child: Text(
-                          'REMOVED · READ ONLY',
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                color: AppColors.gold,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 9,
-                              ),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: hasUnread
-                            ? AppSurfacePalette.text(context)
-                            : AppSurfacePalette.mutedText(context),
-                        fontWeight: hasUnread
-                            ? FontWeight.w700
-                            : FontWeight.w500,
-                        height: 1.3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  if (timeLabel.isNotEmpty) ...[
-                    Text(
-                      timeLabel,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: AppSurfacePalette.mutedText(context),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                  ],
-                  if (unreadCount > 0)
-                    Container(
-                      constraints: const BoxConstraints(
-                        minWidth: 24,
-                        minHeight: 24,
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: status.dangerOutline,
-                        borderRadius: AppRadii.status,
-                      ),
-                      child: Text(
-                        unreadCount > 99 ? '99+' : '$unreadCount',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  if (onArchive != null)
-                    PopupMenuButton<String>(
-                      tooltip: 'Conversation options',
-                      onSelected: (value) {
-                        if (value == 'archive') onArchive!();
-                      },
-                      itemBuilder: (context) => [
-                        PopupMenuItem<String>(
-                          value: 'archive',
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.archive_outlined,
-                                size: 19,
-                                color: AppButtonStyles.destructiveColor(
-                                  context,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                'Archive',
-                                style: TextStyle(
-                                  color: AppButtonStyles.destructiveColor(
-                                    context,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    )
-                  else if (unreadCount == 0)
-                    Padding(
-                      padding: const EdgeInsets.only(top: AppSpacing.sm),
-                      child: Icon(
-                        readOnly
-                            ? Icons.history_rounded
-                            : Icons.chevron_right_rounded,
-                        color: readOnly
-                            ? AppColors.gold
-                            : AppSurfacePalette.mutedText(context),
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+class _ArchivedThreadsSheetState extends State<_ArchivedThreadsSheet> {
+  late final List<SupportConversation> _supportItems = [
+    ...widget.supportItems,
+  ];
+  late final List<ArchivedMessageThread> _groupItems = [...widget.groupItems];
+  final Set<String> _restoring = <String>{};
+
+  Future<void> _restoreSupport(SupportConversation item) async {
+    final key = 'private:${item.counterpartyId}';
+    if (_restoring.contains(key)) return;
+    setState(() => _restoring.add(key));
+    try {
+      await widget.onRestoreSupport(item);
+      if (!mounted) return;
+      setState(() => _supportItems.remove(item));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Conversation restored.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to restore conversation.')),
+      );
+    } finally {
+      if (mounted) setState(() => _restoring.remove(key));
+    }
   }
-}
 
-class _ArchivedHint extends StatelessWidget {
-  const _ArchivedHint({required this.onOpenArchived});
-  final VoidCallback onOpenArchived;
-  @override
-  Widget build(BuildContext context) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    leading: const Icon(Icons.archive_outlined),
-    title: const Text('Support conversation archived'),
-    subtitle: const Text(
-      'It will return automatically when a new message arrives.',
-    ),
-    trailing: TextButton(onPressed: onOpenArchived, child: const Text('View')),
-  );
-}
+  Future<void> _restoreGroup(ArchivedMessageThread item) async {
+    final key = 'group:${item.roomId ?? item.archiveId}';
+    if (_restoring.contains(key)) return;
+    setState(() => _restoring.add(key));
+    try {
+      await widget.onRestoreGroup(item);
+      if (!mounted) return;
+      setState(() => _groupItems.remove(item));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Conversation restored.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to restore conversation.')),
+      );
+    } finally {
+      if (mounted) setState(() => _restoring.remove(key));
+    }
+  }
 
-class _ArchivedThreadsSheet extends StatelessWidget {
-  const _ArchivedThreadsSheet();
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<MessagingProvider>();
-    final items = provider.archivedThreads;
+    final total = _supportItems.length + _groupItems.length;
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.fromLTRB(
@@ -822,7 +997,7 @@ class _ArchivedThreadsSheet extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'Archived chats',
+                    'Archived Messages',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
@@ -835,7 +1010,7 @@ class _ArchivedThreadsSheet extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            if (items.isEmpty)
+            if (total == 0)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 28),
                 child: Center(child: Text('No archived conversations.')),
@@ -845,50 +1020,46 @@ class _ArchivedThreadsSheet extends StatelessWidget {
                 constraints: BoxConstraints(
                   maxHeight: MediaQuery.sizeOf(context).height * 0.55,
                 ),
-                child: ListView.separated(
+                child: ListView(
                   shrinkWrap: true,
-                  itemCount: items.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final item = items[index];
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(
-                        item.isGroup
-                            ? Icons.groups_rounded
-                            : Icons.support_agent_rounded,
+                  children: [
+                    ..._supportItems.map(
+                      (item) => ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.support_agent_rounded),
+                        title: Text(item.title),
+                        subtitle: Text(
+                          item.position.isNotEmpty
+                              ? item.position
+                              : 'Private conversation',
+                        ),
+                        trailing: TextButton(
+                          onPressed: _restoring.contains(
+                            'private:${item.counterpartyId}',
+                          )
+                              ? null
+                              : () => _restoreSupport(item),
+                          child: const Text('Restore'),
+                        ),
                       ),
-                      title: Text(item.name),
-                      subtitle: Text(
-                        item.isGroup
-                            ? 'Group conversation'
-                            : 'Private conversation',
+                    ),
+                    ..._groupItems.map(
+                      (item) => ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.groups_rounded),
+                        title: Text(item.name),
+                        subtitle: const Text('Group conversation'),
+                        trailing: TextButton(
+                          onPressed: _restoring.contains(
+                            'group:${item.roomId ?? item.archiveId}',
+                          )
+                              ? null
+                              : () => _restoreGroup(item),
+                          child: const Text('Restore'),
+                        ),
                       ),
-                      trailing: TextButton(
-                        onPressed: () async {
-                          try {
-                            await provider.restoreArchivedThread(item);
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Conversation restored.'),
-                              ),
-                            );
-                          } catch (_) {
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Unable to restore conversation.',
-                                ),
-                              ),
-                            );
-                          }
-                        },
-                        child: const Text('Restore'),
-                      ),
-                    );
-                  },
+                    ),
+                  ],
                 ),
               ),
           ],

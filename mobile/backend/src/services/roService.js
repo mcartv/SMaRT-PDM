@@ -1319,6 +1319,205 @@ async function sendPicTimeInNotification({
   }
 }
 
+async function sendRoActivityNotifications({
+  action,
+  student,
+  roId,
+  logId = null,
+  placementId = null,
+  durationMinutes = null,
+  notifyAdmin = true,
+  notifyPic = true,
+}) {
+  try {
+    const scholarName = [
+      student?.first_name,
+      student?.middle_name,
+      student?.last_name,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim() || student?.pdm_id || 'An assigned scholar';
+
+    let placements = [];
+
+    if (notifyPic) {
+      let placementQuery = supabase
+        .from('ro_placements')
+        .select('placement_id, ro_area_id')
+        .eq('ro_id', roId)
+        .eq('placement_status', 'Approved');
+
+      if (placementId) {
+        placementQuery = placementQuery.eq('placement_id', placementId);
+      }
+
+      const { data, error } = await placementQuery;
+      if (error) throw error;
+
+      placements = Array.isArray(data) ? data : [];
+    }
+
+    const areaIds = [
+      ...new Set(
+        placements
+          .map((row) => row?.ro_area_id)
+          .filter(Boolean)
+          .map(String)
+      ),
+    ];
+
+    let coordinators = [];
+    let areas = [];
+
+    if (areaIds.length > 0) {
+      const [coordinatorResult, areaResult] = await Promise.all([
+        supabase
+          .from('ro_area_coordinators')
+          .select('ro_area_id, user_id')
+          .in('ro_area_id', areaIds)
+          .eq('is_active', true),
+        supabase
+          .from('ro_departments')
+          .select('department_id, department_name')
+          .in('department_id', areaIds),
+      ]);
+
+      if (coordinatorResult.error) throw coordinatorResult.error;
+      if (areaResult.error) throw areaResult.error;
+
+      coordinators = coordinatorResult.data || [];
+      areas = areaResult.data || [];
+    }
+
+    const areaNameById = new Map(
+      areas.map((row) => [
+        String(row.department_id),
+        normalizeValue(row.department_name),
+      ])
+    );
+
+    const uniqueAreaNames = [
+      ...new Set(
+        areaIds
+          .map((id) => areaNameById.get(String(id)))
+          .filter(Boolean)
+      ),
+    ];
+
+    const areaLabel =
+      uniqueAreaNames.length > 0
+        ? uniqueAreaNames.join(', ')
+        : 'the assigned RO Area';
+
+    const definitions = {
+      acknowledge: {
+        type: 'RO Assignment',
+        title: 'Scholar acknowledged RO assignment',
+        message:
+          scholarName + ' acknowledged the RO assignment for ' + areaLabel + '.',
+        referenceId: roId,
+        referenceType: 'return_of_obligation',
+      },
+      'time-in': {
+        type: 'RO Attendance',
+        title: 'Scholar timed in for RO',
+        message:
+          scholarName + ' timed in at ' + areaLabel + '. The attendance session is now in progress.',
+        referenceId: logId || roId,
+        referenceType: logId ? 'ro_time_log' : 'return_of_obligation',
+      },
+      'time-out': {
+        type: 'RO Attendance',
+        title: 'Scholar timed out from RO',
+        message:
+          scholarName + ' timed out from ' + areaLabel +
+          (Number.isFinite(Number(durationMinutes))
+            ? ' after ' + Number(durationMinutes) + ' minute(s)'
+            : '') +
+          '. The attendance evidence is pending validation.',
+        referenceId: logId || roId,
+        referenceType: logId ? 'ro_time_log' : 'return_of_obligation',
+      },
+    };
+
+    const definition = definitions[action];
+    if (!definition) {
+      return {
+        adminNotifications: [],
+        picNotifications: [],
+      };
+    }
+
+    let adminNotifications = [];
+
+    if (
+      notifyAdmin &&
+      typeof notificationService?.createStaffNotifications === 'function'
+    ) {
+      adminNotifications =
+        await notificationService.createStaffNotifications({
+          roles: ['admin'],
+          type: definition.type,
+          title: definition.title,
+          message: definition.message,
+          referenceId: definition.referenceId,
+          referenceType: definition.referenceType,
+        });
+    }
+
+    const picNotifications = [];
+
+    if (
+      notifyPic &&
+      typeof notificationService?.createUserNotification === 'function'
+    ) {
+      const seenUsers = new Set();
+
+      for (const coordinator of coordinators) {
+        const targetUserId = normalizeValue(coordinator?.user_id);
+        if (!targetUserId || seenUsers.has(targetUserId)) continue;
+
+        seenUsers.add(targetUserId);
+
+        const notification =
+          await notificationService.createUserNotification({
+            userId: targetUserId,
+            type: definition.type,
+            title: definition.title,
+            message: definition.message,
+            referenceId: definition.referenceId,
+            referenceType: definition.referenceType,
+          });
+
+        if (notification) {
+          picNotifications.push(notification);
+        }
+      }
+    }
+
+    return {
+      adminNotifications: Array.isArray(adminNotifications)
+        ? adminNotifications
+        : [],
+      picNotifications,
+    };
+  } catch (error) {
+    // The RO action is already stored. A notification problem must not force
+    // the scholar to repeat acknowledgement or attendance submission.
+    console.error(
+      'RO ACTIVITY STAFF NOTIFICATION ERROR:',
+      error?.message || error
+    );
+
+    return {
+      adminNotifications: [],
+      picNotifications: [],
+    };
+  }
+}
+
 function mapLog(row = {}) {
   return {
     logId:
@@ -2141,7 +2340,17 @@ async function acknowledgeMyRo(
 
   const scholarRequestUpdates = await syncScholarRequestForRo(ro.ro_id);
 
-  const result =
+  
+
+  const staffNotifications =
+    await sendRoActivityNotifications({
+      action: 'acknowledge',
+      student,
+      roId: ro.ro_id,
+      notifyAdmin: true,
+      notifyPic: true,
+    });
+const result =
     await getMyAssignments(
       userId
     );
@@ -2153,6 +2362,9 @@ async function acknowledgeMyRo(
       'RO assignment acknowledged.',
 
     scholarRequestUpdates,
+
+
+    staffNotifications,
 
     realtime: {
       action: 'acknowledge',
@@ -2613,7 +2825,19 @@ async function timeInMyRo(
     timedInAt: now,
   });
 
-  const result =
+  
+
+  const adminNotifications =
+    await sendRoActivityNotifications({
+      action: 'time-in',
+      student,
+      roId: ro.ro_id,
+      logId: insertedLog.log_id,
+      placementId: placement.placement_id,
+      notifyAdmin: true,
+      notifyPic: false,
+    });
+const result =
     await getMyAssignments(
       userId
     );
@@ -2629,6 +2853,9 @@ async function timeInMyRo(
     proof,
 
     picNotification,
+
+
+    adminNotifications,
 
     realtime: {
       action: 'time-in',
@@ -2858,7 +3085,20 @@ async function timeOutMyRo(
     ro.ro_id
   );
 
-  const result =
+  
+
+  const staffNotifications =
+    await sendRoActivityNotifications({
+      action: 'time-out',
+      student,
+      roId: ro.ro_id,
+      logId: activeLog.log_id,
+      placementId: activeLog.placement_id || null,
+      durationMinutes: cappedDurationMinutes,
+      notifyAdmin: true,
+      notifyPic: true,
+    });
+const result =
     await getMyAssignments(
       userId
     );
@@ -2875,6 +3115,9 @@ async function timeOutMyRo(
 
     log: updatedLog,
     proof,
+
+
+    staffNotifications,
 
     realtime: {
       action: 'time-out',

@@ -83,6 +83,8 @@ function mapRequestRow(row) {
         claimed_at: row.claimed_at || null,
         processing_started_at: row.processing_started_at || null,
         processing_heartbeat_at: row.processing_heartbeat_at || null,
+        processing_owner: row.processing_owner || null,
+        processing_claimed_at: row.processing_claimed_at || null,
         reviewed_by: row.reviewed_by || null,
         reviewed_at: row.reviewed_at || null,
         retry_of_request_id: row.retry_of_request_id || null,
@@ -785,6 +787,23 @@ exports.completeRequest = async (input = {}) => {
         await client.query('ROLLBACK');
         throw error;
     } finally { client.release(); }
+};
+
+exports.claimAsyncProcessing = async ({ requestId, owner } = {}) => {
+    if (!isUuid(requestId) || !String(owner || '').trim()) {
+        throw buildHttpError(400, 'Valid request and processing owner are required');
+    }
+    const result = await pool.query(`
+        UPDATE public.iot_ocr_requests
+        SET processing_owner = $2, processing_claimed_at = NOW(), updated_at = NOW()
+        WHERE request_id = $1::uuid
+          AND status = 'processing'
+          AND (processing_owner IS NULL OR processing_owner = $2)
+        RETURNING *
+    `, [requestId, String(owner).trim()]);
+    return result.rows.length
+        ? { claimed: true, request: mapRequestRow(result.rows[0]) }
+        : { claimed: false };
 };
 
 exports.getRequestById = async ({ requestId, applicationId = null, documentKey = null }) => {

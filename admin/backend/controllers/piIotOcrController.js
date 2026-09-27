@@ -220,7 +220,7 @@ exports.completeBirthV2Uploads = async (req, res) => {
             : isIndigencyV2
                 ? require('../services/indigencyOcrV2Service')
                 : require('../services/birthOcrV2Service');
-        const data = await service.completeUploads({
+        const data = await service.acceptUploads({
             requestId: req.params.requestId,
             deviceId: req.piAuth?.deviceId,
             diagnostic: req.body?.diagnostic || null,
@@ -235,12 +235,43 @@ exports.completeBirthV2Uploads = async (req, res) => {
             expires_at: request.expires_at,
             updated_at: request.updated_at,
         });
-        return res.status(200).json({
+        if (data.accepted) {
+            setImmediate(async () => {
+                try {
+                    await service.completeUploads({
+                        requestId: req.params.requestId,
+                        deviceId: req.piAuth?.deviceId,
+                        diagnostic: req.body?.diagnostic || null,
+                    });
+                    const finished = await iotOcrRequestService.getRequestById({ requestId: req.params.requestId });
+                    socketEvents.applicationOcrStatus(req.app?.get?.('io'), {
+                        request_id: finished.request_id, application_id: finished.application_id,
+                        document_key: finished.document_key, ocr_version: finished.ocr_version || 'v2',
+                        status: finished.status, updated_at: finished.updated_at,
+                    });
+                } catch (asyncError) {
+                    const finished = await iotOcrRequestService.getRequestById({ requestId: req.params.requestId }).catch(() => null);
+                    if (finished) {
+                        socketEvents.applicationOcrStatus(req.app?.get?.('io'), {
+                            request_id: finished.request_id, application_id: finished.application_id,
+                            document_key: finished.document_key, ocr_version: finished.ocr_version || 'v2',
+                            status: finished.status, updated_at: finished.updated_at,
+                        });
+                    }
+                    console.error('OCR_ASYNC_PROCESSING_ERROR', {
+                        request_id: String(req.params?.requestId || '').slice(0, 8),
+                        document_key: enhancedDocumentKey,
+                        code: asyncError.code || null,
+                    });
+                }
+            });
+        }
+        return res.status(data.accepted ? 202 : 200).json({
             message: isGradeV2
-                ? 'Grade V2 extraction completed'
+                ? (data.accepted ? 'Grade V2 artifacts accepted for processing' : 'Grade V2 extraction already accepted')
                 : isIndigencyV2
-                    ? 'Indigency V2 extraction completed'
-                    : 'Birth V2 extraction completed',
+                    ? (data.accepted ? 'Indigency V2 artifacts accepted for processing' : 'Indigency V2 extraction already accepted')
+                    : (data.accepted ? 'Birth V2 artifacts accepted for processing' : 'Birth V2 extraction already accepted'),
             data,
         });
     } catch (error) {

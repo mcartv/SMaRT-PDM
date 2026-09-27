@@ -180,6 +180,21 @@ exports.completeUploads = async ({ requestId, deviceId }) => {
     });
 };
 
+exports.acceptUploads = async ({ requestId, deviceId }) => {
+    const request = await iotOcrRequestService.getRequestById({ requestId });
+    if (!request || request.document_key !== 'certificate_of_indigency' || request.ocr_version !== 'v2') throw httpError(409, 'Indigency Enhanced OCR request is not available');
+    if (String(request.claimed_by || '') !== String(deviceId || '')) throw httpError(409, 'Request belongs to another Pi device');
+    if (['review_required', 'completed'].includes(request.status)) return { accepted: false, idempotent: true, request, candidate: await iotOcrRequestService.getCandidate({ applicationId: request.application_id, documentKey: request.document_key, requestId }) };
+    if (request.status !== 'processing') throw httpError(409, `Cannot accept uploads from ${request.status}`);
+    await downloadOriginal(requestId);
+    await pool.query(`
+        UPDATE public.iot_ocr_capture_artifacts SET upload_status = 'available', uploaded_at = COALESCE(uploaded_at, NOW()), updated_at = NOW()
+        WHERE request_id = $1::uuid AND artifact_kind = 'original' AND upload_status = 'pending'
+    `, [requestId]);
+    const claim = await iotOcrRequestService.claimAsyncProcessing({ requestId, owner: `backend:${process.pid}:${crypto.randomUUID()}` });
+    return claim.claimed ? { accepted: true, request: claim.request, artifacts_preserved: true } : { accepted: false, idempotent: true, request: await iotOcrRequestService.getRequestById({ requestId }) };
+};
+
 module.exports = { ...exports, FIELD_KEYS, INDIGENCY_SCHEMA, normalizeFields };
 
 module.exports.streamOriginal = async ({ requestId, applicationId }) => {

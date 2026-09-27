@@ -1016,6 +1016,19 @@ exports.completeUploads = async ({ requestId, deviceId, diagnostic = null }) => 
     return result;
 };
 
+exports.acceptUploads = async ({ requestId, deviceId, diagnostic = null }) => {
+    const request = await iotOcrRequestService.getRequestById({ requestId });
+    if (!request || request.ocr_version !== 'v2' || request.document_key !== 'birth_certificate') throw httpError(409, 'Birth V2 request is not available');
+    if (String(request.claimed_by || '') !== String(deviceId || '')) throw httpError(409, 'Request belongs to another Pi device');
+    if (['review_required', 'completed'].includes(request.status)) return { accepted: false, idempotent: true, request, candidate: await iotOcrRequestService.getCandidate({ applicationId: request.application_id, documentKey: request.document_key, requestId }) };
+    if (request.status !== 'processing') throw httpError(409, `Cannot accept uploads from ${request.status}`);
+    const diagnosticResult = normalizeDiagnostic(diagnostic);
+    const artifacts = await downloadAndVerifyArtifacts(requestId, { originalOnly: Boolean(diagnosticResult) });
+    if (artifacts.filter(({ artifact_kind }) => artifact_kind === 'cell').length === 0 && !diagnosticResult) throw httpError(400, 'Birth V2 original-only upload requires diagnostic metadata');
+    const claim = await iotOcrRequestService.claimAsyncProcessing({ requestId, owner: `backend:${process.pid}:${crypto.randomUUID()}` });
+    return claim.claimed ? { accepted: true, request: claim.request, artifacts_preserved: true } : { accepted: false, idempotent: true, request: await iotOcrRequestService.getRequestById({ requestId }) };
+};
+
 exports.streamOriginal = async ({ requestId, applicationId }) => {
     const result = await pool.query(`
         SELECT a.bucket_name, a.object_path, a.mime_type

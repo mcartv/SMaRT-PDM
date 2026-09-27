@@ -176,34 +176,6 @@ function humanOcrError(code, fallback = 'OCR could not complete this request.') 
   return OCR_ERROR_MESSAGES[String(code || '').trim()] || fallback;
 }
 
-function operationalOcrStatus(request, candidate) {
-  const status = String(candidate?.status || request?.status || '').toLowerCase();
-  const retryAt = request?.processing_retry_at;
-  const attempts = Number(request?.processing_attempt_count || 0);
-  if (retryAt) return { label: 'Retry scheduled', detail: 'The captured document is preserved and will be retried automatically.', tone: 'warning' };
-  if (status === 'processing' && attempts > 0) return { label: 'Retrying OCR', detail: 'Using the existing captured document.', tone: 'warning' };
-  if (status === 'processing') return { label: 'Processing OCR', detail: 'OCR processing continues in the background.', tone: 'info' };
-  if (status === 'review_required') return { label: 'Ready for review', detail: 'Review the extracted information before confirming it.', tone: 'success' };
-  if (status === 'failed') {
-    return attempts >= 3
-      ? { label: 'Automatic retries unsuccessful', detail: 'You can retry OCR using the existing captured document.', tone: 'danger' }
-      : { label: 'OCR unavailable', detail: humanOcrError(request?.error_code || request?.processing_last_error_code), tone: 'danger' };
-  }
-  if (status === 'completed') return { label: 'OCR confirmed', detail: 'This OCR result has been confirmed.', tone: 'success' };
-  if (status) return { label: IOT_OCR_STATUS_MESSAGES[status] || 'OCR request active', detail: IOT_OCR_STATUS_MESSAGES[status] || 'The OCR request is active.', tone: 'info' };
-  return null;
-}
-
-function operationalToneClass(tone) {
-  return tone === 'success'
-    ? 'border-green-200 bg-green-50 text-green-800'
-    : tone === 'warning'
-      ? 'border-amber-200 bg-amber-50 text-amber-800'
-      : tone === 'danger'
-        ? 'border-red-200 bg-red-50 text-red-800'
-        : 'border-stone-200 bg-stone-50 text-stone-700';
-}
-
 function getActiveIotRequest(document = {}) {
   return document?.iot_ocr_request || document?.ocr_job || null;
 }
@@ -1733,16 +1705,37 @@ const BIRTH_REGION_PREFIX = {
   father_name: 'item13',
 };
 
-const BIRTH_REGION_STYLE = {
-  item1: { color: '#ef4444', label: 'Item 1 / Child' },
-  item6: { color: '#f59e0b', label: 'Item 6 / Mother' },
-  item13: { color: 'var(--portal-base)', label: 'Item 13 / Father' },
-};
+function BirthV2ReviewImage({ src, status, error, onRetry }) {
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewZoom, setPreviewZoom] = useState(1);
+  const [previewPan, setPreviewPan] = useState({ x: 0, y: 0 });
+  const [previewDragging, setPreviewDragging] = useState(false);
+  const dragStateRef = useRef({ pointerId: null, startX: 0, startY: 0, panX: 0, panY: 0 });
 
-function BirthV2ReviewImage({ src, regions, regionMode, activeRegion, status, error, onRetry }) {
+  const resetPreviewTransform = () => {
+    setPreviewZoom(1);
+    setPreviewPan({ x: 0, y: 0 });
+    setPreviewDragging(false);
+    dragStateRef.current = { pointerId: null, startX: 0, startY: 0, panX: 0, panY: 0 };
+  };
+
+  const closePreview = () => {
+    setPreviewOpen(false);
+    resetPreviewTransform();
+  };
+
+  useEffect(() => {
+    if (!previewOpen) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') closePreview();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [previewOpen]);
+
   if (['error', 'missing', 'access_error'].includes(status)) {
     return (
-      <div className="flex min-h-64 items-center justify-center rounded-lg border border-dashed border-rose-300 bg-rose-50 px-4 text-center text-sm text-rose-700" role="alert">
+      <div className="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-rose-300 bg-rose-50 px-4 text-center text-sm text-rose-700" role="alert">
         <div>
           <p>{error || 'The private Birth review image is unavailable.'}</p>
           {onRetry && status !== 'missing' ? <Button variant="outline" className="mt-3 border-rose-200 bg-white text-rose-700 hover:bg-rose-100" onClick={onRetry}>Retry Preview</Button> : null}
@@ -1751,61 +1744,136 @@ function BirthV2ReviewImage({ src, regions, regionMode, activeRegion, status, er
     );
   }
   if (status === 'retrying') {
-    return <div className="flex min-h-64 items-center justify-center rounded-lg border border-dashed border-amber-300 bg-amber-50 px-4 text-center text-sm text-amber-800" role="status">Preview is taking longer than expected. Retrying...</div>;
+    return <div className="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 text-center text-sm text-amber-800" role="status">Preview is taking longer than expected. Retrying...</div>;
   }
   if (!src) {
     return (
-      <div className="flex min-h-64 items-center justify-center rounded-lg border border-dashed border-stone-300 bg-stone-50 text-sm text-stone-500">
+      <div className="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-stone-300 bg-stone-50 text-sm text-stone-500">
         Loading private Birth review image...
       </div>
     );
   }
-  const entries = Object.entries(regions || {}).filter(([, points]) => Array.isArray(points));
-  const expected = regionMode === 'expected_calibration';
+
   return (
-    <div className="space-y-2">
-      <div className="relative overflow-hidden rounded-lg border border-stone-200 bg-stone-900" aria-label="Private Birth OCR review image with scan regions">
-        <img src={src} alt="Captured Birth certificate for admin review" className="block h-auto w-full" />
-        <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
-          {Object.entries(regions || {}).map(([key, points]) => {
-            if (!Array.isArray(points)) return null;
-            const prefix = key.startsWith('item13') ? 'item13' : key.startsWith('item6') ? 'item6' : 'item1';
-            const style = BIRTH_REGION_STYLE[prefix];
-            const component = key.split('_').at(-1);
-            const anchorX = Math.min(...points.map(([x]) => Number(x))) + 0.004;
-            const anchorY = Math.min(...points.map(([, y]) => Number(y))) + 0.014;
-            return (
-              <g key={key}>
-                <polygon
-                  points={points.map(([x, y]) => `${x},${y}`).join(' ')}
-                  fill={prefix === 'item13'
-                    ? (key === activeRegion ? 'color-mix(in srgb, var(--portal-base) 34%, transparent)' : 'color-mix(in srgb, var(--portal-base) 13%, transparent)')
-                    : (key === activeRegion ? `${style.color}55` : `${style.color}20`)}
-                  stroke={style.color}
-                  strokeWidth={key === activeRegion ? 0.006 : 0.003}
-                  strokeDasharray={expected ? '0.012 0.008' : undefined}
-                />
-                <text x={anchorX} y={anchorY} fill={style.color} fontSize="0.018" fontWeight="700">
-                  {component?.[0]?.toUpperCase() + component?.slice(1)}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-      </div>
-      {entries.length > 0 ? (
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-stone-600" aria-label="Birth scan-region legend">
-          {Object.entries(BIRTH_REGION_STYLE).map(([key, style]) => (
-            <span key={key} className="inline-flex items-center gap-1">
-              <span className="h-2.5 w-4 rounded-sm" style={{ backgroundColor: style.color }} />{style.label}
-            </span>
-          ))}
-          <span>{expected ? 'Dashed = expected calibrated cells' : 'Solid = exact uploaded cells'}</span>
+    <>
+      <button
+        type="button"
+        onClick={() => { resetPreviewTransform(); setPreviewOpen(true); }}
+        className="group relative block h-full min-h-[520px] w-full cursor-zoom-in overflow-hidden rounded-2xl bg-[var(--portal-surface)] p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-base)] focus-visible:ring-offset-2"
+        style={{ minHeight: '520px', height: '100%' }}
+        aria-label="Open captured Birth certificate preview"
+      >
+        <img
+          src={src}
+          alt="Captured Birth certificate for admin review"
+          className="absolute inset-0 block transition-transform duration-200 group-hover:scale-[1.015]"
+          style={{
+            width: '100%',
+            height: '100%',
+            minWidth: '100%',
+            minHeight: '100%',
+            maxWidth: 'none',
+            objectFit: 'cover',
+            objectPosition: 'center center',
+          }}
+        />
+      </button>
+
+      {previewOpen ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 backdrop-blur-[2px] sm:p-6"
+          style={{ background: 'color-mix(in srgb, var(--portal-base) 28%, rgba(15, 23, 42, 0.72))' }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Captured Birth certificate preview"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closePreview();
+          }}
+        >
+          <div
+            className="relative h-full max-h-[94vh] w-full max-w-6xl overflow-hidden rounded-2xl border bg-white/95 shadow-2xl"
+            style={{ borderColor: 'color-mix(in srgb, var(--portal-base) 34%, white)', boxShadow: '0 30px 80px -30px color-mix(in srgb, var(--portal-base) 45%, transparent)' }}
+            onWheel={(event) => {
+              event.preventDefault();
+              const direction = event.deltaY < 0 ? 1 : -1;
+              setPreviewZoom((current) => {
+                const next = Math.min(4, Math.max(1, Number((current + direction * 0.2).toFixed(2))));
+                if (next === 1) setPreviewPan({ x: 0, y: 0 });
+                return next;
+              });
+            }}
+          >
+            <div
+              className={`flex h-full w-full touch-none items-center justify-center overflow-hidden ${previewZoom > 1 ? (previewDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-zoom-in'}`}
+              onPointerDown={(event) => {
+                if (previewZoom <= 1) return;
+                event.currentTarget.setPointerCapture(event.pointerId);
+                dragStateRef.current = {
+                  pointerId: event.pointerId,
+                  startX: event.clientX,
+                  startY: event.clientY,
+                  panX: previewPan.x,
+                  panY: previewPan.y,
+                };
+                setPreviewDragging(true);
+              }}
+              onPointerMove={(event) => {
+                const drag = dragStateRef.current;
+                if (!previewDragging || drag.pointerId !== event.pointerId) return;
+                setPreviewPan({
+                  x: drag.panX + (event.clientX - drag.startX),
+                  y: drag.panY + (event.clientY - drag.startY),
+                });
+              }}
+              onPointerUp={(event) => {
+                if (dragStateRef.current.pointerId === event.pointerId) {
+                  try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* no-op */ }
+                  dragStateRef.current.pointerId = null;
+                }
+                setPreviewDragging(false);
+              }}
+              onPointerCancel={() => {
+                dragStateRef.current.pointerId = null;
+                setPreviewDragging(false);
+              }}
+              onDoubleClick={() => {
+                if (previewZoom > 1) resetPreviewTransform();
+                else setPreviewZoom(2);
+              }}
+            >
+              <img
+                src={src}
+                alt="Full preview of captured Birth certificate"
+                className="max-h-[88vh] max-w-[94%] select-none object-contain will-change-transform"
+                style={{
+                  transform: `translate3d(${previewPan.x}px, ${previewPan.y}px, 0) scale(${previewZoom})`,
+                  transformOrigin: 'center center',
+                  transition: previewDragging ? 'none' : 'transform 120ms ease-out',
+                }}
+                draggable={false}
+              />
+            </div>
+            <div
+              className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border bg-white/90 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur"
+              style={{ borderColor: 'color-mix(in srgb, var(--portal-base) 20%, #e7e5e4)', color: 'var(--portal-base)' }}
+              aria-hidden="true"
+            >
+              {Math.round(previewZoom * 100)}% · Scroll to zoom{previewZoom > 1 ? ' · Drag to move' : ''}
+            </div>
+            <button
+              type="button"
+              onClick={closePreview}
+              className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full border bg-white/95 shadow-lg transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-base)]"
+              style={{ borderColor: 'color-mix(in srgb, var(--portal-base) 28%, #e7e5e4)', color: 'var(--portal-base)' }}
+              aria-label="Exit document preview"
+              title="Exit preview"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
-      ) : (
-        <p className="text-xs text-amber-700">No calibrated scan regions were available for this attempt. Calibrate the Pi and request a rescan.</p>
-      )}
-    </div>
+      ) : null}
+    </>
   );
 }
 
@@ -1843,7 +1911,7 @@ function OCRPanel({
   onRejectCandidate,
   onRescanCandidate,
 }) {
-  const [activeBirthRegion, setActiveBirthRegion] = useState('item1_first');
+  const [, setActiveBirthRegion] = useState('item1_first');
   const reviewCandidate = ['student_grade_forms', 'certificate_of_indigency'].includes(activeDoc?.id)
     ? currentOcrCandidate(suppliedReviewCandidate, getActiveIotRequest(activeDoc), activeDoc.id)
     : suppliedReviewCandidate;
@@ -2032,64 +2100,6 @@ function OCRPanel({
           </div>
         )}
 
-        {(() => {
-          const request = getActiveIotRequest(activeDoc);
-          const status = operationalOcrStatus(request, reviewCandidate);
-          const processing = reviewCandidate?.processing || {};
-          const evidence = processing.evidence;
-          if (!status && !reviewCandidate) return null;
-          return (
-            <section className="space-y-3 rounded-xl border border-stone-200 bg-white p-4" aria-labelledby="ocr-operational-status">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h3 id="ocr-operational-status" className="text-sm font-bold text-stone-900">OCR status</h3>
-                  <p className="mt-1 text-xs text-stone-600">{status?.detail || 'OCR information is available for review.'}</p>
-                </div>
-                {status && <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${operationalToneClass(status.tone)}`}>{status.label}</span>}
-              </div>
-
-              {activeDoc?.id === 'birth_certificate' && (processing.raw_text_status || processing.cell_extraction_status) && (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <div className="rounded-lg border border-stone-200 px-3 py-2 text-xs">
-                    <p className="font-semibold text-stone-700">Structured OCR</p>
-                    <p className="mt-1 text-stone-600">{processing.cell_extraction_status === 'available' || processing.structured_value_source ? 'Ready' : processing.cell_extraction_status === 'unavailable' ? 'Unavailable' : 'Processing'}</p>
-                  </div>
-                  <div className="rounded-lg border border-stone-200 px-3 py-2 text-xs">
-                    <p className="font-semibold text-stone-700">Full-page OCR</p>
-                    <p className="mt-1 text-stone-600">{processing.raw_text_status === 'available' ? 'Ready' : processing.raw_text_status === 'unavailable' ? 'Unavailable' : 'Processing'}</p>
-                  </div>
-                </div>
-              )}
-
-              {evidence?.fields && (
-                <div className="grid gap-2 sm:grid-cols-3" aria-label="OCR evidence states">
-                  {Object.entries(evidence.fields).map(([fieldKey, item]) => (
-                    <div key={fieldKey} className="flex items-center justify-between gap-2 rounded-lg border border-stone-200 px-3 py-2 text-xs">
-                      <span className="text-stone-600">{fieldKey.replaceAll('_', ' ')}</span>
-                      <span className={item.state === 'confirmed' ? 'font-semibold text-green-700' : item.state === 'conflict' ? 'font-semibold text-red-700' : 'font-semibold text-amber-700'}>{item.state}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {(request?.request_id || request?.ocr_version || request?.processing_attempt_count || request?.processing_last_error_code) && (
-                <details className="rounded-lg border border-stone-200 px-3 py-2 text-xs text-stone-600">
-                  <summary className="cursor-pointer font-semibold text-stone-700">Technical details</summary>
-                  <dl className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-2">
-                    {request?.request_id && <><dt>Request ID</dt><dd className="truncate font-mono">{request.request_id}</dd></>}
-                    {request?.ocr_version && <><dt>OCR version</dt><dd>{request.ocr_version}</dd></>}
-                    {request?.document_key && <><dt>Document</dt><dd>{request.document_key.replaceAll('_', ' ')}</dd></>}
-                    {request?.processing_attempt_count != null && <><dt>Processing attempt</dt><dd>{request.processing_attempt_count}</dd></>}
-                    {request?.processing_retry_at && <><dt>Next retry</dt><dd>{new Date(request.processing_retry_at).toLocaleString()}</dd></>}
-                    {request?.processing_last_error_code && <><dt>Last OCR error</dt><dd>{humanOcrError(request.processing_last_error_code)}</dd></>}
-                    {processing.ocr_engine && <><dt>OCR provider</dt><dd>{processing.ocr_engine}</dd></>}
-                  </dl>
-                </details>
-              )}
-            </section>
-          );
-        })()}
-
         {['student_grade_forms', 'certificate_of_indigency'].includes(activeDoc?.id) && <ScannedDocumentPreview candidate={reviewCandidate} request={getActiveIotRequest(activeDoc)} documentKey={activeDoc.id} />}
 
         {isGradeReview && (
@@ -2259,42 +2269,19 @@ function OCRPanel({
               </div>
             )}
 
-            {reviewCandidate?.processing?.evidence?.fields && (
-              <div className="rounded-lg border border-stone-200 bg-white px-3 py-2">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">Evidence state</p>
-                  <Badge className="border-stone-200 bg-stone-50 text-stone-700">
-                    {String(reviewCandidate.processing.evidence.overall_state || 'unavailable').replaceAll('_', ' ')}
-                  </Badge>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  {Object.entries(reviewCandidate.processing.evidence.fields).map(([fieldKey, item]) => (
-                    <div key={fieldKey} className="flex items-center justify-between gap-2 text-xs">
-                      <span className="text-stone-600">{fieldKey.replaceAll('_', ' ')}</span>
-                      <span className={`font-semibold ${item.state === 'conflict' ? 'text-red-700' : item.state === 'confirmed' ? 'text-green-700' : 'text-amber-700'}`}>
-                        {item.state}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+
 
             <div className={birthShowReviewImage && !birthDiagnosticOnly
-              ? 'grid items-start gap-5 2xl:grid-cols-[minmax(360px,0.95fr)_minmax(0,1.05fr)]'
+              ? 'grid items-stretch gap-5 xl:grid-cols-[minmax(440px,1.08fr)_minmax(0,0.92fr)]'
               : 'space-y-4'}>
               {birthShowReviewImage && (
-                <div className="min-w-0 space-y-3 rounded-2xl border border-stone-200 bg-white p-3 shadow-[0_10px_30px_-24px_rgba(28,25,23,0.55)] sm:p-4">
+                <div className="relative h-full min-h-[520px] min-w-0 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-[0_10px_30px_-24px_rgba(28,25,23,0.55)]">
                   <BirthV2ReviewImage
                     src={birthReviewImageUrl}
-                    regions={reviewCandidate?.processing?.source_regions}
-                    regionMode={reviewCandidate?.processing?.region_mode}
-                    activeRegion={activeBirthRegion}
                     status={birthReviewImageStatus}
                     error={birthReviewImageError}
                     onRetry={onRetryBirthReviewImage}
                   />
-                  <p className="text-sm leading-5 text-stone-500">All scan cells remain visible. Focus a field to emphasize its source cell.</p>
                 </div>
               )}
 

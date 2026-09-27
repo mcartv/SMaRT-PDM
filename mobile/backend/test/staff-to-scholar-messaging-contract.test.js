@@ -32,6 +32,7 @@ test('mobile preserves the selected staff counterparty for replies and read rece
   );
 
   assert.match(controller, /getSupportCounterpartyId\(req\)/);
-  assert.match(client, /_lastConversationCounterpartyId\s*=\s*response\['counterpartyId'\]/);
+  assert.match(client, /_lastConversationCounterpartyId\s*=\s*_readCounterpartyId\(response\)/);
+  assert.match(client, /response\['counterpartyId'\]/);
   assert.match(client, /'counterpartyId': _lastConversationCounterpartyId/);
 });

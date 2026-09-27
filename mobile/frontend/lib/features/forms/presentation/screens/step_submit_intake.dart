@@ -81,6 +81,7 @@ class _StepSubmitState extends State<StepSubmit> {
     final parts = [
       widget.data.unitBldgNo,
       widget.data.houseLotBlockNo,
+      widget.data.phase,
       widget.data.street,
       widget.data.subdivision,
       widget.data.barangay,
@@ -97,15 +98,12 @@ class _StepSubmitState extends State<StepSubmit> {
   }
 
   Widget _warningBox() {
-    // Validation feedback belongs to the submit attempt. Do not show an error
-    // banner merely because the applicant opened the review step before
-    // checking the certification and legal-consent boxes.
     if (!widget.showErrors) return const SizedBox.shrink();
 
     final validation = _reviewValidation();
 
     if (validation.isValid) {
-      return IntakeInfoCard(
+      return const IntakeInfoCard(
         title: 'Ready to submit',
         message:
             'Your required sections are complete. Review the information below before final submission.',
@@ -276,9 +274,17 @@ class _StepSubmitState extends State<StepSubmit> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const IntakeSectionHeader(title: 'VI. CONFIRM & SUBMIT'),
+        const SizedBox(height: 10),
+        Text(
+          'Before you submit',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: intakeTextColor(context),
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 10),
         const IntakeInfoCard(
-          title: 'Before you submit',
+          title: 'Final check',
           message:
               'Submitting this form creates your scholarship application. After submission, you can upload the required documents from the next application stage.',
           icon: Icons.assignment_turned_in_outlined,
@@ -295,9 +301,9 @@ class _StepSubmitState extends State<StepSubmit> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const IntakeSectionHeader(title: 'V. REVIEW APPLICATION'),
+        const IntakeSectionHeader(title: 'V. REVIEW & SUBMIT'),
         Text(
-          'Please double-check your application form and make sure all information is correct before submitting.',
+          'Review your application details, make any needed changes, then confirm the information before submitting.',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: intakeSubtextColor(context),
             fontWeight: FontWeight.w600,
@@ -430,7 +436,7 @@ class _StepSubmitState extends State<StepSubmit> {
           ],
         ),
         IntakeReviewCard(
-          title: 'Essay',
+          title: 'Personal Statement',
           onEdit: () => widget.onEditStep(3),
           rows: [
             IntakeReviewRow(
@@ -445,7 +451,6 @@ class _StepSubmitState extends State<StepSubmit> {
             ),
           ],
         ),
-        const SizedBox(height: 10),
         _confirmationArea(),
       ],
     );

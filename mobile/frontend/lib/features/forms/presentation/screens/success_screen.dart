@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
-import 'package:smartpdm_mobileapp/app/theme/app_status_colors.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/core/files/downloaded_file_handler.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/printable_application_service.dart';
@@ -17,6 +16,7 @@ class SuccessScreen extends StatefulWidget {
 }
 
 class _SuccessScreenState extends State<SuccessScreen> {
+  // SMART-PDM_MOBILE_APPLICATION_SUCCESS_PHASE3_V1
   late final PrintableApplicationService _printableApplicationService;
   bool _isGeneratingPdf = false;
 
@@ -51,7 +51,9 @@ class _SuccessScreenState extends State<SuccessScreen> {
           ? await _printableApplicationService
                 .generateBytesFromMySubmittedApplicationForm()
           : await _printableApplicationService
-                .generateBytesFromSubmissionPayload(submissionPayload ?? const {});
+                .generateBytesFromSubmissionPayload(
+                  submissionPayload ?? const {},
+                );
 
       if (!mounted) return;
 
@@ -94,8 +96,13 @@ class _SuccessScreenState extends State<SuccessScreen> {
         onTap: isLoading ? null : onTap,
         borderRadius: AppRadii.card,
         child: Container(
-          constraints: const BoxConstraints(minHeight: AppSizes.minimumTapTarget),
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+          constraints: const BoxConstraints(
+            minHeight: AppSizes.minimumTapTarget,
+          ),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.md,
+          ),
           decoration: BoxDecoration(
             color: backgroundColor,
             borderRadius: AppRadii.card,
@@ -105,7 +112,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
             boxShadow: backgroundColor == Colors.white
                 ? [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
+                      color: Colors.black.withValues(alpha: 0.04),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -134,7 +141,10 @@ class _SuccessScreenState extends State<SuccessScreen> {
                   ),
                 ),
               ),
-              Icon(Icons.chevron_right, color: textColor.withOpacity(0.8)),
+              Icon(
+                Icons.chevron_right,
+                color: textColor.withValues(alpha: 0.8),
+              ),
             ],
           ),
         ),
@@ -248,7 +258,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
                                     shape: BoxShape.circle,
                                     gradient: RadialGradient(
                                       colors: [
-                                        AppColors.gold.withOpacity(0.15),
+                                        AppColors.gold.withValues(alpha: 0.15),
                                         Colors.transparent,
                                       ],
                                       stops: const [0.3, 1.0],
@@ -334,9 +344,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
                         const SizedBox(height: 18),
                         Text(
                           title,
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineSmall
+                          style: Theme.of(context).textTheme.headlineSmall
                               ?.copyWith(
                                 fontWeight: FontWeight.w900,
                                 color: titleColor,
@@ -348,9 +356,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
                         Text(
                           message,
                           textAlign: TextAlign.center,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
+                          style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(color: bodyColor, height: 1.5),
                         ),
                       ],
@@ -358,33 +364,13 @@ class _SuccessScreenState extends State<SuccessScreen> {
                   ),
                   const SizedBox(height: 26),
 
-                  // Action Buttons
-                  if (canGeneratePdf)
-                    _buildActionTile(
-                      icon: Icons.file_download_outlined,
-                      title: _isGeneratingPdf
-                          ? 'Generating PDF...'
-                          : 'Export Application Form',
-                      backgroundColor: AppColors.gold,
-                      textColor: Colors.black,
-                      iconColor: Colors.black,
-                      isLoading: _isGeneratingPdf,
-                      onTap: _isGeneratingPdf
-                          ? null
-                          : () => _handleGeneratePdf(
-                              applicationId: applicationId,
-                              submissionPayload: submissionPayload,
-                            ),
-                    ),
-
                   if (canUploadRequirements)
                     _buildActionTile(
                       icon: Icons.description_outlined,
-                      title: 'View Documents',
-                      backgroundColor: secondarySurface,
-                      textColor: titleColor,
-                      iconColor: AppColors.gold,
-                      borderColor: outlineColor,
+                      title: 'Manage Required Documents',
+                      backgroundColor: AppColors.gold,
+                      textColor: AppColors.darkBrown,
+                      iconColor: AppColors.darkBrown,
                       onTap: () {
                         Navigator.pushNamed(
                           context,
@@ -400,76 +386,43 @@ class _SuccessScreenState extends State<SuccessScreen> {
                     ),
 
                   _buildActionTile(
-                    icon: Icons.home_outlined,
-                    title: 'Back to Dashboard',
+                    icon: Icons.fact_check_outlined,
+                    title: 'Track Application',
                     backgroundColor: secondarySurface,
                     textColor: titleColor,
                     iconColor: AppColors.gold,
                     borderColor: outlineColor,
-                    onTap: () {
-                      Navigator.pushNamedAndRemoveUntil(
+                    onTap: () => Navigator.pushNamed(context, AppRoutes.status),
+                  ),
+
+                  if (canGeneratePdf)
+                    _buildActionTile(
+                      icon: Icons.file_download_outlined,
+                      title: _isGeneratingPdf
+                          ? 'Generating PDF...'
+                          : 'Export Application Form',
+                      backgroundColor: secondarySurface,
+                      textColor: titleColor,
+                      iconColor: AppColors.gold,
+                      borderColor: outlineColor,
+                      isLoading: _isGeneratingPdf,
+                      onTap: _isGeneratingPdf
+                          ? null
+                          : () => _handleGeneratePdf(
+                              applicationId: applicationId,
+                              submissionPayload: submissionPayload,
+                            ),
+                    ),
+
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: () => Navigator.pushNamedAndRemoveUntil(
                         context,
                         AppRoutes.home,
                         (route) => false,
-                      );
-                    },
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Bottom Banner
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppStatusColors.of(context).inProgressContainer,
-                      borderRadius: AppRadii.card,
-                      border: Border.all(
-                        color: AppStatusColors.of(context).inProgressOutline,
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            Container(
-                              width: 20,
-                              height: 20,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isDark
-                                    ? AppColors.applicantDarkSurface
-                                    : Colors.white,
-                              ),
-                            ),
-                            const Icon(
-                              Icons.info,
-                              color: AppColors.gold,
-                              size: 24,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            "You can track your application status anytime in your dashboard.",
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(
-                                  color: AppStatusColors.of(context)
-                                      .onInProgressContainer,
-                                  height: 1.4,
-                                ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Icon(
-                          Icons.fact_check_outlined,
-                          color: AppColors.gold.withOpacity(0.8),
-                          size: 48,
-                        ),
-                      ],
+                      icon: const Icon(Icons.home_outlined),
+                      label: const Text('Back to Dashboard'),
                     ),
                   ),
                   const SizedBox(height: 20),

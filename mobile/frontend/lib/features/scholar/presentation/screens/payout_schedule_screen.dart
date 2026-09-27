@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -20,6 +19,8 @@ import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 enum _ProofUploadSource { camera, file }
+
+// SMART-PDM_MOBILE_SCHOLAR_PAYOUT_RESPONSIVE_PHASE4_V1
 
 class PayoutScheduleScreen extends StatefulWidget {
   final bool showBottomNav;
@@ -163,9 +164,9 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
             children: [
               Text(
                 'Choose upload source',
-                style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+                style: Theme.of(
+                  sheetContext,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 6),
               Text(
@@ -178,20 +179,16 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                 leading: const Icon(Icons.photo_camera_outlined),
                 title: const Text('Camera'),
                 subtitle: const Text('Take a new photo of the proof'),
-                onTap: () => Navigator.pop(
-                  sheetContext,
-                  _ProofUploadSource.camera,
-                ),
+                onTap: () =>
+                    Navigator.pop(sheetContext, _ProofUploadSource.camera),
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.folder_open_outlined),
                 title: const Text('Choose File'),
                 subtitle: const Text('PDF, JPG, JPEG, PNG, or WEBP'),
-                onTap: () => Navigator.pop(
-                  sheetContext,
-                  _ProofUploadSource.file,
-                ),
+                onTap: () =>
+                    Navigator.pop(sheetContext, _ProofUploadSource.file),
               ),
             ],
           ),
@@ -259,7 +256,8 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
       _showMessage('Only PDF, JPG, JPEG, PNG, and WEBP files are allowed.');
       return;
     }
-    if (kIsWeb && source == _ProofUploadSource.file &&
+    if (kIsWeb &&
+        source == _ProofUploadSource.file &&
         (fileBytes == null || fileBytes.isEmpty)) {
       _showMessage('The selected file could not be read. Choose it again.');
       return;
@@ -329,7 +327,10 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
       builder: (dialogContext) {
         final size = MediaQuery.sizeOf(dialogContext);
         return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 28),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 28,
+          ),
           shape: const RoundedRectangleBorder(borderRadius: AppRadii.card),
           child: ConstrainedBox(
             constraints: BoxConstraints(
@@ -350,9 +351,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                               : 'Proof of Payout',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(dialogContext)
-                              .textTheme
-                              .titleSmall
+                          style: Theme.of(dialogContext).textTheme.titleSmall
                               ?.copyWith(fontWeight: FontWeight.w800),
                         ),
                       ),
@@ -450,24 +449,49 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
         children: [
           const Divider(),
           const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  proof == null ? 'Proof of Payout Required' : 'Proof of Payout',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: titleColor,
-                  ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final textScale = MediaQuery.textScalerOf(context).scale(1);
+              final stackHeader =
+                  constraints.maxWidth < 300 || textScale > 1.25;
+              final title = Text(
+                proof == null ? 'Proof of Payout Required' : 'Proof of Payout',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: titleColor,
                 ),
-              ),
-              if (proof != null)
-                AppStatusCapsule(
-                  label: proof.status,
-                  tone: _proofStatusTone(proof.status),
-                  compact: true,
-                ),
-            ],
+              );
+              final status = proof == null
+                  ? null
+                  : AppStatusCapsule(
+                      label: proof.status,
+                      tone: _proofStatusTone(proof.status),
+                      compact: true,
+                    );
+
+              if (stackHeader) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    title,
+                    if (status != null) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      status,
+                    ],
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: title),
+                  if (status != null) ...[
+                    const SizedBox(width: AppSpacing.sm),
+                    status,
+                  ],
+                ],
+              );
+            },
           ),
           const SizedBox(height: 6),
           Text(
@@ -576,7 +600,6 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     return 'PHP ${value.toStringAsFixed(0)}';
   }
 
-
   String _formatPayoutDate(String value) {
     final raw = value.trim();
     if (raw.isEmpty) return 'TBA';
@@ -674,18 +697,19 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                       const SizedBox(height: AppSpacing.md),
                       Text(
                         'Failed to load payout schedule.',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: titleColor,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: titleColor,
+                            ),
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       Text(
                         _error!,
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: subtitleColor,
-                        ),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: subtitleColor),
                       ),
                       const SizedBox(height: AppSpacing.md),
                       FilledButton(
@@ -704,9 +728,8 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                       Expanded(
                         child: Text(
                           'No payout schedule is available yet. New payout records will appear here when OSFA publishes them.',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: subtitleColor,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: subtitleColor),
                         ),
                       ),
                     ],
@@ -722,134 +745,58 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                     return AppSurfaceCard(
                       margin: const EdgeInsets.only(bottom: AppSpacing.md),
                       child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                AppIconTile(
-                                  icon: _getStatusIcon(payout.status),
-                                  accent: _statusAccent(
-                                    context,
-                                    payout.status,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        payout.title,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyLarge
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color: titleColor,
-                                            ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        payout.programName,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .labelMedium
-                                            ?.copyWith(color: subtitleColor),
-                                      ),
-                                      if ((payout.benefactorName ?? '')
-                                          .isNotEmpty) ...[
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          payout.benefactorName!,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .labelMedium
-                                              ?.copyWith(color: subtitleColor),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      _formatAmount(payout.amount),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyLarge
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                            color: titleColor,
-                                          ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    AppStatusCapsule(
-                                      label: payout.status,
-                                      tone: _statusTone(payout.status),
-                                      compact: true,
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-                            const Divider(),
-                            const SizedBox(height: 10),
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildPayoutHeader(payout, titleColor, subtitleColor),
+                          const SizedBox(height: 14),
+                          const Divider(),
+                          const SizedBox(height: 10),
+                          _infoRow(
+                            'Payout Date',
+                            _formatPayoutDate(payout.payoutDate),
+                            subtitleColor,
+                          ),
+                          _infoRow(
+                            'Semester',
+                            payout.semester.isEmpty ? '-' : payout.semester,
+                            subtitleColor,
+                          ),
+                          _infoRow(
+                            'School Year',
+                            payout.schoolYear.isEmpty ? '-' : payout.schoolYear,
+                            subtitleColor,
+                          ),
+                          _infoRow(
+                            'Payout Mode',
+                            payout.paymentMode.isEmpty
+                                ? '-'
+                                : payout.paymentMode,
+                            subtitleColor,
+                          ),
+                          if (payout.paymentMode.trim().toLowerCase() ==
+                                  'other' &&
+                              payout.payoutType.trim().isNotEmpty)
                             _infoRow(
-                              'Payout Date',
-                              _formatPayoutDate(payout.payoutDate),
+                              'Payout Type',
+                              payout.payoutType,
                               subtitleColor,
                             ),
-                            _infoRow(
-                              'Semester',
-                              payout.semester.isEmpty ? '-' : payout.semester,
-                              subtitleColor,
-                            ),
-                            _infoRow(
-                              'School Year',
-                              payout.schoolYear.isEmpty
-                                  ? '-'
-                                  : payout.schoolYear,
-                              subtitleColor,
-                            ),
-                            _infoRow(
-                              'Payout Mode',
-                              payout.paymentMode.isEmpty
-                                  ? '-'
-                                  : payout.paymentMode,
-                              subtitleColor,
-                            ),
-                            if (payout.paymentMode.trim().toLowerCase() ==
-                                    'other' &&
-                                payout.payoutType.trim().isNotEmpty)
-                              _infoRow(
-                                'Payout Type',
-                                payout.payoutType,
-                                subtitleColor,
-                              ),
-                            _infoRow(
-                              'Batch Status',
-                              payout.batchStatus.isEmpty
-                                  ? '-'
-                                  : payout.batchStatus,
-                              subtitleColor,
-                            ),
-                            _infoRow(
-                              'Payout Code',
-                              payout.payoutCode.isEmpty ? '-' : payout.payoutCode,
-                              subtitleColor,
-                            ),
-                            _buildProofSection(
-                              payout,
-                              titleColor,
-                              subtitleColor,
-                            ),
-                          ],
-                        ),
-                      );
+                          _infoRow(
+                            'Batch Status',
+                            payout.batchStatus.isEmpty
+                                ? '-'
+                                : payout.batchStatus,
+                            subtitleColor,
+                          ),
+                          _infoRow(
+                            'Payout Code',
+                            payout.payoutCode.isEmpty ? '-' : payout.payoutCode,
+                            subtitleColor,
+                          ),
+                          _buildProofSection(payout, titleColor, subtitleColor),
+                        ],
+                      ),
+                    );
                   },
                 ),
             ],
@@ -862,28 +809,133 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
   Widget _infoRow(String label, String value, Color color) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 110,
-            child: Text(
-              '$label:',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: color,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final textScale = MediaQuery.textScalerOf(context).scale(1);
+          final stackValues = constraints.maxWidth < 300 || textScale > 1.3;
+          final labelText = Text(
+            '$label:',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          );
+          final valueText = Text(
+            value,
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(color: color),
+          );
+
+          if (stackValues) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [labelText, const SizedBox(height: 2), valueText],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(width: 110, child: labelText),
+              Expanded(child: valueText),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildPayoutHeader(
+    MobilePayoutItem payout,
+    Color titleColor,
+    Color subtitleColor,
+  ) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textScale = MediaQuery.textScalerOf(context).scale(1);
+        final stackSummary = constraints.maxWidth < 340 || textScale > 1.25;
+        final identity = Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AppIconTile(
+              icon: _getStatusIcon(payout.status),
+              accent: _statusAccent(context, payout.status),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    payout.title,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: titleColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    payout.programName,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.labelMedium?.copyWith(color: subtitleColor),
+                  ),
+                  if ((payout.benefactorName ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      payout.benefactorName!,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelMedium?.copyWith(color: subtitleColor),
+                    ),
+                  ],
+                ],
               ),
             ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: Theme.of(
-                context,
-              ).textTheme.labelMedium?.copyWith(color: color),
+          ],
+        );
+        final summary = Column(
+          crossAxisAlignment: stackSummary
+              ? CrossAxisAlignment.start
+              : CrossAxisAlignment.end,
+          children: [
+            Text(
+              _formatAmount(payout.amount),
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: titleColor,
+              ),
             ),
-          ),
-        ],
-      ),
+            const SizedBox(height: 4),
+            AppStatusCapsule(
+              label: payout.status,
+              tone: _statusTone(payout.status),
+              compact: true,
+            ),
+          ],
+        );
+
+        if (stackSummary) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              identity,
+              const SizedBox(height: AppSpacing.md),
+              Padding(padding: const EdgeInsets.only(left: 52), child: summary),
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: identity),
+            const SizedBox(width: AppSpacing.md),
+            summary,
+          ],
+        );
+      },
     );
   }
 

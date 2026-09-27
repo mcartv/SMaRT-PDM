@@ -4,10 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/announcement_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
+
+// SMART-PDM_MOBILE_ANNOUNCEMENTS_RESPONSIVE_PHASE5_V1
 
 class AnnouncementsScreen extends StatefulWidget {
   const AnnouncementsScreen({super.key});
@@ -33,8 +36,9 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   void initState() {
     super.initState();
     _loadAnnouncements();
-    _liveSyncTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+    _liveSyncTimer = Timer.periodic(const Duration(seconds: 12), (_) {
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      if (MobileRealtimeService.instance.isRealtimeHealthy) return;
       _requestLiveRefresh();
     });
   }
@@ -77,7 +81,10 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
       if (!mounted) return;
       if (!silent || _announcements.isEmpty) {
         setState(() {
-          _errorMessage = error.toString().replaceFirst('Exception: ', '').trim();
+          _errorMessage = error
+              .toString()
+              .replaceFirst('Exception: ', '')
+              .trim();
         });
       }
     } finally {
@@ -201,7 +208,8 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                 else ...[
                   AppSectionHeading(
                     title: 'Latest announcements',
-                    subtitle: '${filtered.length} announcement${filtered.length == 1 ? '' : 's'} in this view',
+                    subtitle:
+                        '${filtered.length} announcement${filtered.length == 1 ? '' : 's'} in this view',
                   ),
                   const SizedBox(height: AppSpacing.md),
                   if (filtered.isEmpty)
@@ -209,8 +217,8 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                       child: Text(
                         'No announcements are available for this filter right now.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppSurfacePalette.mutedText(context),
-                            ),
+                          color: AppSurfacePalette.mutedText(context),
+                        ),
                       ),
                     )
                   else
@@ -265,16 +273,16 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
           Text(
             'Unable to load announcements',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppSurfacePalette.text(context),
-                  fontWeight: FontWeight.w800,
-                ),
+              color: AppSurfacePalette.text(context),
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
             _errorMessage ?? '',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppSurfacePalette.mutedText(context),
-                ),
+              color: AppSurfacePalette.mutedText(context),
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
           FilledButton(
@@ -287,9 +295,11 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   }
 
   Future<void> _openAnnouncement(MobileAnnouncement announcement) async {
-    _announcementService.markViewed(announcement.announcementId).catchError(
-      (error) => debugPrint('ANNOUNCEMENT VIEW TRACKING ERROR: $error'),
-    );
+    _announcementService
+        .markViewed(announcement.announcementId)
+        .catchError(
+          (error) => debugPrint('ANNOUNCEMENT VIEW TRACKING ERROR: $error'),
+        );
 
     await showModalBottomSheet<void>(
       context: context,
@@ -317,40 +327,33 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    announcement.title,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: AppSurfacePalette.text(context),
-                          fontWeight: FontWeight.w800,
-                        ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                AppStatusCapsule(
-                  label: category,
-                  tone: _toneForAudience(category),
-                  compact: true,
-                ),
-              ],
+            Text(
+              announcement.title,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: AppSurfacePalette.text(context),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            AppStatusCapsule(
+              label: category,
+              tone: _toneForAudience(category),
+              compact: true,
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
               _formatDate(announcement.date),
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: AppSurfacePalette.mutedText(context),
-                  ),
+                color: AppSurfacePalette.mutedText(context),
+              ),
             ),
             const SizedBox(height: AppSpacing.xl),
             SelectableText(
               announcement.content,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppSurfacePalette.text(context),
-                    height: 1.6,
-                  ),
+                color: AppSurfacePalette.text(context),
+                height: 1.6,
+              ),
             ),
             const SizedBox(height: AppSpacing.xxl),
             SizedBox(
@@ -400,27 +403,29 @@ class _AnnouncementListCard extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppSurfacePalette.text(context),
-                        fontWeight: FontWeight.w800,
-                      ),
+                    color: AppSurfacePalette.text(context),
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          Row(
+          Wrap(
+            spacing: AppSpacing.md,
+            runSpacing: AppSpacing.sm,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               AppStatusCapsule(
                 label: category,
                 tone: categoryTone,
                 compact: true,
               ),
-              const Spacer(),
               Text(
                 dateLabel,
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: AppSurfacePalette.mutedText(context),
-                    ),
+                  color: AppSurfacePalette.mutedText(context),
+                ),
               ),
             ],
           ),
@@ -430,17 +435,17 @@ class _AnnouncementListCard extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppSurfacePalette.mutedText(context),
-                  height: 1.4,
-                ),
+              color: AppSurfacePalette.mutedText(context),
+              height: 1.4,
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
             'Read announcement',
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.w800,
-                ),
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ],
       ),

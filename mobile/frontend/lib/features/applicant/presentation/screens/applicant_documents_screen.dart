@@ -8,7 +8,6 @@ import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
-import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
@@ -241,7 +240,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'You are replacing ${document.documentType}.',
+                'Replace ${document.documentType}?',
                 style: TextStyle(
                   color: titleColor,
                   fontWeight: FontWeight.w800,
@@ -249,21 +248,11 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
               ),
               const SizedBox(height: 10),
               Text(
-                'Your current uploaded file will remain available until the '
-                'replacement finishes successfully. After replacement, the new '
-                'file becomes the current document and returns to Pending Review.',
+                'Your current file will stay available until the replacement '
+                'uploads successfully. The new file will then be reviewed again.',
                 style: TextStyle(
                   color: bodyColor,
                   height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Previous document versions are preserved for review history.',
-                style: TextStyle(
-                  color: bodyColor,
-                  height: 1.4,
-                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
@@ -588,24 +577,17 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                           child: const Text('Close'),
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: _package?.uploadsLocked == true
-                              ? null
-                              : () => Navigator.of(dialogContext).pop(true),
-                          icon: Icon(
-                            _package?.uploadsLocked == true
-                                ? Icons.lock_outline_rounded
-                                : Icons.upload_file,
-                          ),
-                          label: Text(
-                            _package?.uploadsLocked == true
-                                ? 'Verified — Locked'
-                                : 'Replace Document',
+                      if (_package?.uploadsLocked != true) ...[
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: () =>
+                                Navigator.of(dialogContext).pop(true),
+                            icon: const Icon(Icons.upload_file),
+                            label: const Text('Replace Document'),
                           ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ],
@@ -798,85 +780,22 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
             ],
             const SizedBox(height: 12),
             if (package != null)
-              LayoutBuilder(
-                builder: (context, actionConstraints) {
-                  final stackActions = actionConstraints.maxWidth < 430;
-
-                  final applicationButton = ElevatedButton.icon(
-                    onPressed: () => Navigator.pushNamed(
-                      context,
-                      AppRoutes.applicationFormPreview,
-                    ),
-                    icon: const Icon(Icons.description_outlined, size: 20),
-                    label: const Text(
-                      'View Application Form',
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      softWrap: true,
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(52),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                    ),
-                  );
-
-                  final dashboardButton = OutlinedButton.icon(
-                    onPressed: () =>
-                        AppNavigator.goToTopLevel(context, AppRoutes.home),
-                    icon: const Icon(Icons.dashboard_outlined, size: 20),
-                    label: const Text(
-                      'Back to Dashboard',
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      softWrap: true,
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(52),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                    ),
-                  );
-
-                  if (stackActions) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        applicationButton,
-                        const SizedBox(height: 10),
-                        dashboardButton,
-                      ],
-                    );
-                  }
-
-                  return Row(
-                    children: [
-                      Expanded(child: applicationButton),
-                      const SizedBox(width: 10),
-                      Expanded(child: dashboardButton),
-                    ],
-                  );
-                },
-              )
-            else
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () =>
-                      AppNavigator.goToTopLevel(context, AppRoutes.home),
-                  icon: const Icon(Icons.dashboard_outlined, size: 20),
-                  label: const Text(
-                    'Back to Dashboard',
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    softWrap: true,
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => Navigator.pushNamed(
+                    context,
+                    AppRoutes.applicationFormPreview,
                   ),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52),
+                  icon: const Icon(Icons.description_outlined, size: 18),
+                  label: const Text('View Application Form'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 8,
+                    ),
+                    minimumSize: const Size(0, 40),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ),
               ),
@@ -929,9 +848,9 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
               if (optionalDocuments.isNotEmpty) ...[
                 const SizedBox(height: 14),
                 const AppSectionHeading(
-                  title: 'Optional Documents',
+                  title: 'Additional Documents',
                   subtitle:
-                      'These can support verification but do not block a Mobile application when they are not uploaded.',
+                      'Documents in this section may be uploaded digitally or brought as a physical copy to OSFA. They do not count toward the required digital upload total.',
                 ),
                 const SizedBox(height: AppSpacing.md),
                 ...optionalDocuments.map(
@@ -1074,31 +993,38 @@ class _HeaderCard extends StatelessWidget {
               minHeight: 8,
               borderRadius: AppRadii.status,
             ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _InfoChip(
-                  label: 'Verified',
-                  value: '$verified/$total',
-                  accentColor: accentColor,
-                ),
-                _InfoChip(
-                  label: 'Missing',
-                  value: '$missing',
-                  accentColor: missing > 0
-                      ? Theme.of(context).colorScheme.error
-                      : accentColor,
-                ),
-                if (needsAction > 0)
-                  _InfoChip(
-                    label: 'Needs action',
-                    value: '$needsAction',
-                    accentColor: Theme.of(context).colorScheme.error,
-                  ),
-              ],
+            const SizedBox(height: 10),
+            Text(
+              missing > 0
+                  ? '$missing document${missing == 1 ? '' : 's'} remaining'
+                  : 'All required documents uploaded',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: subtitleColor,
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
             ),
+            if (needsAction > 0) ...[
+              const SizedBox(height: 4),
+              Text(
+                '$needsAction document${needsAction == 1 ? '' : 's'} need${needsAction == 1 ? 's' : ''} your attention',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.error,
+                  fontWeight: FontWeight.w800,
+                  height: 1.35,
+                ),
+              ),
+            ] else if (verified > 0) ...[
+              const SizedBox(height: 4),
+              Text(
+                '$verified of $total verified',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: accentColor,
+                  fontWeight: FontWeight.w700,
+                  height: 1.35,
+                ),
+              ),
+            ],
           ],
         ],
       ),
@@ -1305,8 +1231,8 @@ class _DocumentCard extends StatelessWidget {
                                           document.documentType
                                               .toLowerCase()
                                               .contains('psa')
-                                      ? 'Optional Mobile Upload'
-                                      : 'Optional',
+                                      ? 'Upload or bring physical copy'
+                                      : 'Alternative submission accepted',
                                 ),
                               ],
                       ),
@@ -1319,7 +1245,10 @@ class _DocumentCard extends StatelessWidget {
           const SizedBox(height: 10),
           Align(
             alignment: Alignment.centerLeft,
-            child: _StatusPill(label: statusLabel, color: statusColor),
+            child: _DocumentStatus(
+              label: statusLabel,
+              color: statusColor,
+            ),
           ),
           const SizedBox(height: 10),
           Text(
@@ -1340,7 +1269,7 @@ class _DocumentCard extends StatelessWidget {
                 borderRadius: AppRadii.control,
               ),
               child: Text(
-                'Reviewer note: ${document.adminComment!}',
+                'Review note: ${document.adminComment!}',
                 style: TextStyle(
                   color: document.needsReplacement
                       ? AppStatusColors.of(context).onActionRequiredContainer
@@ -1356,35 +1285,35 @@ class _DocumentCard extends StatelessWidget {
             builder: (context, constraints) {
               final stackActions = constraints.maxWidth < 390;
 
-              final uploadButton = ElevatedButton.icon(
-                onPressed: isUploading || onUpload == null ? null : onUpload,
-                icon: Icon(
-                  onUpload == null
-                      ? Icons.lock_outline_rounded
-                      : document.isSubmitted
-                      ? Icons.swap_horiz_rounded
-                      : Icons.upload_file,
-                ),
-                label: Text(
-                  onUpload == null
-                      ? 'Verified — Locked'
-                      : isUploading
-                      ? (document.isSubmitted ? 'Replacing...' : 'Uploading...')
-                      : document.isSubmitted
-                      ? 'Replace Document'
-                      : 'Upload File',
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  softWrap: true,
-                ),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 11,
-                  ),
-                ),
-              );
+              final uploadButton = onUpload == null
+                  ? null
+                  : ElevatedButton.icon(
+                      onPressed: isUploading ? null : onUpload,
+                      icon: Icon(
+                        document.isSubmitted
+                            ? Icons.swap_horiz_rounded
+                            : Icons.upload_file,
+                      ),
+                      label: Text(
+                        isUploading
+                            ? (document.isSubmitted
+                                  ? 'Replacing...'
+                                  : 'Uploading...')
+                            : document.isSubmitted
+                            ? 'Replace Document'
+                            : 'Upload File',
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        softWrap: true,
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 11,
+                        ),
+                      ),
+                    );
 
               final previewButton = onOpen == null
                   ? null
@@ -1406,15 +1335,20 @@ class _DocumentCard extends StatelessWidget {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    uploadButton,
-                    if (previewButton != null) ...[
+                    if (uploadButton != null) uploadButton,
+                    if (uploadButton != null && previewButton != null)
                       const SizedBox(height: 8),
-                      previewButton,
-                    ],
+                    if (previewButton != null) previewButton,
                   ],
                 );
               }
 
+              if (uploadButton == null && previewButton == null) {
+                return const SizedBox.shrink();
+              }
+              if (uploadButton == null) {
+                return SizedBox(width: double.infinity, child: previewButton);
+              }
               if (previewButton == null) {
                 return SizedBox(width: double.infinity, child: uploadButton);
               }
@@ -1482,70 +1416,55 @@ class _PreviewUnavailable extends StatelessWidget {
   }
 }
 
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.label, required this.color});
+class _DocumentStatus extends StatelessWidget {
+  const _DocumentStatus({required this.label, required this.color});
 
   final String label;
   final Color color;
 
+  bool get _usePill =>
+      label == 'Verified' || label == 'Missing' || label == 'Rejected';
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: AppRadii.status,
-      ),
-      child: Text(
-        label,
-        textAlign: TextAlign.center,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: color,
-          fontWeight: FontWeight.w800,
+    if (_usePill) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.12),
+          borderRadius: AppRadii.status,
         ),
-      ),
-    );
-  }
-}
-
-class _InfoChip extends StatelessWidget {
-  const _InfoChip({
-    required this.label,
-    required this.value,
-    required this.accentColor,
-  });
-
-  final String label;
-  final String value;
-  final Color accentColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: accentColor.withOpacity(0.12),
-        borderRadius: AppRadii.control,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: accentColor,
-            ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w800,
           ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Status',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: AppSurfacePalette.mutedText(context),
+            fontWeight: FontWeight.w700,
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w800,
+            height: 1.3,
+          ),
+        ),
+      ],
     );
   }
 }

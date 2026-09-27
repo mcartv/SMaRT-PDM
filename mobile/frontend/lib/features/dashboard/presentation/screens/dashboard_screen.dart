@@ -76,13 +76,20 @@ class DashboardScreen extends StatelessWidget {
                     fit: BoxFit.contain,
                   ),
                   const SizedBox(width: 12),
-                  Text(
-                    'SMaRT-PDM',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: isDark ? Colors.white : AppColors.darkBrown,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      height: 1,
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'SMaRT-PDM',
+                        maxLines: 1,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: isDark ? Colors.white : AppColors.darkBrown,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -189,12 +196,17 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
 
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
 
-  Color get _background =>
-      _isDark ? AppColors.applicantDarkBackground : AppColors.applicantLightBackground;
+  Color get _background => _isDark
+      ? AppColors.applicantDarkBackground
+      : AppColors.applicantLightBackground;
 
-  Color get _surface => _isDark ? AppColors.applicantDarkSurface : AppColors.applicantLightSurface;
+  Color get _surface => _isDark
+      ? AppColors.applicantDarkSurface
+      : AppColors.applicantLightSurface;
 
-  Color get _primaryText => _isDark ? AppColors.applicantDarkText : AppColors.applicantLightText;
+  Color get _primaryText => _isDark
+      ? AppColors.applicantDarkText
+      : AppColors.applicantLightText;
 
   Color get _secondaryText =>
       _isDark ? AppColors.applicantDarkTextMuted : AppColors.applicantLightTextMuted;
@@ -597,7 +609,6 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     final today = DateTime(now.year, now.month, now.day);
     final date = DateTime(local.year, local.month, local.day);
     final difference = today.difference(date).inDays;
-
     if (difference == 0) return 'Today';
     if (difference == 1) return 'Yesterday';
     if (difference > 1 && difference < 7) return '$difference days ago';
@@ -669,109 +680,139 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   }
 
   Widget _buildHero() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(18, 18, 16, 18),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(
-          color: _isDark ? Colors.white10 : const Color(0xFFEDE3D5),
-        ),
-        boxShadow: _isDark
-            ? const []
-            : const [
-                BoxShadow(
-                  color: Color(0x10000000),
-                  blurRadius: 22,
-                  offset: Offset(0, 10),
-                ),
-              ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Welcome, ${_displayFirstName()}',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: _primaryText,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        height: 1.1,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      _studentId,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: _secondaryText,
-                        fontWeight: FontWeight.w700,
-                      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textScale = MediaQuery.textScalerOf(context).scale(16) / 16;
+        final compact = constraints.maxWidth < 360;
+        final showIllustration =
+            constraints.maxWidth >= 360 && textScale <= 1.15;
+
+        return Container(
+          width: double.infinity,
+          padding: EdgeInsets.fromLTRB(
+            compact ? 16 : 18,
+            compact ? 16 : 18,
+            compact ? 16 : 18,
+            compact ? 16 : 18,
+          ),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: _isDark
+                  ? const [Color(0xFF2D2118), Color(0xFF1E1711)]
+                  : const [Color(0xFFFFFCF6), Color(0xFFF6E8C8)],
+            ),
+            borderRadius: BorderRadius.circular(compact ? 22 : 26),
+            border: Border.all(
+              color: _isDark
+                  ? AppColors.gold.withValues(alpha: 0.16)
+                  : AppColors.gold.withValues(alpha: 0.24),
+            ),
+            boxShadow: _isDark
+                ? const []
+                : const [
+                    BoxShadow(
+                      color: Color(0x10000000),
+                      blurRadius: 22,
+                      offset: Offset(0, 10),
                     ),
                   ],
-                ),
-              ),
-              _StatusPill(
-                label: _scholarPrivilegeRemoved
-                    ? 'REMOVED'
-                    : _hasScholarAccess
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Welcome, ${_displayFirstName()}',
+                          softWrap: true,
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            color: _primaryText,
+                            fontSize: compact ? 20 : 22,
+                            fontWeight: FontWeight.w900,
+                            height: 1.12,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          _studentId,
+                          maxLines: 2,
+                          softWrap: true,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: _secondaryText,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  _StatusPill(
+                    label: _scholarPrivilegeRemoved
+                        ? 'REMOVED'
+                        : _hasScholarAccess
                         ? 'SCHOLAR'
                         : 'APPLICANT',
-                isDark: _isDark,
+                    isDark: _isDark,
+                  ),
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 22),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _scholarPrivilegeRemoved
-                          ? 'Your scholarship record is preserved'
-                          : _hasScholarAccess
+              SizedBox(height: compact ? 18 : 20),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _scholarPrivilegeRemoved
+                              ? 'Your scholarship record is preserved'
+                              : _hasScholarAccess
                               ? 'Stay on track with your scholarship'
                               : 'Track your scholarship journey',
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(
-                            color: _primaryText,
-                            fontSize: 23,
-                            fontWeight: FontWeight.w900,
-                            height: 1.14,
-                          ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      _scholarPrivilegeRemoved
-                          ? 'Your previous scholarship history remains on file. Contact OSFA regarding eligibility or future applications.'
-                          : _hasScholarAccess
+                          softWrap: true,
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(
+                                color: _primaryText,
+                                fontSize: compact ? 20 : 23,
+                                fontWeight: FontWeight.w900,
+                                height: 1.16,
+                              ),
+                        ),
+                        const SizedBox(height: 9),
+                        Text(
+                          _scholarPrivilegeRemoved
+                              ? 'Your previous scholarship history remains on file. Contact OSFA regarding eligibility or future applications.'
+                              : _hasScholarAccess
                               ? 'Monitor your status, requirements, payouts, obligations, and important OSFA notices in one place.'
                               : 'Follow your application, complete requirements, and stay informed about important OSFA announcements.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: _secondaryText,
-                        fontSize: 13,
-                        height: 1.45,
-                        fontWeight: FontWeight.w600,
-                      ),
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: _secondaryText,
+                            fontSize: 13,
+                            height: 1.45,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
+                  ),
+                  if (showIllustration) ...[
+                    const SizedBox(width: 12),
+                    const _DashboardIllustration(),
                   ],
-                ),
+                ],
               ),
-              const SizedBox(width: 14),
-              const _DashboardIllustration(),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -876,6 +917,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
 
 
 
+  // SMART-PDM_MOBILE_DASHBOARD_POLISH_PHASE1_V1
   // SMART-PDM_MOBILE_BENTO_DASHBOARD_V1
   Widget _buildBentoDashboard() {
     final summary = _statusSummary;
@@ -952,8 +994,10 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
       builder: (context, constraints) {
         final textScale =
             MediaQuery.textScalerOf(context).scale(16) / 16;
+        // Keep cards single-column on compact phones. Two half-width cards
+        // only become useful once each tile has enough room for real text.
         final useTwoColumns =
-            constraints.maxWidth >= 345 && textScale <= 1.12;
+            constraints.maxWidth >= 390 && textScale <= 1.08;
         const gap = 12.0;
         final halfWidth = useTwoColumns
             ? (constraints.maxWidth - gap) / 2
@@ -969,6 +1013,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
           VoidCallback? onTap,
           String? badge,
           bool wide = false,
+          bool emphasized = false,
         }) {
           return SizedBox(
             width: width,
@@ -983,6 +1028,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                 isDark: _isDark,
                 onTap: onTap,
                 wide: wide,
+                emphasized: emphasized,
               ),
             ),
           );
@@ -1072,6 +1118,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                 context,
                 AppRoutes.scholarshipOpenings,
               ),
+              emphasized: true,
             ),
             tile(
               width: halfWidth,
@@ -1102,6 +1149,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
               label: 'Next Step',
               value: nextStepValue,
               detail: nextStepDetail,
+              emphasized: nextStep?.isNotEmpty == true,
             ),
             tile(
               width: constraints.maxWidth,
@@ -1132,6 +1180,21 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   Widget build(BuildContext context) {
     final provider = context.watch<NotificationProvider>();
     final announcements = _latestAnnouncements();
+    final hasApplication = _statusSummary?.hasApplication == true;
+    final overviewTitle = _scholarPrivilegeRemoved
+        ? 'Scholarship Status'
+        : _hasScholarAccess
+        ? 'Scholar Overview'
+        : hasApplication
+        ? 'Application Overview'
+        : 'Start Your Scholarship Journey';
+    final overviewSubtitle = _scholarPrivilegeRemoved
+        ? 'Your previous scholarship record and current account state.'
+        : _hasScholarAccess
+        ? 'Your current scholarship and the updates that need your attention.'
+        : hasApplication
+        ? 'Your current application stage, next step, and requirements.'
+        : 'Choose an available scholarship and begin your application.';
 
     if (_identityError != null) {
       return ColoredBox(
@@ -1165,32 +1228,39 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // The existing Welcome card remains intentionally unchanged.
                 _buildHero(),
-                const SizedBox(height: 14),
-                Text(
-                  'Latest Announcements',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: _primaryText,
-                    fontWeight: FontWeight.w900,
-                  ),
+                const SizedBox(height: 20),
+                _DashboardSectionHeading(
+                  icon: _hasScholarAccess
+                      ? Icons.workspace_premium_outlined
+                      : Icons.route_outlined,
+                  title: overviewTitle,
+                  subtitle: overviewSubtitle,
+                  isDark: _isDark,
                 ),
-                const SizedBox(height: 8),
-                _buildAnnouncements(announcements),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
                 _buildBentoDashboard(),
                 if (_hasScholarAccess) ...[
-                  const SizedBox(height: 14),
-                  Text(
-                    'Scholar Updates',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: _primaryText,
-                      fontWeight: FontWeight.w900,
-                    ),
+                  const SizedBox(height: 22),
+                  _DashboardSectionHeading(
+                    icon: Icons.bolt_outlined,
+                    title: 'Scholar Updates',
+                    subtitle:
+                        'Renewal, return of obligation, and payout activity.',
+                    isDark: _isDark,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   _buildScholarResponsibilities(provider),
                 ],
+                const SizedBox(height: 22),
+                _DashboardSectionHeading(
+                  icon: Icons.campaign_outlined,
+                  title: 'Latest Announcements',
+                  subtitle: 'Recent notices and updates published by OSFA.',
+                  isDark: _isDark,
+                ),
+                const SizedBox(height: 10),
+                _buildAnnouncements(announcements),
               ],
             ),
           ),
@@ -1207,6 +1277,72 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   }
 }
 
+
+class _DashboardSectionHeading extends StatelessWidget {
+  const _DashboardSectionHeading({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.isDark,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final titleColor = isDark
+        ? AppColors.applicantDarkText
+        : AppColors.darkBrown;
+    final mutedColor = isDark
+        ? AppColors.applicantDarkTextMuted
+        : AppColors.brown.withValues(alpha: 0.68);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: AppColors.gold.withValues(alpha: isDark ? 0.18 : 0.13),
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: Icon(icon, size: 19, color: AppColors.gold),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                softWrap: true,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: titleColor,
+                  fontWeight: FontWeight.w900,
+                  height: 1.16,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: mutedColor,
+                  height: 1.35,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _DashboardBentoTile extends StatelessWidget {
   const _DashboardBentoTile({
     required this.icon,
@@ -1217,6 +1353,7 @@ class _DashboardBentoTile extends StatelessWidget {
     this.badge,
     this.onTap,
     this.wide = false,
+    this.emphasized = false,
   });
 
   final IconData icon;
@@ -1227,15 +1364,18 @@ class _DashboardBentoTile extends StatelessWidget {
   final String? badge;
   final VoidCallback? onTap;
   final bool wide;
+  final bool emphasized;
 
   @override
   Widget build(BuildContext context) {
-    final surface = isDark
-        ? AppColors.applicantDarkSurface
-        : Colors.white;
-    final outline = isDark
-        ? Colors.white.withValues(alpha: 0.08)
-        : AppColors.brown.withValues(alpha: 0.09);
+    final surface = emphasized
+        ? (isDark ? const Color(0xFF302417) : const Color(0xFFFFFAE9))
+        : (isDark ? AppColors.applicantDarkSurface : Colors.white);
+    final outline = emphasized
+        ? AppColors.gold.withValues(alpha: isDark ? 0.42 : 0.38)
+        : (isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : AppColors.brown.withValues(alpha: 0.09));
     final titleColor = isDark
         ? AppColors.applicantDarkText
         : AppColors.darkBrown;
@@ -1244,21 +1384,21 @@ class _DashboardBentoTile extends StatelessWidget {
         : AppColors.brown.withValues(alpha: 0.66);
 
     final content = Container(
-      constraints: BoxConstraints(
-        minHeight: wide ? 126 : 166,
-      ),
+      constraints: BoxConstraints(minHeight: wide ? 122 : 154),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: outline),
+        border: Border.all(color: outline, width: emphasized ? 1.35 : 1),
         boxShadow: isDark
             ? const []
-            : const [
+            : [
                 BoxShadow(
-                  color: Color(0x0B000000),
-                  blurRadius: 16,
-                  offset: Offset(0, 7),
+                  color: emphasized
+                      ? AppColors.gold.withValues(alpha: 0.10)
+                      : const Color(0x0B000000),
+                  blurRadius: emphasized ? 20 : 16,
+                  offset: const Offset(0, 7),
                 ),
               ],
       ),
@@ -1266,21 +1406,20 @@ class _DashboardBentoTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
                   color: AppColors.gold.withValues(
-                    alpha: isDark ? 0.18 : 0.14,
+                    alpha: emphasized
+                        ? (isDark ? 0.26 : 0.20)
+                        : (isDark ? 0.18 : 0.14),
                   ),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  icon,
-                  color: AppColors.gold,
-                  size: 21,
-                ),
+                child: Icon(icon, color: AppColors.gold, size: 21),
               ),
               const Spacer(),
               if (badge?.trim().isNotEmpty == true)
@@ -1297,31 +1436,26 @@ class _DashboardBentoTile extends StatelessWidget {
                   ),
                   child: Text(
                     badge!,
-                    style: Theme.of(context)
-                        .textTheme
-                        .labelSmall
-                        ?.copyWith(
-                          color: isDark
-                              ? AppColors.gold
-                              : AppColors.darkBrown,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.4,
-                        ),
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: isDark ? AppColors.gold : AppColors.darkBrown,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.4,
+                    ),
                   ),
                 )
               else if (onTap != null)
                 Icon(
                   Icons.arrow_outward_rounded,
                   size: 18,
-                  color: mutedColor,
+                  color: emphasized ? AppColors.gold : mutedColor,
                 ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
             label.toUpperCase(),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
+            softWrap: true,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: mutedColor,
               fontWeight: FontWeight.w800,
@@ -1331,22 +1465,20 @@ class _DashboardBentoTile extends StatelessWidget {
           const SizedBox(height: 5),
           Text(
             value,
-            maxLines: wide ? 1 : 2,
-            overflow: TextOverflow.ellipsis,
+            softWrap: true,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: titleColor,
               fontWeight: FontWeight.w900,
-              height: 1.12,
+              height: 1.16,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             detail,
-            maxLines: wide ? 2 : 3,
-            overflow: TextOverflow.ellipsis,
+            softWrap: true,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: mutedColor,
-              height: 1.35,
+              height: 1.38,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1965,4 +2097,3 @@ class _ResponsibilityRow extends StatelessWidget {
     );
   }
 }
-

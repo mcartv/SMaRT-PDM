@@ -19,6 +19,7 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  // SMART-PDM_MOBILE_AUTH_REGISTRATION_POLISH_PHASE2_2_V1
   final AuthService _authService = AuthService();
   final _formKey = GlobalKey<FormState>();
 
@@ -161,6 +162,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final mutedColor = isDark
         ? AppColors.applicantDarkTextMuted
         : Colors.grey.shade800;
+    final isCompact = MediaQuery.sizeOf(context).width < 360;
 
     final firstName = (_studentData!['first_name'] ?? '').toString().trim();
     final middleName = (_studentData!['middle_name'] ?? '').toString().trim();
@@ -176,7 +178,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     ].where((e) => e.isNotEmpty).join(' ');
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(isCompact ? 12 : 14),
       decoration: BoxDecoration(
         color: AppColors.gold.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(14),
@@ -227,7 +229,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     required VoidCallback onTap,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? AppColors.applicantDarkText : AppColors.darkBrown;
+    final textColor = isDark
+        ? AppColors.applicantDarkText
+        : AppColors.darkBrown;
     final mutedColor = isDark
         ? AppColors.applicantDarkTextMuted
         : Colors.grey.shade700;
@@ -288,7 +292,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Widget _buildPolicyAgreement() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? AppColors.applicantDarkText : AppColors.darkBrown;
+    final textColor = isDark
+        ? AppColors.applicantDarkText
+        : AppColors.darkBrown;
     final mutedColor = isDark
         ? AppColors.applicantDarkTextMuted
         : Colors.grey.shade800;
@@ -393,6 +399,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final mutedColor = isDark
         ? AppColors.applicantDarkTextMuted
         : Colors.grey.shade700;
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final isCompact =
+        MediaQuery.sizeOf(context).width < 360 || textScale > 1.15;
     final titleStyle = Theme.of(context).textTheme.displayLarge?.copyWith(
       fontWeight: FontWeight.bold,
       fontSize: 31,
@@ -418,14 +427,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              padding: EdgeInsets.symmetric(
+                horizontal: isCompact ? 14 : 20,
+                vertical: isCompact ? 12 : 18,
+              ),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 520),
                 child: Container(
-                  padding: const EdgeInsets.all(24),
+                  padding: EdgeInsets.all(isCompact ? 18 : 24),
                   decoration: BoxDecoration(
                     color: cardColor,
-                    borderRadius: BorderRadius.circular(28),
+                    borderRadius: BorderRadius.circular(isCompact ? 22 : 28),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(
@@ -443,10 +455,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       children: [
                         Image.asset(
                           'assets/images/school_logo.png',
-                          height: 132,
+                          height: isCompact ? 96 : 108,
                           fit: BoxFit.contain,
                         ),
-                        const SizedBox(height: 18),
+                        SizedBox(height: isCompact ? 12 : 16),
                         Text(
                           'Finish account setup',
                           style: titleStyle?.copyWith(color: textColor),
@@ -459,10 +471,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           textAlign: TextAlign.center,
                         ),
                         if (hasRegistryRecord) ...[
-                          const SizedBox(height: 20),
+                          SizedBox(height: isCompact ? 16 : 20),
                           _buildRegistrySummary(),
                         ],
-                        const SizedBox(height: 24),
+                        SizedBox(height: isCompact ? 18 : 24),
                         TextFormField(
                           controller: _identifierController,
                           readOnly: _isStudentIdReadOnly,

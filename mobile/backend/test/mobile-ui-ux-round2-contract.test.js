@@ -50,13 +50,15 @@ test('application navigation uses short action labels', () => {
   assert.doesNotMatch(shell, /Answer Required Questions/);
 });
 
-test('required documents UI is responsive and never ellipsizes action labels', () => {
+test('required documents UI remains responsive without redundant navigation or fake locked actions', () => {
   assert.match(documents, /'Required document progress'/);
-  assert.match(documents, /actionConstraints\.maxWidth < 430/);
   assert.match(documents, /constraints\.maxWidth < 390/);
-  assert.match(documents, /'Needs action'/);
   assert.match(documents, /'View Application Form'/);
-  assert.match(documents, /'Back to Dashboard'/);
+  assert.match(documents, /'Review note:/);
+  assert.match(documents, /class _DocumentStatus/);
+  assert.doesNotMatch(documents, /'Back to Dashboard'/);
+  assert.doesNotMatch(documents, /'Verified — Locked'/);
+  assert.doesNotMatch(documents, /class _InfoChip/);
   assert.doesNotMatch(documents, /TextOverflow\.ellipsis/);
 });
 

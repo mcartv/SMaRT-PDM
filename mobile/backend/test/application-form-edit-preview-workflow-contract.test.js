@@ -6,70 +6,15 @@ const test = require('node:test');
 const backendRoot = path.resolve(__dirname, '..');
 const mobileRoot = path.resolve(backendRoot, '..');
 const frontendRoot = path.join(mobileRoot, 'frontend');
-
 const read = (filePath) => fs.readFileSync(filePath, 'utf8');
 
-const backendService = read(
-  path.join(backendRoot, 'src', 'services', 'applicationService.js')
-);
-const preview = read(
-  path.join(
-    frontendRoot,
-    'lib',
-    'features',
-    'applicant',
-    'presentation',
-    'screens',
-    'application_form_preview_screen.dart'
-  )
-);
-const editor = read(
-  path.join(
-    frontendRoot,
-    'lib',
-    'features',
-    'applicant',
-    'presentation',
-    'screens',
-    'new_applicant_screen.dart'
-  )
-);
-const frontendService = read(
-  path.join(
-    frontendRoot,
-    'lib',
-    'features',
-    'forms',
-    'data',
-    'services',
-    'application_service.dart'
-  )
-);
-const provider = read(
-  path.join(
-    frontendRoot,
-    'lib',
-    'features',
-    'forms',
-    'presentation',
-    'providers',
-    'new_scholar_provider.dart'
-  )
-);
-const validator = read(
-  path.join(
-    frontendRoot,
-    'lib',
-    'features',
-    'forms',
-    'domain',
-    'validation',
-    'application_submission_validator.dart'
-  )
-);
-const routes = read(
-  path.join(frontendRoot, 'lib', 'app', 'routes', 'app_routes.dart')
-);
+const backendService = read(path.join(backendRoot, 'src', 'services', 'applicationService.js'));
+const preview = read(path.join(frontendRoot, 'lib', 'features', 'applicant', 'presentation', 'screens', 'application_form_preview_screen.dart'));
+const editor = read(path.join(frontendRoot, 'lib', 'features', 'applicant', 'presentation', 'screens', 'new_applicant_screen.dart'));
+const frontendService = read(path.join(frontendRoot, 'lib', 'features', 'forms', 'data', 'services', 'application_service.dart'));
+const provider = read(path.join(frontendRoot, 'lib', 'features', 'forms', 'presentation', 'providers', 'new_scholar_provider.dart'));
+const validator = read(path.join(frontendRoot, 'lib', 'features', 'forms', 'domain', 'validation', 'application_submission_validator.dart'));
+const routes = read(path.join(frontendRoot, 'lib', 'app', 'routes', 'app_routes.dart'));
 
 test('Review current Application Form behavior', () => {
   assert.match(preview, /fetchMySubmittedApplicationForm\(\)/);
@@ -78,25 +23,13 @@ test('Review current Application Form behavior', () => {
 });
 
 test('Ensure Application Form remains editable when editing is still allowed', () => {
-  assert.match(
-    backendService,
-    /const lifecycleCanEdit =\s*application\.is_archived !== true &&\s*!terminalApplicationStatus &&\s*!selectionStarted &&\s*!activated;/s
-  );
-  assert.match(
-    backendService,
-    /const canEdit =\s*lifecycleCanEdit &&\s*!applicationFormAwaitingVerification &&\s*applicationFormReviewStatus !== 'verified';/s
-  );
-  assert.match(preview, /'Editing available'/);
+  assert.match(backendService, /const lifecycleCanEdit =\s*application\.is_archived !== true &&\s*!terminalApplicationStatus &&\s*!selectionStarted &&\s*!activated;/s);
+  assert.match(backendService, /const canEdit =\s*lifecycleCanEdit &&\s*!applicationFormAwaitingVerification &&\s*applicationFormReviewStatus !== 'verified';/s);
+  assert.match(preview, /'Editing Available'/);
 });
 
 test('Keep the existing Application Form fields and structure', () => {
-  for (const step of [
-    'step_personal_intake.dart',
-    'step_family_intake.dart',
-    'step_academic_intake.dart',
-    'step_essay_intake.dart',
-    'step_submit_intake.dart',
-  ]) {
+  for (const step of ['step_personal_intake.dart','step_family_intake.dart','step_academic_intake.dart','step_essay_intake.dart','step_submit_intake.dart']) {
     assert.match(editor, new RegExp(step.replaceAll('.', '\\.')));
   }
   assert.match(editor, /'Personal',\s*'Family',\s*'Academic',\s*'Essay',\s*'Submit'/s);
@@ -148,18 +81,9 @@ test('Preview must immediately reflect saved changes', () => {
 });
 
 test('Prevent duplicate application records when editing', () => {
-  assert.match(
-    backendService,
-    /existingApplication\.application_id/
-  );
-  assert.match(
-    backendService,
-    /\.eq\(\s*'application_id',\s*existingApplication\.application_id\s*\)/s
-  );
-  assert.match(
-    backendService,
-    /The submitted application changed\. Refresh the form before editing\./
-  );
+  assert.match(backendService, /existingApplication\.application_id/);
+  assert.match(backendService, /\.eq\(\s*'application_id',\s*existingApplication\.application_id\s*\)/s);
+  assert.match(backendService, /The submitted application changed\. Refresh the form before editing\./);
 });
 
 test('Verify responsive layout on different mobile screen sizes', () => {
@@ -171,12 +95,6 @@ test('Verify responsive layout on different mobile screen sizes', () => {
 });
 
 test('Verify existing application submission workflow is not affected', () => {
-  assert.match(
-    provider,
-    /editExistingApplication\s*\?\s*await _applicationService\.updateSubmittedApplication[\s\S]*:\s*await _applicationService\.submitApplication/
-  );
-  assert.match(
-    backendService,
-    /!editExistingApplication[\s\S]*opening\.posting_status !== 'open'/
-  );
+  assert.match(provider, /editExistingApplication\s*\?\s*await _applicationService\.updateSubmittedApplication[\s\S]*:\s*await _applicationService\.submitApplication/);
+  assert.match(backendService, /!editExistingApplication[\s\S]*opening\.posting_status !== 'open'/);
 });

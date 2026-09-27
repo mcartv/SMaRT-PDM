@@ -10,7 +10,7 @@ test('announcement detail route records authenticated unique views', () => {
   const controller = read('src/controllers/announcementController.js');
   const service = read('src/services/announcementService.js');
 
-  assert.match(routes, /post\('\/:announcementId\/view', protect, announcementController\.markAnnouncementViewed\)/);
+  assert.match(routes, /post\('\/:announcementId\/view', protect, invalidateAnnouncements, announcementController\.markAnnouncementViewed\)/);
   assert.match(controller, /markAnnouncementViewed/);
   assert.match(service, /\.from\('announcement_views'\)/);
   assert.match(service, /\.upsert\(/);

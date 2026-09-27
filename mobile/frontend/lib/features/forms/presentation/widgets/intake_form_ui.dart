@@ -530,6 +530,7 @@ class IntakeReviewCard extends StatelessWidget {
 }
 
 class IntakeReviewRow extends StatelessWidget {
+  // SMART-PDM_MOBILE_APPLICANT_REVIEW_RESPONSIVE_PHASE3_V1
   const IntakeReviewRow({
     super.key,
     required this.label,
@@ -551,33 +552,43 @@ class IntakeReviewRow extends StatelessWidget {
           bottom: BorderSide(color: intakeMutedBorderColor(context), width: 1),
         ),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            flex: 4,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: intakeSubtextColor(context).withValues(alpha: 0.85),
-                fontWeight: FontWeight.w600,
-              ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final textScale = MediaQuery.textScalerOf(context).scale(1);
+          final stack = constraints.maxWidth < 340 || textScale > 1.2;
+          final labelWidget = Text(
+            label,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: intakeSubtextColor(context).withValues(alpha: 0.85),
+              fontWeight: FontWeight.w600,
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 6,
-            child: Text(
-              missing ? 'Missing' : value,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: missing
-                    ? Theme.of(context).colorScheme.error
-                    : intakeTextColor(context),
-                fontWeight: missing ? FontWeight.w800 : FontWeight.w600,
-              ),
+          );
+          final valueWidget = Text(
+            missing ? 'Missing' : value,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: missing
+                  ? Theme.of(context).colorScheme.error
+                  : intakeTextColor(context),
+              fontWeight: missing ? FontWeight.w800 : FontWeight.w600,
             ),
-          ),
-        ],
+          );
+
+          if (stack) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [labelWidget, const SizedBox(height: 4), valueWidget],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 4, child: labelWidget),
+              const SizedBox(width: 12),
+              Expanded(flex: 6, child: valueWidget),
+            ],
+          );
+        },
       ),
     );
   }

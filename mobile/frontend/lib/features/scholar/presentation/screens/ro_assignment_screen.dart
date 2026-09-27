@@ -19,6 +19,8 @@ import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
+// SMART-PDM_MOBILE_SCHOLAR_RO_RESPONSIVE_PHASE4_V1
+
 class ROAssignmentScreen extends StatefulWidget {
   final bool showBottomNav;
   final bool showTopBar;
@@ -713,8 +715,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                                 color: Colors.black.withOpacity(
                                                   0.62,
                                                 ),
-                                                borderRadius:
-                                                    AppRadii.status,
+                                                borderRadius: AppRadii.status,
                                               ),
                                               child: Row(
                                                 mainAxisSize: MainAxisSize.min,
@@ -758,8 +759,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                                         selectedPhoto = null;
                                                       });
                                                     },
-                                              borderRadius:
-                                                  AppRadii.status,
+                                              borderRadius: AppRadii.status,
                                               child: Container(
                                                 width: 32,
                                                 height: 32,
@@ -1360,9 +1360,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                     initialValue: selectedCategory,
                     decoration: InputDecoration(
                       labelText: 'Concern Category',
-                      border: OutlineInputBorder(
-                        borderRadius: AppRadii.card,
-                      ),
+                      border: OutlineInputBorder(borderRadius: AppRadii.card),
                     ),
                     items: categories
                         .map(
@@ -1397,9 +1395,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                       hintText: hint,
                       alignLabelWithHint: true,
                       errorText: validationMessage,
-                      border: OutlineInputBorder(
-                        borderRadius: AppRadii.card,
-                      ),
+                      border: OutlineInputBorder(borderRadius: AppRadii.card),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -1479,9 +1475,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                 maxLines: 3,
                 decoration: InputDecoration(
                   hintText: hint,
-                  border: OutlineInputBorder(
-                    borderRadius: AppRadii.card,
-                  ),
+                  border: OutlineInputBorder(borderRadius: AppRadii.card),
                 ),
               ),
               const SizedBox(height: 14),
@@ -1658,7 +1652,9 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
         if (pendingAcknowledgment > 0) ...[
           const SizedBox(height: AppSpacing.md),
           AppSurfaceCard(
-            backgroundColor: AppStatusColors.of(context).actionRequiredContainer,
+            backgroundColor: AppStatusColors.of(
+              context,
+            ).actionRequiredContainer,
             borderColor: AppStatusColors.of(context).actionRequiredOutline,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1675,18 +1671,20 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                       Text(
                         '$pendingAcknowledgment assignment${pendingAcknowledgment == 1 ? '' : 's'} need acknowledgment',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: AppStatusColors.of(context)
-                                  .onActionRequiredContainer,
-                              fontWeight: FontWeight.w800,
-                            ),
+                          color: AppStatusColors.of(
+                            context,
+                          ).onActionRequiredContainer,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                       const SizedBox(height: AppSpacing.xs),
                       Text(
                         'Open the assignment and acknowledge the notice before Time In becomes available.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppStatusColors.of(context)
-                                  .onActionRequiredContainer,
-                            ),
+                          color: AppStatusColors.of(
+                            context,
+                          ).onActionRequiredContainer,
+                        ),
                       ),
                     ],
                   ),
@@ -2122,7 +2120,6 @@ class _AssignmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final scheme = Theme.of(context).colorScheme;
     final progress = item.validatedProgress.clamp(0, 100);
     final department = item.assignedArea.trim().isEmpty
@@ -2169,8 +2166,6 @@ class _AssignmentCard extends StatelessWidget {
                   children: [
                     Text(
                       department,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: scheme.onSurface,
                         fontWeight: FontWeight.w900,
@@ -2185,40 +2180,32 @@ class _AssignmentCard extends StatelessWidget {
                             'AY ${item.academicYear}',
                           if (item.semester.isNotEmpty) item.semester,
                         ].join(' · '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: scheme.onSurfaceVariant,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
+                    const SizedBox(height: AppSpacing.sm),
+                    if (item.activeLog != null) ...[
+                      const AppStatusCapsule(
+                        label: 'Ongoing',
+                        tone: AppStatusTone.success,
+                        compact: true,
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                    ],
+                    Text(
+                      '$progress% (${formatMinutes(item.validatedMinutes)} / ${formatMinutes(item.requiredMinutes)})',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: progress >= 100
+                            ? AppStatusColors.of(context).successOutline
+                            : scheme.onSurface,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  if (item.activeLog != null) ...[
-                    const AppStatusCapsule(
-                      label: 'Ongoing',
-                      tone: AppStatusTone.success,
-                      compact: true,
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                  ],
-                  Text(
-                    '$progress% (${formatMinutes(item.validatedMinutes)} / ${formatMinutes(item.requiredMinutes)})',
-                    textAlign: TextAlign.right,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: progress >= 100
-                          ? AppStatusColors.of(context).successOutline
-                          : scheme.onSurface,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
               ),
               const SizedBox(width: 6),
               Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
@@ -2680,12 +2667,12 @@ class _ObligationActionFooter extends StatelessWidget {
           top: BorderSide(
             color: isDark
                 ? scheme.outlineVariant
-                : Colors.black.withOpacity(0.08),
+                : Colors.black.withValues(alpha: 0.08),
           ),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.30 : 0.07),
+            color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.07),
             blurRadius: 14,
             offset: const Offset(0, -4),
           ),
@@ -2694,31 +2681,51 @@ class _ObligationActionFooter extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 48,
-                  child: FilledButton.icon(
-                    onPressed: !isSubmitting && canTimeIn ? onTimeIn : null,
-                    icon: const Icon(Icons.login_rounded, size: 19),
-                    label: const Text(
-                      'Time In',
-                      style: TextStyle(fontWeight: FontWeight.w900),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final textScale = MediaQuery.textScalerOf(context).scale(1);
+              final stackActions =
+                  constraints.maxWidth < 310 || textScale > 1.3;
+              final timeInButton = SizedBox(
+                height: 48,
+                child: FilledButton.icon(
+                  onPressed: !isSubmitting && canTimeIn ? onTimeIn : null,
+                  icon: const Icon(Icons.login_rounded, size: 19),
+                  label: const Text(
+                    'Time In',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: isDark
+                        ? AppColors.gold
+                        : AppColors.darkBrown,
+                    foregroundColor: isDark
+                        ? AppColors.darkBrown
+                        : Colors.white,
+                    disabledBackgroundColor: isDark
+                        ? scheme.surfaceContainerHighest
+                        : AppColors.darkBrown.withValues(alpha: 0.18),
+                    disabledForegroundColor: isDark
+                        ? scheme.onSurfaceVariant.withValues(alpha: 0.55)
+                        : AppColors.darkBrown.withValues(alpha: 0.45),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: isDark
-                          ? AppColors.gold
-                          : AppColors.darkBrown,
-                      foregroundColor: isDark
-                          ? AppColors.darkBrown
-                          : Colors.white,
-                      disabledBackgroundColor: isDark
-                          ? scheme.surfaceContainerHighest
-                          : AppColors.darkBrown.withOpacity(0.18),
-                      disabledForegroundColor: isDark
-                          ? scheme.onSurfaceVariant.withValues(alpha: 0.55)
-                          : AppColors.darkBrown.withOpacity(0.45),
+                  ),
+                ),
+              );
+              final timeOutButton = SizedBox(
+                height: 48,
+                child: FilledButton.icon(
+                  onPressed: !isSubmitting && canTimeOut ? onTimeOut : null,
+                  icon: const Icon(Icons.logout_rounded, size: 19),
+                  label: const Text(
+                    'Time Out',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  style: AppButtonStyles.destructiveFilled(context).merge(
+                    FilledButton.styleFrom(
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -2726,30 +2733,27 @@ class _ObligationActionFooter extends StatelessWidget {
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: SizedBox(
-                  height: 48,
-                  child: FilledButton.icon(
-                    onPressed: !isSubmitting && canTimeOut ? onTimeOut : null,
-                    icon: const Icon(Icons.logout_rounded, size: 19),
-                    label: const Text(
-                      'Time Out',
-                      style: TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                    style: AppButtonStyles.destructiveFilled(context).merge(
-                      FilledButton.styleFrom(
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+              );
+
+              if (stackActions) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    timeInButton,
+                    const SizedBox(height: AppSpacing.sm),
+                    timeOutButton,
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: timeInButton),
+                  const SizedBox(width: 10),
+                  Expanded(child: timeOutButton),
+                ],
+              );
+            },
           ),
           if (!isTimedIn || canReportConcern) ...[
             const SizedBox(height: 9),
@@ -3006,11 +3010,15 @@ class _NoticeHeader extends StatelessWidget {
                   ),
                 ),
               ],
+              const SizedBox(height: AppSpacing.sm),
+              AppStatusCapsule(
+                label: statusLabel,
+                tone: statusTone,
+                compact: true,
+              ),
             ],
           ),
         ),
-        const SizedBox(width: 8),
-        AppStatusCapsule(label: statusLabel, tone: statusTone, compact: true),
       ],
     );
   }
@@ -3033,9 +3041,7 @@ class _NoticeDetails extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppSurfacePalette.surfaceMuted(context),
         borderRadius: AppRadii.card,
-        border: Border.all(
-          color: AppSurfacePalette.outline(context),
-        ),
+        border: Border.all(color: AppSurfacePalette.outline(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3498,10 +3504,7 @@ class _StatusPill extends StatelessWidget {
         label,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: readableColor,
-          fontWeight: FontWeight.w900,
-        ),
+        style: TextStyle(color: readableColor, fontWeight: FontWeight.w900),
       ),
     );
   }
@@ -3558,11 +3561,7 @@ class _StateCard extends StatelessWidget {
               ),
               if (actionLabel != null && onAction != null) ...[
                 const SizedBox(height: 18),
-                FilledButton(
-                  onPressed: onAction,
-
-                  child: Text(actionLabel!),
-                ),
+                FilledButton(onPressed: onAction, child: Text(actionLabel!)),
               ],
             ],
           ),

@@ -4,6 +4,8 @@ import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
+// SMART-PDM_MOBILE_ABOUT_BRANDING_PHASE7_V1
+
 class AboutPdmScreen extends StatelessWidget {
   const AboutPdmScreen({super.key});
 
@@ -92,6 +94,20 @@ class AboutPdmScreen extends StatelessWidget {
                   'SMaRT-PDM supports scholarship applications, document submission, scholar monitoring, payout updates, renewal requirements, return-of-obligation tracking, and communication with OSFA.',
             ),
             const SizedBox(height: 12),
+            const _MissionVisionSection(
+              icon: Icons.flag_outlined,
+              title: 'PDM Mission',
+              body:
+                  'Cognizant of the importance of contributing to national development goals and every citizen\'s right to quality education, PDM commits itself to providing quality education and molding students into productive and responsible citizens who are imbued with virtues, aware of their national heritage, and proud of their local culture.',
+            ),
+            const SizedBox(height: 12),
+            const _MissionVisionSection(
+              icon: Icons.visibility_outlined,
+              title: 'PDM Vision',
+              body:
+                  'Pambayang Dalubhasaan ng Marilao envisions becoming one of the premier higher educational institutions in the region, providing quality subsidized tertiary education and industry training programs committed to producing competent, competitive, capable, and skillful graduates who excel in their chosen fields.',
+            ),
+            const SizedBox(height: 12),
             const _AboutSection(
               icon: Icons.account_balance_rounded,
               title: 'Office of Student Financial Assistance',
@@ -107,6 +123,75 @@ class AboutPdmScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             const _ProductionInformationCard(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MissionVisionSection extends StatelessWidget {
+  const _MissionVisionSection({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Material(
+      color: isDark ? const Color(0xFF2B1D13) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : AppColors.brown.withValues(alpha: 0.09),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 5),
+          childrenPadding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+          leading: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: AppColors.gold.withValues(alpha: isDark ? 0.18 : 0.14),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: AppColors.gold, size: 22),
+          ),
+          iconColor: AppColors.gold,
+          collapsedIconColor: AppColors.gold,
+          title: Text(
+            title,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: isDark ? Colors.white : AppColors.darkBrown,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                body,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: isDark
+                      ? Colors.white60
+                      : AppColors.brown.withValues(alpha: 0.68),
+                  height: 1.5,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -186,13 +271,6 @@ class _AboutSection extends StatelessWidget {
 class _ProductionInformationCard extends StatelessWidget {
   const _ProductionInformationCard();
 
-  static const _developers = <String>[
-    'Jerry Geoff Bho',
-    'Carl Arthur Buenavidez',
-    'Leo Lawrence Galve',
-    'Venice Eve Pelima',
-  ];
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -242,52 +320,7 @@ class _ProductionInformationCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          _InformationRow(
-            label: 'Production Version',
-            value: 'Version 1.0.0 • Build 2',
-            primaryText: primaryText,
-            secondaryText: secondaryText,
-          ),
-          const SizedBox(height: 14),
-          _InformationRow(
-            label: 'Developed by',
-            value: 'GALE (SMaRT-PDM Developers)',
-            primaryText: primaryText,
-            secondaryText: secondaryText,
-          ),
-          const SizedBox(height: 10),
-          ..._developers.map(
-            (developer) => Padding(
-              padding: const EdgeInsets.only(left: 2, bottom: 6),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 5,
-                    height: 5,
-                    margin: const EdgeInsets.only(top: 7),
-                    decoration: const BoxDecoration(
-                      color: AppColors.gold,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: Text(
-                      developer,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: secondaryText,
-                        height: 1.45,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Divider(
             color: isDark
                 ? Colors.white.withValues(alpha: 0.08)
@@ -302,7 +335,7 @@ class _ProductionInformationCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '© 2026 GALE. All rights reserved.',
+            '© 2026 SMaRT-PDM. All rights reserved.',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: secondaryText,
               fontWeight: FontWeight.w700,
@@ -310,46 +343,6 @@ class _ProductionInformationCard extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _InformationRow extends StatelessWidget {
-  const _InformationRow({
-    required this.label,
-    required this.value,
-    required this.primaryText,
-    required this.secondaryText,
-  });
-
-  final String label;
-  final String value;
-  final Color primaryText;
-  final Color secondaryText;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: secondaryText,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.25,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: primaryText,
-            fontWeight: FontWeight.w800,
-            height: 1.35,
-          ),
-        ),
-      ],
     );
   }
 }

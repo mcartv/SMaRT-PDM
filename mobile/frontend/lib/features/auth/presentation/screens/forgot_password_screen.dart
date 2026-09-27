@@ -22,6 +22,7 @@ class ForgotPasswordScreen extends StatefulWidget {
 }
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
+  // SMART-PDM_MOBILE_AUTH_FORGOT_PASSWORD_POLISH_PHASE2_4_V1
   late final PasswordResetService _passwordResetService =
       widget._passwordResetService ?? PasswordResetService();
 
@@ -117,11 +118,18 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final background = isDark
-        ? const Color(0xFF24180F)
+        ? AppColors.applicantDarkBackground
         : const Color(0xFFF8F5F0);
-    final cardColor = isDark ? const Color(0xFF302116) : Colors.white;
-    final textColor = isDark ? Colors.white : AppColors.darkBrown;
-    final muted = isDark ? Colors.white70 : Colors.grey.shade700;
+    final cardColor = isDark ? AppColors.applicantDarkSurface : Colors.white;
+    final textColor = isDark
+        ? AppColors.applicantDarkText
+        : AppColors.darkBrown;
+    final muted = isDark
+        ? AppColors.applicantDarkTextMuted
+        : Colors.grey.shade700;
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final isCompact =
+        MediaQuery.sizeOf(context).width < 360 || textScale > 1.15;
 
     return Scaffold(
       backgroundColor: background,
@@ -137,15 +145,25 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
+          padding: EdgeInsets.fromLTRB(
+            isCompact ? 16 : 20,
+            isCompact ? 16 : 24,
+            isCompact ? 16 : 20,
+            isCompact ? 24 : 32,
+          ),
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 520),
               child: Container(
-                padding: const EdgeInsets.fromLTRB(24, 30, 24, 26),
+                padding: EdgeInsets.fromLTRB(
+                  isCompact ? 20 : 24,
+                  isCompact ? 22 : 30,
+                  isCompact ? 20 : 24,
+                  isCompact ? 20 : 26,
+                ),
                 decoration: BoxDecoration(
                   color: cardColor,
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: BorderRadius.circular(isCompact ? 22 : 28),
                   border: Border.all(
                     color: AppColors.gold.withValues(alpha: 0.28),
                   ),
@@ -163,20 +181,22 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Container(
-                        width: 64,
-                        height: 64,
+                        width: isCompact ? 56 : 64,
+                        height: isCompact ? 56 : 64,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: AppColors.darkBrown,
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(
+                            isCompact ? 17 : 20,
+                          ),
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.lock_reset_rounded,
                           color: AppColors.gold,
-                          size: 34,
+                          size: isCompact ? 30 : 34,
                         ),
                       ),
-                      const SizedBox(height: 22),
+                      SizedBox(height: isCompact ? 16 : 22),
                       Text(
                         'Forgot your password?',
                         style: Theme.of(context).textTheme.headlineMedium

@@ -6,37 +6,9 @@ const test = require('node:test');
 const backendRoot = path.resolve(__dirname, '..');
 const mobileRoot = path.resolve(backendRoot, '..');
 const frontendRoot = path.join(mobileRoot, 'frontend');
-
-const mobileService = fs.readFileSync(
-  path.join(backendRoot, 'src', 'services', 'applicationService.js'),
-  'utf8'
-);
-
-const preview = fs.readFileSync(
-  path.join(
-    frontendRoot,
-    'lib',
-    'features',
-    'applicant',
-    'presentation',
-    'screens',
-    'application_form_preview_screen.dart'
-  ),
-  'utf8'
-);
-
-const editor = fs.readFileSync(
-  path.join(
-    frontendRoot,
-    'lib',
-    'features',
-    'applicant',
-    'presentation',
-    'screens',
-    'new_applicant_screen.dart'
-  ),
-  'utf8'
-);
+const mobileService = fs.readFileSync(path.join(backendRoot, 'src', 'services', 'applicationService.js'), 'utf8');
+const preview = fs.readFileSync(path.join(frontendRoot, 'lib', 'features', 'applicant', 'presentation', 'screens', 'application_form_preview_screen.dart'), 'utf8');
+const editor = fs.readFileSync(path.join(frontendRoot, 'lib', 'features', 'applicant', 'presentation', 'screens', 'new_applicant_screen.dart'), 'utf8');
 
 test('initial submitted Application Form can remain editable while lifecycle allows', () => {
   assert.match(mobileService, /const lifecycleCanEdit =/);
@@ -48,30 +20,19 @@ test('initial submitted Application Form can remain editable while lifecycle all
 
 test('successful requested re-edit is marked as awaiting verification', () => {
   assert.match(mobileService, /reason_code: 'APPLICATION_FORM_RESUBMITTED'/);
-  assert.match(
-    mobileService,
-    /applicationFormAwaitingVerification =\s*applicationFormReviewStatus === 'pending'/s
-  );
+  assert.match(mobileService, /applicationFormAwaitingVerification =\s*applicationFormReviewStatus === 'pending'/s);
 });
 
 test('Edit Form is disabled while the resubmitted form awaits verification', () => {
-  assert.match(
-    mobileService,
-    /const canEdit =\s*lifecycleCanEdit &&\s*!applicationFormAwaitingVerification &&\s*applicationFormReviewStatus !== 'verified';/s
-  );
-  assert.match(
-    mobileService,
-    /Edit Form is temporarily disabled until OSFA\/Admin completes the review or requests another correction/
-  );
+  assert.match(mobileService, /const canEdit =\s*lifecycleCanEdit &&\s*!applicationFormAwaitingVerification &&\s*applicationFormReviewStatus !== 'verified';/s);
+  assert.match(mobileService, /Edit Form is temporarily disabled until OSFA\/Admin completes the review or requests another correction/);
 });
 
-test('Preview Form receives and displays the awaiting verification state', () => {
+test('Preview Form receives and displays the awaiting verification state in user-facing language', () => {
   assert.match(preview, /bool _awaitingVerification = false;/);
-  assert.match(
-    preview,
-    /_awaitingVerification = editability\['awaiting_verification'\] == true/
-  );
-  assert.match(preview, /'Awaiting verification'/);
+  assert.match(preview, /_awaitingVerification = editability\['awaiting_verification'\] == true/);
+  assert.match(preview, /'Under Review'/);
+  assert.match(preview, /Your updated application is being reviewed/);
   assert.match(preview, /Icons\.hourglass_top_rounded/);
 });
 
@@ -81,22 +42,13 @@ test('Edit Form button uses backend can_edit and therefore becomes greyed out', 
 });
 
 test('another Admin correction request can unlock Edit Form again', () => {
-  assert.match(
-    mobileService,
-    /applicationFormCorrectionRequested =\s*applicationFormReviewStatus === 'reupload_required'/
-  );
-  assert.match(
-    mobileService,
-    /applicationFormAwaitingVerification =\s*applicationFormReviewStatus === 'pending'/
-  );
+  assert.match(mobileService, /applicationFormCorrectionRequested =\s*applicationFormReviewStatus === 'reupload_required'/);
+  assert.match(mobileService, /applicationFormAwaitingVerification =\s*applicationFormReviewStatus === 'pending'/);
 });
 
 test('verified Application Form remains locked', () => {
   assert.match(mobileService, /applicationFormReviewStatus !== 'verified'/);
-  assert.match(
-    mobileService,
-    /Your Application Form has been verified\. Edit Form is disabled unless OSFA\/Admin requests another correction\./
-  );
+  assert.match(mobileService, /Your Application Form has been verified\. Edit Form is disabled unless OSFA\/Admin requests another correction\./);
 });
 
 test('pre-submit verification guidance remains intact', () => {

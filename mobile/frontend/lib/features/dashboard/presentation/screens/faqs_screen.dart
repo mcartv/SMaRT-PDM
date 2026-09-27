@@ -10,6 +10,8 @@ import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
+// SMART-PDM_MOBILE_FAQS_RESPONSIVE_PHASE6_V1
+
 class FaqsScreen extends StatefulWidget {
   const FaqsScreen({super.key});
 
@@ -34,16 +36,14 @@ class _FaqsScreenState extends State<FaqsScreen> {
   void initState() {
     super.initState();
     _loadFaqs();
-    _stopRealtimeListener = MobileRealtimeService.instance.listenTo(
-      <String>{
-        MobileRealtimeEvents.faqUpdated,
-        MobileRealtimeEvents.settingsUpdated,
-        MobileRealtimeEvents.socketReconnected,
-      },
-      (_) => _requestLiveRefresh(),
-    );
-    _liveSyncTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+    _stopRealtimeListener = MobileRealtimeService.instance.listenTo(<String>{
+      MobileRealtimeEvents.faqUpdated,
+      MobileRealtimeEvents.settingsUpdated,
+      MobileRealtimeEvents.socketReconnected,
+    }, (_) => _requestLiveRefresh());
+    _liveSyncTimer = Timer.periodic(const Duration(seconds: 12), (_) {
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      if (MobileRealtimeService.instance.isRealtimeHealthy) return;
       _requestLiveRefresh();
     });
   }
@@ -296,7 +296,7 @@ class _FaqsEmptyState extends StatelessWidget {
               Text(
                 isSearching
                     ? 'Try a different keyword or clear your search to see all questions.'
-                    : 'Questions published in Supabase will appear here.',
+                    : 'Published questions will appear here.',
                 textAlign: TextAlign.center,
               ),
               if (isSearching) ...[

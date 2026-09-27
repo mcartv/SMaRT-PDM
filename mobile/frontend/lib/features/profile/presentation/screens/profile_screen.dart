@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_events.dart';
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
@@ -17,6 +18,8 @@ import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
 import 'package:smartpdm_mobileapp/features/profile/presentation/widgets/profile_photo_crop_dialog.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
+
+// SMART-PDM_MOBILE_PROFILE_RESPONSIVE_PHASE6_V1
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, this.showBottomNav = false});
@@ -85,20 +88,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _studentIdController = TextEditingController();
 
     _loadProfile();
-    _stopRealtimeListener = MobileRealtimeService.instance.listenTo(
-      <String>{
-        ...MobileRealtimeEvents.profileEvents,
-        MobileRealtimeEvents.socketReconnected,
-      },
-      (_) => _requestProfileRefresh(),
-    );
+    _stopRealtimeListener = MobileRealtimeService.instance.listenTo(<String>{
+      ...MobileRealtimeEvents.profileEvents,
+      MobileRealtimeEvents.socketReconnected,
+    }, (_) => _requestProfileRefresh());
     _liveSyncTimer = Timer.periodic(const Duration(seconds: 8), (_) {
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
       _requestProfileRefresh();
     });
   }
 
-  Future<void> _loadProfile({bool refreshRemote = true, bool silent = false}) async {
+  Future<void> _loadProfile({
+    bool refreshRemote = true,
+    bool silent = false,
+  }) async {
     if (_profileFetchInProgress) {
       _pendingRealtimeProfileReload = true;
       return;
@@ -135,7 +138,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       try {
         final profile = await _profileService.fetchMyProfile();
         if (!mounted) return;
-        _sectionRequiresCorrection = profile['section_requires_correction'] == true;
+        _sectionRequiresCorrection =
+            profile['section_requires_correction'] == true;
 
         _applyValues(
           firstName: profile['first_name']?.toString() ?? session.firstName,
@@ -401,9 +405,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile photo submitted for review.'),
-        ),
+        const SnackBar(content: Text('Profile photo submitted for review.')),
       );
     } on ApiException catch (error) {
       if (!mounted) return;
@@ -424,15 +426,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (error) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to upload photo: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Unable to upload photo: $error')));
     } finally {
       if (mounted) {
         setState(() => _isUploading = false);
         if (_pendingRealtimeProfileReload) {
           _pendingRealtimeProfileReload = false;
-          scheduleMicrotask(() => _loadProfile(refreshRemote: true, silent: true));
+          scheduleMicrotask(
+            () => _loadProfile(refreshRemote: true, silent: true),
+          );
         }
       }
     }
@@ -465,12 +469,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             profile['first_name']?.toString() ??
             _firstNameController.text.trim(),
         lastName:
-            profile['last_name']?.toString() ??
-            _lastNameController.text.trim(),
+            profile['last_name']?.toString() ?? _lastNameController.text.trim(),
         email: profile['email']?.toString() ?? email,
         course:
-            profile['course_code']?.toString() ??
-            _courseController.text.trim(),
+            profile['course_code']?.toString() ?? _courseController.text.trim(),
         section: _sectionController.text.trim(),
         phone: profile['phone_number']?.toString() ?? phone,
         address: _composeAddress(profile),
@@ -499,7 +501,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         setState(() => _isSaving = false);
         if (_pendingRealtimeProfileReload && !_isEditing) {
           _pendingRealtimeProfileReload = false;
-          scheduleMicrotask(() => _loadProfile(refreshRemote: true, silent: true));
+          scheduleMicrotask(
+            () => _loadProfile(refreshRemote: true, silent: true),
+          );
         }
       }
     }
@@ -563,7 +567,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         centerTitle: false,
         elevation: 0,
         scrolledUnderElevation: 0,
-        backgroundColor: isDark ? AppColors.applicantDarkBackground : AppColors.applicantLightSurface,
+        backgroundColor: isDark
+            ? AppColors.applicantDarkBackground
+            : AppColors.applicantLightSurface,
         foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
       ),
       selectedIndex: 4,
@@ -599,7 +605,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         _InfoRow(
                           label: 'Account Type',
-                          value: _scholarPrivilegeRemoved ? 'Removed Scholar' : (_hasScholarAccess ? 'Scholar' : 'Applicant'),
+                          value: _scholarPrivilegeRemoved
+                              ? 'Removed Scholar'
+                              : (_hasScholarAccess ? 'Scholar' : 'Applicant'),
                           isLast: true,
                         ),
                       ],
@@ -692,7 +700,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 height: 82,
                 padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
-                  color: isDark ? AppColors.applicantDarkSurfaceMuted : AppColors.applicantLightSurface,
+                  color: isDark
+                      ? AppColors.applicantDarkSurfaceMuted
+                      : AppColors.applicantLightSurface,
                   shape: BoxShape.circle,
                   border: Border.all(color: AppColors.gold, width: 2),
                 ),
@@ -743,8 +753,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Text(
                   _displayName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
@@ -837,7 +845,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.applicantDarkSurface : AppColors.applicantLightSurface,
+        color: isDark
+            ? AppColors.applicantDarkSurface
+            : AppColors.applicantLightSurface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isDark
@@ -884,7 +894,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.applicantDarkSurface : AppColors.applicantLightSurface,
+        color: isDark
+            ? AppColors.applicantDarkSurface
+            : AppColors.applicantLightSurface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isDark
@@ -993,73 +1005,87 @@ class _ProfileScreenState extends State<ProfileScreen> {
             keyboardType: TextInputType.number,
           ),
           const SizedBox(height: 6),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _isSaving
-                      ? null
-                      : () {
-                          if (_isProfileIncomplete) {
-                            _showMessage(
-                              'Complete the required profile fields first.',
-                            );
-                            return;
-                          }
-                          setState(() => _isEditing = false);
-                          _pendingRealtimeProfileReload = false;
-                          _loadProfile(refreshRemote: true, silent: true);
-                        },
-                  // Cancel is a neutral navigation action, not a destructive
-                  // one. Keep it in the same brown/gold system as the cards,
-                  // icons, and primary action.
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(50),
-                    foregroundColor:
-                        isDark ? AppColors.gold : AppColors.darkBrown,
-                    side: BorderSide(
-                      color: isDark
-                          ? AppColors.gold.withValues(alpha: 0.60)
-                          : AppColors.brown.withValues(alpha: 0.38),
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: const Text('Cancel'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: FilledButton.icon(
-                  onPressed: _isSaving ? null : _saveProfile,
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(50),
-                    backgroundColor: AppColors.gold,
-                    foregroundColor: AppColors.darkBrown,
-                    textStyle: const TextStyle(fontWeight: FontWeight.w900),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  icon: _isSaving
-                      ? const SizedBox(
-                          width: 17,
-                          height: 17,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.darkBrown,
-                          ),
-                        )
-                      : const Icon(Icons.save_rounded),
-                  label: Text(_isSaving ? 'Saving...' : 'Save Changes'),
-                ),
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final textScale = MediaQuery.textScalerOf(context).scale(1);
+              final stackActions =
+                  constraints.maxWidth < 340 || textScale > 1.3;
+              final cancel = _buildCancelProfileButton(isDark);
+              final save = _buildSaveProfileButton();
+
+              if (stackActions) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    save,
+                    const SizedBox(height: AppSpacing.sm),
+                    cancel,
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: cancel),
+                  const SizedBox(width: 12),
+                  Expanded(flex: 2, child: save),
+                ],
+              );
+            },
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCancelProfileButton(bool isDark) {
+    return OutlinedButton(
+      onPressed: _isSaving
+          ? null
+          : () {
+              if (_isProfileIncomplete) {
+                _showMessage('Complete the required profile fields first.');
+                return;
+              }
+              setState(() => _isEditing = false);
+              _pendingRealtimeProfileReload = false;
+              _loadProfile(refreshRemote: true, silent: true);
+            },
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size.fromHeight(50),
+        foregroundColor: isDark ? AppColors.gold : AppColors.darkBrown,
+        side: BorderSide(
+          color: isDark
+              ? AppColors.gold.withValues(alpha: 0.60)
+              : AppColors.brown.withValues(alpha: 0.38),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      child: const Text('Cancel'),
+    );
+  }
+
+  Widget _buildSaveProfileButton() {
+    return FilledButton.icon(
+      onPressed: _isSaving ? null : _saveProfile,
+      style: FilledButton.styleFrom(
+        minimumSize: const Size.fromHeight(50),
+        backgroundColor: AppColors.gold,
+        foregroundColor: AppColors.darkBrown,
+        textStyle: const TextStyle(fontWeight: FontWeight.w900),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      icon: _isSaving
+          ? const SizedBox(
+              width: 17,
+              height: 17,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.darkBrown,
+              ),
+            )
+          : const Icon(Icons.save_rounded),
+      label: Text(_isSaving ? 'Saving...' : 'Save Changes'),
     );
   }
 
@@ -1115,33 +1141,48 @@ class _InfoRow extends StatelessWidget {
                 ),
         ),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 112,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: isDark
-                    ? Colors.white60
-                    : AppColors.brown.withValues(alpha: 0.66),
-                fontWeight: FontWeight.w700,
-              ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final textScale = MediaQuery.textScalerOf(context).scale(1);
+          final stackValues = constraints.maxWidth < 340 || textScale > 1.3;
+          final labelText = Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: isDark
+                  ? Colors.white60
+                  : AppColors.brown.withValues(alpha: 0.66),
+              fontWeight: FontWeight.w700,
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              value.trim().isEmpty ? 'Not provided' : value.trim(),
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: isDark ? Colors.white : AppColors.darkBrown,
-                fontWeight: FontWeight.w800,
-                height: 1.35,
-              ),
+          );
+          final valueText = Text(
+            value.trim().isEmpty ? 'Not provided' : value.trim(),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: isDark ? Colors.white : AppColors.darkBrown,
+              fontWeight: FontWeight.w800,
+              height: 1.35,
             ),
-          ),
-        ],
+          );
+
+          if (stackValues) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                labelText,
+                const SizedBox(height: AppSpacing.xs),
+                valueText,
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(width: 112, child: labelText),
+              const SizedBox(width: 10),
+              Expanded(child: valueText),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1154,7 +1195,6 @@ class _ProfileField extends StatelessWidget {
     required this.controller,
     this.enabled = true,
     this.keyboardType,
-    this.maxLines = 1,
     this.helperText,
   });
 
@@ -1163,7 +1203,6 @@ class _ProfileField extends StatelessWidget {
   final TextEditingController controller;
   final bool enabled;
   final TextInputType? keyboardType;
-  final int maxLines;
   final String? helperText;
 
   @override
@@ -1176,7 +1215,6 @@ class _ProfileField extends StatelessWidget {
         controller: controller,
         enabled: enabled,
         keyboardType: keyboardType,
-        maxLines: maxLines,
         textCapitalization: TextCapitalization.words,
         decoration: InputDecoration(
           labelText: label,

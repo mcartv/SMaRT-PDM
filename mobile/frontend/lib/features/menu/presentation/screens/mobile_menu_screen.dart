@@ -16,6 +16,8 @@ import 'package:smartpdm_mobileapp/features/profile/data/services/profile_servic
 import 'package:smartpdm_mobileapp/shared/widgets/app_settings_sheet.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 
+// SMART-PDM_MOBILE_MENU_RESPONSIVE_PHASE6_V1
+
 class MobileMenuScreen extends StatefulWidget {
   const MobileMenuScreen({super.key});
 
@@ -193,19 +195,19 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
               child: Semantics(
                 button: true,
                 label: 'Open Profile and Account',
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => _openRoute(AppRoutes.profile),
-                child: _ProfileSummaryCard(
-                  displayName: _displayName,
-                  studentId: _studentId,
-                  hasScholarAccess: hasScholarAccess,
-                  scholarPrivilegeRemoved: _scholarPrivilegeRemoved,
-                  isRefreshing: _isRefreshing,
-                  avatar: _buildAvatar(),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _openRoute(AppRoutes.profile),
+                  child: _ProfileSummaryCard(
+                    displayName: _displayName,
+                    studentId: _studentId,
+                    hasScholarAccess: hasScholarAccess,
+                    scholarPrivilegeRemoved: _scholarPrivilegeRemoved,
+                    isRefreshing: _isRefreshing,
+                    avatar: _buildAvatar(),
+                  ),
                 ),
               ),
-            ),
             ),
             const SizedBox(height: 22),
             const AppSectionHeading(
@@ -237,7 +239,6 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
                     subtitle: 'System, light, or dark',
                     onTap: () => showAppearanceSheet(context),
                   ),
-                  const Divider(height: 1, indent: 72),
                 ],
               ),
             ),
@@ -262,8 +263,7 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
                     icon: Icons.explore_outlined,
                     title: 'Getting Started Guide',
                     subtitle: 'Review the SMaRT-PDM application walkthrough',
-                    onTap: () =>
-                        showSmartPdmGettingStartedGuide(context),
+                    onTap: () => showSmartPdmGettingStartedGuide(context),
                   ),
                   if (hasScholarAccess) ...[
                     const Divider(height: 1, indent: 72),
@@ -375,8 +375,6 @@ class _ProfileSummaryCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         displayName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
                               color: Colors.white,
@@ -519,7 +517,9 @@ class _ScholarResponsibilitiesScreen extends StatelessWidget {
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: AppColors.gold.withValues(alpha: 0.14),
-                          borderRadius: const BorderRadius.all(Radius.circular(AppRadii.sm)),
+                          borderRadius: const BorderRadius.all(
+                            Radius.circular(AppRadii.sm),
+                          ),
                         ),
                         child: Text(
                           '${index + 1}',
@@ -548,55 +548,6 @@ class _ScholarResponsibilitiesScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _MenuSwitchTile extends StatelessWidget {
-  const _MenuSwitchTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: 5,
-      ),
-      leading: AppIconTile(icon: icon),
-      title: Text(
-        title,
-        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-          color: AppSurfacePalette.text(context),
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 3),
-        child: Text(
-          subtitle,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: AppSurfacePalette.mutedText(context),
-          ),
-        ),
-      ),
-      trailing: Switch.adaptive(
-        value: value,
-        activeColor: AppColors.gold,
-        onChanged: onChanged,
-      ),
-      onTap: () => onChanged(!value),
     );
   }
 }

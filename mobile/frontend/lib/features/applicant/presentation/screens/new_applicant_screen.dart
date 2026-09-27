@@ -43,6 +43,7 @@ class NewApplicantScreen extends StatefulWidget {
 }
 
 class _NewApplicantScreenState extends State<NewApplicantScreen> {
+  // SMART-PDM_MOBILE_APPLICANT_EXPERIENCE_PHASE3_V1
   final ApplicationService _applicationService = ApplicationService();
   final ProfileService _profileService = ProfileService();
   final SessionService _sessionService = const SessionService();
@@ -509,7 +510,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                   height: 22,
                   margin: const EdgeInsets.only(top: 1),
                   decoration: BoxDecoration(
-                    color: AppColors.gold.withOpacity(0.14),
+                    color: AppColors.gold.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.all(
                       Radius.circular(AppRadii.sm),
                     ),
@@ -598,7 +599,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                           width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            color: AppColors.gold.withOpacity(0.14),
+                            color: AppColors.gold.withValues(alpha: 0.14),
                             borderRadius: AppRadii.control,
                           ),
                           child: Icon(
@@ -643,7 +644,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                         color: AppSurfacePalette.surfaceMuted(dialogContext),
                         borderRadius: AppRadii.card,
                         border: Border.all(
-                          color: AppColors.gold.withOpacity(0.25),
+                          color: AppColors.gold.withValues(alpha: 0.25),
                         ),
                       ),
                       child: Column(
@@ -923,7 +924,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             builder: (context, constraints) {
               final width = constraints.maxWidth;
               final compact = IntakeLayout.isCompact(width);
-              final gutter = IntakeLayout.horizontalPadding(width);
               final formTheme = Theme.of(context).copyWith(
                 textTheme: Theme.of(context).textTheme.copyWith(
                   bodyLarge: Theme.of(
@@ -937,9 +937,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
 
               return Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: 920,
-                  ),
+                  constraints: const BoxConstraints(maxWidth: 920),
                   child: Theme(
                     data: formTheme,
                     child: Card(
@@ -1134,8 +1132,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                   _data.openingTitle.isNotEmpty
                       ? _data.openingTitle
                       : 'Scholarship Opening',
-                  maxLines: 2,
-                  overflow: TextOverflow.fade,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: textColor,
                     fontWeight: FontWeight.w900,
@@ -1146,8 +1142,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                   const SizedBox(height: 2),
                   Text(
                     _data.openingProgramName,
-                    maxLines: 1,
-                    overflow: TextOverflow.fade,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: mutedColor,
                       fontWeight: FontWeight.w600,
@@ -1169,7 +1163,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                     Expanded(
                       child: Text(
                         feedback,
-                        maxLines: 2,
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: _formFeedbackError != null
                               ? Theme.of(context).colorScheme.error
@@ -1218,7 +1211,46 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   }
 
   Widget _buildFooter(NewScholarProvider provider) {
-    final compact = MediaQuery.sizeOf(context).width < 360;
+    final width = MediaQuery.sizeOf(context).width;
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final compact = width < 360;
+    final stackActions = _step > 0 && (width < 340 || textScale > 1.3);
+    final primaryAction = !_hasSelectedOpening
+        ? const SizedBox.shrink()
+        : _step < 4
+        ? NavyButton(label: _nextButtonLabel, onTap: _next)
+        : provider.isLoading
+        ? const SizedBox(
+            height: 52,
+            child: Center(
+              child: SizedBox(
+                height: 24,
+                width: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          )
+        : ElevatedButton(
+            onPressed: _hasSelectedOpening ? _submitApplication : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.gold,
+              foregroundColor: AppColors.darkBrown,
+              disabledBackgroundColor: AppSurfacePalette.outline(context),
+              disabledForegroundColor: AppSurfacePalette.mutedText(context),
+              minimumSize: const Size(0, 52),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: AppRadii.control),
+              elevation: 0,
+            ),
+            child: Text(
+              widget.editExistingApplication
+                  ? 'Save Updates'
+                  : 'Submit Application',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+          );
+
     return Container(
       padding: EdgeInsets.fromLTRB(
         compact ? 12 : 20,
@@ -1232,59 +1264,26 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
           top: BorderSide(color: AppSurfacePalette.outline(context)),
         ),
       ),
-      child: Row(
-        children: [
-          if (_step > 0) ...[
-            Expanded(
-              child: GhostButton(label: 'Back', onTap: _back),
-            ),
-            SizedBox(width: compact ? 8 : 12),
-          ],
-          Expanded(
-            flex: 2,
-            child: !_hasSelectedOpening
-                ? const SizedBox.shrink()
-                : _step < 4
-                ? NavyButton(label: _nextButtonLabel, onTap: _next)
-                : provider.isLoading
-                ? const Center(
-                    child: SizedBox(
-                      height: 24,
-                      width: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  )
-                : ElevatedButton(
-                    onPressed: _hasSelectedOpening ? _submitApplication : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.gold,
-                      foregroundColor: AppColors.darkBrown,
-                      disabledBackgroundColor: AppSurfacePalette.outline(
-                        context,
-                      ),
-                      disabledForegroundColor: AppSurfacePalette.mutedText(
-                        context,
-                      ),
-                      minimumSize: const Size(0, 52),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: AppRadii.control,
-                      ),
-                      elevation: 0,
-                    ),
-                    child: Text(
-                      widget.editExistingApplication
-                          ? 'Save Updates'
-                          : 'Submit Application',
-                      style: const TextStyle(fontWeight: FontWeight.w900),
-                    ),
+      child: stackActions
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                GhostButton(label: 'Back', onTap: _back),
+                const SizedBox(height: 10),
+                primaryAction,
+              ],
+            )
+          : Row(
+              children: [
+                if (_step > 0) ...[
+                  Expanded(
+                    child: GhostButton(label: 'Back', onTap: _back),
                   ),
-          ),
-        ],
-      ),
+                  SizedBox(width: compact ? 8 : 12),
+                ],
+                Expanded(flex: 2, child: primaryAction),
+              ],
+            ),
     );
   }
 }

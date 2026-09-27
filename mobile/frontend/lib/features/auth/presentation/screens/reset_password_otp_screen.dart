@@ -21,6 +21,7 @@ class ResetPasswordOtpScreen extends StatefulWidget {
 }
 
 class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
+  // SMART-PDM_MOBILE_AUTH_RESET_OTP_POLISH_PHASE2_5_V1
   late final PasswordResetService _passwordResetService =
       widget._passwordResetService ?? PasswordResetService();
 
@@ -176,10 +177,10 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
     return null;
   }
 
-  Widget _buildOtpBox(int index) {
+  Widget _buildOtpBox(int index, {required double height}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
-      height: 58,
+      height: height,
       child: TextFormField(
         controller: _controllers[index],
         focusNode: _focusNodes[index],
@@ -190,9 +191,11 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
           LengthLimitingTextInputFormatter(6),
           FilteringTextInputFormatter.digitsOnly,
         ],
-        style: Theme.of(
-          context,
-        ).textTheme.displayLarge?.copyWith(fontWeight: FontWeight.w700),
+        style: const TextStyle(
+          fontSize: 26,
+          height: 1,
+          fontWeight: FontWeight.w700,
+        ),
         decoration: InputDecoration(
           counterText: '',
           filled: true,
@@ -255,6 +258,23 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
     );
   }
 
+  Widget _buildOtpRow() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 270;
+        final gap = isCompact ? 4.0 : 8.0;
+        final boxHeight = isCompact ? 52.0 : 58.0;
+
+        return Row(
+          children: List.generate(11, (index) {
+            if (index.isOdd) return SizedBox(width: gap);
+            return Expanded(child: _buildOtpBox(index ~/ 2, height: boxHeight));
+          }),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final studentId = _getStudentId();
@@ -262,9 +282,14 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
     final mutedText = isDark
         ? AppColors.applicantDarkTextMuted
         : Colors.grey.shade700;
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final isCompact =
+        MediaQuery.sizeOf(context).width < 360 || textScale > 1.15;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF24180F) : Colors.grey.shade50,
+      backgroundColor: isDark
+          ? AppColors.applicantDarkBackground
+          : Colors.grey.shade50,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
@@ -274,13 +299,16 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            padding: EdgeInsets.symmetric(
+              horizontal: isCompact ? 16 : 24,
+              vertical: 12,
+            ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: Container(
-                padding: const EdgeInsets.all(24),
+                padding: EdgeInsets.all(isCompact ? 18 : 24),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: isDark ? AppColors.applicantDarkSurface : Colors.white,
                   borderRadius: BorderRadius.circular(borderRadius * 1.4),
                   boxShadow: [
                     BoxShadow(
@@ -310,8 +338,11 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
                       Text(
                         'Enter Reset Code',
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.displayLarge
-                            ?.copyWith(fontWeight: FontWeight.bold),
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(
+                              fontSize: isCompact ? 25 : 28,
+                              fontWeight: FontWeight.bold,
+                            ),
                       ),
                       const SizedBox(height: 10),
                       Text(
@@ -325,14 +356,7 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
                         ),
                       ),
                       const SizedBox(height: 28),
-                      Row(
-                        children: List.generate(11, (index) {
-                          if (index.isOdd) {
-                            return const SizedBox(width: 8);
-                          }
-                          return Expanded(child: _buildOtpBox(index ~/ 2));
-                        }),
-                      ),
+                      _buildOtpRow(),
                       const SizedBox(height: 14),
                       Text(
                         'The code must be exactly 6 digits.',
@@ -369,7 +393,7 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
                                   ),
                                 )
                               : Text(
-                                  'VERIFY',
+                                  'Verify Code',
                                   style: Theme.of(context).textTheme.bodyLarge
                                       ?.copyWith(
                                         fontWeight: FontWeight.bold,

@@ -173,6 +173,8 @@ void main() {
       ),
     );
 
+    await tester.ensureVisible(find.text('Export Application Form'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Export Application Form'));
     await tester.pump();
 

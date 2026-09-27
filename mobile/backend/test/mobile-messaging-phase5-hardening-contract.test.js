@@ -44,7 +44,7 @@ test('mobile UI marks former groups as removed/read-only and removes active cont
 
 test('provider keeps realtime post-removal messages outside former history', () => {
   const provider = mobile('lib/features/messaging/presentation/providers/messaging_provider.dart');
-  assert.match(provider, /if \(cutoff == null \|\| message\.sentAt\.isAfter\(cutoff\)\) return;/);
+  assert.match(provider, /if \(cutoff == null \|\| message\.sentAt\.isAfter\(cutoff\)\) return false;/);
   assert.match(provider, /isActiveGroupReadOnly/);
   assert.match(provider, /_rememberRealtimeMessage/);
 });

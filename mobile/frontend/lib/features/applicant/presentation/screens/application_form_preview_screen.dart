@@ -5,11 +5,10 @@ import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
-import 'package:smartpdm_mobileapp/app/theme/app_status_colors.dart';
 import 'package:smartpdm_mobileapp/core/files/downloaded_file_handler.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
-import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/printable_application_service.dart';
+import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 
@@ -28,17 +27,18 @@ class _ApplicationFormPreviewScreenState
 
   ApplicationData? _data;
   Map<String, dynamic> _application = const {};
-  Map<String, dynamic> _submittedFormPayload = const {};
   bool _canEdit = false;
   bool _correctionRequested = false;
   bool _awaitingVerification = false;
   bool _loading = true;
   bool _isExportingPdf = false;
-  String? _lockReason;
   String? _pdfError;
   String? _correctionComment;
   String? _error;
+
   final Set<String> _expandedLongFields = <String>{};
+  final Set<String> _expandedSections = <String>{'personal'};
+
   NotificationProvider? _notificationProvider;
   int _lastApplicationRevision = 0;
   bool _pendingRealtimeReload = false;
@@ -111,11 +111,9 @@ class _ApplicationFormPreviewScreenState
         setState(() {
           _data = null;
           _application = const {};
-          _submittedFormPayload = const {};
           _canEdit = false;
           _correctionRequested = false;
           _awaitingVerification = false;
-          _lockReason = null;
           _correctionComment = null;
           _error = 'No submitted application is available yet.';
           _loading = false;
@@ -139,11 +137,9 @@ class _ApplicationFormPreviewScreenState
       setState(() {
         _data = data;
         _application = rawApplication;
-        _submittedFormPayload = rawForm;
         _canEdit = editability['can_edit'] == true;
         _correctionRequested = editability['correction_requested'] == true;
         _awaitingVerification = editability['awaiting_verification'] == true;
-        _lockReason = _optional(editability['reason']);
         _correctionComment = _optional(editability['correction_comment']);
         _loading = false;
       });
@@ -182,21 +178,14 @@ class _ApplicationFormPreviewScreenState
     if (!mounted) return;
 
     if (updated == true) {
+      // Keep the action disabled immediately after an update while the
+      // authoritative review state is refreshed from the server.
       // SMART_PDM_APPLICATION_FORM_IMMEDIATE_DISABLE_V4
-      // Disable the button immediately after a successful edit before the
-      // refreshed server state arrives, so the user never sees it re-enabled
-      // during the transition back to Preview Form.
-      if (mounted) {
-        setState(() {
-          _canEdit = false;
-          _correctionRequested = false;
-          _awaitingVerification = true;
-          _lockReason =
-              'Your updated Application Form is waiting for verification. '
-              'Edit Form is temporarily disabled until OSFA/Admin completes '
-              'the review or requests another correction.';
-        });
-      }
+      setState(() {
+        _canEdit = false;
+        _correctionRequested = false;
+        _awaitingVerification = true;
+      });
 
       await _load();
     }
@@ -219,8 +208,6 @@ class _ApplicationFormPreviewScreenState
     });
 
     try {
-      // Re-fetch at export time so the PDF contains the latest normalized
-      // application, profile, family, and academic data from the database.
       final bytes = await _pdfService
           .generateBytesFromMySubmittedApplicationForm();
 
@@ -238,7 +225,6 @@ class _ApplicationFormPreviewScreenState
       ).showSnackBar(SnackBar(content: Text(message)));
     } catch (error) {
       if (!mounted) return;
-
       setState(() {
         _pdfError = error.toString().replaceFirst('Exception: ', '').trim();
       });
@@ -256,41 +242,53 @@ class _ApplicationFormPreviewScreenState
     return text.isEmpty ? null : text;
   }
 
-  // SMART_PDM_MOBILE_APPLICATION_FORM_EDIT_PREVIEW_V1
-  // SMART_PDM_APPLICATION_FORM_AWAITING_VERIFICATION_LOCK_V3
+  String _editabilityLabel() {
+    if (_awaitingVerification) return 'Under Review';
+    if (_correctionRequested) return 'Correction Needed';
+    if (_canEdit) return 'Editing Available';
+    return 'Editing Closed';
+  }
+
+  IconData _editabilityIcon() {
+    if (_awaitingVerification) return Icons.hourglass_top_rounded;
+    if (_correctionRequested) return Icons.edit_note_outlined;
+    if (_canEdit) return Icons.edit_outlined;
+    return Icons.lock_outline_rounded;
+  }
+
   String _editabilityMessage() {
     if (_awaitingVerification) {
-      return _lockReason ??
-          'Your updated Application Form is waiting for verification. '
-              'Edit Form is temporarily disabled until OSFA/Admin completes '
-              'the review or requests another correction.';
-    }
-
-    if (!_canEdit) {
-      return _lockReason ??
-          'Editing is no longer available for this application.';
+      return 'Your updated application is being reviewed. You can edit it again if OSFA requests another correction.';
     }
 
     if (_correctionRequested) {
       if (_correctionComment == null) {
-        return 'OSFA/Admin requested a correction to your application form. '
-            'Edit the requested information and save the updated form.';
+        return 'OSFA requested a correction. Open Edit Form and update the requested information.';
       }
-
-      return 'OSFA/Admin requested a correction to your application form. '
-          'Admin remark: $_correctionComment';
+      return 'OSFA requested a correction. Note: $_correctionComment';
     }
 
-    return 'You can still edit your Application Form while this application '
-        'is eligible for changes. Saved changes will appear here in Preview Form.';
+    if (_canEdit) {
+      return 'You can update this application while editing is available.';
+    }
+
+    return 'This application can no longer be edited.';
   }
 
   String _text(String value) {
     final trimmed = value.trim();
-    return trimmed.isEmpty ? 'Not provided' : trimmed;
+    if (trimmed.isEmpty || trimmed.toUpperCase() == 'N/A') {
+      return 'Not provided';
+    }
+    return trimmed;
   }
 
   String _yesNo(bool value) => value ? 'Yes' : 'No';
+
+  String _answerLabel(bool answered, bool value) {
+    if (!answered) return 'Not answered';
+    return value ? 'Yes' : 'No';
+  }
 
   String _residencyDurationLabel(String value) {
     final raw = value.trim();
@@ -312,37 +310,10 @@ class _ApplicationFormPreviewScreenState
       return 'More than 10 years';
     }
 
-    return raw.isEmpty ? 'Not provided' : raw;
+    return _text(raw);
   }
 
-  String _fullName(String first, String middle, String last) {
-    final parts = [
-      first,
-      middle,
-      last,
-    ].map((value) => value.trim()).where((value) => value.isNotEmpty).toList();
-    return parts.isEmpty ? 'Not provided' : parts.join(' ');
-  }
-
-  String _address(ApplicationData data) {
-    final parts = [
-      data.unitBldgNo,
-      data.houseLotBlockNo,
-      data.street,
-      data.subdivision,
-      data.barangay,
-      data.city,
-      data.province,
-      data.zipCode,
-    ].map((value) => value.trim()).where((value) => value.isNotEmpty).toList();
-
-    return parts.isEmpty ? 'Not provided' : parts.join(', ');
-  }
-
-  String _scholarshipHistory(ApplicationData data) {
-    if (!data.scholarshipHistoryAnswered) return 'Not answered';
-    if (!data.scholarshipHistory) return 'No';
-
+  String _scholarshipLevels(ApplicationData data) {
     final levels = <String>[
       if (data.scholarshipElementary) 'Elementary',
       if (data.scholarshipHighSchool) 'Junior High School',
@@ -353,15 +324,7 @@ class _ApplicationFormPreviewScreenState
             : 'Others: ${data.scholarshipOthersSpecify.trim()}',
     ];
 
-    return levels.isEmpty ? 'Yes' : 'Yes — ${levels.join(', ')}';
-  }
-
-  String _disciplinary(ApplicationData data) {
-    if (!data.disciplinaryActionAnswered) return 'Not answered';
-    if (!data.disciplinaryAction) return 'No';
-
-    final explanation = data.disciplinaryExplanation.trim();
-    return explanation.isEmpty ? 'Yes' : 'Yes — $explanation';
+    return levels.isEmpty ? 'Not provided' : levels.join(', ');
   }
 
   Widget _field(String label, String value) {
@@ -374,10 +337,8 @@ class _ApplicationFormPreviewScreenState
             label.toUpperCase(),
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w700,
-              letterSpacing: 0.55,
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.52),
+              letterSpacing: 0.45,
+              color: AppSurfacePalette.mutedText(context),
             ),
           ),
           const SizedBox(height: 4),
@@ -386,6 +347,7 @@ class _ApplicationFormPreviewScreenState
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w600,
               height: 1.4,
+              color: AppSurfacePalette.text(context),
             ),
           ),
         ],
@@ -401,6 +363,7 @@ class _ApplicationFormPreviewScreenState
         final textStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
           fontWeight: FontWeight.w600,
           height: 1.4,
+          color: AppSurfacePalette.text(context),
         );
 
         final painter = TextPainter(
@@ -421,10 +384,8 @@ class _ApplicationFormPreviewScreenState
                 label.toUpperCase(),
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   fontWeight: FontWeight.w700,
-                  letterSpacing: 0.55,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.52),
+                  letterSpacing: 0.45,
+                  color: AppSurfacePalette.mutedText(context),
                 ),
               ),
               const SizedBox(height: 4),
@@ -468,44 +429,105 @@ class _ApplicationFormPreviewScreenState
   }
 
   Widget _section({
+    required String sectionKey,
     required String title,
     required IconData icon,
     required List<Widget> children,
   }) {
+    final expanded = _expandedSections.contains(sectionKey);
+
     return AppSurfaceCard(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.lg,
-        AppSpacing.lg,
-        AppSpacing.xs,
-      ),
+      padding: EdgeInsets.zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                AppIconTile(icon: icon),
-                const SizedBox(width: 11),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
+        children: [
+          InkWell(
+            onTap: () {
+              setState(() {
+                if (expanded) {
+                  _expandedSections.remove(sectionKey);
+                } else {
+                  _expandedSections.add(sectionKey);
+                }
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Row(
+                children: [
+                  AppIconTile(icon: icon),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: AppSurfacePalette.text(context),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  AnimatedRotation(
+                    turns: expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 160),
+                    child: Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppSurfacePalette.mutedText(context),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 17),
-        ...children,
-      ],
-    ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            child: expanded
+                ? Column(
+                    children: [
+                      Divider(
+                        height: 1,
+                        color: AppSurfacePalette.outline(context),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.lg,
+                          AppSpacing.lg,
+                          AppSpacing.lg,
+                          AppSpacing.xs,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: children,
+                        ),
+                      ),
+                    ],
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
     );
   }
 
+  Widget _subsection(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 2, bottom: 12),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+          color: AppColors.gold,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+
+  Widget _divider() => const Divider(height: 26);
+
   Widget _familyMember({
     required String title,
+    required bool present,
     required String first,
     required String middle,
     required String last,
@@ -514,37 +536,61 @@ class _ApplicationFormPreviewScreenState
     required String occupation,
     required String company,
   }) {
-    final hasAny = [
-      first,
-      middle,
-      last,
-      mobile,
-      education,
-      occupation,
-      company,
-    ].any((value) => value.trim().isNotEmpty);
-
-    if (!hasAny) {
-      return _field(title, 'Not listed');
+    if (!present) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _subsection(title),
+          _field('Status', 'Not present / not listed'),
+          _divider(),
+        ],
+      );
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: Theme.of(
-            context,
-          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 10),
-        _field('Name', _fullName(first, middle, last)),
+        _subsection(title),
+        _field('First Name', _text(first)),
+        _field('Middle Name', _text(middle)),
+        _field('Last Name', _text(last)),
         _field('Mobile Number', _text(mobile)),
         _field('Highest Educational Attainment', _text(education)),
         _field('Occupation', _text(occupation)),
         _field('Company Name / Address', _text(company)),
-        const Divider(height: 22),
+        _divider(),
       ],
+    );
+  }
+
+  Widget _certificationRow({
+    required String label,
+    required bool confirmed,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 13),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            confirmed ? Icons.check_circle_rounded : Icons.cancel_outlined,
+            size: 20,
+            color: confirmed
+                ? AppColors.gold
+                : Theme.of(context).colorScheme.error,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -560,75 +606,96 @@ class _ApplicationFormPreviewScreenState
       onRefresh: () => _load(),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xxl),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.lg,
+          AppSpacing.lg,
+          AppSpacing.xxl,
+        ),
         children: [
           AppSurfaceCard(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    openingTitle.trim().isEmpty
-                        ? 'Current Scholarship Application'
-                        : openingTitle,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  openingTitle.trim().isEmpty
+                      ? 'Current Scholarship Application'
+                      : openingTitle,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
                   ),
-                  if (programName.trim().isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      programName,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppSurfacePalette.mutedText(context),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _pill(
-                        icon: Icons.description_outlined,
-                        text: applicationStatus,
-                      ),
-                      _pill(
-                        icon: _awaitingVerification
-                            ? Icons.hourglass_top_rounded
-                            : _canEdit
-                                ? Icons.edit_note_outlined
-                                : Icons.lock_outline_rounded,
-                        text: _awaitingVerification
-                            ? 'Awaiting verification'
-                            : _canEdit
-                                ? (_correctionRequested
-                                      ? 'Correction requested'
-                                      : 'Editing available')
-                                : 'Editing locked',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
+                ),
+                if (programName.trim().isNotEmpty) ...[
+                  const SizedBox(height: 4),
                   Text(
-                    'This is the information currently saved with your submitted application.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      height: 1.45,
+                    programName,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppSurfacePalette.mutedText(context),
                     ),
                   ),
+                ],
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _pill(
+                      icon: Icons.description_outlined,
+                      text: applicationStatus,
+                    ),
+                    _pill(
+                      icon: _editabilityIcon(),
+                      text: _editabilityLabel(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'This preview shows the information saved with your submitted application. Open each section to review the details you provided.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    height: 1.45,
+                    color: AppSurfacePalette.mutedText(context),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      size: 18,
+                      color: AppColors.gold,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _editabilityMessage(),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          height: 1.4,
+                          fontWeight: FontWeight.w600,
+                          color: AppSurfacePalette.mutedText(context),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
           const SizedBox(height: AppSpacing.md),
           _section(
+            sectionKey: 'personal',
             title: 'Personal Information',
             icon: Icons.person_outline_rounded,
             children: [
-              _field(
-                'Full Name',
-                _fullName(data.firstName, data.middleName, data.lastName),
-              ),
+              _subsection('Name'),
+              _field('First Name', _text(data.firstName)),
+              _field('Middle Name', _text(data.middleName)),
+              _field('Last Name', _text(data.lastName)),
+              _field('Maiden Name', _text(data.maidenName)),
+              _divider(),
+              _subsection('Personal Details'),
               _field('Date of Birth', _text(data.dateOfBirth)),
               _field('Age', _text(data.age)),
               _field('Sex', _text(data.sex)),
@@ -636,12 +703,26 @@ class _ApplicationFormPreviewScreenState
               _field('Citizenship', _text(data.citizenship)),
               _field('Civil Status', _text(data.civilStatus)),
               _field('Religion', _text(data.religion)),
-              _field('Permanent Address', _address(data)),
+              _divider(),
+              _subsection('Permanent Address'),
+              _field('Unit / Building No.', _text(data.unitBldgNo)),
+              _field('House / Lot / Block No.', _text(data.houseLotBlockNo)),
+              _field('Phase', _text(data.phase)),
+              _field('Street', _text(data.street)),
+              _field('Subdivision', _text(data.subdivision)),
+              _field('Barangay', _text(data.barangay)),
+              _field('City / Municipality', _text(data.city)),
+              _field('Province', _text(data.province)),
+              _field('ZIP Code', _text(data.zipCode)),
+              _divider(),
+              _subsection('Contact Information'),
+              _field('Landline', _text(data.landline)),
               _field('Mobile Number', _text(data.mobileNumber)),
               _field('Email Address', _text(data.email)),
             ],
           ),
           _section(
+            sectionKey: 'family',
             title: 'Family Information',
             icon: Icons.family_restroom_outlined,
             children: [
@@ -651,8 +732,14 @@ class _ApplicationFormPreviewScreenState
                     ? 'Same as applicant address'
                     : _text(data.parentGuardianAddress),
               ),
+              _field(
+                'Same Address as Applicant',
+                _yesNo(data.sameAddressAsApplicant),
+              ),
+              _divider(),
               _familyMember(
                 title: 'Father',
+                present: data.fatherPresent && !data.guardianOnly,
                 first: data.fatherFirstName,
                 middle: data.fatherMiddleName,
                 last: data.fatherLastName,
@@ -663,6 +750,7 @@ class _ApplicationFormPreviewScreenState
               ),
               _familyMember(
                 title: 'Mother',
+                present: data.motherPresent && !data.guardianOnly,
                 first: data.motherFirstName,
                 middle: data.motherMiddleName,
                 last: data.motherLastName,
@@ -673,6 +761,18 @@ class _ApplicationFormPreviewScreenState
               ),
               _familyMember(
                 title: 'Sibling',
+                present: [
+                  data.siblingFirstName,
+                  data.siblingMiddleName,
+                  data.siblingLastName,
+                  data.siblingMobile,
+                  data.siblingEducationalAttainment,
+                  data.siblingOccupation,
+                  data.siblingCompanyNameAndAddress,
+                ].any(
+                  (value) =>
+                      value.trim().isNotEmpty && value.trim().toUpperCase() != 'N/A',
+                ),
                 first: data.siblingFirstName,
                 middle: data.siblingMiddleName,
                 last: data.siblingLastName,
@@ -683,6 +783,18 @@ class _ApplicationFormPreviewScreenState
               ),
               _familyMember(
                 title: 'Guardian',
+                present: [
+                  data.guardianFirstName,
+                  data.guardianMiddleName,
+                  data.guardianLastName,
+                  data.guardianMobile,
+                  data.guardianEducationalAttainment,
+                  data.guardianOccupation,
+                  data.guardianCompanyNameAndAddress,
+                ].any(
+                  (value) =>
+                      value.trim().isNotEmpty && value.trim().toUpperCase() != 'N/A',
+                ),
                 first: data.guardianFirstName,
                 middle: data.guardianMiddleName,
                 last: data.guardianLastName,
@@ -691,13 +803,18 @@ class _ApplicationFormPreviewScreenState
                 occupation: data.guardianOccupation,
                 company: data.guardianCompanyNameAndAddress,
               ),
+              _subsection('Residency'),
               _field('Native of Marilao', _text(data.parentNativeStatus)),
-              if (data.parentNativeStatus.trim() == 'No')
+              if (data.parentNativeStatus.trim().toLowerCase() == 'no') ...[
                 _field(
                   'Previous City / Municipality',
                   _text(data.parentPreviousTownMunicipality),
-                )
-              else
+                ),
+                _field(
+                  'Previous Province',
+                  _text(data.parentPreviousProvince),
+                ),
+              ] else
                 _field(
                   'Years as Marilao Resident',
                   _residencyDurationLabel(data.parentMarilaoResidencyDuration),
@@ -705,67 +822,108 @@ class _ApplicationFormPreviewScreenState
             ],
           ),
           _section(
+            sectionKey: 'academic',
             title: 'Academic Information',
             icon: Icons.school_outlined,
             children: [
-              _field('College', _text(data.collegeSchool)),
-              _field('College Address', _text(data.collegeAddress)),
-              _field('College Year / Status', _text(data.collegeYearGraduated)),
-              _field('Junior High School', _text(data.highSchoolSchool)),
-              _field(
-                'Junior High School Address',
-                _text(data.highSchoolAddress),
-              ),
-              _field(
-                'Junior High School Year Graduated',
-                _text(data.highSchoolYearGraduated),
-              ),
-              _field('Senior High School', _text(data.seniorHighSchool)),
-              _field(
-                'Senior High School Address',
-                _text(data.seniorHighAddress),
-              ),
-              _field(
-                'Senior High School Year Graduated',
-                _text(data.seniorHighYearGraduated),
-              ),
-              _field('Elementary School', _text(data.elementarySchool)),
-              _field(
-                'Elementary School Address',
-                _text(data.elementaryAddress),
-              ),
-              _field(
-                'Elementary Year Graduated',
-                _text(data.elementaryYearGraduated),
-              ),
-              _field('Current Course', _text(data.currentCourse)),
-              _field('Current Year Level', _text(data.currentYearLevel)),
+              _subsection('College / Current School'),
+              _field('School', _text(data.collegeSchool)),
+              _field('Address', _text(data.collegeAddress)),
+              _field('Honors / Awards', _text(data.collegeHonors)),
+              _field('Club / Organization', _text(data.collegeClub)),
+              _field('Year / Status', _text(data.collegeYearGraduated)),
+              _divider(),
+              _subsection('Junior High School'),
+              _field('School', _text(data.highSchoolSchool)),
+              _field('Address', _text(data.highSchoolAddress)),
+              _field('Honors / Awards', _text(data.highSchoolHonors)),
+              _field('Club / Organization', _text(data.highSchoolClub)),
+              _field('Year Graduated', _text(data.highSchoolYearGraduated)),
+              _divider(),
+              _subsection('Senior High School'),
+              _field('School', _text(data.seniorHighSchool)),
+              _field('Address', _text(data.seniorHighAddress)),
+              _field('Honors / Awards', _text(data.seniorHighHonors)),
+              _field('Club / Organization', _text(data.seniorHighClub)),
+              _field('Year Graduated', _text(data.seniorHighYearGraduated)),
+              _divider(),
+              _subsection('Elementary School'),
+              _field('School', _text(data.elementarySchool)),
+              _field('Address', _text(data.elementaryAddress)),
+              _field('Honors / Awards', _text(data.elementaryHonors)),
+              _field('Club / Organization', _text(data.elementaryClub)),
+              _field('Year Graduated', _text(data.elementaryYearGraduated)),
+              _divider(),
+              _subsection('Current Academic Information'),
+              _field('Course', _text(data.currentCourse)),
+              _field('Year Level', _text(data.currentYearLevel)),
+              _field('Section', _text(data.currentSection)),
               _field('Student Number', _text(data.studentNumber)),
+              _field(
+                'Learner Reference Number (LRN)',
+                _text(data.learnersReferenceNumber),
+              ),
+              _field('GWA', _text(data.gwa)),
+              _divider(),
+              _subsection('Scholarship & Support'),
               _field('Financial Support', _text(data.financialSupport)),
-              _field('Scholarship History', _scholarshipHistory(data)),
-              _field('Disciplinary Action', _disciplinary(data)),
+              if (data.financialSupportOtherSpecify.trim().isNotEmpty)
+                _field(
+                  'Other Financial Support',
+                  _text(data.financialSupportOtherSpecify),
+                ),
+              _field(
+                'Previous Scholarship',
+                _answerLabel(
+                  data.scholarshipHistoryAnswered,
+                  data.scholarshipHistory,
+                ),
+              ),
+              if (data.scholarshipHistory) ...[
+                _field('Scholarship Level(s)', _scholarshipLevels(data)),
+                _field('Scholarship Details', _text(data.scholarshipDetails)),
+              ],
+              _divider(),
+              _subsection('Disciplinary Information'),
+              _field(
+                'Disciplinary Action',
+                _answerLabel(
+                  data.disciplinaryActionAnswered,
+                  data.disciplinaryAction,
+                ),
+              ),
+              if (data.disciplinaryAction)
+                _field(
+                  'Explanation',
+                  _text(data.disciplinaryExplanation),
+                ),
             ],
           ),
           _section(
+            sectionKey: 'statement',
             title: 'Personal Statement',
             icon: Icons.edit_note_outlined,
             children: [
               _expandableField('Describe Yourself', data.describeYourselfEssay),
               _expandableField(
-                'Aims and Ambition After Graduation',
+                'Aims and Ambitions After Graduation',
                 data.aimsAndAmbitionEssay,
               ),
             ],
           ),
           _section(
-            title: 'Certification',
+            sectionKey: 'certification',
+            title: 'Certification & Agreement',
             icon: Icons.verified_user_outlined,
             children: [
-              _field(
-                'Certification Statement Confirmed',
-                _yesNo(data.certificationRead),
+              _certificationRow(
+                label: 'Information confirmed',
+                confirmed: data.certificationRead,
               ),
-              _field('Terms and Privacy Accepted', _yesNo(data.agree)),
+              _certificationRow(
+                label: 'Terms and Privacy accepted',
+                confirmed: data.agree,
+              ),
             ],
           ),
         ],
@@ -774,33 +932,44 @@ class _ApplicationFormPreviewScreenState
   }
 
   Widget _pill({required IconData icon, required String text}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-      decoration: BoxDecoration(
-        color: AppColors.gold.withValues(alpha: 0.14),
-        borderRadius: AppRadii.status,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 15,
-            color: AppSurfacePalette.isDark(context)
-                ? AppColors.gold
-                : AppColors.darkBrown,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.w800,
+    final maxWidth = (MediaQuery.sizeOf(context).width - 64)
+        .clamp(160.0, 420.0)
+        .toDouble();
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        decoration: BoxDecoration(
+          color: AppColors.gold.withValues(alpha: 0.14),
+          borderRadius: AppRadii.status,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
               color: AppSurfacePalette.isDark(context)
                   ? AppColors.gold
                   : AppColors.darkBrown,
             ),
-          ),
-        ],
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                text,
+                maxLines: 2,
+                softWrap: true,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: AppSurfacePalette.isDark(context)
+                      ? AppColors.gold
+                      : AppColors.darkBrown,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -808,6 +977,66 @@ class _ApplicationFormPreviewScreenState
   Widget _bottomAction() {
     final canEdit = _data != null && _canEdit;
     final canExport = _data != null && !_isExportingPdf;
+
+    Widget editButton() => OutlinedButton.icon(
+      onPressed: canEdit ? _openEditor : null,
+      icon: const Icon(Icons.edit_outlined, size: 19),
+      label: const Text(
+        'Edit Form',
+        textAlign: TextAlign.center,
+        maxLines: 2,
+        softWrap: true,
+      ),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 52),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        foregroundColor: AppColors.gold,
+        disabledForegroundColor: Theme.of(
+          context,
+        ).colorScheme.onSurface.withValues(alpha: 0.38),
+        side: BorderSide(
+          color: AppSurfacePalette.outline(context),
+          width: 1,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: AppRadii.control),
+        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+    );
+
+    Widget exportButton() => ElevatedButton.icon(
+      onPressed: canExport ? _exportPdf : null,
+      icon: _isExportingPdf
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.darkBrown,
+              ),
+            )
+          : const Icon(Icons.picture_as_pdf_outlined, size: 19),
+      label: Text(
+        _isExportingPdf ? 'Exporting...' : 'Export PDF',
+        textAlign: TextAlign.center,
+        maxLines: 2,
+        softWrap: true,
+      ),
+      style: ElevatedButton.styleFrom(
+        minimumSize: const Size(0, 52),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        backgroundColor: AppColors.gold,
+        foregroundColor: AppColors.darkBrown,
+        disabledBackgroundColor: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest,
+        disabledForegroundColor: Theme.of(
+          context,
+        ).colorScheme.onSurface.withValues(alpha: 0.48),
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: AppRadii.control),
+        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+    );
 
     return SafeArea(
       top: false,
@@ -829,113 +1058,28 @@ class _ApplicationFormPreviewScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (_data != null) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 11,
-                  vertical: 9,
-                ),
-                margin: const EdgeInsets.only(bottom: 9),
-                decoration: BoxDecoration(
-                  color: AppStatusColors.of(context).inProgressContainer,
-                  borderRadius: AppRadii.control,
-                  border: Border.all(
-                    color: AppStatusColors.of(context).inProgressOutline,
-                  ),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final stack = constraints.maxWidth < 350;
+                if (stack) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      editButton(),
+                      const SizedBox(height: 8),
+                      exportButton(),
+                    ],
+                  );
+                }
+
+                return Row(
                   children: [
-                    const Icon(
-                      Icons.info_outline_rounded,
-                      size: 16,
-                      color: AppColors.gold,
-                    ),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: Text(
-                        _editabilityMessage(),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          height: 1.35,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
+                    Expanded(child: editButton()),
+                    const SizedBox(width: 10),
+                    Expanded(child: exportButton()),
                   ],
-                ),
-              ),
-            ],
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: canEdit ? _openEditor : null,
-                    icon: const Icon(Icons.edit_outlined, size: 19),
-                    label: const Text(
-                      'Edit Form',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(0, 52),
-                      foregroundColor: AppColors.gold,
-                      disabledForegroundColor: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.38),
-                      side: BorderSide(
-                        color: AppSurfacePalette.outline(context),
-                        width: 1,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: AppRadii.control,
-                      ),
-                      textStyle: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: canExport ? _exportPdf : null,
-                    icon: _isExportingPdf
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.darkBrown,
-                            ),
-                          )
-                        : const Icon(Icons.picture_as_pdf_outlined, size: 19),
-                    label: const Text(
-                      'Export PDF',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(0, 52),
-                      backgroundColor: AppColors.gold,
-                      foregroundColor: AppColors.darkBrown,
-                      disabledBackgroundColor: Theme.of(
-                        context,
-                      ).colorScheme.surfaceContainerHighest,
-                      disabledForegroundColor: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.48),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: AppRadii.control,
-                      ),
-                      textStyle: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+                );
+              },
             ),
             if (_pdfError != null) ...[
               const SizedBox(height: 7),

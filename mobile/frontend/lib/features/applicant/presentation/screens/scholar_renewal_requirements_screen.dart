@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -19,6 +18,8 @@ import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 enum _RenewalUploadSource { camera, file }
+
+// SMART-PDM_MOBILE_SCHOLAR_RENEWAL_RESPONSIVE_PHASE4_V1
 
 class ScholarRenewalRequirementsScreen extends StatefulWidget {
   final bool showBottomNav;
@@ -190,9 +191,9 @@ class _ScholarRenewalRequirementsScreenState
             children: [
               Text(
                 'Choose upload source',
-                style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+                style: Theme.of(
+                  sheetContext,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 6),
               Text(
@@ -205,20 +206,16 @@ class _ScholarRenewalRequirementsScreenState
                 leading: const Icon(Icons.photo_camera_outlined),
                 title: const Text('Camera'),
                 subtitle: const Text('Take a new photo of the document'),
-                onTap: () => Navigator.pop(
-                  sheetContext,
-                  _RenewalUploadSource.camera,
-                ),
+                onTap: () =>
+                    Navigator.pop(sheetContext, _RenewalUploadSource.camera),
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.folder_open_outlined),
                 title: const Text('Choose File'),
                 subtitle: const Text('PDF, JPG, JPEG, PNG, or WEBP'),
-                onTap: () => Navigator.pop(
-                  sheetContext,
-                  _RenewalUploadSource.file,
-                ),
+                onTap: () =>
+                    Navigator.pop(sheetContext, _RenewalUploadSource.file),
               ),
             ],
           ),
@@ -286,7 +283,8 @@ class _ScholarRenewalRequirementsScreenState
       return;
     }
 
-    if (kIsWeb && source == _RenewalUploadSource.file &&
+    if (kIsWeb &&
+        source == _RenewalUploadSource.file &&
         (fileBytes == null || fileBytes.isEmpty)) {
       _showSnackBar(
         'The selected file could not be read in the browser. Please try another file.',
@@ -433,9 +431,7 @@ class _ScholarRenewalRequirementsScreenState
             horizontal: 18,
             vertical: 28,
           ),
-          shape: const RoundedRectangleBorder(
-            borderRadius: AppRadii.card,
-          ),
+          shape: const RoundedRectangleBorder(borderRadius: AppRadii.card),
           child: ConstrainedBox(
             constraints: BoxConstraints(
               maxWidth: 520,
@@ -453,9 +449,7 @@ class _ScholarRenewalRequirementsScreenState
                           document.documentType,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(dialogContext)
-                              .textTheme
-                              .titleSmall
+                          style: Theme.of(dialogContext).textTheme.titleSmall
                               ?.copyWith(fontWeight: FontWeight.w800),
                         ),
                       ),
@@ -642,7 +636,12 @@ class _ScholarRenewalRequirementsScreenState
       child: RefreshIndicator(
         onRefresh: () => _loadRenewal(),
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xxl),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.xxl,
+          ),
           children: [
             if (widget.showTopBar) ...[
               ScholarNavChips(
@@ -675,15 +674,20 @@ class _ScholarRenewalRequirementsScreenState
                   .isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.md),
                 AppSurfaceCard(
-                  backgroundColor:
-                      AppStatusColors.of(context).actionRequiredContainer,
-                  borderColor: AppStatusColors.of(context).actionRequiredOutline,
+                  backgroundColor: AppStatusColors.of(
+                    context,
+                  ).actionRequiredContainer,
+                  borderColor: AppStatusColors.of(
+                    context,
+                  ).actionRequiredOutline,
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       AppIconTile(
                         icon: Icons.feedback_outlined,
-                        accent: AppStatusColors.of(context).actionRequiredOutline,
+                        accent: AppStatusColors.of(
+                          context,
+                        ).actionRequiredOutline,
                       ),
                       const SizedBox(width: AppSpacing.md),
                       Expanded(
@@ -692,24 +696,22 @@ class _ScholarRenewalRequirementsScreenState
                           children: [
                             Text(
                               'Administrator feedback',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
+                              style: Theme.of(context).textTheme.titleSmall
                                   ?.copyWith(
-                                    color: AppStatusColors.of(context)
-                                        .onActionRequiredContainer,
+                                    color: AppStatusColors.of(
+                                      context,
+                                    ).onActionRequiredContainer,
                                     fontWeight: FontWeight.w800,
                                   ),
                             ),
                             const SizedBox(height: AppSpacing.xs),
                             Text(
                               _renewalPackage!.renewal.adminComment!,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
+                              style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                    color: AppStatusColors.of(context)
-                                        .onActionRequiredContainer,
+                                    color: AppStatusColors.of(
+                                      context,
+                                    ).onActionRequiredContainer,
                                     height: 1.4,
                                   ),
                             ),
@@ -777,40 +779,59 @@ class _ScholarRenewalRequirementsScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Renewal Progress',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: titleColor,
-                      ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final textScale = MediaQuery.textScalerOf(context).scale(1);
+              final stackProgress =
+                  constraints.maxWidth < 300 || textScale > 1.3;
+              final summary = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Renewal Progress',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: titleColor,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _renewalSummary(package),
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: subtitleColor,
-                        height: 1.4,
-                      ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _renewalSummary(package),
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: subtitleColor,
+                      height: 1.4,
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
+                  ),
+                ],
+              );
+              final count = Text(
                 '${package.documents.where((doc) => doc.hasFile).length}/${package.documents.length}',
                 style: Theme.of(context).textTheme.displayLarge?.copyWith(
                   fontWeight: FontWeight.w900,
                   color: accentColor,
                 ),
-              ),
-            ],
+              );
+
+              if (stackProgress) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    summary,
+                    const SizedBox(height: AppSpacing.sm),
+                    count,
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: summary),
+                  const SizedBox(width: 12),
+                  count,
+                ],
+              );
+            },
           ),
           const SizedBox(height: 14),
           ClipRRect(
@@ -894,6 +915,20 @@ class _ScholarRenewalRequirementsScreenState
                     context,
                   ).textTheme.labelMedium?.copyWith(color: subtitleColor),
                 ),
+                const SizedBox(height: AppSpacing.sm),
+                AppStatusCapsule(
+                  label: _statusLabel(document, package),
+                  tone: document.status.toLowerCase().contains('rejected')
+                      ? AppStatusTone.danger
+                      : document.status.toLowerCase().contains('reupload')
+                      ? AppStatusTone.actionRequired
+                      : document.status.toLowerCase().contains('verified')
+                      ? AppStatusTone.success
+                      : document.hasFile
+                      ? AppStatusTone.inProgress
+                      : AppStatusTone.neutral,
+                  compact: true,
+                ),
                 if (document.hasFile || document.submittedAt != null) ...[
                   const SizedBox(height: 6),
                   if (document.hasFile)
@@ -917,23 +952,24 @@ class _ScholarRenewalRequirementsScreenState
                       width: double.infinity,
                       padding: const EdgeInsets.all(AppSpacing.sm),
                       decoration: BoxDecoration(
-                        color: AppStatusColors.of(context)
-                            .actionRequiredContainer,
+                        color: AppStatusColors.of(
+                          context,
+                        ).actionRequiredContainer,
                         borderRadius: AppRadii.control,
                         border: Border.all(
-                          color: AppStatusColors.of(context)
-                              .actionRequiredOutline,
+                          color: AppStatusColors.of(
+                            context,
+                          ).actionRequiredOutline,
                         ),
                       ),
                       child: Text(
                         document.adminComment,
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelMedium
+                        style: Theme.of(context).textTheme.labelMedium
                             ?.copyWith(
                               height: 1.35,
-                              color: AppStatusColors.of(context)
-                                  .onActionRequiredContainer,
+                              color: AppStatusColors.of(
+                                context,
+                              ).onActionRequiredContainer,
                               fontWeight: FontWeight.w700,
                             ),
                       ),
@@ -984,20 +1020,6 @@ class _ScholarRenewalRequirementsScreenState
               ],
             ),
           ),
-          const SizedBox(width: 12),
-          AppStatusCapsule(
-            label: _statusLabel(document, package),
-            tone: document.status.toLowerCase().contains('rejected')
-                ? AppStatusTone.danger
-                : document.status.toLowerCase().contains('reupload')
-                ? AppStatusTone.actionRequired
-                : document.status.toLowerCase().contains('verified')
-                ? AppStatusTone.success
-                : document.hasFile
-                ? AppStatusTone.inProgress
-                : AppStatusTone.neutral,
-            compact: true,
-          ),
         ],
       ),
     );
@@ -1036,30 +1058,30 @@ class _InfoChip extends StatelessWidget {
     final colors = AppStatusColors.of(context);
     final (background, foreground, outline) = switch (tone) {
       AppStatusTone.success => (
-          colors.successContainer,
-          colors.onSuccessContainer,
-          colors.successOutline,
-        ),
+        colors.successContainer,
+        colors.onSuccessContainer,
+        colors.successOutline,
+      ),
       AppStatusTone.danger => (
-          colors.dangerContainer,
-          colors.onDangerContainer,
-          colors.dangerOutline,
-        ),
+        colors.dangerContainer,
+        colors.onDangerContainer,
+        colors.dangerOutline,
+      ),
       AppStatusTone.actionRequired => (
-          colors.actionRequiredContainer,
-          colors.onActionRequiredContainer,
-          colors.actionRequiredOutline,
-        ),
+        colors.actionRequiredContainer,
+        colors.onActionRequiredContainer,
+        colors.actionRequiredOutline,
+      ),
       AppStatusTone.inProgress => (
-          colors.inProgressContainer,
-          colors.onInProgressContainer,
-          colors.inProgressOutline,
-        ),
+        colors.inProgressContainer,
+        colors.onInProgressContainer,
+        colors.inProgressOutline,
+      ),
       _ => (
-          colors.neutralContainer,
-          colors.onNeutralContainer,
-          colors.neutralOutline,
-        ),
+        colors.neutralContainer,
+        colors.onNeutralContainer,
+        colors.neutralOutline,
+      ),
     };
 
     return Container(
@@ -1081,9 +1103,9 @@ class _InfoChip extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: foreground,
-                  ),
+                fontWeight: FontWeight.w700,
+                color: foreground,
+              ),
             ),
           ),
         ],
@@ -1116,12 +1138,7 @@ class _RenewalErrorCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            message,
-            style: TextStyle(
-              color: colors.onDangerContainer,
-            ),
-          ),
+          Text(message, style: TextStyle(color: colors.onDangerContainer)),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: onRetry,

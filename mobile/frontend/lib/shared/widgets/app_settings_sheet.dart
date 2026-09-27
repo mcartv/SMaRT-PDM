@@ -5,6 +5,8 @@ import 'package:smartpdm_mobileapp/app/settings/interaction_settings_provider.da
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/theme_provider.dart';
 
+// SMART-PDM_MOBILE_APPEARANCE_RESPONSIVE_PHASE6_V1
+
 Future<void> showAppearanceSheet(BuildContext context) {
   AppHaptics.selection(context);
 
@@ -28,61 +30,47 @@ class _AppearanceSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final largeText = textScale > 1.3;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final sheetColor = isDark
-        ? const Color(0xFF24180F)
-        : backgroundColor;
-    final handleColor = isDark
-        ? Colors.white24
-        : AppColors.lightGray;
-    final titleColor = isDark
-        ? Colors.white
-        : AppColors.darkBrown;
-    final tileColor = isDark
-        ? const Color(0xFF332216)
-        : Colors.white;
-    final borderColor = isDark
-        ? Colors.white12
-        : AppColors.lightGray;
+    final sheetColor = isDark ? const Color(0xFF24180F) : backgroundColor;
+    final handleColor = isDark ? Colors.white24 : AppColors.lightGray;
+    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+    final tileColor = isDark ? const Color(0xFF332216) : Colors.white;
+    final borderColor = isDark ? Colors.white12 : AppColors.lightGray;
 
-    final options = <({
-      ThemeMode mode,
-      IconData icon,
-      String title,
-      String subtitle,
-    })>[
-      (
-        mode: ThemeMode.system,
-        icon: Icons.settings_suggest_outlined,
-        title: 'System',
-        subtitle: 'Follow your phone appearance',
-      ),
-      (
-        mode: ThemeMode.light,
-        icon: Icons.light_mode_outlined,
-        title: 'Light',
-        subtitle: 'Always use the light palette',
-      ),
-      (
-        mode: ThemeMode.dark,
-        icon: Icons.dark_mode_outlined,
-        title: 'Dark',
-        subtitle: 'Always use the dark palette',
-      ),
-    ];
+    final options =
+        <({ThemeMode mode, IconData icon, String title, String subtitle})>[
+          (
+            mode: ThemeMode.system,
+            icon: Icons.settings_suggest_outlined,
+            title: 'System',
+            subtitle: 'Follow your phone appearance',
+          ),
+          (
+            mode: ThemeMode.light,
+            icon: Icons.light_mode_outlined,
+            title: 'Light',
+            subtitle: 'Always use the light palette',
+          ),
+          (
+            mode: ThemeMode.dark,
+            icon: Icons.dark_mode_outlined,
+            title: 'Dark',
+            subtitle: 'Always use the dark palette',
+          ),
+        ];
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.48,
-      minChildSize: 0.40,
-      maxChildSize: 0.62,
+      initialChildSize: largeText ? 0.72 : 0.48,
+      minChildSize: largeText ? 0.58 : 0.40,
+      maxChildSize: 0.92,
       expand: false,
       builder: (context, scrollController) {
         return Container(
           decoration: BoxDecoration(
             color: sheetColor,
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(28),
-            ),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           ),
           child: Column(
             children: [
@@ -102,13 +90,10 @@ class _AppearanceSheet extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     'Appearance',
-                    style: Theme.of(context)
-                        .textTheme
-                        .displayLarge
-                        ?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: titleColor,
-                        ),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: titleColor,
+                    ),
                   ),
                 ),
               ),
@@ -133,12 +118,10 @@ class _AppearanceSheet extends StatelessWidget {
                   controller: scrollController,
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                   itemCount: options.length,
-                  separatorBuilder: (_, _) =>
-                      const SizedBox(height: 10),
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     final option = options[index];
-                    final selected =
-                        themeProvider.themeMode == option.mode;
+                    final selected = themeProvider.themeMode == option.mode;
 
                     return AppMotionReveal(
                       delay: Duration(milliseconds: 45 * index),
@@ -159,9 +142,7 @@ class _AppearanceSheet extends StatelessWidget {
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
-                                color: selected
-                                    ? AppColors.gold
-                                    : borderColor,
+                                color: selected ? AppColors.gold : borderColor,
                                 width: selected ? 1.4 : 1,
                               ),
                             ),
@@ -206,9 +187,10 @@ class _AppearanceSheet extends StatelessWidget {
                                             ?.copyWith(
                                               color: isDark
                                                   ? AppColors
-                                                      .applicantDarkTextMuted
-                                                  : AppColors.brown
-                                                      .withValues(alpha: 0.62),
+                                                        .applicantDarkTextMuted
+                                                  : AppColors.brown.withValues(
+                                                      alpha: 0.62,
+                                                    ),
                                             ),
                                       ),
                                     ],

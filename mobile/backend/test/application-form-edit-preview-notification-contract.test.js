@@ -51,9 +51,9 @@ test('Application Form correction notification opens Preview Form', () => {
   assert.match(notifications, /AppRoutes\.applicationFormPreview/);
 });
 
-test('Preview clearly indicates correction request and preserves Admin remark', () => {
-  assert.match(preview, /'Correction requested'/);
-  assert.match(preview, /Admin remark: \$_correctionComment/);
+test('Preview clearly indicates correction request and preserves the OSFA note', () => {
+  assert.match(preview, /'Correction Needed'/);
+  assert.match(preview, /OSFA requested a correction\. Note: \$_correctionComment/);
   assert.match(preview, /_correctionRequested = editability\['correction_requested'\] == true/);
 });
 

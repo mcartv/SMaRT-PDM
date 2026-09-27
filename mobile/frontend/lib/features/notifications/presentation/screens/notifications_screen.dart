@@ -17,6 +17,8 @@ import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 enum _NotificationFilter { all, unread, officeUpdates, payouts, ro }
 
+// SMART-PDM_MOBILE_NOTIFICATIONS_RESPONSIVE_PHASE5_V1
+
 class NotificationsScreen extends StatefulWidget {
   final bool showBottomNav;
 
@@ -578,7 +580,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final baseAccent = _accentFor(notification);
     final accent = isDark
-        ? Color.alphaBlend(Colors.white.withOpacity(0.20), baseAccent)
+        ? Color.alphaBlend(Colors.white.withValues(alpha: 0.20), baseAccent)
         : baseAccent;
     final icon = _iconFor(notification);
     final isUnread = !notification.isRead;
@@ -597,7 +599,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             borderRadius: AppRadii.card,
             border: Border.all(
               color: isUnread
-                  ? AppColors.gold.withOpacity(isDark ? 0.46 : 0.40)
+                  ? AppColors.gold.withValues(alpha: isDark ? 0.46 : 0.40)
                   : AppSurfacePalette.outline(context),
               width: 1,
             ),
@@ -619,7 +621,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: accent.withOpacity(0.13),
+                      color: accent.withValues(alpha: 0.13),
                       borderRadius: AppRadii.control,
                     ),
                     child: Icon(icon, color: accent, size: 23),
@@ -745,9 +747,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       ),
                     ),
                   ],
-                )
-              else
-                const SizedBox(width: 40),
+                ),
             ],
           ),
         ),
@@ -849,16 +849,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 (item) => !item.isRead,
               );
 
-              return TextButton(
+              return IconButton(
+                tooltip: hasUnread
+                    ? 'Mark all notifications as read'
+                    : 'All notifications are read',
                 onPressed: hasUnread ? () => _markAllAsRead(provider) : null,
-                child: Text(
-                  hasUnread ? 'Mark all as read' : 'All read',
-                  style: TextStyle(
-                    color: hasUnread
-                        ? AppColors.gold
-                        : AppSurfacePalette.mutedText(context),
-                    fontWeight: FontWeight.w900,
-                  ),
+                icon: Icon(
+                  hasUnread
+                      ? Icons.done_all_rounded
+                      : Icons.mark_email_read_rounded,
+                  color: hasUnread
+                      ? AppColors.gold
+                      : AppSurfacePalette.mutedText(context),
                 ),
               );
             },
@@ -923,11 +925,11 @@ class _FilterButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final borderColor = selected
-        ? AppColors.gold.withOpacity(isDark ? 0.68 : 0.72)
+        ? AppColors.gold.withValues(alpha: isDark ? 0.68 : 0.72)
         : AppSurfacePalette.outline(context);
 
     final backgroundColor = selected
-        ? AppColors.gold.withOpacity(isDark ? 0.20 : 0.26)
+        ? AppColors.gold.withValues(alpha: isDark ? 0.20 : 0.26)
         : AppSurfacePalette.surface(context);
 
     final textColor = selected
@@ -981,19 +983,21 @@ class _FilterButton extends StatelessWidget {
                     color: selected
                         ? (isDark
                               ? AppColors.applicantDarkText
-                              : Colors.white.withOpacity(0.92))
+                              : Colors.white.withValues(alpha: 0.92))
                         : (isDark
-                              ? AppColors.gold.withOpacity(0.18)
-                              : AppColors.gold.withOpacity(0.16)),
+                              ? AppColors.gold.withValues(alpha: 0.18)
+                              : AppColors.gold.withValues(alpha: 0.16)),
                     borderRadius: AppRadii.status,
                     border: Border.all(
                       color: selected
                           ? (isDark
-                                ? AppColors.applicantDarkText.withOpacity(0.22)
-                                : Colors.white.withOpacity(0.72))
+                                ? AppColors.applicantDarkText.withValues(
+                                    alpha: 0.22,
+                                  )
+                                : Colors.white.withValues(alpha: 0.72))
                           : (isDark
-                                ? AppColors.gold.withOpacity(0.30)
-                                : AppColors.gold.withOpacity(0.12)),
+                                ? AppColors.gold.withValues(alpha: 0.30)
+                                : AppColors.gold.withValues(alpha: 0.12)),
                       width: 0.6,
                     ),
                   ),
@@ -1031,16 +1035,16 @@ class _MetaChip extends StatelessWidget {
     final normalized = label.trim().isEmpty ? 'General' : label.trim();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final readableColor = isDark
-        ? Color.alphaBlend(Colors.white.withOpacity(0.18), color)
+        ? Color.alphaBlend(Colors.white.withValues(alpha: 0.18), color)
         : color;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: readableColor.withOpacity(isDark ? 0.16 : 0.12),
+        color: readableColor.withValues(alpha: isDark ? 0.16 : 0.12),
         borderRadius: AppRadii.status,
         border: Border.all(
-          color: readableColor.withOpacity(isDark ? 0.24 : 0.14),
+          color: readableColor.withValues(alpha: isDark ? 0.24 : 0.14),
           width: 0.6,
         ),
       ),

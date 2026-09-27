@@ -41,7 +41,7 @@ test('Review current Required Documents upload behavior', () => {
   assert.match(screen, /uploadDocument/);
 });
 
-test('PSA remains uploadable but is optional for mobile upload completion', () => {
+test('PSA remains uploadable without counting toward required digital upload completion', () => {
   assert.match(service, /APPLICATION_UPLOAD_DOCUMENT_TYPES[\s\S]*'Birth Certificate \/ PSA'/);
   assert.match(service, /OPTIONAL_UPLOAD_DOCUMENT_TYPES[\s\S]*'birth certificate \/ psa'/);
   assert.doesNotMatch(
@@ -55,7 +55,8 @@ test('PSA remains uploadable but is optional for mobile upload completion', () =
     openingService,
     /REQUIRED_APPLICATION_UPLOAD_KEYS[^\]]*'birth_certificate'/
   );
-  assert.match(screen, /'Optional Documents'/);
+  assert.match(screen, /'Additional Documents'/);
+  assert.match(screen, /Upload or bring physical copy/);
 });
 
 test('Determine current behavior when a document is uploaded again', () => {
@@ -83,17 +84,9 @@ test('Keep the existing document visible until replacement succeeds', () => {
     uploadCall >= 0 && packageUpdate > uploadCall,
     'the package must not switch to the replacement until uploadDocument succeeds'
   );
-
-  // Dart formats adjacent string literals onto separate source lines.
-  // Verify the message semantically instead of requiring one contiguous line.
-  assert.match(
-    screen,
-    /current uploaded file will remain available until the/i
-  );
-  assert.match(
-    screen,
-    /replacement finishes successfully/i
-  );
+  assert.match(screen, /current file will stay available until the replacement/i);
+  assert.match(screen, /uploads successfully/i);
+  assert.match(screen, /new file will then be reviewed again/i);
 });
 
 test('Upload the replacement as the new/current document', () => {
@@ -107,10 +100,7 @@ test('Ensure the old document does not remain the active version', () => {
 });
 
 test('Preserve previous document/version history when required', () => {
-  assert.doesNotMatch(
-    service,
-    /\.remove\(\[targetDocument\.file_path\]\)/
-  );
+  assert.doesNotMatch(service, /\.remove\(\[targetDocument\.file_path\]\)/);
   assert.match(service, /previous version rows still point/);
 });
 
@@ -152,14 +142,8 @@ test('Verify realtime document updates', () => {
 });
 
 test('Verify replacement failures do not remove the existing valid upload', () => {
-  assert.doesNotMatch(
-    service,
-    /OLD DOCUMENT FILE CLEANUP ERROR/
-  );
+  assert.doesNotMatch(service, /OLD DOCUMENT FILE CLEANUP ERROR/);
   assert.match(service, /if \(finalizeError\)/);
   assert.match(service, /remove\(\[filePath\]\)/);
-  assert.doesNotMatch(
-    service,
-    /remove\(\[targetDocument\.file_path\]\)/
-  );
+  assert.doesNotMatch(service, /remove\(\[targetDocument\.file_path\]\)/);
 });

@@ -51,11 +51,7 @@ test('mobile motion, bento dashboard, and menu settings contract', () => {
       "'Welcome, ${_displayFirstName()}'"
     )
   );
-  assert.ok(
-    dashboard.includes(
-      '// The existing Welcome card remains intentionally unchanged.'
-    )
-  );
+  assert.ok(dashboard.includes('SMART-PDM_MOBILE_DASHBOARD_POLISH_PHASE1_V1'));
 
   // Dashboard uses responsive bento cards and no longer exposes the old
   // manual guide button outside Menu > Information.

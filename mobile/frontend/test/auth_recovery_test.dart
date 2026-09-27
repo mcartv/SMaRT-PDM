@@ -5,7 +5,10 @@ import 'package:smartpdm_mobileapp/features/auth/data/services/password_reset_se
 import 'package:smartpdm_mobileapp/features/auth/data/services/recovery_service.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/login_screen.dart';
+import 'package:smartpdm_mobileapp/features/auth/presentation/screens/otp_screen.dart';
+import 'package:smartpdm_mobileapp/features/auth/presentation/screens/register_screen.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/reset_password_otp_screen.dart';
+import 'package:smartpdm_mobileapp/features/auth/presentation/screens/reset_password_screen.dart';
 
 class _FakePasswordResetService extends PasswordResetService {
   _FakePasswordResetService();
@@ -116,5 +119,36 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('PDM-2024-000001'), findsOneWidget);
+  });
+
+  testWidgets('Phase 2 auth screens remain usable at 320px width', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const MaterialApp(home: RegisterScreen()));
+    await tester.pump();
+    expect(find.text('Finish account setup'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const MaterialApp(home: OtpScreen()));
+    await tester.pump();
+    expect(find.text('Verify Code'), findsOneWidget);
+    expect(find.byType(TextFormField), findsNWidgets(6));
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const MaterialApp(home: ResetPasswordOtpScreen()));
+    await tester.pump();
+    expect(find.text('Verify Code'), findsWidgets);
+    expect(find.byType(TextFormField), findsNWidgets(6));
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const MaterialApp(home: ResetPasswordScreen()));
+    await tester.pump();
+    expect(find.text('Create a new password'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

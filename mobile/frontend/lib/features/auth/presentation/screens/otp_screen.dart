@@ -14,6 +14,7 @@ class OtpScreen extends StatefulWidget {
 }
 
 class _OtpScreenState extends State<OtpScreen> {
+  // SMART-PDM_MOBILE_AUTH_OTP_POLISH_PHASE2_3_V1
   final AuthService _authService = AuthService();
   final _formKey = GlobalKey<FormState>();
 
@@ -180,10 +181,10 @@ class _OtpScreenState extends State<OtpScreen> {
     return null;
   }
 
-  Widget _buildOtpBox(int index) {
+  Widget _buildOtpBox(int index, {required double height}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
-      height: 58,
+      height: height,
       child: TextFormField(
         controller: _controllers[index],
         focusNode: _focusNodes[index],
@@ -194,9 +195,11 @@ class _OtpScreenState extends State<OtpScreen> {
           LengthLimitingTextInputFormatter(6),
           FilteringTextInputFormatter.digitsOnly,
         ],
-        style: Theme.of(
-          context,
-        ).textTheme.displayLarge?.copyWith(fontWeight: FontWeight.w700),
+        style: const TextStyle(
+          fontSize: 26,
+          height: 1,
+          fontWeight: FontWeight.w700,
+        ),
         decoration: InputDecoration(
           counterText: '',
           filled: true,
@@ -261,6 +264,23 @@ class _OtpScreenState extends State<OtpScreen> {
     );
   }
 
+  Widget _buildOtpRow() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 270;
+        final gap = isCompact ? 4.0 : 8.0;
+        final boxHeight = isCompact ? 52.0 : 58.0;
+
+        return Row(
+          children: List.generate(11, (index) {
+            if (index.isOdd) return SizedBox(width: gap);
+            return Expanded(child: _buildOtpBox(index ~/ 2, height: boxHeight));
+          }),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final email = _getEmail();
@@ -268,11 +288,16 @@ class _OtpScreenState extends State<OtpScreen> {
     final mutedText = isDark
         ? AppColors.applicantDarkTextMuted
         : Colors.grey.shade700;
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final isCompact =
+        MediaQuery.sizeOf(context).width < 360 || textScale > 1.15;
 
     return WillPopScope(
       onWillPop: _handleBackPress,
       child: Scaffold(
-        backgroundColor: isDark ? const Color(0xFF24180F) : Colors.grey.shade50,
+        backgroundColor: isDark
+            ? AppColors.applicantDarkBackground
+            : Colors.grey.shade50,
         appBar: AppBar(
           elevation: 0,
           backgroundColor: Colors.transparent,
@@ -289,11 +314,14 @@ class _OtpScreenState extends State<OtpScreen> {
         body: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              padding: EdgeInsets.symmetric(
+                horizontal: isCompact ? 16 : 24,
+                vertical: 12,
+              ),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 420),
                 child: Container(
-                  padding: const EdgeInsets.all(24),
+                  padding: EdgeInsets.all(isCompact ? 18 : 24),
                   decoration: BoxDecoration(
                     color: isDark
                         ? AppColors.applicantDarkSurface
@@ -327,8 +355,11 @@ class _OtpScreenState extends State<OtpScreen> {
                         Text(
                           'Verify Your Account',
                           textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.displayLarge
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(
+                                fontSize: isCompact ? 25 : 28,
+                                fontWeight: FontWeight.bold,
+                              ),
                         ),
                         const SizedBox(height: 10),
                         Text(
@@ -346,14 +377,7 @@ class _OtpScreenState extends State<OtpScreen> {
                         ),
                         const SizedBox(height: 28),
 
-                        Row(
-                          children: List.generate(11, (index) {
-                            if (index.isOdd) {
-                              return const SizedBox(width: 8);
-                            }
-                            return Expanded(child: _buildOtpBox(index ~/ 2));
-                          }),
-                        ),
+                        _buildOtpRow(),
 
                         const SizedBox(height: 14),
 
@@ -401,7 +425,7 @@ class _OtpScreenState extends State<OtpScreen> {
                                     ),
                                   )
                                 : Text(
-                                    'VERIFY',
+                                    'Verify Code',
                                     style: Theme.of(context).textTheme.bodyLarge
                                         ?.copyWith(
                                           fontWeight: FontWeight.bold,
@@ -413,8 +437,9 @@ class _OtpScreenState extends State<OtpScreen> {
 
                         const SizedBox(height: 18),
 
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             Text(
                               "Didn't receive the code? ",

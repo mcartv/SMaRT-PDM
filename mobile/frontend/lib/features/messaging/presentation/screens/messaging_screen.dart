@@ -15,6 +15,8 @@ import 'package:smartpdm_mobileapp/shared/models/chat_message.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
+// SMART-PDM_MOBILE_MESSAGING_THREAD_RESPONSIVE_PHASE5_V1
+
 class MessagingScreen extends StatefulWidget {
   const MessagingScreen({super.key, this.roomId, this.title});
 
@@ -149,7 +151,8 @@ class _MessagingScreenState extends State<MessagingScreen> {
       }
     }
 
-    if (newestOutgoingId == null || newestOutgoingId == _latestOutgoingMessageId) {
+    if (newestOutgoingId == null ||
+        newestOutgoingId == _latestOutgoingMessageId) {
       return;
     }
 
@@ -211,8 +214,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
       _historyInitialized = true;
       _hasMoreHistory =
           provider.messages.length >= MessageService.historyBatchSize;
-      _lastRenderedMessageId =
-          provider.messages.isEmpty ? '' : provider.messages.first.messageId;
+      _lastRenderedMessageId = provider.messages.isEmpty
+          ? ''
+          : provider.messages.first.messageId;
       setState(() {});
     }
   }
@@ -258,9 +262,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
 
       if (!mounted || requestGeneration != _historyRequestGeneration) return;
 
-      final existingIds = _visibleMessages(provider)
-          .map((message) => message.messageId)
-          .toSet();
+      final existingIds = _visibleMessages(
+        provider,
+      ).map((message) => message.messageId).toSet();
       final additions = older
           .where((message) => !existingIds.contains(message.messageId))
           .toList(growable: false);
@@ -273,10 +277,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
       if (additions.isNotEmpty) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted || !_messageScrollController.hasClients) return;
-          final target = oldOffset.clamp(
-            0.0,
-            _messageScrollController.position.maxScrollExtent,
-          ).toDouble();
+          final target = oldOffset
+              .clamp(0.0, _messageScrollController.position.maxScrollExtent)
+              .toDouble();
           _messageScrollController.jumpTo(target);
         });
       }
@@ -388,12 +391,16 @@ class _MessagingScreenState extends State<MessagingScreen> {
       );
       if (confirmed != true || !mounted) return;
       try {
-        await (_provider ?? context.read<MessagingProvider>()).unsendMessage(message);
+        await (_provider ?? context.read<MessagingProvider>()).unsendMessage(
+          message,
+        );
       } catch (_) {
         if (!mounted) return;
         final provider = _provider ?? context.read<MessagingProvider>();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(provider.errorMessage ?? 'Failed to unsend message.')),
+          SnackBar(
+            content: Text(provider.errorMessage ?? 'Failed to unsend message.'),
+          ),
         );
       }
     }
@@ -410,7 +417,11 @@ class _MessagingScreenState extends State<MessagingScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(provider.errorMessage ?? 'Failed to load group members.')),
+        SnackBar(
+          content: Text(
+            provider.errorMessage ?? 'Failed to load group members.',
+          ),
+        ),
       );
       return;
     }
@@ -435,7 +446,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
                 refreshPending = true;
                 WidgetsBinding.instance.addPostFrameCallback((_) async {
                   try {
-                    final refreshed = await liveProvider.fetchRoomMembers(roomId);
+                    final refreshed = await liveProvider.fetchRoomMembers(
+                      roomId,
+                    );
                     if (!context.mounted) return;
                     setSheetState(() => members = refreshed);
                   } finally {
@@ -448,18 +461,20 @@ class _MessagingScreenState extends State<MessagingScreen> {
             final matchCount = normalizedQuery.isEmpty
                 ? 0
                 : _visibleMessages(provider)
-                    .where(
-                      (message) => message.messageBody
-                          .toLowerCase()
-                          .contains(normalizedQuery),
-                    )
-                    .length;
+                      .where(
+                        (message) => message.messageBody.toLowerCase().contains(
+                          normalizedQuery,
+                        ),
+                      )
+                      .length;
 
             return Container(
               height: MediaQuery.of(context).size.height * 0.78,
               decoration: BoxDecoration(
                 color: AppSurfacePalette.surface(context),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.xl)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(AppRadii.xl),
+                ),
               ),
               child: Column(
                 children: [
@@ -477,7 +492,8 @@ class _MessagingScreenState extends State<MessagingScreen> {
                                 widget.title?.trim().isNotEmpty == true
                                     ? widget.title!.trim()
                                     : 'Group information',
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(
                                       color: AppSurfacePalette.text(context),
                                       fontWeight: FontWeight.w900,
                                     ),
@@ -485,8 +501,11 @@ class _MessagingScreenState extends State<MessagingScreen> {
                               const SizedBox(height: 3),
                               Text(
                                 'Group chat',
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: AppSurfacePalette.mutedText(context),
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: AppSurfacePalette.mutedText(
+                                        context,
+                                      ),
                                     ),
                               ),
                             ],
@@ -515,7 +534,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
                       decoration: InputDecoration(
                         hintText: 'Search chat',
                         prefixIcon: const Icon(Icons.search_rounded),
-                        suffixText: normalizedQuery.isEmpty ? null : '$matchCount',
+                        suffixText: normalizedQuery.isEmpty
+                            ? null
+                            : '$matchCount',
                         filled: true,
                         fillColor: AppSurfacePalette.surfaceMuted(context),
                         border: OutlineInputBorder(
@@ -532,9 +553,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
                       child: Text(
                         'All members',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: AppSurfacePalette.text(context),
-                              fontWeight: FontWeight.w800,
-                            ),
+                          color: AppSurfacePalette.text(context),
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                   ),
@@ -542,12 +563,14 @@ class _MessagingScreenState extends State<MessagingScreen> {
                     child: ListView.separated(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
                       itemCount: members.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 4),
+                      separatorBuilder: (_, _) => const SizedBox(height: 4),
                       itemBuilder: (context, index) {
                         final member = members[index];
                         return ListTile(
                           onTap: () => _showMemberProfile(member),
-                          shape: RoundedRectangleBorder(borderRadius: AppRadii.card),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: AppRadii.card,
+                          ),
                           leading: _GroupMemberAvatar(member: member),
                           title: Row(
                             children: [
@@ -556,15 +579,22 @@ class _MessagingScreenState extends State<MessagingScreen> {
                                   member.name,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontWeight: FontWeight.w800),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
                               ),
                               if (member.isAdmin) ...[
                                 const SizedBox(width: 7),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 7,
+                                    vertical: 3,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: AppColors.gold.withValues(alpha: 0.16),
+                                    color: AppColors.gold.withValues(
+                                      alpha: 0.16,
+                                    ),
                                     borderRadius: AppRadii.status,
                                   ),
                                   child: Text(
@@ -584,7 +614,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
                           subtitle: Text(
                             member.isCurrentUser
                                 ? '${member.subtitle.isNotEmpty ? member.subtitle : 'Group member'} · You'
-                                : (member.subtitle.isNotEmpty ? member.subtitle : 'Group member'),
+                                : (member.subtitle.isNotEmpty
+                                      ? member.subtitle
+                                      : 'Group member'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -643,23 +675,31 @@ class _MessagingScreenState extends State<MessagingScreen> {
                     children: [
                       Text(
                         member.name,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w900,
-                            ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w900),
                       ),
                       const SizedBox(height: 4),
-                      Text(member.subtitle.isNotEmpty ? member.subtitle : 'Group member'),
+                      Text(
+                        member.subtitle.isNotEmpty
+                            ? member.subtitle
+                            : 'Group member',
+                      ),
                     ],
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 18),
-            if (member.studentNumber.isNotEmpty) _ProfileLine(label: 'ID', value: member.studentNumber),
-            if (member.position.isNotEmpty) _ProfileLine(label: 'Position', value: member.position),
-            if (member.department.isNotEmpty) _ProfileLine(label: 'Office', value: member.department),
-            if (member.role.isNotEmpty) _ProfileLine(label: 'Role', value: member.role),
-            if (member.email.isNotEmpty) _ProfileLine(label: 'Email', value: member.email),
+            if (member.studentNumber.isNotEmpty)
+              _ProfileLine(label: 'ID', value: member.studentNumber),
+            if (member.position.isNotEmpty)
+              _ProfileLine(label: 'Position', value: member.position),
+            if (member.department.isNotEmpty)
+              _ProfileLine(label: 'Office', value: member.department),
+            if (member.role.isNotEmpty)
+              _ProfileLine(label: 'Role', value: member.role),
+            if (member.email.isNotEmpty)
+              _ProfileLine(label: 'Email', value: member.email),
           ],
         ),
       ),
@@ -674,7 +714,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Leave group?'),
-        content: const Text('You will stop receiving new messages from this group.'),
+        content: const Text(
+          'You will stop receiving new messages from this group.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -699,7 +741,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(provider.errorMessage ?? 'Failed to leave group.')),
+        SnackBar(
+          content: Text(provider.errorMessage ?? 'Failed to leave group.'),
+        ),
       );
     }
   }
@@ -761,9 +805,13 @@ class _MessagingScreenState extends State<MessagingScreen> {
           children: [
             CircleAvatar(
               radius: 18,
-              backgroundColor: AppColors.gold.withValues(alpha: isDark ? 0.18 : 0.14),
+              backgroundColor: AppColors.gold.withValues(
+                alpha: isDark ? 0.18 : 0.14,
+              ),
               child: Icon(
-                _isGroupChat ? Icons.groups_rounded : Icons.support_agent_rounded,
+                _isGroupChat
+                    ? Icons.groups_rounded
+                    : Icons.support_agent_rounded,
                 size: 19,
                 color: AppColors.gold,
               ),
@@ -773,27 +821,34 @@ class _MessagingScreenState extends State<MessagingScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    conversationTitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppSurfacePalette.text(context),
-                      fontWeight: FontWeight.w900,
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      conversationTitle,
+                      maxLines: 1,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppSurfacePalette.text(context),
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
                   Text(
                     _isGroupChat
-                        ? (provider.isActiveGroupReadOnly ? 'Read-only history' : 'Group chat')
-                        : (provider.isConnected ? 'Private conversation' : 'Reconnecting...'),
+                        ? (provider.isActiveGroupReadOnly
+                              ? 'Read-only history'
+                              : 'Group chat')
+                        : (provider.isConnected
+                              ? 'Private conversation'
+                              : 'Reconnecting...'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: provider.isConnected
                           ? AppSurfacePalette.mutedText(context)
                           : Theme.of(context)
-                              .extension<AppStatusColors>()!
-                              .actionRequiredOutline,
+                                .extension<AppStatusColors>()!
+                                .actionRequiredOutline,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -844,14 +899,14 @@ class _MessagingScreenState extends State<MessagingScreen> {
                       matchCount: _chatSearchTerm.trim().isEmpty
                           ? 0
                           : visibleMessages
-                              .where(
-                                (message) => message.messageBody
-                                    .toLowerCase()
-                                    .contains(
-                                      _chatSearchTerm.trim().toLowerCase(),
-                                    ),
-                              )
-                              .length,
+                                .where(
+                                  (message) => message.messageBody
+                                      .toLowerCase()
+                                      .contains(
+                                        _chatSearchTerm.trim().toLowerCase(),
+                                      ),
+                                )
+                                .length,
                       onChanged: (value) =>
                           setState(() => _chatSearchTerm = value),
                       onClose: () => setState(() {
@@ -990,7 +1045,8 @@ class _MessagingScreenState extends State<MessagingScreen> {
                       : Text(
                           'Scroll up to load earlier messages',
                           key: const ValueKey<String>('older-ready'),
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
                                 color: AppSurfacePalette.mutedText(context),
                                 fontWeight: FontWeight.w700,
                               ),
@@ -1006,9 +1062,11 @@ class _MessagingScreenState extends State<MessagingScreen> {
               ? messages[index + 1]
               : null;
           final newerMessage = index > 0 ? messages[index - 1] : null;
-          final groupedWithOlder = olderMessage != null &&
+          final groupedWithOlder =
+              olderMessage != null &&
               _messagesBelongTogether(olderMessage, message);
-          final groupedWithNewer = newerMessage != null &&
+          final groupedWithNewer =
+              newerMessage != null &&
               _messagesBelongTogether(message, newerMessage);
           final showDate =
               olderMessage == null ||
@@ -1030,9 +1088,14 @@ class _MessagingScreenState extends State<MessagingScreen> {
                 showAvatar: !groupedWithNewer,
                 showDeliveryStatus:
                     isMe && message.messageId == _deliveredStatusMessageId,
-                isSearchMatch: _chatSearchTerm.trim().isNotEmpty &&
-                    message.messageBody.toLowerCase().contains(_chatSearchTerm.trim().toLowerCase()),
-                onLongPress: isMe && !message.isUnsent &&
+                isSearchMatch:
+                    _chatSearchTerm.trim().isNotEmpty &&
+                    message.messageBody.toLowerCase().contains(
+                      _chatSearchTerm.trim().toLowerCase(),
+                    ),
+                onLongPress:
+                    isMe &&
+                        !message.isUnsent &&
                         message.subject?.toLowerCase() != 'system'
                     ? () => _confirmUnsend(message)
                     : null,
@@ -1040,7 +1103,8 @@ class _MessagingScreenState extends State<MessagingScreen> {
             ],
           );
 
-          final shouldAnimateNewest = index == 0 &&
+          final shouldAnimateNewest =
+              index == 0 &&
               message.messageId == _lastRenderedMessageId &&
               !MediaQuery.of(context).disableAnimations;
           if (shouldAnimateNewest) {
@@ -1092,9 +1156,7 @@ class _DateDivider extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
       child: Row(
         children: [
-          Expanded(
-            child: Divider(color: AppSurfacePalette.outline(context)),
-          ),
+          Expanded(child: Divider(color: AppSurfacePalette.outline(context))),
           const SizedBox(width: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -1111,9 +1173,7 @@ class _DateDivider extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Expanded(
-            child: Divider(color: AppSurfacePalette.outline(context)),
-          ),
+          Expanded(child: Divider(color: AppSurfacePalette.outline(context))),
         ],
       ),
     );
@@ -1150,8 +1210,10 @@ class _MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (message.subject?.toLowerCase() == 'system') {
-      final removalEvent = RegExp(r'\bremoved\b.*\bfrom the group\b', caseSensitive: false)
-          .hasMatch(message.messageBody);
+      final removalEvent = RegExp(
+        r'\bremoved\b.*\bfrom the group\b',
+        caseSensitive: false,
+      ).hasMatch(message.messageBody);
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
         child: Center(
@@ -1173,9 +1235,13 @@ class _MessageBubble extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  removalEvent ? Icons.person_remove_alt_1_rounded : Icons.info_outline_rounded,
+                  removalEvent
+                      ? Icons.person_remove_alt_1_rounded
+                      : Icons.info_outline_rounded,
                   size: 16,
-                  color: removalEvent ? AppColors.gold : AppSurfacePalette.mutedText(context),
+                  color: removalEvent
+                      ? AppColors.gold
+                      : AppSurfacePalette.mutedText(context),
                 ),
                 const SizedBox(width: 8),
                 Flexible(
@@ -1199,15 +1265,18 @@ class _MessageBubble extends StatelessWidget {
     final incomingSurface = AppSurfacePalette.surface(context);
     final senderName = message.senderName?.trim() ?? '';
 
+    final screenWidth = MediaQuery.sizeOf(context).width;
     final bubble = Container(
       constraints: BoxConstraints(
-        maxWidth: MediaQuery.of(context).size.width * 0.76,
+        maxWidth: screenWidth > 680 ? 520 : screenWidth * 0.76,
       ),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: message.isUnsent
             ? AppSurfacePalette.surface(context)
-            : isMe ? AppColors.darkBrown : incomingSurface,
+            : isMe
+            ? AppColors.darkBrown
+            : incomingSurface,
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(!isMe && groupedWithPrevious ? 6 : 18),
           topRight: Radius.circular(isMe && groupedWithPrevious ? 6 : 18),
@@ -1239,20 +1308,21 @@ class _MessageBubble extends StatelessWidget {
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment:
-            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: isMe
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
           Text(
             message.messageBody,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: message.isUnsent
-                      ? AppSurfacePalette.mutedText(context)
-                      : isMe
-                      ? Colors.white
-                      : (AppSurfacePalette.text(context)),
-                  height: 1.38,
-                  fontStyle: message.isUnsent ? FontStyle.italic : null,
-                ),
+              color: message.isUnsent
+                  ? AppSurfacePalette.mutedText(context)
+                  : isMe
+                  ? Colors.white
+                  : (AppSurfacePalette.text(context)),
+              height: 1.38,
+              fontStyle: message.isUnsent ? FontStyle.italic : null,
+            ),
           ),
         ],
       ),
@@ -1261,36 +1331,38 @@ class _MessageBubble extends StatelessWidget {
     final messageRow = SizedBox(
       width: MediaQuery.of(context).size.width * 0.90,
       child: Row(
-        mainAxisAlignment:
-            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isMe
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-        if (isGroupChat && !isMe) ...[
-          if (showAvatar)
-            _SenderAvatar(message: message)
-          else
-            const SizedBox(width: 32, height: 32),
-          const SizedBox(width: 8),
-        ],
-        Flexible(
-          child: Column(
-            crossAxisAlignment:
-                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-            children: [
-              Tooltip(
-                message: timeLabel,
-                triggerMode: onLongPress == null
-                    ? TooltipTriggerMode.longPress
-                    : TooltipTriggerMode.tap,
-                preferBelow: false,
-                child: GestureDetector(
-                  onLongPress: onLongPress,
-                  child: bubble,
+          if (isGroupChat && !isMe) ...[
+            if (showAvatar)
+              _SenderAvatar(message: message)
+            else
+              const SizedBox(width: 32, height: 32),
+            const SizedBox(width: 8),
+          ],
+          Flexible(
+            child: Column(
+              crossAxisAlignment: isMe
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: [
+                Tooltip(
+                  message: timeLabel,
+                  triggerMode: onLongPress == null
+                      ? TooltipTriggerMode.longPress
+                      : TooltipTriggerMode.tap,
+                  preferBelow: false,
+                  child: GestureDetector(
+                    onLongPress: onLongPress,
+                    child: bubble,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
           if (isGroupChat && isMe) ...[
             const SizedBox(width: 8),
             if (showAvatar)
@@ -1308,8 +1380,9 @@ class _MessageBubble extends StatelessWidget {
         padding: EdgeInsets.only(bottom: groupedWithNext ? 3 : 11),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment:
-              isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          crossAxisAlignment: isMe
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
           children: [
             if (!isMe &&
                 isGroupChat &&
@@ -1320,11 +1393,11 @@ class _MessageBubble extends StatelessWidget {
                 child: Text(
                   senderName,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: isDark
-                            ? Colors.white60
-                            : AppColors.brown.withValues(alpha: 0.64),
-                        fontWeight: FontWeight.w800,
-                      ),
+                    color: isDark
+                        ? Colors.white60
+                        : AppColors.brown.withValues(alpha: 0.64),
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ],
@@ -1343,9 +1416,9 @@ class _MessageBubble extends StatelessWidget {
                       child: Text(
                         'Delivered · $timeLabel',
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: AppSurfacePalette.mutedText(context),
-                              fontWeight: FontWeight.w600,
-                            ),
+                          color: AppSurfacePalette.mutedText(context),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     )
                   : const SizedBox.shrink(
@@ -1413,9 +1486,9 @@ class _ChatSearchBar extends StatelessWidget {
             Text(
               '$matchCount',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: AppSurfacePalette.mutedText(context),
-                    fontWeight: FontWeight.w800,
-                  ),
+                color: AppSurfacePalette.mutedText(context),
+                fontWeight: FontWeight.w800,
+              ),
             ),
           IconButton(
             tooltip: 'Close search',
@@ -1477,18 +1550,18 @@ class _ProfileLine extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.white54
-                      : AppColors.brown.withValues(alpha: 0.62),
-                  fontWeight: FontWeight.w800,
-                ),
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white54
+                  : AppColors.brown.withValues(alpha: 0.62),
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: 3),
           Text(
             value,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
         ],
       ),
@@ -1518,7 +1591,6 @@ class _SenderAvatar extends StatelessWidget {
   }
 }
 
-
 class _FormerGroupReadOnlyBanner extends StatelessWidget {
   const _FormerGroupReadOnlyBanner({this.cutoffAt});
   final DateTime? cutoffAt;
@@ -1543,17 +1615,29 @@ class _FormerGroupReadOnlyBanner extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.person_remove_alt_1_rounded, color: AppColors.gold, size: 22),
+            const Icon(
+              Icons.person_remove_alt_1_rounded,
+              color: AppColors.gold,
+              size: 22,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('You are no longer in this group', style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900)),
+                  Text(
+                    'You are no longer in this group',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                   const SizedBox(height: 3),
                   Text(
                     'You were removed from this group. Your previous messages are kept as read-only history, and the removal notice above shows who removed you. New messages, member changes, and replies are not available.$cutoffLabel',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppSurfacePalette.mutedText(context), height: 1.4),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppSurfacePalette.mutedText(context),
+                      height: 1.4,
+                    ),
                   ),
                 ],
               ),
@@ -1630,46 +1714,54 @@ class _MessageComposer extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 9),
-            SizedBox(
-              width: 48,
-              height: 48,
-              child: FilledButton(
-                onPressed: isSending ? null : (canSend ? onSend : onLike),
-                style: FilledButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  backgroundColor: AppColors.gold,
-                  foregroundColor: AppColors.darkBrown,
-                  disabledBackgroundColor: AppSurfacePalette.surfaceMuted(context),
-                  shape: const CircleBorder(),
-                ),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 140),
-                  switchInCurve: Curves.easeOut,
-                  switchOutCurve: Curves.easeIn,
-                  transitionBuilder: (child, animation) => ScaleTransition(
-                    scale: Tween<double>(begin: 0.88, end: 1).animate(animation),
-                    child: FadeTransition(opacity: animation, child: child),
+            Tooltip(
+              message: canSend ? 'Send message' : 'Send a quick like',
+              child: SizedBox(
+                width: 48,
+                height: 48,
+                child: FilledButton(
+                  onPressed: isSending ? null : (canSend ? onSend : onLike),
+                  style: FilledButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    backgroundColor: AppColors.gold,
+                    foregroundColor: AppColors.darkBrown,
+                    disabledBackgroundColor: AppSurfacePalette.surfaceMuted(
+                      context,
+                    ),
+                    shape: const CircleBorder(),
                   ),
-                  child: isSending
-                      ? const SizedBox(
-                          key: ValueKey<String>('send-loading'),
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.darkBrown,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 140),
+                    switchInCurve: Curves.easeOut,
+                    switchOutCurve: Curves.easeIn,
+                    transitionBuilder: (child, animation) => ScaleTransition(
+                      scale: Tween<double>(
+                        begin: 0.88,
+                        end: 1,
+                      ).animate(animation),
+                      child: FadeTransition(opacity: animation, child: child),
+                    ),
+                    child: isSending
+                        ? const SizedBox(
+                            key: ValueKey<String>('send-loading'),
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.darkBrown,
+                            ),
+                          )
+                        : canSend
+                        ? const Icon(
+                            Icons.send_rounded,
+                            key: ValueKey<String>('send-ready'),
+                          )
+                        : const Icon(
+                            Icons.thumb_up_rounded,
+                            key: ValueKey<String>('send-like'),
+                            semanticLabel: 'Send a quick like',
                           ),
-                        )
-                      : canSend
-                      ? const Icon(
-                          Icons.send_rounded,
-                          key: ValueKey<String>('send-ready'),
-                        )
-                      : const Text(
-                          '👍',
-                          key: ValueKey<String>('send-like'),
-                          style: TextStyle(fontSize: 20),
-                        ),
+                  ),
                 ),
               ),
             ),

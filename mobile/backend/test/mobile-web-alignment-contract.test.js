@@ -45,7 +45,7 @@ test('mobile messaging exposes web-aligned search and quick-like actions', () =>
   assert.match(web, />👍</);
   assert.match(mobile, /tooltip: 'Search this conversation'/);
   assert.match(mobile, /_sendQuickLike/);
-  assert.match(mobile, /const Text\('👍'/);
+  assert.match(mobile, /Icons\.thumb_up_rounded/);
 });
 
 test('explicit localhost API base URLs are respected for development', () => {

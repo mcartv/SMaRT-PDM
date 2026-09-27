@@ -16,21 +16,26 @@ void main() {
 
     expect(source, contains('final canEdit = _data != null && _canEdit;'));
     expect(source, contains('data == null || !_canEdit'));
-    expect(source, contains("'Editing available'"));
-    expect(source, contains("'Correction requested'"));
-    expect(source, contains("'Editing locked'"));
-    expect(
-      source,
-      isNot(
-        contains('Edit Form will become available only if OSFA/Admin requests'),
-      ),
-    );
+    expect(source, contains("'Editing Available'"));
+    expect(source, contains("'Correction Needed'"));
+    expect(source, contains("'Editing Closed'"));
     expect(
       source,
       contains("_correctionRequested = editability['correction_requested'] == true"),
     );
     expect(source, contains("_optional(editability['correction_comment'])"));
     expect(source, contains('_editabilityMessage()'));
+  });
+
+  test('Preview sections are collapsible and Personal Information starts open', () {
+    final source = File(
+      'lib/features/applicant/presentation/screens/application_form_preview_screen.dart',
+    ).readAsStringSync();
+
+    expect(source, contains("_expandedSections = <String>{'personal'}"));
+    expect(source, contains('AnimatedRotation('));
+    expect(source, contains('AnimatedSize('));
+    expect(source, contains('Icons.keyboard_arrow_down_rounded'));
   });
 
   test('Personal Statement remains collapsible after three lines', () {

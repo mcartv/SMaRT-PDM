@@ -37,5 +37,5 @@ test('former room stays discoverable but removes active-only controls', () => {
   assert.match(service, /Read-only history/);
   assert.match(provider, /if \(!_rooms\.any\(\(room\) => room\.roomId == normalizedRoomId\)\)/);
   assert.match(list, /READ ONLY/);
-  assert.match(list, /onArchive: room\.readOnly \? null/);
+  assert.match(list, /onArchive: room\.readOnly\s*\?\s*null/);
 });

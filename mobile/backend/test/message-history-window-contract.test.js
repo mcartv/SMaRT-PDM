@@ -41,7 +41,7 @@ test('flutter requests latest 30 and upward cursor batches', () => {
 
   assert.match(screen, /remainingToOlderEdge\s*<=\s*220/);
   assert.match(screen, /_loadOlderMessages\(\)/);
-  assert.match(screen, /final target = oldOffset\.clamp/);
+  assert.match(screen, /final target = oldOffset\s*\.clamp/);
   assert.match(screen, /Duration\(seconds:\s*20\)/);
   assert.match(screen, /Duration\(milliseconds:\s*170\)/);
   assert.match(screen, /disableAnimations/);

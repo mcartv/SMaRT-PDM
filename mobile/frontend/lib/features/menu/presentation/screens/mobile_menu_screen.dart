@@ -15,6 +15,7 @@ import 'package:smartpdm_mobileapp/features/notifications/presentation/providers
 import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/app_settings_sheet.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/responsive_display_name.dart';
 
 // SMART-PDM_MOBILE_MENU_RESPONSIVE_PHASE6_V1
 
@@ -373,8 +374,8 @@ class _ProfileSummaryCard extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        displayName,
+                      child: ResponsiveDisplayName(
+                        name: displayName,
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
                               color: Colors.white,

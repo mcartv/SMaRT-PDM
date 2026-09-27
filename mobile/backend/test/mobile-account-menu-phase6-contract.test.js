@@ -20,6 +20,9 @@ test('phase 6 keeps account flows intact while making support surfaces responsiv
   const profile = source(
     'mobile/frontend/lib/features/profile/presentation/screens/profile_screen.dart'
   );
+  const responsiveName = source(
+    'mobile/frontend/lib/shared/widgets/responsive_display_name.dart'
+  );
   const appearance = source(
     'mobile/frontend/lib/shared/widgets/app_settings_sheet.dart'
   );
@@ -40,8 +43,15 @@ test('phase 6 keeps account flows intact while making support surfaces responsiv
     menu.indexOf('class _ScholarResponsibilitiesScreen')
   );
   assert.equal(profileSummary.includes('TextOverflow.ellipsis'), false);
+  assert.ok(profileSummary.includes('ResponsiveDisplayName('));
+  assert.ok(profileSummary.includes('name: displayName'));
 
   assert.ok(profile.includes('SMART-PDM_MOBILE_PROFILE_RESPONSIVE_PHASE6_V1'));
+  assert.match(profile, /ResponsiveDisplayName\([\s\S]*?name: _displayName/);
+  assert.ok(responsiveName.includes('class ResponsiveDisplayName'));
+  assert.ok(responsiveName.includes('FittedBox('));
+  assert.ok(responsiveName.includes('fit: BoxFit.scaleDown'));
+  assert.equal(responsiveName.includes('compact('), false);
   assert.ok(profile.includes('Future<void> _pickAvatar()'));
   assert.ok(profile.includes('Future<void> _saveProfile()'));
   assert.ok(profile.includes('final stackActions ='));

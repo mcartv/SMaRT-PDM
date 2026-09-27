@@ -768,29 +768,36 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                   itemCount: _payouts.length,
                   itemBuilder: (context, index) {
                     final payout = _payouts[index];
-                    final isExpanded = _expandedPayouts.contains(payout.payoutEntryId);
+                    final isExpanded = _expandedPayouts.contains(
+                      payout.payoutEntryId,
+                    );
                     return AppSurfaceCard(
                       margin: const EdgeInsets.only(bottom: AppSpacing.md),
                       padding: EdgeInsets.zero,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          InkWell(
-                            onTap: () => setState(() {
-                              if (isExpanded) {
-                                _expandedPayouts.remove(payout.payoutEntryId);
-                              } else {
-                                _expandedPayouts
-                                  ..clear()
-                                  ..add(payout.payoutEntryId);
-                              }
-                            }),
-                            borderRadius: AppRadii.card,
-                            child: Padding(
-                              padding: const EdgeInsets.all(AppSpacing.md),
-                              child: _buildPayoutHeader(
-                                payout, titleColor, subtitleColor,
-                                isExpanded: isExpanded,
+                          SizedBox(
+                            width: double.infinity,
+                            child: InkWell(
+                              onTap: () => setState(() {
+                                if (isExpanded) {
+                                  _expandedPayouts.remove(payout.payoutEntryId);
+                                } else {
+                                  _expandedPayouts
+                                    ..clear()
+                                    ..add(payout.payoutEntryId);
+                                }
+                              }),
+                              borderRadius: AppRadii.card,
+                              child: Padding(
+                                padding: const EdgeInsets.all(AppSpacing.md),
+                                child: _buildPayoutHeader(
+                                  payout,
+                                  titleColor,
+                                  subtitleColor,
+                                  isExpanded: isExpanded,
+                                ),
                               ),
                             ),
                           ),
@@ -800,21 +807,72 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                             child: isExpanded
                                 ? Padding(
                                     padding: const EdgeInsets.fromLTRB(
-                                      AppSpacing.md, 0, AppSpacing.md, AppSpacing.md),
+                                      AppSpacing.md,
+                                      0,
+                                      AppSpacing.md,
+                                      AppSpacing.md,
+                                    ),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         const Divider(),
                                         const SizedBox(height: 10),
-                                        _infoRow('Payout Date', _formatPayoutDate(payout.payoutDate), subtitleColor),
-                                        _infoRow('Semester', payout.semester.isEmpty ? '-' : payout.semester, subtitleColor),
-                                        _infoRow('School Year', payout.schoolYear.isEmpty ? '-' : payout.schoolYear, subtitleColor),
-                                        _infoRow('Payment Method', payout.paymentMode.isEmpty ? '-' : payout.paymentMode, subtitleColor),
-                                        if (payout.paymentMode.trim().toLowerCase() == 'other' && payout.payoutType.trim().isNotEmpty)
-                                          _infoRow('Payment Method Details', payout.payoutType, subtitleColor),
-                                        _infoRow('Batch Status', payout.batchStatus.isEmpty ? '-' : payout.batchStatus, subtitleColor),
-                                        _infoRow('Payout Code', payout.payoutCode.isEmpty ? '-' : payout.payoutCode, subtitleColor),
-                                        _buildProofSection(payout, titleColor, subtitleColor),
+                                        _infoRow(
+                                          'Payout Date',
+                                          _formatPayoutDate(payout.payoutDate),
+                                          subtitleColor,
+                                        ),
+                                        _infoRow(
+                                          'Semester',
+                                          payout.semester.isEmpty
+                                              ? '-'
+                                              : payout.semester,
+                                          subtitleColor,
+                                        ),
+                                        _infoRow(
+                                          'School Year',
+                                          payout.schoolYear.isEmpty
+                                              ? '-'
+                                              : payout.schoolYear,
+                                          subtitleColor,
+                                        ),
+                                        _infoRow(
+                                          'Payment Method',
+                                          payout.paymentMode.isEmpty
+                                              ? '-'
+                                              : payout.paymentMode,
+                                          subtitleColor,
+                                        ),
+                                        if (payout.paymentMode
+                                                    .trim()
+                                                    .toLowerCase() ==
+                                                'other' &&
+                                            payout.payoutType.trim().isNotEmpty)
+                                          _infoRow(
+                                            'Payment Method Details',
+                                            payout.payoutType,
+                                            subtitleColor,
+                                          ),
+                                        _infoRow(
+                                          'Batch Status',
+                                          payout.batchStatus.isEmpty
+                                              ? '-'
+                                              : payout.batchStatus,
+                                          subtitleColor,
+                                        ),
+                                        _infoRow(
+                                          'Payout Code',
+                                          payout.payoutCode.isEmpty
+                                              ? '-'
+                                              : payout.payoutCode,
+                                          subtitleColor,
+                                        ),
+                                        _buildProofSection(
+                                          payout,
+                                          titleColor,
+                                          subtitleColor,
+                                        ),
                                       ],
                                     ),
                                   )
@@ -881,6 +939,122 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final textScale = MediaQuery.textScalerOf(context).scale(1);
+        final useCompactPhoneLayout =
+            constraints.maxWidth < 420 || textScale > 1.15;
+
+        if (useCompactPhoneLayout) {
+          final period = <String>[
+            if (payout.semester.trim().isNotEmpty) payout.semester.trim(),
+            if (payout.schoolYear.trim().isNotEmpty) payout.schoolYear.trim(),
+          ].join(' - ');
+          final benefactor = (payout.benefactorName ?? '').trim();
+          final statusAccent = _statusAccent(context, payout.status);
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                payout.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: titleColor,
+                ),
+              ),
+              if (period.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  period,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: titleColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+              if (benefactor.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.volunteer_activism_outlined,
+                      size: 15,
+                      color: subtitleColor,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        benefactor,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: subtitleColor),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 14),
+              Divider(height: 1, color: subtitleColor.withValues(alpha: 0.18)),
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Payout amount',
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: subtitleColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _formatAmount(payout.amount),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: titleColor,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  AppStatusCapsule(
+                    label: payout.status,
+                    tone: _statusTone(payout.status),
+                    compact: true,
+                  ),
+                  const SizedBox(width: 8),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: statusAccent.withValues(alpha: 0.10),
+                      shape: BoxShape.circle,
+                    ),
+                    child: AnimatedRotation(
+                      turns: isExpanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 180),
+                      child: Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 22,
+                        color: statusAccent,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        }
+
         final stackSummary = constraints.maxWidth < 340 || textScale > 1.25;
         final identity = Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -904,8 +1078,10 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                   const SizedBox(height: 4),
                   Text(
                     [
-                      if (payout.semester.trim().isNotEmpty) payout.semester.trim(),
-                      if (payout.schoolYear.trim().isNotEmpty) 'AY ${payout.schoolYear.trim()}',
+                      if (payout.semester.trim().isNotEmpty)
+                        payout.semester.trim(),
+                      if (payout.schoolYear.trim().isNotEmpty)
+                        'AY ${payout.schoolYear.trim()}',
                     ].join(' - '),
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: titleColor,
@@ -958,7 +1134,10 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                 AnimatedRotation(
                   turns: isExpanded ? 0.5 : 0,
                   duration: const Duration(milliseconds: 180),
-                  child: Icon(Icons.keyboard_arrow_down_rounded, color: subtitleColor),
+                  child: Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: subtitleColor,
+                  ),
                 ),
               ],
             ),

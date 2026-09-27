@@ -18,6 +18,13 @@ test('payout supports multiple releases and starts with cards closed', () => {
   assert.match(payout, /keyboard_arrow_down_rounded/);
   assert.doesNotMatch(payout, /_initializedPayoutExpansion/);
   assert.match(payout, /Batch Status/);
+  assert.match(payout, /useCompactPhoneLayout/);
+  assert.match(payout, /constraints\.maxWidth < 420/);
+  assert.match(payout, /payout\.benefactorName/);
+  assert.match(payout, /_formatAmount\(payout\.amount\)/);
+  assert.match(payout, /width: double\.infinity/);
+  assert.match(payout, /'Payout amount'/);
+  assert.match(payout, /AnimatedContainer/);
 });
 
 test('renewal uses the approved semester wording and visual period card', () => {

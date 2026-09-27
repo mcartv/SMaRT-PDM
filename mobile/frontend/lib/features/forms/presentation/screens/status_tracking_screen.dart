@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_status_colors.dart';
 import 'package:smartpdm_mobileapp/core/files/downloaded_file_handler.dart';
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
@@ -90,7 +91,8 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
     }
 
     try {
-      final summary = await _applicationService.fetchMyApplicationStatusSummary();
+      final summary = await _applicationService
+          .fetchMyApplicationStatusSummary();
       if (!mounted) return;
       setState(() {
         _summary = summary;
@@ -138,9 +140,9 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
         contentType: download.contentType,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -248,27 +250,32 @@ class _StatusSummaryView extends StatelessWidget {
   final VoidCallback onDownloadSlip;
 
   Color _statusColor(BuildContext context, String status) {
-    final scheme = Theme.of(context).colorScheme;
+    final colors = AppStatusColors.of(context);
     final normalized = status.toLowerCase();
 
     if (normalized.contains('rejected') ||
         normalized.contains('major') ||
         normalized.contains('offense')) {
-      return scheme.error;
+      return colors.dangerOutline;
     }
     if (normalized.contains('held') ||
         normalized.contains('reupload') ||
         normalized.contains('missing')) {
-      return scheme.tertiary;
+      return colors.actionRequiredOutline;
     }
     if (normalized.contains('verified') ||
         normalized.contains('completed') ||
         normalized.contains('activated') ||
         normalized.contains('approved')) {
-      return scheme.primary;
+      return colors.successOutline;
     }
-    if (normalized.contains('ready')) return scheme.secondary;
-    return scheme.tertiary;
+    if (normalized.contains('ready') ||
+        normalized.contains('review') ||
+        normalized.contains('submitted') ||
+        normalized.contains('processing')) {
+      return colors.inProgressOutline;
+    }
+    return colors.neutralOutline;
   }
 
   IconData _statusIcon(String status) {
@@ -523,10 +530,7 @@ class _StatusSummaryView extends StatelessWidget {
                 'Open an office only when you need its decision, remarks, or review details.',
           ),
           const SizedBox(height: 10),
-          _OfficeReviewList(
-            reviews: workflow.officeReviews,
-            currentOffice: workflow.endorsement.currentOffice,
-          ),
+          _OfficeReviewList(reviews: workflow.officeReviews),
         ],
       ],
     );
@@ -663,7 +667,8 @@ class _VerticalWorkflowTracker extends StatelessWidget {
     _WorkflowStep(
       key: 'ready_for_selection',
       label: 'Selection & Activation',
-      subtitle: 'Final selection is resolved before scholar access is activated.',
+      subtitle:
+          'Final selection is resolved before scholar access is activated.',
       icon: Icons.workspace_premium_outlined,
     ),
   ];
@@ -695,12 +700,12 @@ class _VerticalWorkflowTracker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final colors = AppStatusColors.of(context);
     final activeColor = _isStopped
-        ? scheme.error
+        ? colors.dangerOutline
         : _isHeld
-            ? scheme.tertiary
-            : scheme.primary;
+        ? colors.actionRequiredOutline
+        : colors.inProgressOutline;
     final activeIndex = _activeIndex();
     final activated = activeStage == 'scholar_activated';
 
@@ -711,9 +716,9 @@ class _VerticalWorkflowTracker extends StatelessWidget {
         children: [
           Text(
             'Application Progress',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w900,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 6),
           Text(
@@ -769,13 +774,18 @@ class _VerticalWorkflowStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppStatusColors.of(context);
     final scheme = Theme.of(context).colorScheme;
-    final color = isComplete || isActive
+    final color = isComplete
+        ? colors.successOutline
+        : isActive
         ? activeColor
-        : scheme.onSurfaceVariant.withValues(alpha: .65);
-    final background = isComplete || isActive
+        : colors.neutralOutline;
+    final background = isComplete
+        ? colors.successContainer
+        : isActive
         ? activeColor.withValues(alpha: .11)
-        : scheme.surfaceContainerHighest;
+        : colors.neutralContainer;
 
     return IntrinsicHeight(
       child: Row(
@@ -791,10 +801,7 @@ class _VerticalWorkflowStep extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: background,
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: color,
-                      width: isActive ? 2 : 1,
-                    ),
+                    border: Border.all(color: color, width: isActive ? 2 : 1),
                   ),
                   child: Icon(
                     isComplete ? Icons.check_rounded : step.icon,
@@ -808,7 +815,7 @@ class _VerticalWorkflowStep extends StatelessWidget {
                       width: 2,
                       margin: const EdgeInsets.symmetric(vertical: 5),
                       color: isComplete
-                          ? activeColor
+                          ? colors.successOutline
                           : scheme.outlineVariant,
                     ),
                   ),
@@ -827,16 +834,22 @@ class _VerticalWorkflowStep extends StatelessWidget {
                       Expanded(
                         child: Text(
                           step.label,
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            color: isActive ? activeColor : scheme.onSurface,
-                            fontWeight: FontWeight.w800,
-                          ),
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(
+                                color: isActive
+                                    ? activeColor
+                                    : scheme.onSurface,
+                                fontWeight: FontWeight.w800,
+                              ),
                         ),
                       ),
                       if (isActive)
                         _ShortStatusBadge(label: 'CURRENT', color: activeColor)
                       else if (isComplete)
-                        _ShortStatusBadge(label: 'DONE', color: activeColor),
+                        _ShortStatusBadge(
+                          label: 'DONE',
+                          color: colors.successOutline,
+                        ),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -1288,7 +1301,10 @@ class _EndorsementSlipCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              AppIconTile(icon: Icons.picture_as_pdf_rounded, accent: statusColor),
+              AppIconTile(
+                icon: Icons.picture_as_pdf_rounded,
+                accent: statusColor,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -1332,7 +1348,9 @@ class _EndorsementSlipCard extends StatelessWidget {
                     )
                   : const Icon(Icons.download_rounded),
               label: Text(
-                isDownloadingSlip ? 'Downloading...' : 'Download Endorsement Slip',
+                isDownloadingSlip
+                    ? 'Downloading...'
+                    : 'Download Endorsement Slip',
                 textAlign: TextAlign.center,
                 maxLines: 2,
                 softWrap: true,
@@ -1349,25 +1367,9 @@ class _EndorsementSlipCard extends StatelessWidget {
 }
 
 class _OfficeReviewList extends StatelessWidget {
-  const _OfficeReviewList({
-    required this.reviews,
-    required this.currentOffice,
-  });
+  const _OfficeReviewList({required this.reviews});
 
   final Map<String, OfficeReviewSummary> reviews;
-  final String? currentOffice;
-
-  bool _isCurrentOffice(String label) {
-    final current = (currentOffice ?? '').toLowerCase();
-    final normalizedLabel = label.toLowerCase();
-    if (normalizedLabel == 'guidance') {
-      return current.contains('guidance') || current.contains('gco');
-    }
-    if (normalizedLabel == 'program director') {
-      return current.contains('program') || current == 'pd';
-    }
-    return current == normalizedLabel || current.contains(normalizedLabel);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1375,23 +1377,11 @@ class _OfficeReviewList extends StatelessWidget {
       padding: EdgeInsets.zero,
       child: Column(
         children: [
-          _OfficeReviewTile(
-            label: 'SDO',
-            review: reviews['sdo'],
-            initiallyExpanded: _isCurrentOffice('SDO'),
-          ),
+          _OfficeReviewTile(label: 'SDO', review: reviews['sdo']),
           const Divider(height: 1),
-          _OfficeReviewTile(
-            label: 'Guidance',
-            review: reviews['guidance'],
-            initiallyExpanded: _isCurrentOffice('Guidance'),
-          ),
+          _OfficeReviewTile(label: 'Guidance', review: reviews['guidance']),
           const Divider(height: 1),
-          _OfficeReviewTile(
-            label: 'Program Director',
-            review: reviews['pd'],
-            initiallyExpanded: _isCurrentOffice('Program Director'),
-          ),
+          _OfficeReviewTile(label: 'Program Director', review: reviews['pd']),
         ],
       ),
     );
@@ -1399,15 +1389,10 @@ class _OfficeReviewList extends StatelessWidget {
 }
 
 class _OfficeReviewTile extends StatelessWidget {
-  const _OfficeReviewTile({
-    required this.label,
-    required this.review,
-    required this.initiallyExpanded,
-  });
+  const _OfficeReviewTile({required this.label, required this.review});
 
   final String label;
   final OfficeReviewSummary? review;
-  final bool initiallyExpanded;
 
   String _formatDecision() {
     final decision = review?.decision;
@@ -1442,13 +1427,13 @@ class _OfficeReviewTile extends StatelessWidget {
   }
 
   Color _decisionColor(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final colors = AppStatusColors.of(context);
     final normalized = (review?.decision ?? '').toLowerCase();
     if (normalized.contains('reject') || normalized.contains('major')) {
-      return scheme.error;
+      return colors.dangerOutline;
     }
     if (normalized.contains('hold') || normalized.contains('minor')) {
-      return scheme.tertiary;
+      return colors.actionRequiredOutline;
     }
     if (normalized == 'no_offense' ||
         normalized == 'cleared' ||
@@ -1456,9 +1441,9 @@ class _OfficeReviewTile extends StatelessWidget {
         normalized == 'good_scholastic_standing' ||
         normalized == 'average_scholastic_standing' ||
         normalized == 'approved') {
-      return scheme.primary;
+      return colors.successOutline;
     }
-    return scheme.onSurfaceVariant;
+    return colors.neutralOutline;
   }
 
   @override
@@ -1468,14 +1453,15 @@ class _OfficeReviewTile extends StatelessWidget {
     final actedAt = review?.actedAt;
     final actedByName = review?.actedByName;
     final remarks = review?.remarks;
-    final hasDetails = actedAt != null ||
+    final hasDetails =
+        actedAt != null ||
         actedByName?.trim().isNotEmpty == true ||
         remarks?.trim().isNotEmpty == true;
 
     return Theme(
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
       child: ExpansionTile(
-        initiallyExpanded: initiallyExpanded,
+        initiallyExpanded: false,
         maintainState: true,
         tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
@@ -1487,15 +1473,14 @@ class _OfficeReviewTile extends StatelessWidget {
             borderRadius: AppRadii.control,
           ),
           child: Icon(
-            decision == 'Pending' ? Icons.access_time_rounded : Icons.check_rounded,
+            decision == 'Pending'
+                ? Icons.access_time_rounded
+                : Icons.check_rounded,
             color: color,
             size: 20,
           ),
         ),
-        title: Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.w800),
-        ),
+        title: Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 3),
           child: Text(
@@ -1526,18 +1511,15 @@ class _OfficeReviewTile extends StatelessWidget {
               value: DateFormat('MMM d, yyyy').format(actedAt.toLocal()),
             ),
           if (actedByName?.trim().isNotEmpty == true)
-            _StatusDetailRow(
-              label: 'Handled by',
-              value: actedByName!.trim(),
-            ),
+            _StatusDetailRow(label: 'Handled by', value: actedByName!.trim()),
           if (remarks?.trim().isNotEmpty == true) ...[
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
                 'Remarks',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
               ),
             ),
             const SizedBox(height: 5),
@@ -1545,9 +1527,9 @@ class _OfficeReviewTile extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: Text(
                 remarks!.trim(),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  height: 1.4,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(height: 1.4),
               ),
             ),
           ],
@@ -1730,14 +1712,16 @@ class _StatusMessageCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           Text(
             title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 10),
           Text(
             message,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.45),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(height: 1.45),
           ),
           const SizedBox(height: 18),
           SizedBox(

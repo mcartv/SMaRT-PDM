@@ -36,10 +36,20 @@ test('application ID is hidden under user-facing Show more details', () => {
   assert.doesNotMatch(source, /label: 'Opening ID'/);
 });
 
-test('office reviews use collapsible rows', () => {
+test('office reviews use collapsible rows that start closed', () => {
   assert.match(source, /class _OfficeReviewList/);
-  assert.match(source, /initiallyExpanded: _isCurrentOffice/);
+  assert.match(source, /initiallyExpanded: false/);
+  assert.doesNotMatch(source, /_isCurrentOffice/);
   assert.match(source, /maintainState: true/);
+});
+
+test('application status icons use semantic workflow colors', () => {
+  assert.match(source, /AppStatusColors\.of\(context\)/);
+  assert.match(source, /colors\.successOutline/);
+  assert.match(source, /colors\.inProgressOutline/);
+  assert.match(source, /colors\.actionRequiredOutline/);
+  assert.match(source, /colors\.dangerOutline/);
+  assert.match(source, /colors\.neutralOutline/);
 });
 
 test('status hero keeps branded gold brown treatment', () => {

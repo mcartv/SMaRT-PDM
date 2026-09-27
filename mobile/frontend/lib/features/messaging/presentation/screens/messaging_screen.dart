@@ -840,7 +840,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
                     child: ListView.separated(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
                       itemCount: members.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 4),
+                      separatorBuilder: (_, _) => const SizedBox(height: 4),
                       itemBuilder: (context, index) {
                         final member = members[index];
                         return ListTile(
@@ -2097,11 +2097,11 @@ class _MessageComposer extends StatelessWidget {
                               Icons.send_rounded,
                               key: ValueKey<String>('send-ready'),
                             )
-                          : const Text(
-                              '👍',
-                              key: ValueKey<String>('send-like'),
-                              style: TextStyle(fontSize: 20),
-                            ),
+                              : const Icon(
+                                  Icons.thumb_up_rounded,
+                                  key: ValueKey<String>('send-like'),
+                                  semanticLabel: 'Send a quick like',
+                                ),
                     ),
                   ),
                 ),

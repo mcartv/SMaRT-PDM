@@ -17,6 +17,7 @@ import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
 import 'package:smartpdm_mobileapp/features/profile/presentation/widgets/profile_photo_crop_dialog.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/responsive_display_name.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 // SMART-PDM_MOBILE_PROFILE_RESPONSIVE_PHASE6_V1
@@ -428,7 +429,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) return;
 
       debugPrint('PROFILE PHOTO UPLOAD ERROR: $error');
-      _showMessage('We could not upload your profile photo. Check your connection and try again.');
+      _showMessage(
+        'We could not upload your profile photo. Check your connection and try again.',
+      );
     } finally {
       if (mounted) {
         setState(() => _isUploading = false);
@@ -496,7 +499,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (error) {
       debugPrint('PROFILE UPDATE ERROR: $error');
-      _showMessage('We could not update your profile. Check your connection and try again.');
+      _showMessage(
+        'We could not update your profile. Check your connection and try again.',
+      );
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
@@ -599,8 +604,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       title: 'Personal Information',
                       icon: Icons.person_outline_rounded,
                       children: [
-                        _InfoRow(label: 'First Name', value: _firstNameController.text),
-                        _InfoRow(label: 'Last Name', value: _lastNameController.text, isLast: true),
+                        _InfoRow(
+                          label: 'First Name',
+                          value: _firstNameController.text,
+                        ),
+                        _InfoRow(
+                          label: 'Last Name',
+                          value: _lastNameController.text,
+                          isLast: true,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 14),
@@ -609,9 +621,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       icon: Icons.school_outlined,
                       readOnly: true,
                       children: [
-                        _InfoRow(label: 'Student ID', value: _studentIdController.text),
-                        _InfoRow(label: 'Course', value: _courseController.text),
-                        _InfoRow(label: 'Section', value: _sectionController.text, isLast: true),
+                        _InfoRow(
+                          label: 'Student ID',
+                          value: _studentIdController.text,
+                        ),
+                        _InfoRow(
+                          label: 'Course',
+                          value: _courseController.text,
+                        ),
+                        _InfoRow(
+                          label: 'Section',
+                          value: _sectionController.text,
+                          isLast: true,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 14),
@@ -619,8 +641,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       title: 'Contact Information',
                       icon: Icons.contact_phone_outlined,
                       children: [
-                        _InfoRow(label: 'Registered Email', value: _emailController.text),
-                        _InfoRow(label: 'Mobile Number', value: _phoneController.text, isLast: true),
+                        _InfoRow(
+                          label: 'Registered Email',
+                          value: _emailController.text,
+                        ),
+                        _InfoRow(
+                          label: 'Mobile Number',
+                          value: _phoneController.text,
+                          isLast: true,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 14),
@@ -628,12 +657,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       title: 'Address',
                       icon: Icons.home_work_outlined,
                       children: [
-                        _InfoRow(label: 'Street / House', value: _streetAddressController.text),
-                        _InfoRow(label: 'Subdivision', value: _subdivisionController.text),
-                        _InfoRow(label: 'Barangay', value: _barangayController.text),
-                        _InfoRow(label: 'City / Municipality', value: _cityController.text),
-                        _InfoRow(label: 'Province', value: _provinceController.text),
-                        _InfoRow(label: 'ZIP Code', value: _zipCodeController.text, isLast: true),
+                        _InfoRow(
+                          label: 'Street / House',
+                          value: _streetAddressController.text,
+                        ),
+                        _InfoRow(
+                          label: 'Subdivision',
+                          value: _subdivisionController.text,
+                        ),
+                        _InfoRow(
+                          label: 'Barangay',
+                          value: _barangayController.text,
+                        ),
+                        _InfoRow(
+                          label: 'City / Municipality',
+                          value: _cityController.text,
+                        ),
+                        _InfoRow(
+                          label: 'Province',
+                          value: _provinceController.text,
+                        ),
+                        _InfoRow(
+                          label: 'ZIP Code',
+                          value: _zipCodeController.text,
+                          isLast: true,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 18),
@@ -739,8 +787,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _displayName,
+                ResponsiveDisplayName(
+                  name: _displayName,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
@@ -871,9 +919,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               if (readOnly)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
-                    color: AppColors.gold.withValues(alpha: isDark ? 0.16 : 0.12),
+                    color: AppColors.gold.withValues(
+                      alpha: isDark ? 0.16 : 0.12,
+                    ),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
@@ -897,12 +950,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.only(top: 4, bottom: 12),
-      child: Row(children: [
-        Icon(icon, size: 19, color: AppColors.gold),
-        const SizedBox(width: 8),
-        Expanded(child: Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(color: dark ? Colors.white : AppColors.darkBrown, fontWeight: FontWeight.w900))),
-        if (note != null) Text(note, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: dark ? Colors.white54 : AppColors.brown.withValues(alpha: 0.62), fontWeight: FontWeight.w700)),
-      ]),
+      child: Row(
+        children: [
+          Icon(icon, size: 19, color: AppColors.gold),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: dark ? Colors.white : AppColors.darkBrown,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          if (note != null)
+            Text(
+              note,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: dark
+                    ? Colors.white54
+                    : AppColors.brown.withValues(alpha: 0.62),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -934,22 +1006,92 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 16),
           _editSection('Personal Information', Icons.person_outline_rounded),
-          _ProfileField(label: 'First Name', icon: Icons.person_rounded, controller: _firstNameController, enabled: false, helperText: 'Name is based on your registered student record.'),
-          _ProfileField(label: 'Last Name', icon: Icons.person_outline_rounded, controller: _lastNameController, enabled: false),
-          _editSection('Academic Information', Icons.school_outlined, note: 'Read-only'),
-          _ProfileField(label: 'Student ID', icon: Icons.badge_outlined, controller: _studentIdController, enabled: false),
-          _ProfileField(label: 'Course', icon: Icons.school_outlined, controller: _courseController, enabled: false, helperText: 'Course is based on your registered student record.'),
-          _ProfileField(label: 'Section', icon: Icons.groups_2_outlined, controller: _sectionController, enabled: false, helperText: _sectionRequiresCorrection ? 'Your recorded section needs correction. Only A, B, C, or D is allowed. Contact OSFA for assistance.' : 'Section is based on your current academic/application record.'),
+          _ProfileField(
+            label: 'First Name',
+            icon: Icons.person_rounded,
+            controller: _firstNameController,
+            enabled: false,
+            helperText: 'Name is based on your registered student record.',
+          ),
+          _ProfileField(
+            label: 'Last Name',
+            icon: Icons.person_outline_rounded,
+            controller: _lastNameController,
+            enabled: false,
+          ),
+          _editSection(
+            'Academic Information',
+            Icons.school_outlined,
+            note: 'Read-only',
+          ),
+          _ProfileField(
+            label: 'Student ID',
+            icon: Icons.badge_outlined,
+            controller: _studentIdController,
+            enabled: false,
+          ),
+          _ProfileField(
+            label: 'Course',
+            icon: Icons.school_outlined,
+            controller: _courseController,
+            enabled: false,
+            helperText: 'Course is based on your registered student record.',
+          ),
+          _ProfileField(
+            label: 'Section',
+            icon: Icons.groups_2_outlined,
+            controller: _sectionController,
+            enabled: false,
+            helperText: _sectionRequiresCorrection
+                ? 'Your recorded section needs correction. Only A, B, C, or D is allowed. Contact OSFA for assistance.'
+                : 'Section is based on your current academic/application record.',
+          ),
           _editSection('Contact Information', Icons.contact_phone_outlined),
-          _ProfileField(label: 'Registered Email', icon: Icons.alternate_email_rounded, controller: _emailController, enabled: false, helperText: 'Use Registered Email from Menu to change this.'),
-          _ProfileField(label: 'Mobile Number', icon: Icons.phone_outlined, controller: _phoneController, keyboardType: TextInputType.phone),
+          _ProfileField(
+            label: 'Registered Email',
+            icon: Icons.alternate_email_rounded,
+            controller: _emailController,
+            enabled: false,
+            helperText: 'Use Registered Email from Menu to change this.',
+          ),
+          _ProfileField(
+            label: 'Mobile Number',
+            icon: Icons.phone_outlined,
+            controller: _phoneController,
+            keyboardType: TextInputType.phone,
+          ),
           _editSection('Address', Icons.home_work_outlined),
-          _ProfileField(label: 'Street / House', icon: Icons.home_outlined, controller: _streetAddressController),
-          _ProfileField(label: 'Subdivision', icon: Icons.location_city_outlined, controller: _subdivisionController),
-          _ProfileField(label: 'Barangay', icon: Icons.place_outlined, controller: _barangayController),
-          _ProfileField(label: 'City / Municipality', icon: Icons.location_city_rounded, controller: _cityController),
-          _ProfileField(label: 'Province', icon: Icons.map_outlined, controller: _provinceController),
-          _ProfileField(label: 'ZIP Code', icon: Icons.markunread_mailbox_outlined, controller: _zipCodeController, keyboardType: TextInputType.number),
+          _ProfileField(
+            label: 'Street / House',
+            icon: Icons.home_outlined,
+            controller: _streetAddressController,
+          ),
+          _ProfileField(
+            label: 'Subdivision',
+            icon: Icons.location_city_outlined,
+            controller: _subdivisionController,
+          ),
+          _ProfileField(
+            label: 'Barangay',
+            icon: Icons.place_outlined,
+            controller: _barangayController,
+          ),
+          _ProfileField(
+            label: 'City / Municipality',
+            icon: Icons.location_city_rounded,
+            controller: _cityController,
+          ),
+          _ProfileField(
+            label: 'Province',
+            icon: Icons.map_outlined,
+            controller: _provinceController,
+          ),
+          _ProfileField(
+            label: 'ZIP Code',
+            icon: Icons.markunread_mailbox_outlined,
+            controller: _zipCodeController,
+            keyboardType: TextInputType.number,
+          ),
           const SizedBox(height: 6),
           LayoutBuilder(
             builder: (context, constraints) {

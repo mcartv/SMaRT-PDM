@@ -49,6 +49,8 @@ function mapRegistryRow(row) {
         opening_title: row.opening_title || 'Untitled Opening',
         semester: row.semester || null,
         academic_year: row.academic_year || null,
+        period_is_active: row.period_is_active === true,
+        is_historical: row.period_is_active !== true,
         allocated_slots: Number(row.allocated_slots || 0),
         filled_slots: Number(row.filled_slots || 0),
         financial_allocation: row.financial_allocation ?? null,
@@ -144,6 +146,7 @@ WITH ranked_applications AS (
 
         ay.label AS academic_year,
         ap.term AS semester,
+        ap.is_active AS period_is_active,
         sp.program_name,
 
         es.slip_id AS endorsement_slip_id,
@@ -179,7 +182,6 @@ WITH ranked_applications AS (
         AND LOWER(COALESCE(u.username, '')) NOT LIKE 'deleted-%'
         AND LOWER(COALESCE(u.email, '')) NOT LIKE 'deleted-%'
         AND COALESCE(po.is_archived, FALSE) = FALSE
-        AND LOWER(COALESCE(po.posting_status, '')) <> 'closed'
         AND COALESCE(a.is_disqualified, FALSE) = FALSE
         AND LOWER(COALESCE(a.application_status, '')) NOT IN ('approved')${lifecycleFilter}
 ),
@@ -191,7 +193,8 @@ operational_applications AS (
 }
 
 const READINESS_PREDICATE = `
-    LOWER(COALESCE(oa.verification_status, '')) = 'verified'
+    COALESCE(oa.period_is_active, false) = true
+    AND     LOWER(COALESCE(oa.verification_status, '')) = 'verified'
     AND LOWER(COALESCE(oa.endorsement_overall_status, '')) = 'completed'
     AND COALESCE(oa.queue_position, 0) > 0
     AND oa.fcfs_completed_at IS NOT NULL
@@ -200,7 +203,8 @@ const READINESS_PREDICATE = `
 `;
 
 const SCHOLAR_READY_PREDICATE = `
-    LOWER(COALESCE(oa.verification_status, '')) = 'verified'
+    COALESCE(oa.period_is_active, false) = true
+    AND     LOWER(COALESCE(oa.verification_status, '')) = 'verified'
     AND LOWER(COALESCE(oa.endorsement_overall_status, '')) = 'completed'
     AND COALESCE(oa.queue_position, 0) > 0
     AND oa.fcfs_completed_at IS NOT NULL
@@ -243,6 +247,7 @@ function selectRegistryColumns(alias = 'oa') {
     ${alias}.opening_is_archived,
     ${alias}.academic_year,
     ${alias}.semester,
+    ${alias}.period_is_active,
     ${alias}.program_name
 `;
 }

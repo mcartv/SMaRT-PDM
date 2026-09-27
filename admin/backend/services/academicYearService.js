@@ -188,6 +188,58 @@ async function closeOpeningsOutsideActiveCycle(
     return result.rowCount || 0;
 }
 
+async function releasePreviousPeriodIncompleteApplications(client, activePeriodId) {
+    const releasedApplications = await client.query(
+        `
+        UPDATE students AS student
+        SET
+            current_application_id = NULL,
+            current_program_id = NULL,
+            updated_at = NOW()
+        FROM applications AS application
+        LEFT JOIN program_openings AS opening
+          ON opening.opening_id = application.opening_id
+        WHERE student.current_application_id = application.application_id
+          AND COALESCE(student.is_active_scholar, false) = false
+          AND COALESCE(student.is_archived, false) = false
+          AND COALESCE(application.is_archived, false) = false
+          AND LOWER(COALESCE(application.application_status, ''))
+              IN ('pending review', 'requires reupload')
+          AND opening.period_id IS DISTINCT FROM $1
+        RETURNING student.student_id
+        `,
+        [activePeriodId]
+    );
+
+    // Preserve the student's typed draft answers, but remove the old opening
+    // and certification context so the previous semester cannot be resumed
+    // as though it were still the current application cycle.
+    const detachedDrafts = await client.query(
+        `
+        UPDATE application_form_drafts AS draft
+        SET
+            opening_id = NULL,
+            payload = (
+                COALESCE(draft.payload, '{}'::jsonb)
+                - 'opening'
+                - 'certification'
+            ),
+            updated_at = NOW()
+        FROM program_openings AS opening
+        WHERE draft.opening_id = opening.opening_id
+          AND opening.period_id IS DISTINCT FROM $1
+        RETURNING draft.draft_id
+        `,
+        [activePeriodId]
+    );
+
+    return {
+        applications_released: releasedApplications.rowCount || 0,
+        drafts_detached: detachedDrafts.rowCount || 0,
+    };
+}
+
+
 async function getPeriodForUpdate(client, periodId) {
     const result = await client.query(
         `
@@ -999,6 +1051,12 @@ exports.activateAcademicPeriod = async (
             }
         );
 
+        const historicalApplicationCleanup =
+            await releasePreviousPeriodIncompleteApplications(
+                client,
+                period.period_id
+            );
+
         const cycleSummary = await ensurePeriodCycles(
             client,
             period
@@ -1015,6 +1073,7 @@ exports.activateAcademicPeriod = async (
             }),
             cycle_summary: cycleSummary,
             closed_openings: closedOpenings,
+            historical_application_cleanup: historicalApplicationCleanup,
         };
     } catch (err) {
         await client.query('ROLLBACK');

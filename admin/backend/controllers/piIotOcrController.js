@@ -4,6 +4,13 @@ const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 const iotOcrPresenceService = require('../services/iotOcrPresenceService');
 
+function sanitizedDatabaseDiagnostic(error) {
+    if (error?.code !== '42703') return null;
+    const message = String(error.message || '');
+    const column = message.match(/column [^\s]+ does not exist/i)?.[0] || null;
+    return column || 'undefined OCR schema column';
+}
+
 exports.getIotOcrSchemaStatus = async (_req, res) => {
     try {
         await ensureIotOcrSchema();
@@ -292,6 +299,7 @@ exports.completeBirthV2Uploads = async (req, res) => {
                 code: failure.code,
                 provider_status: error.providerStatus || failure.providerStatus,
                 status_code: error.statusCode || failure.statusCode,
+                db_error: sanitizedDatabaseDiagnostic(error),
             });
             return res.status(error.statusCode || failure.statusCode).json({
                 code: failure.code,
@@ -306,6 +314,7 @@ exports.completeBirthV2Uploads = async (req, res) => {
             request_id: String(req.params?.requestId || '').slice(0, 8),
             code: error.code || null,
             constraint: error.constraint || null,
+            db_error: sanitizedDatabaseDiagnostic(error),
             status_code: error.statusCode || 500,
         });
         return res.status(error.statusCode || 500).json({

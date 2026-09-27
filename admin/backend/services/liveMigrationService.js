@@ -86,12 +86,34 @@ async function verifySchema(client) {
           AND c.relname = 'iot_ocr_review_events'
           AND t.tgname = 'trg_iot_ocr_review_events_immutable'
           AND NOT t.tgisinternal
-      ) AS has_review_event_trigger
+      ) AS has_review_event_trigger,
+      (
+        SELECT COUNT(*) = 6
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'iot_ocr_requests'
+          AND column_name IN (
+            'processing_owner', 'processing_claimed_at',
+            'processing_attempt_count', 'processing_retry_at',
+            'processing_last_error_code', 'processing_last_error_at'
+          )
+      ) AS has_processing_recovery_columns,
+      EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE schemaname = 'public' AND tablename = 'iot_ocr_requests'
+          AND indexname = 'idx_iot_ocr_processing_owner'
+      ) AS has_processing_owner_index,
+      EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE schemaname = 'public' AND tablename = 'iot_ocr_requests'
+          AND indexname = 'idx_iot_ocr_processing_retry'
+      ) AS has_processing_retry_index
   `);
   const row = objects.rows[0] || {};
   if (!row.has_requests || !row.has_candidates || !row.has_reviews
       || !row.has_artifacts || !row.has_exceptions || !row.has_review_events
-      || !row.has_immutability_trigger || !row.has_review_event_trigger) {
+      || !row.has_immutability_trigger || !row.has_review_event_trigger
+      || !row.has_processing_recovery_columns
+      || !row.has_processing_owner_index || !row.has_processing_retry_index) {
     throw new Error(`Canonical OCR schema verification failed: ${JSON.stringify(row)}`);
   }
 

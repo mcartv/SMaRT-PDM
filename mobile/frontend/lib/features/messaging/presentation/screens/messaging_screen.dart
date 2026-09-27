@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
@@ -38,6 +39,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
   String? _latestOutgoingMessageId;
   String? _deliveredStatusMessageId;
   bool _isSending = false;
+  ChatMessage? _replyingTo;
   bool _isRefreshing = false;
   bool _chatSearchOpen = false;
   String _chatSearchTerm = '';
@@ -89,6 +91,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     _hasMoreHistory = false;
     _isLoadingOlder = false;
     _lastRenderedMessageId = '';
+    _replyingTo = null;
   }
 
   List<ChatMessage> _visibleMessages(MessagingProvider provider) {
@@ -345,8 +348,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
 
     try {
       final provider = _provider ?? context.read<MessagingProvider>();
-      await provider.sendMessage(text);
+      await provider.sendMessage(text, replyTo: _replyingTo);
       _messageController.clear();
+      if (mounted) setState(() => _replyingTo = null);
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToLatest());
     } catch (_) {
       if (!mounted) return;
@@ -354,7 +358,10 @@ class _MessagingScreenState extends State<MessagingScreen> {
       final provider = _provider ?? context.read<MessagingProvider>();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(provider.errorMessage ?? 'Failed to send message.'),
+          content: Text(
+            provider.errorMessage ??
+                'We could not send your message. Check your connection and try again.',
+          ),
         ),
       );
     } finally {
@@ -366,6 +373,159 @@ class _MessagingScreenState extends State<MessagingScreen> {
     if (_isSending || _messageController.text.trim().isNotEmpty) return;
     _messageController.text = '👍';
     await _sendMessage();
+  }
+
+  Future<void> _copyMessage(ChatMessage message) async {
+    final body = message.messageBody.trim();
+    if (body.isEmpty || message.isUnsent) return;
+    await Clipboard.setData(ClipboardData(text: body));
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Message copied.')));
+  }
+
+  Future<void> _showMessageActions(ChatMessage message) async {
+    if (message.subject?.toLowerCase() == 'system') return;
+    final provider = _provider ?? context.read<MessagingProvider>();
+    final isMine = message.senderId == provider.currentUserId;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        decoration: BoxDecoration(
+          color: AppSurfacePalette.surface(sheetContext),
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(AppRadii.xl),
+          ),
+        ),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppSurfacePalette.outline(sheetContext),
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+            const SizedBox(height: 10),
+            if (!message.isUnsent)
+              ListTile(
+                leading: const Icon(Icons.reply_rounded),
+                title: const Text('Reply'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  setState(() => _replyingTo = message);
+                },
+              ),
+            if (!message.isUnsent)
+              ListTile(
+                leading: const Icon(Icons.copy_rounded),
+                title: const Text('Copy text'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _copyMessage(message);
+                },
+              ),
+            if (isMine && !message.isUnsent)
+              ListTile(
+                leading: Icon(
+                  Icons.undo_rounded,
+                  color: AppButtonStyles.destructiveColor(sheetContext),
+                ),
+                title: Text(
+                  'Unsend',
+                  style: TextStyle(
+                    color: AppButtonStyles.destructiveColor(sheetContext),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _confirmUnsend(message);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showPrivateInfo() async {
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        decoration: BoxDecoration(
+          color: AppSurfacePalette.surface(sheetContext),
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(AppRadii.xl),
+          ),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppSurfacePalette.outline(sheetContext),
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+            const SizedBox(height: 18),
+            CircleAvatar(
+              radius: 34,
+              backgroundColor: AppColors.gold.withValues(alpha: 0.14),
+              child: const Icon(
+                Icons.support_agent_rounded,
+                color: AppColors.gold,
+                size: 32,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'OSFA Administrator',
+              textAlign: TextAlign.center,
+              style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
+                color: AppSurfacePalette.text(sheetContext),
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Administrative Personnel',
+              style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                color: AppSurfacePalette.mutedText(sheetContext),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Divider(height: 1),
+            const ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: AppIconTile(icon: Icons.account_balance_rounded),
+              title: Text('Office'),
+              subtitle: Text('Office for Scholarship and Financial Assistance'),
+            ),
+            const ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: AppIconTile(icon: Icons.chat_bubble_outline_rounded),
+              title: Text('Conversation'),
+              subtitle: Text('Private message'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _confirmUnsend(ChatMessage message) async {
@@ -406,6 +566,76 @@ class _MessagingScreenState extends State<MessagingScreen> {
     }
   }
 
+  Future<void> _showReadOnlyGroupInfo(MessagingProvider provider) async {
+    final room = provider.activeGroupRoom;
+    if (room == null || !mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        decoration: BoxDecoration(
+          color: AppSurfacePalette.surface(sheetContext),
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(AppRadii.xl),
+          ),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppSurfacePalette.outline(sheetContext),
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+            const SizedBox(height: 18),
+            const CircleAvatar(
+              radius: 34,
+              backgroundColor: Color(0x1AF5B400),
+              child: Icon(
+                Icons.groups_rounded,
+                color: AppColors.gold,
+                size: 32,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              room.roomName,
+              textAlign: TextAlign.center,
+              style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
+                color: AppSurfacePalette.text(sheetContext),
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Read-only history',
+              style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                color: AppSurfacePalette.mutedText(sheetContext),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (room.memberCount > 0) ...[
+              const SizedBox(height: 18),
+              const Divider(height: 1),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const AppIconTile(icon: Icons.people_outline_rounded),
+                title: const Text('Members'),
+                subtitle: Text('${room.memberCount} members'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _showGroupInfo() async {
     final roomId = _normalizedRoomId;
     if (roomId == null) return;
@@ -427,8 +657,6 @@ class _MessagingScreenState extends State<MessagingScreen> {
     }
 
     if (!mounted) return;
-    final chatSearchController = TextEditingController(text: _chatSearchTerm);
-    var chatQuery = _chatSearchTerm;
     var memberRevision = provider.roomMembershipRevision;
     var refreshPending = false;
 
@@ -457,17 +685,6 @@ class _MessagingScreenState extends State<MessagingScreen> {
                 });
               }
             }
-            final normalizedQuery = chatQuery.trim().toLowerCase();
-            final matchCount = normalizedQuery.isEmpty
-                ? 0
-                : _visibleMessages(provider)
-                      .where(
-                        (message) => message.messageBody.toLowerCase().contains(
-                          normalizedQuery,
-                        ),
-                      )
-                      .length;
-
             return Container(
               height: MediaQuery.of(context).size.height * 0.78,
               decoration: BoxDecoration(
@@ -519,34 +736,6 @@ class _MessagingScreenState extends State<MessagingScreen> {
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                    child: TextField(
-                      controller: chatSearchController,
-                      onChanged: (value) {
-                        setSheetState(() => chatQuery = value);
-                        if (mounted) {
-                          setState(() {
-                            _chatSearchTerm = value;
-                            _chatSearchOpen = value.trim().isNotEmpty;
-                          });
-                        }
-                      },
-                      decoration: InputDecoration(
-                        hintText: 'Search chat',
-                        prefixIcon: const Icon(Icons.search_rounded),
-                        suffixText: normalizedQuery.isEmpty
-                            ? null
-                            : '$matchCount',
-                        filled: true,
-                        fillColor: AppSurfacePalette.surfaceMuted(context),
-                        border: OutlineInputBorder(
-                          borderRadius: AppRadii.card,
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Padding(
                     padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
                     child: Align(
                       alignment: Alignment.centerLeft,
@@ -563,7 +752,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
                     child: ListView.separated(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
                       itemCount: members.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 4),
+                      separatorBuilder: (_, __) => const SizedBox(height: 4),
                       itemBuilder: (context, index) {
                         final member = members[index];
                         return ListTile(
@@ -647,7 +836,6 @@ class _MessagingScreenState extends State<MessagingScreen> {
         ),
       ),
     );
-    chatSearchController.dispose();
   }
 
   Future<void> _showMemberProfile(GroupMember member) async {
@@ -837,18 +1025,14 @@ class _MessagingScreenState extends State<MessagingScreen> {
                     _isGroupChat
                         ? (provider.isActiveGroupReadOnly
                               ? 'Read-only history'
+                              : (provider.activeGroupRoom?.memberCount ?? 0) > 0
+                              ? '${provider.activeGroupRoom!.memberCount} members'
                               : 'Group chat')
-                        : (provider.isConnected
-                              ? 'Private conversation'
-                              : 'Reconnecting...'),
+                        : 'Private conversation',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: provider.isConnected
-                          ? AppSurfacePalette.mutedText(context)
-                          : Theme.of(context)
-                                .extension<AppStatusColors>()!
-                                .actionRequiredOutline,
+                      color: AppSurfacePalette.mutedText(context),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -868,12 +1052,17 @@ class _MessagingScreenState extends State<MessagingScreen> {
               _chatSearchOpen ? Icons.close_rounded : Icons.search_rounded,
             ),
           ),
-          if (_isGroupChat && !provider.isActiveGroupReadOnly)
-            IconButton(
-              tooltip: 'Group information',
-              onPressed: _showGroupInfo,
-              icon: const Icon(Icons.info_outline_rounded),
-            ),
+          IconButton(
+            tooltip: _isGroupChat
+                ? 'Group information'
+                : 'Conversation information',
+            onPressed: _isGroupChat
+                ? (provider.isActiveGroupReadOnly
+                      ? () => _showReadOnlyGroupInfo(provider)
+                      : _showGroupInfo)
+                : _showPrivateInfo,
+            icon: const Icon(Icons.info_outline_rounded),
+          ),
           const SizedBox(width: 4),
         ],
         elevation: 0,
@@ -950,6 +1139,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
               _MessageComposer(
                 controller: _messageController,
                 isSending: _isSending,
+                replyingTo: _replyingTo,
+                currentUserId: provider.currentUserId,
+                onCancelReply: () => setState(() => _replyingTo = null),
                 onSend: _sendMessage,
                 onLike: _sendQuickLike,
               ),
@@ -1000,7 +1192,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
             const SizedBox(height: 8),
             Text(
               _isGroupChat
-                  ? 'Send a message to start this scholarship group conversation.'
+                  ? 'Send a message to start this group conversation.'
                   : 'Send a message to contact the OSFA Administrator.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -1093,11 +1285,8 @@ class _MessagingScreenState extends State<MessagingScreen> {
                     message.messageBody.toLowerCase().contains(
                       _chatSearchTerm.trim().toLowerCase(),
                     ),
-                onLongPress:
-                    isMe &&
-                        !message.isUnsent &&
-                        message.subject?.toLowerCase() != 'system'
-                    ? () => _confirmUnsend(message)
+                onLongPress: message.subject?.toLowerCase() != 'system'
+                    ? () => _showMessageActions(message)
                     : null,
               ),
             ],
@@ -1264,8 +1453,8 @@ class _MessageBubble extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final incomingSurface = AppSurfacePalette.surface(context);
     final senderName = message.senderName?.trim() ?? '';
+    final screenWidth = MediaQuery.of(context).size.width;
 
-    final screenWidth = MediaQuery.sizeOf(context).width;
     final bubble = Container(
       constraints: BoxConstraints(
         maxWidth: screenWidth > 680 ? 520 : screenWidth * 0.76,
@@ -1299,11 +1488,6 @@ class _MessageBubble extends StatelessWidget {
               blurRadius: 0,
               spreadRadius: 2,
             ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.05),
-            blurRadius: 9,
-            offset: const Offset(0, 3),
-          ),
         ],
       ),
       child: Column(
@@ -1312,6 +1496,56 @@ class _MessageBubble extends StatelessWidget {
             ? CrossAxisAlignment.end
             : CrossAxisAlignment.start,
         children: [
+          if (message.isReply &&
+              (message.replyMessageBody ?? '').trim().isNotEmpty) ...[
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 7),
+              padding: const EdgeInsets.fromLTRB(9, 7, 9, 7),
+              decoration: BoxDecoration(
+                color: isMe
+                    ? Colors.white.withValues(alpha: 0.10)
+                    : AppSurfacePalette.surfaceMuted(context),
+                borderRadius: BorderRadius.circular(10),
+                border: Border(
+                  left: BorderSide(
+                    color: isMe ? AppColors.gold : AppColors.brown,
+                    width: 2.5,
+                  ),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    (message.replySenderName ?? '').trim().isEmpty
+                        ? 'Reply'
+                        : message.replySenderName!.trim(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: isMe
+                          ? AppColors.gold
+                          : AppSurfacePalette.text(context),
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    message.replyMessageBody!.trim(),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: isMe
+                          ? Colors.white70
+                          : AppSurfacePalette.mutedText(context),
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           Text(
             message.messageBody,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -1653,14 +1887,26 @@ class _MessageComposer extends StatelessWidget {
   const _MessageComposer({
     required this.controller,
     required this.isSending,
+    required this.replyingTo,
+    required this.currentUserId,
+    required this.onCancelReply,
     required this.onSend,
     required this.onLike,
   });
 
   final TextEditingController controller;
   final bool isSending;
+  final ChatMessage? replyingTo;
+  final String currentUserId;
+  final VoidCallback onCancelReply;
   final VoidCallback onSend;
   final VoidCallback onLike;
+
+  String _replyName(ChatMessage message) {
+    if (message.senderId == currentUserId) return 'yourself';
+    final senderName = (message.senderName ?? '').trim();
+    return senderName.isEmpty ? 'this message' : senderName;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1669,101 +1915,162 @@ class _MessageComposer extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
         decoration: BoxDecoration(
           color: AppSurfacePalette.surface(context),
           border: Border(
             top: BorderSide(color: AppSurfacePalette.outline(context)),
           ),
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: TextField(
-                controller: controller,
-                minLines: 1,
-                maxLines: 5,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: InputDecoration(
-                  hintText: 'Message',
-                  filled: true,
-                  fillColor: AppSurfacePalette.surfaceMuted(context),
-                  border: OutlineInputBorder(
-                    borderRadius: AppRadii.control,
-                    borderSide: BorderSide.none,
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: AppRadii.control,
-                    borderSide: BorderSide(
-                      color: AppSurfacePalette.outline(context),
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: AppRadii.control,
-                    borderSide: const BorderSide(
-                      color: AppColors.gold,
-                      width: 1.4,
-                    ),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
+            if (replyingTo != null) ...[
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.fromLTRB(11, 8, 6, 8),
+                decoration: BoxDecoration(
+                  color: AppSurfacePalette.surfaceMuted(context),
+                  borderRadius: AppRadii.control,
+                  border: const Border(
+                    left: BorderSide(color: AppColors.gold, width: 3),
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 9),
-            Tooltip(
-              message: canSend ? 'Send message' : 'Send a quick like',
-              child: SizedBox(
-                width: 48,
-                height: 48,
-                child: FilledButton(
-                  onPressed: isSending ? null : (canSend ? onSend : onLike),
-                  style: FilledButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    backgroundColor: AppColors.gold,
-                    foregroundColor: AppColors.darkBrown,
-                    disabledBackgroundColor: AppSurfacePalette.surfaceMuted(
-                      context,
-                    ),
-                    shape: const CircleBorder(),
-                  ),
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 140),
-                    switchInCurve: Curves.easeOut,
-                    switchOutCurve: Curves.easeIn,
-                    transitionBuilder: (child, animation) => ScaleTransition(
-                      scale: Tween<double>(
-                        begin: 0.88,
-                        end: 1,
-                      ).animate(animation),
-                      child: FadeTransition(opacity: animation, child: child),
-                    ),
-                    child: isSending
-                        ? const SizedBox(
-                            key: ValueKey<String>('send-loading'),
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.darkBrown,
-                            ),
-                          )
-                        : canSend
-                        ? const Icon(
-                            Icons.send_rounded,
-                            key: ValueKey<String>('send-ready'),
-                          )
-                        : const Icon(
-                            Icons.thumb_up_rounded,
-                            key: ValueKey<String>('send-like'),
-                            semanticLabel: 'Send a quick like',
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Replying to ${_replyName(replyingTo!)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: AppSurfacePalette.text(context),
+                                  fontWeight: FontWeight.w900,
+                                ),
                           ),
-                  ),
+                          const SizedBox(height: 2),
+                          Text(
+                            replyingTo!.messageBody,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: AppSurfacePalette.mutedText(context),
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Cancel reply',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: onCancelReply,
+                      icon: const Icon(Icons.close_rounded, size: 19),
+                    ),
+                  ],
                 ),
               ),
+            ],
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: controller,
+                    minLines: 1,
+                    maxLines: 5,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: InputDecoration(
+                      hintText: 'Message',
+                      filled: true,
+                      fillColor: AppSurfacePalette.surfaceMuted(context),
+                      border: OutlineInputBorder(
+                        borderRadius: AppRadii.control,
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: AppRadii.control,
+                        borderSide: BorderSide(
+                          color: AppSurfacePalette.outline(context),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: AppRadii.control,
+                        borderSide: const BorderSide(
+                          color: AppColors.gold,
+                          width: 1.4,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Tooltip(
+                  message: canSend ? 'Send message' : 'Send a quick like',
+                  child: SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: FilledButton(
+                      onPressed: isSending ? null : (canSend ? onSend : onLike),
+                      style: FilledButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: AppColors.darkBrown,
+                        disabledBackgroundColor: AppSurfacePalette.surfaceMuted(
+                          context,
+                        ),
+                        shape: const CircleBorder(),
+                      ),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 140),
+                        switchInCurve: Curves.easeOut,
+                        switchOutCurve: Curves.easeIn,
+                        transitionBuilder: (child, animation) =>
+                            ScaleTransition(
+                              scale: Tween<double>(
+                                begin: 0.88,
+                                end: 1,
+                              ).animate(animation),
+                              child: FadeTransition(
+                                opacity: animation,
+                                child: child,
+                              ),
+                            ),
+                        child: isSending
+                            ? const SizedBox(
+                                key: ValueKey<String>('send-loading'),
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.darkBrown,
+                                ),
+                              )
+                            : canSend
+                            ? const Icon(
+                                Icons.send_rounded,
+                                key: ValueKey<String>('send-ready'),
+                              )
+                            : const Icon(
+                                Icons.thumb_up_rounded,
+                                key: ValueKey<String>('send-like'),
+                                semanticLabel: 'Send a quick like',
+                              ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

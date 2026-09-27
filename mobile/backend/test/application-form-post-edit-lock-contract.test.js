@@ -24,8 +24,8 @@ test('successful requested re-edit is marked as awaiting verification', () => {
 });
 
 test('Edit Form is disabled while the resubmitted form awaits verification', () => {
-  assert.match(mobileService, /const canEdit =\s*lifecycleCanEdit &&\s*!applicationFormAwaitingVerification &&\s*applicationFormReviewStatus !== 'verified';/s);
-  assert.match(mobileService, /Edit Form is temporarily disabled until OSFA\/Admin completes the review or requests another correction/);
+  assert.match(mobileService, /const canEdit =\s*lifecycleCanEdit &&\s*!applicationFormAwaitingVerification &&\s*applicationFormReviewStatus !== 'verified' &&\s*!verifiedRequirementLocked;/s);
+  assert.match(mobileService, /Your updated Application Form has been submitted and is being reviewed/);
 });
 
 test('Preview Form receives and displays the awaiting verification state in user-facing language', () => {
@@ -44,11 +44,13 @@ test('Edit Form button uses backend can_edit and therefore becomes greyed out', 
 test('another Admin correction request can unlock Edit Form again', () => {
   assert.match(mobileService, /applicationFormCorrectionRequested =\s*applicationFormReviewStatus === 'reupload_required'/);
   assert.match(mobileService, /applicationFormAwaitingVerification =\s*applicationFormReviewStatus === 'pending'/);
+  assert.match(mobileService, /!applicationFormCorrectionRequested/);
 });
 
-test('verified Application Form remains locked', () => {
+test('verified Application Form remains locked with student-facing wording', () => {
   assert.match(mobileService, /applicationFormReviewStatus !== 'verified'/);
-  assert.match(mobileService, /Your Application Form has been verified\. Edit Form is disabled unless OSFA\/Admin requests another correction\./);
+  assert.match(mobileService, /Your Application Form has already been verified\. You can still review or export it/);
+  assert.doesNotMatch(mobileService, /FCFS selection or scholar activation begins/);
 });
 
 test('pre-submit verification guidance remains intact', () => {

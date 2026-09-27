@@ -280,7 +280,25 @@ class MessageService {
     }
   }
 
-  Future<ChatMessage> sendThreadMessage(String messageBody) async {
+  Future<ChatMessage> sendThreadMessage(
+    String messageBody, {
+    String? replyToMessageId,
+  }) async {
+    final normalizedReplyId = (replyToMessageId ?? '').trim();
+
+    if (normalizedReplyId.isNotEmpty) {
+      final response = await _apiClient.postJson(
+        '/api/messages/thread/reply',
+        body: {
+          'messageBody': messageBody,
+          'replyToMessageId': normalizedReplyId,
+          if (_lastConversationCounterpartyId.isNotEmpty)
+            'counterpartyId': _lastConversationCounterpartyId,
+        },
+      );
+      return ChatMessage.fromJson(response);
+    }
+
     try {
       final response = await _apiClient.postJson(
         '/api/messages/thread',
@@ -519,7 +537,24 @@ class MessageService {
     );
   }
 
-  Future<ChatMessage> sendRoomMessage(String roomId, String messageBody) async {
+  Future<ChatMessage> sendRoomMessage(
+    String roomId,
+    String messageBody, {
+    String? replyToMessageId,
+  }) async {
+    final normalizedReplyId = (replyToMessageId ?? '').trim();
+
+    if (normalizedReplyId.isNotEmpty) {
+      final response = await _apiClient.postJson(
+        '/api/messages/rooms/$roomId/reply',
+        body: {
+          'messageBody': messageBody,
+          'replyToMessageId': normalizedReplyId,
+        },
+      );
+      return ChatMessage.fromJson(response);
+    }
+
     try {
       final response = await _apiClient.postJson(
         '/api/messages/rooms/$roomId/send',

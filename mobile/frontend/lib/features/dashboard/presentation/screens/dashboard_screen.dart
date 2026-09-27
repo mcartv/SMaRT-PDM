@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:smartpdm_mobileapp/app/motion/app_motion.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
@@ -204,12 +205,12 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
       ? AppColors.applicantDarkSurface
       : AppColors.applicantLightSurface;
 
-  Color get _primaryText => _isDark
-      ? AppColors.applicantDarkText
-      : AppColors.applicantLightText;
+  Color get _primaryText =>
+      _isDark ? AppColors.applicantDarkText : AppColors.applicantLightText;
 
-  Color get _secondaryText =>
-      _isDark ? AppColors.applicantDarkTextMuted : AppColors.applicantLightTextMuted;
+  Color get _secondaryText => _isDark
+      ? AppColors.applicantDarkTextMuted
+      : AppColors.applicantLightTextMuted;
 
   bool get _scholarPrivilegeRemoved =>
       _statusSummary?.scholarPrivilegeRemoved == true;
@@ -237,13 +238,12 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
       if (!mounted || _identityError != null) return;
       await _showFirstTimeGuideIfNeeded();
     });
-    _openingReconciliationTimer = Timer.periodic(
-      const Duration(seconds: 20),
-      (_) {
-        if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
-        unawaited(_loadOpenings());
-      },
-    );
+    _openingReconciliationTimer = Timer.periodic(const Duration(seconds: 20), (
+      _,
+    ) {
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      unawaited(_loadOpenings());
+    });
   }
 
   Future<void> _showFirstTimeGuideIfNeeded() async {
@@ -294,10 +294,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     }
     if (!mounted) return;
 
-    await showSmartPdmGettingStartedGuide(
-      context,
-      barrierDismissible: false,
-    );
+    await showSmartPdmGettingStartedGuide(context, barrierDismissible: false);
   }
 
   // Manual guide access now lives in Menu > Information.
@@ -437,7 +434,9 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
       _isRefreshing = false;
       if (_pendingRealtimeDashboardRefresh && mounted) {
         _pendingRealtimeDashboardRefresh = false;
-        scheduleMicrotask(() => _loadDashboardData(refreshNotifications: false));
+        scheduleMicrotask(
+          () => _loadDashboardData(refreshNotifications: false),
+        );
       }
     }
   }
@@ -455,7 +454,10 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
       final provider = _notificationProvider;
       if (resolver != null && provider != null) {
         try {
-          resolvedScholarAccess = await resolver(provider, widget.sessionService);
+          resolvedScholarAccess = await resolver(
+            provider,
+            widget.sessionService,
+          );
         } catch (error) {
           debugPrint('DASHBOARD SCHOLAR ACCESS RESOLUTION ERROR: $error');
         }
@@ -668,7 +670,6 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     return announcements.take(3).toList(growable: false);
   }
 
-
   AppNotification? _latestMatching(
     NotificationProvider provider,
     bool Function(AppNotification item) test,
@@ -732,22 +733,24 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                         Text(
                           'Welcome, ${_displayFirstName()}',
                           softWrap: true,
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: _primaryText,
-                            fontSize: compact ? 20 : 22,
-                            fontWeight: FontWeight.w900,
-                            height: 1.12,
-                          ),
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: _primaryText,
+                                fontSize: compact ? 20 : 22,
+                                fontWeight: FontWeight.w900,
+                                height: 1.12,
+                              ),
                         ),
                         const SizedBox(height: 5),
                         Text(
                           _studentId,
                           maxLines: 2,
                           softWrap: true,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: _secondaryText,
-                            fontWeight: FontWeight.w700,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: _secondaryText,
+                                fontWeight: FontWeight.w700,
+                              ),
                         ),
                       ],
                     ),
@@ -793,12 +796,13 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                               : _hasScholarAccess
                               ? 'Monitor your status, requirements, payouts, obligations, and important OSFA notices in one place.'
                               : 'Follow your application, complete requirements, and stay informed about important OSFA announcements.',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: _secondaryText,
-                            fontSize: 13,
-                            height: 1.45,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: _secondaryText,
+                                fontSize: 13,
+                                height: 1.45,
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
                       ],
                     ),
@@ -815,7 +819,6 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
       },
     );
   }
-
 
   Widget _buildAnnouncements(List<AppNotification> announcements) {
     if (_isLoadingAnnouncements && announcements.isEmpty) {
@@ -857,7 +860,6 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     );
   }
 
-
   Widget _buildScholarResponsibilities(NotificationProvider provider) {
     final renewal = _latestMatching(
       provider,
@@ -885,6 +887,9 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                 renewal?.previewText ??
                 'No renewal requirement has been posted for your account.',
             isDark: _isDark,
+            onTap: () {
+              AppNavigator.goToTopLevel(context, AppRoutes.renewalDocuments);
+            },
           ),
           Divider(
             height: 22,
@@ -897,7 +902,9 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                 obligation?.previewText ??
                 'No new obligation update has been posted.',
             isDark: _isDark,
-            onTap: () => Navigator.pushNamed(context, AppRoutes.roAssignment),
+            onTap: () {
+              AppNavigator.goToTopLevel(context, AppRoutes.roAssignment);
+            },
           ),
           Divider(
             height: 22,
@@ -909,13 +916,14 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
             subtitle:
                 payout?.previewText ?? 'No new payout update has been posted.',
             isDark: _isDark,
+            onTap: () {
+              AppNavigator.goToTopLevel(context, AppRoutes.payouts);
+            },
           ),
         ],
       ),
     );
   }
-
-
 
   // SMART-PDM_MOBILE_DASHBOARD_POLISH_PHASE1_V1
   // SMART-PDM_MOBILE_BENTO_DASHBOARD_V1
@@ -928,8 +936,10 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     final totalDocuments = package?.documents.length ?? 0;
     final uploadedDocuments =
         package?.documents.where((item) => item.isSubmitted).length ?? 0;
-    final remainingDocuments =
-        (totalDocuments - uploadedDocuments).clamp(0, totalDocuments);
+    final remainingDocuments = (totalDocuments - uploadedDocuments).clamp(
+      0,
+      totalDocuments,
+    );
 
     final applicationValue = !hasApplication
         ? 'No active application'
@@ -954,33 +964,33 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     final requirementsValue = _isLoadingRequirements && package == null
         ? 'Loading...'
         : _requirementsError != null && package == null
-            ? 'Unable to load'
-            : package == null
-                ? (_needsBaseApplication ? 'Not available yet' : 'Not started')
-                : package.allRequiredUploaded
-                    ? 'Complete'
-                    : '$uploadedDocuments of $totalDocuments';
+        ? 'Unable to load'
+        : package == null
+        ? (_needsBaseApplication ? 'Not available yet' : 'Not started')
+        : package.allRequiredUploaded
+        ? 'Complete'
+        : '$uploadedDocuments of $totalDocuments';
 
     final requirementsDetail = _requirementsError != null && package == null
         ? 'Requirements could not be loaded. Open Documents or pull to refresh and try again.'
         : package == null
-            ? 'Requirements appear after you start a scholarship application.'
-            : package.allRequiredUploaded
-                ? 'All required documents are uploaded.'
-                : '$remainingDocuments document${remainingDocuments == 1 ? '' : 's'} remaining.';
+        ? 'Requirements appear after you start a scholarship application.'
+        : package.allRequiredUploaded
+        ? 'All required documents are uploaded.'
+        : '$remainingDocuments document${remainingDocuments == 1 ? '' : 's'} remaining.';
 
     final nextStep = workflow?.primaryBlocker?.message.trim();
     final nextStepValue = !hasApplication
         ? 'Choose a scholarship'
         : nextStep?.isNotEmpty == true
-            ? 'Action needed'
-            : 'Monitor your status';
+        ? 'Action needed'
+        : 'Monitor your status';
 
     final nextStepDetail = !hasApplication
         ? 'Review eligibility and prepare your requirements.'
         : nextStep?.isNotEmpty == true
-            ? nextStep!
-            : 'Watch for OSFA review and endorsement updates.';
+        ? nextStep!
+        : 'Watch for OSFA review and endorsement updates.';
 
     final scholarProgram = _safeText(
       summary?.programName,
@@ -992,12 +1002,10 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final textScale =
-            MediaQuery.textScalerOf(context).scale(16) / 16;
+        final textScale = MediaQuery.textScalerOf(context).scale(16) / 16;
         // Keep cards single-column on compact phones. Two half-width cards
         // only become useful once each tile has enough room for real text.
-        final useTwoColumns =
-            constraints.maxWidth >= 390 && textScale <= 1.08;
+        final useTwoColumns = constraints.maxWidth >= 390 && textScale <= 1.08;
         const gap = 12.0;
         final halfWidth = useTwoColumns
             ? (constraints.maxWidth - gap) / 2
@@ -1060,10 +1068,10 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
               width: constraints.maxWidth,
               order: 0,
               icon: Icons.workspace_premium_rounded,
-              label: 'Scholarship Overview',
+              label: 'Scholarship Status',
               value: scholarProgram,
               detail:
-                  'Scholar account active. Use the bottom navigation for payout, obligation, and renewal actions.',
+                  'Your scholarship is active. Review your latest scholar updates below.',
               badge: 'ACTIVE',
               wide: true,
             ),
@@ -1088,7 +1096,8 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
               icon: Icons.cloud_off_rounded,
               label: 'Application',
               value: 'Unable to load status',
-              detail: 'Tap to retry. Your application state has not been changed.',
+              detail:
+                  'Tap to retry. Your application state has not been changed.',
               onTap: () => unawaited(_loadApplicationStatus()),
               wide: true,
             ),
@@ -1105,19 +1114,17 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
               value: _isLoadingOpenings && _latestOpenings.isEmpty
                   ? 'Loading...'
                   : _openingsError != null && _latestOpenings.isEmpty
-                      ? 'Unable to load'
-                      : _latestOpenings.isEmpty
-                          ? 'No openings yet'
-                          : _cleanOpeningTitle(_latestOpenings.first),
+                  ? 'Unable to load'
+                  : _latestOpenings.isEmpty
+                  ? 'No openings yet'
+                  : _cleanOpeningTitle(_latestOpenings.first),
               detail: _openingsError != null && _latestOpenings.isEmpty
                   ? 'Open the scholarship list or pull to refresh and try again.'
                   : _latestOpenings.isEmpty
-                      ? 'New scholarship openings will appear here when published.'
-                      : 'Review eligibility and application details.',
-              onTap: () => Navigator.pushNamed(
-                context,
-                AppRoutes.scholarshipOpenings,
-              ),
+                  ? 'New scholarship openings will appear here when published.'
+                  : 'Review eligibility and application details.',
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.scholarshipOpenings),
               emphasized: true,
             ),
             tile(
@@ -1158,20 +1165,14 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
               label: 'Requirements',
               value: requirementsValue,
               detail: requirementsDetail,
-              badge: package?.allRequiredUploaded == true
-                  ? 'COMPLETE'
-                  : null,
+              badge: package?.allRequiredUploaded == true ? 'COMPLETE' : null,
               onTap: () => Navigator.pushNamed(context, AppRoutes.documents),
               wide: true,
             ),
           ]);
         }
 
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: cards,
-        );
+        return Wrap(spacing: gap, runSpacing: gap, children: cards);
       },
     );
   }
@@ -1181,17 +1182,14 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     final provider = context.watch<NotificationProvider>();
     final announcements = _latestAnnouncements();
     final hasApplication = _statusSummary?.hasApplication == true;
+    final showOverview = !_hasScholarAccess || _scholarPrivilegeRemoved;
     final overviewTitle = _scholarPrivilegeRemoved
         ? 'Scholarship Status'
-        : _hasScholarAccess
-        ? 'Scholar Overview'
         : hasApplication
         ? 'Application Overview'
         : 'Start Your Scholarship Journey';
     final overviewSubtitle = _scholarPrivilegeRemoved
         ? 'Your previous scholarship record and current account state.'
-        : _hasScholarAccess
-        ? 'Your current scholarship and the updates that need your attention.'
         : hasApplication
         ? 'Your current application stage, next step, and requirements.'
         : 'Choose an available scholarship and begin your application.';
@@ -1229,24 +1227,26 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildHero(),
-                const SizedBox(height: 20),
-                _DashboardSectionHeading(
-                  icon: _hasScholarAccess
-                      ? Icons.workspace_premium_outlined
-                      : Icons.route_outlined,
-                  title: overviewTitle,
-                  subtitle: overviewSubtitle,
-                  isDark: _isDark,
-                ),
-                const SizedBox(height: 10),
-                _buildBentoDashboard(),
+                if (showOverview) ...[
+                  const SizedBox(height: 20),
+                  _DashboardSectionHeading(
+                    icon: _scholarPrivilegeRemoved
+                        ? Icons.workspace_premium_outlined
+                        : Icons.route_outlined,
+                    title: overviewTitle,
+                    subtitle: overviewSubtitle,
+                    isDark: _isDark,
+                  ),
+                  const SizedBox(height: 10),
+                  _buildBentoDashboard(),
+                ],
                 if (_hasScholarAccess) ...[
                   const SizedBox(height: 22),
                   _DashboardSectionHeading(
                     icon: Icons.bolt_outlined,
                     title: 'Scholar Updates',
                     subtitle:
-                        'Renewal, return of obligation, and payout activity.',
+                        'Your latest renewal, obligation, and payout updates.',
                     isDark: _isDark,
                   ),
                   const SizedBox(height: 10),
@@ -1276,7 +1276,6 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     super.dispose();
   }
 }
-
 
 class _DashboardSectionHeading extends StatelessWidget {
   const _DashboardSectionHeading({
@@ -1530,13 +1529,13 @@ class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
     ),
     (
       Icons.route_rounded,
-      'Track endorsement',
+      'Endorsement progress',
       'Current Status shows whether your application is with SDO, Guidance, or the Program Director.',
     ),
     (
       Icons.notifications_active_rounded,
       'Watch for updates',
-      'Use Notifications and Messages for official OSFA announcements, requests, and replies.',
+      'Check Notifications, Announcements, and Messages for official OSFA requests and replies.',
     ),
   ];
 
@@ -1553,89 +1552,290 @@ class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
         : AppColors.darkBrown;
     final bodyColor = isDark
         ? AppColors.applicantDarkTextMuted
-        : AppColors.brown.withValues(alpha: 0.78);
-    final stepIconColor = isDark ? AppColors.gold : AppColors.brown;
+        : AppColors.brown.withValues(alpha: 0.76);
+    final mutedSurface = AppColors.gold.withValues(alpha: isDark ? 0.11 : 0.10);
+    final outlineColor = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : AppColors.brown.withValues(alpha: 0.10);
+    final mediaQuery = MediaQuery.of(context);
+    final availableWidth = mediaQuery.size.width - 32;
+    final availableHeight =
+        mediaQuery.size.height - mediaQuery.padding.vertical - 32;
+    final dialogWidth = availableWidth > 420.0 ? 420.0 : availableWidth;
+    final dialogHeight = availableHeight > 520.0 ? 520.0 : availableHeight;
 
-    return AlertDialog(
-      backgroundColor: dialogSurface,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      title: Text(
-        'Getting started ${_index + 1}/${_steps.length}',
-        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-          color: titleColor,
-          fontWeight: FontWeight.w900,
+    return Dialog(
+      insetPadding: const EdgeInsets.all(16),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: SizedBox(
+        width: dialogWidth,
+        height: dialogHeight,
+        child: Material(
+          color: dialogSurface,
+          elevation: isDark ? 0 : 16,
+          shadowColor: AppColors.darkBrown.withValues(alpha: 0.16),
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+            side: BorderSide(color: outlineColor),
+          ),
+          child: Column(
+            children: [
+              Container(height: 5, color: AppColors.gold),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Getting Started',
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  color: titleColor,
+                                  fontWeight: FontWeight.w900,
+                                  height: 1.1,
+                                ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'SMaRT-PDM application guide',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: bodyColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: mutedSurface,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: AppColors.gold.withValues(alpha: 0.28),
+                        ),
+                      ),
+                      child: Text(
+                        'Step ${_index + 1} of ${_steps.length}',
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: isDark
+                                  ? AppColors.gold
+                                  : AppColors.darkBrown,
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: LinearProgressIndicator(
+                  value: (_index + 1) / _steps.length,
+                  minHeight: 4,
+                  color: AppColors.gold,
+                  backgroundColor: outlineColor,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        switchInCurve: Curves.easeOut,
+                        switchOutCurve: Curves.easeIn,
+                        transitionBuilder: (child, animation) {
+                          final offset = Tween<Offset>(
+                            begin: const Offset(0.035, 0),
+                            end: Offset.zero,
+                          ).animate(animation);
+                          return FadeTransition(
+                            opacity: animation,
+                            child: SlideTransition(
+                              position: offset,
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: SingleChildScrollView(
+                          key: ValueKey<int>(_index),
+                          physics: const ClampingScrollPhysics(),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: constraints.maxHeight,
+                            ),
+                            child: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 92,
+                                    height: 92,
+                                    decoration: BoxDecoration(
+                                      color: mutedSurface,
+                                      borderRadius: BorderRadius.circular(28),
+                                      border: Border.all(
+                                        color: AppColors.gold.withValues(
+                                          alpha: isDark ? 0.36 : 0.30,
+                                        ),
+                                      ),
+                                      boxShadow: isDark
+                                          ? const []
+                                          : [
+                                              BoxShadow(
+                                                color: AppColors.gold
+                                                    .withValues(alpha: 0.12),
+                                                blurRadius: 24,
+                                                offset: const Offset(0, 10),
+                                              ),
+                                            ],
+                                    ),
+                                    child: Icon(
+                                      step.$1,
+                                      size: 42,
+                                      color: isDark
+                                          ? AppColors.gold
+                                          : AppColors.brown,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  Text(
+                                    step.$2,
+                                    textAlign: TextAlign.center,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineSmall
+                                        ?.copyWith(
+                                          color: titleColor,
+                                          fontWeight: FontWeight.w900,
+                                          height: 1.15,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 330,
+                                    ),
+                                    child: Text(
+                                      step.$3,
+                                      textAlign: TextAlign.center,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            color: bodyColor,
+                                            height: 1.5,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              Divider(height: 1, color: outlineColor),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Visibility(
+                        visible: _index > 0,
+                        maintainSize: true,
+                        maintainAnimation: true,
+                        maintainState: true,
+                        child: OutlinedButton.icon(
+                          onPressed: _index > 0 && !_isFinishing
+                              ? () => setState(() => _index -= 1)
+                              : null,
+                          icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                          label: const Text('Back'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: isDark
+                                ? AppColors.applicantDarkText
+                                : AppColors.brown,
+                            minimumSize: const Size.fromHeight(48),
+                            side: BorderSide(color: outlineColor),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            textStyle: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.gold,
+                          foregroundColor: AppColors.darkBrown,
+                          minimumSize: const Size.fromHeight(48),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          textStyle: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        onPressed: _isFinishing
+                            ? null
+                            : isLast
+                            ? () async {
+                                setState(() {
+                                  _isFinishing = true;
+                                });
+                                try {
+                                  await widget.onFinish();
+                                } finally {
+                                  if (mounted) {
+                                    setState(() => _isFinishing = false);
+                                  }
+                                }
+                              }
+                            : () => setState(() => _index += 1),
+                        icon: Icon(
+                          isLast
+                              ? Icons.check_rounded
+                              : Icons.arrow_forward_rounded,
+                          size: 18,
+                        ),
+                        label: Text(isLast ? 'Done' : 'Next'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-      content: SizedBox(
-        width: 360,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: AppColors.gold.withValues(alpha: 0.16),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(step.$1, size: 34, color: stepIconColor),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              step.$2,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: titleColor,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              step.$3,
-              textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: bodyColor, height: 1.5),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        if (_index > 0)
-          TextButton(
-            onPressed: () => setState(() => _index -= 1),
-            style: TextButton.styleFrom(
-              foregroundColor: isDark
-                  ? AppColors.applicantDarkText
-                  : AppColors.brown,
-            ),
-            child: const Text('Back'),
-          ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.gold,
-            foregroundColor: AppColors.darkBrown,
-          ),
-          onPressed: _isFinishing
-              ? null
-              : isLast
-              ? () async {
-                  setState(() {
-                    _isFinishing = true;
-                  });
-                  await widget.onFinish();
-                }
-              : () => setState(() => _index += 1),
-          child: Text(
-            _isFinishing ? 'Saving...' : (isLast ? 'Got it' : 'Next'),
-          ),
-        ),
-      ],
     );
   }
 }
-
 
 class _DashboardIllustration extends StatelessWidget {
   const _DashboardIllustration();
@@ -1719,7 +1919,6 @@ class _DashboardIllustration extends StatelessWidget {
     );
   }
 }
-
 
 class _SurfaceCard extends StatelessWidget {
   const _SurfaceCard({
@@ -1899,8 +2098,6 @@ class _StatusPill extends StatelessWidget {
   }
 }
 
-
-
 class _AnnouncementCard extends StatelessWidget {
   const _AnnouncementCard({
     required this.notification,
@@ -1928,9 +2125,7 @@ class _AnnouncementCard extends StatelessWidget {
           child: Ink(
             padding: const EdgeInsets.all(15),
             decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF241A12)
-                  : const Color(0xFFFFFCF7),
+              color: isDark ? const Color(0xFF241A12) : const Color(0xFFFFFCF7),
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
                 color: isDark
@@ -1968,9 +2163,7 @@ class _AnnouncementCard extends StatelessWidget {
                               notification.title,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
+                              style: Theme.of(context).textTheme.titleSmall
                                   ?.copyWith(
                                     color: isDark
                                         ? Colors.white
@@ -2026,7 +2219,6 @@ class _AnnouncementCard extends StatelessWidget {
   }
 }
 
-
 class _ResponsibilityRow extends StatelessWidget {
   const _ResponsibilityRow({
     required this.icon,
@@ -2080,7 +2272,9 @@ class _ResponsibilityRow extends StatelessWidget {
           Icon(
             Icons.chevron_right_rounded,
             size: 18,
-            color: isDark ? Colors.white54 : AppColors.brown.withValues(alpha: 0.55),
+            color: isDark
+                ? Colors.white54
+                : AppColors.brown.withValues(alpha: 0.55),
           ),
         ],
       ],

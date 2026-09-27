@@ -24,7 +24,7 @@ test('Review current Application Form behavior', () => {
 
 test('Ensure Application Form remains editable when editing is still allowed', () => {
   assert.match(backendService, /const lifecycleCanEdit =\s*application\.is_archived !== true &&\s*!terminalApplicationStatus &&\s*!selectionStarted &&\s*!activated;/s);
-  assert.match(backendService, /const canEdit =\s*lifecycleCanEdit &&\s*!applicationFormAwaitingVerification &&\s*applicationFormReviewStatus !== 'verified';/s);
+  assert.match(backendService, /const canEdit =\s*lifecycleCanEdit &&\s*!applicationFormAwaitingVerification &&\s*applicationFormReviewStatus !== 'verified' &&\s*!verifiedRequirementLocked;/s);
   assert.match(preview, /'Editing Available'/);
 });
 

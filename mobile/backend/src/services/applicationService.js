@@ -3760,6 +3760,7 @@ async function getMySubmittedFormData(userId) {
     const [
         openingResult,
         documentReviewResult,
+        applicationDocumentsResult,
         ocrResult,
     ] = await Promise.all([
         application.opening_id
@@ -3779,7 +3780,13 @@ async function getMySubmittedFormData(userId) {
         supabase
             .from('application_document_reviews')
             .select(
-                'document_key, review_status, admin_comment, reason_code, reviewed_at'
+                'document_key, document_name, review_status, admin_comment, reason_code, reviewed_at'
+            )
+            .eq('application_id', application.application_id),
+        supabase
+            .from('application_documents')
+            .select(
+                'document_type, is_submitted, file_path, file_url, current_version_id, review_status'
             )
             .eq('application_id', application.application_id),
         supabase
@@ -3790,9 +3797,11 @@ async function getMySubmittedFormData(userId) {
 
     if (openingResult.error) throw openingResult.error;
     if (documentReviewResult.error) throw documentReviewResult.error;
+    if (applicationDocumentsResult.error) throw applicationDocumentsResult.error;
     if (ocrResult.error) throw ocrResult.error;
 
     const reviewRows = documentReviewResult.data || [];
+    const applicationDocumentRows = applicationDocumentsResult.data || [];
 
     const applicationFormReview =
         reviewRows.find(
@@ -3817,6 +3826,57 @@ async function getMySubmittedFormData(userId) {
         applicationFormReviewStatus === 'pending' &&
         safeText(applicationFormReview?.reason_code).toUpperCase() ===
             'APPLICATION_FORM_RESUBMITTED';
+
+    // Only a real uploaded requirement can close normal Application Form editing.
+    // Review rows are also checked so older applications keep the same behavior
+    // even when their document row does not contain the latest review status.
+    const supportingReviewStatusByKey = new Map(
+        reviewRows
+            .filter(
+                (review) =>
+                    normalizeDocumentReviewKey(
+                        review.document_key || review.document_name
+                    ) !== 'application_form'
+            )
+            .map((review) => [
+                normalizeDocumentReviewKey(
+                    review.document_key || review.document_name
+                ),
+                normalizeReviewDecision(review.review_status),
+            ])
+    );
+
+    const hasVerifiedUploadedDocument = applicationDocumentRows.some(
+        (document) => {
+            if (document.is_submitted !== true) return false;
+
+            const hasUploadedFile = Boolean(
+                safeText(document.file_path) ||
+                safeText(document.file_url) ||
+                safeText(document.current_version_id)
+            );
+
+            if (!hasUploadedFile) return false;
+
+            const normalizedType = normalizeRequiredDocumentType(
+                document.document_type
+            );
+
+            if (!APPLICATION_UPLOAD_DOCUMENT_TYPES.includes(normalizedType)) {
+                return false;
+            }
+
+            if (normalizeReviewDecision(document.review_status) === 'verified') {
+                return true;
+            }
+
+            const reviewKey = reviewKeyForRequiredDocumentType(
+                document.document_type
+            );
+
+            return supportingReviewStatusByKey.get(reviewKey) === 'verified';
+        }
+    );
 
     const documentReviewStarted = reviewRows.some(
         (document) => {
@@ -3886,25 +3946,36 @@ async function getMySubmittedFormData(userId) {
         !selectionStarted &&
         !activated;
 
+    const verifiedRequirementLocked =
+        lifecycleCanEdit &&
+        hasVerifiedUploadedDocument &&
+        !applicationFormCorrectionRequested &&
+        !applicationFormAwaitingVerification &&
+        applicationFormReviewStatus !== 'verified';
+
     const canEdit =
         lifecycleCanEdit &&
         !applicationFormAwaitingVerification &&
-        applicationFormReviewStatus !== 'verified';
+        applicationFormReviewStatus !== 'verified' &&
+        !verifiedRequirementLocked;
 
     let reason = null;
 
     if (terminalApplicationStatus) {
         reason =
-            'Editing is unavailable because this application is already finalized.';
+            'A final decision has already been made for this application, so the Application Form can no longer be edited. You can still review or export it.';
     } else if (activated || selectionStarted) {
         reason =
-            'Editing is unavailable after FCFS selection or scholar activation begins.';
+            'This application has already moved to the final scholarship stage, so the Application Form can no longer be edited. You can still review or export it.';
     } else if (applicationFormAwaitingVerification) {
         reason =
-            'Your updated Application Form is waiting for verification. Edit Form is temporarily disabled until OSFA/Admin completes the review or requests another correction.';
+            'Your updated Application Form has been submitted and is being reviewed. You can edit it again only if OSFA requests another correction.';
     } else if (applicationFormReviewStatus === 'verified') {
         reason =
-            'Your Application Form has been verified. Edit Form is disabled unless OSFA/Admin requests another correction.';
+            'Your Application Form has already been verified. You can still review or export it. Editing will reopen if OSFA requests a correction.';
+    } else if (verifiedRequirementLocked) {
+        reason =
+            'A submitted requirement has already been verified, so your Application Form is now locked. You can still review or export it. If OSFA requests a correction, editing will reopen.';
     }
 
     const normalizedFormData = await getMyFormData(
@@ -3977,6 +4048,8 @@ async function getMySubmittedFormData(userId) {
                     : null,
             application_form_review_status:
                 applicationFormReviewStatus || 'pending',
+            verified_requirement_locked:
+                verifiedRequirementLocked,
             review_started: reviewStarted,
             selection_started: selectionStarted,
             ocr_started: ocrStarted,

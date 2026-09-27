@@ -196,10 +196,10 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
 
   String _formatGwa(double value) {
     if (value == value.roundToDouble()) return value.toStringAsFixed(0);
-    return value.toStringAsFixed(2).replaceFirst(RegExp(r'0+$'), '').replaceFirst(
-      RegExp(r'\.$'),
-      '',
-    );
+    return value
+        .toStringAsFixed(2)
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
   }
 
   String _displayApplyLabel(ProgramOpening opening) {
@@ -254,6 +254,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
+          scrollable: true,
           title: const Text('Saved application draft found'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -331,34 +332,58 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     final requiredCount = opening.requiredDocumentCount > 0
         ? opening.requiredDocumentCount
         : ProgramOpening.applicationUploadRequirementCount;
-    final uploadedCount = opening.uploadedDocumentCount.clamp(0, requiredCount).toInt();
-    final remainingCount = (requiredCount - uploadedCount).clamp(0, requiredCount).toInt();
+    final uploadedCount = opening.uploadedDocumentCount
+        .clamp(0, requiredCount)
+        .toInt();
+    final remainingCount = (requiredCount - uploadedCount)
+        .clamp(0, requiredCount)
+        .toInt();
     final progress = requiredCount <= 0
         ? 0.0
         : (uploadedCount / requiredCount).clamp(0.0, 1.0).toDouble();
 
+    final requirementLabel = Text(
+      'Requirements',
+      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+        fontWeight: FontWeight.w800,
+        color: titleColor,
+      ),
+    );
+    final uploadCountLabel = Text(
+      '$uploadedCount of $requiredCount uploaded',
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+        fontWeight: FontWeight.w800,
+        color: subtitleColor,
+      ),
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Requirements',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: titleColor,
-                ),
-              ),
-            ),
-            Text(
-              '$uploadedCount of $requiredCount uploaded',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: subtitleColor,
-              ),
-            ),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final textScale = MediaQuery.textScalerOf(context).scale(1);
+            final stackSummary = constraints.maxWidth < 300 || textScale > 1.25;
+
+            if (stackSummary) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  requirementLabel,
+                  const SizedBox(height: 4),
+                  uploadCountLabel,
+                ],
+              );
+            }
+
+            return Row(
+              children: [
+                Expanded(child: requirementLabel),
+                const SizedBox(width: 12),
+                uploadCountLabel,
+              ],
+            );
+          },
         ),
         const SizedBox(height: 8),
         ClipRRect(
@@ -395,9 +420,27 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     final isApplied = opening.hasApplied;
     final isDraft = _isDraftOpening(opening);
     final gwaThreshold = opening.gwaThreshold;
-    final benefactorName = (opening.benefactorName ?? '').trim();
     final announcement = opening.announcementText.trim();
     final description = opening.programDescription.trim();
+
+    final title = Text(
+      _displayScholarshipTitle(opening),
+      softWrap: true,
+      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+        fontWeight: FontWeight.w900,
+        color: titleColor,
+        height: 1.18,
+      ),
+    );
+    final status = isApplied || isDraft
+        ? AppStatusCapsule(
+            label: isApplied ? 'Applied' : 'Draft',
+            tone: isApplied
+                ? AppStatusTone.success
+                : AppStatusTone.actionRequired,
+            compact: true,
+          )
+        : null;
 
     return AppSurfaceCard(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -409,31 +452,31 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  _displayScholarshipTitle(opening),
-                  softWrap: true,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: titleColor,
-                    height: 1.18,
-                  ),
-                ),
-              ),
-              if (isApplied || isDraft) ...[
-                const SizedBox(width: 10),
-                AppStatusCapsule(
-                  label: isApplied ? 'Applied' : 'Draft',
-                  tone: isApplied
-                      ? AppStatusTone.success
-                      : AppStatusTone.actionRequired,
-                  compact: true,
-                ),
-              ],
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final textScale = MediaQuery.textScalerOf(context).scale(1);
+              final stackHeader =
+                  status != null &&
+                  (constraints.maxWidth < 320 || textScale > 1.25);
+
+              if (status == null) return title;
+
+              if (stackHeader) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [title, const SizedBox(height: 8), status],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: title),
+                  const SizedBox(width: 10),
+                  status,
+                ],
+              );
+            },
           ),
           const SizedBox(height: 12),
           Row(
@@ -517,36 +560,6 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                 height: 1.4,
                 color: subtitleColor,
               ),
-            ),
-          ],
-          if (!isApplied && benefactorName.isNotEmpty) ...[
-            const SizedBox(height: 11),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.handshake_outlined, size: 18, color: accentColor),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text.rich(
-                    TextSpan(
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: subtitleColor,
-                        height: 1.35,
-                      ),
-                      children: [
-                        const TextSpan(text: 'Supported by '),
-                        TextSpan(
-                          text: benefactorName,
-                          style: TextStyle(
-                            color: titleColor,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
             ),
           ],
           if (isApplied) ...[

@@ -169,6 +169,31 @@ class NotificationProvider extends ChangeNotifier {
     );
   }
 
+  String _readableError(Object error) {
+    final text = error
+        .toString()
+        .replaceFirst(RegExp(r'^Exception:\s*'), '')
+        .trim();
+    final lower = text.toLowerCase();
+
+    if (lower.contains('timeout')) {
+      return 'Notifications are taking longer than expected. Pull down to try again.';
+    }
+
+    if (lower.contains('connection') ||
+        lower.contains('network') ||
+        lower.contains('socket') ||
+        lower.contains('failed host lookup')) {
+      return 'We could not update notifications. Check your connection and try again.';
+    }
+
+    if (lower.contains('401') || lower.contains('unauthorized')) {
+      return 'Your session expired. Sign in again to view notifications.';
+    }
+
+    return 'We could not update notifications. Pull down to try again.';
+  }
+
   Future<void> refresh({bool silent = false}) async {
     if (!silent) {
       _isLoading = true;
@@ -202,7 +227,7 @@ class NotificationProvider extends ChangeNotifier {
       await _refreshUnreadCountFromServerOrLocal();
       _errorMessage = null;
     } catch (error) {
-      _errorMessage = error.toString().replaceFirst('Exception: ', '');
+      _errorMessage = _readableError(error);
       _recalculateUnreadCount();
     } finally {
       if (!silent) {
@@ -233,7 +258,7 @@ class NotificationProvider extends ChangeNotifier {
       await _refreshUnreadCountFromServerOrLocal();
       notifyListeners();
     } catch (error) {
-      _errorMessage = error.toString().replaceFirst('Exception: ', '');
+      _errorMessage = _readableError(error);
       notifyListeners();
     }
   }
@@ -254,7 +279,7 @@ class NotificationProvider extends ChangeNotifier {
       _unreadCount = 0;
       _errorMessage = null;
     } catch (error) {
-      _errorMessage = error.toString().replaceFirst('Exception: ', '');
+      _errorMessage = _readableError(error);
     } finally {
       _isLoading = false;
 
@@ -287,7 +312,7 @@ class NotificationProvider extends ChangeNotifier {
       await _refreshUnreadCountFromServerOrLocal();
       notifyListeners();
     } catch (error) {
-      _errorMessage = error.toString().replaceFirst('Exception: ', '');
+      _errorMessage = _readableError(error);
       notifyListeners();
     }
   }
@@ -305,7 +330,7 @@ class NotificationProvider extends ChangeNotifier {
       await _refreshUnreadCountFromServerOrLocal();
       notifyListeners();
     } catch (error) {
-      _errorMessage = error.toString().replaceFirst('Exception: ', '');
+      _errorMessage = _readableError(error);
       notifyListeners();
     }
   }

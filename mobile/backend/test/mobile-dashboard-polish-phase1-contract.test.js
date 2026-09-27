@@ -39,7 +39,7 @@ test('dashboard hero keeps branded visuals but responds to compact widths', () =
   assert.match(hero, /Color\(0xFFF6E8C8\)/);
 });
 
-test('dashboard overview is placed before announcements', () => {
+test('application overview is placed before announcements while scholars skip the redundant overview', () => {
   const buildStart = dashboard.indexOf(
     'final provider = context.watch<NotificationProvider>();'
   );
@@ -51,10 +51,10 @@ test('dashboard overview is placed before announcements', () => {
   assert.ok(announcementsIndex >= 0, 'announcements are missing');
   assert.ok(
     overviewIndex < announcementsIndex,
-    'application/scholar overview must appear before announcements'
+    'application overview must appear before announcements'
   );
   assert.match(build, /Application Overview/);
-  assert.match(build, /Scholar Overview/);
+  assert.doesNotMatch(build, /Scholar Overview/);
   assert.match(build, /Start Your Scholarship Journey/);
 });
 

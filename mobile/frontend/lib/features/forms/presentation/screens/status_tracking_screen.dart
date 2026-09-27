@@ -998,10 +998,12 @@ class _ApplicationDetailsCardState extends State<_ApplicationDetailsCard> {
     return AppSurfaceCard(
       padding: EdgeInsets.zero,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _StatusDetailRow(label: 'Program', value: widget.program),
                 _StatusDetailRow(label: 'Submitted', value: widget.submitted),

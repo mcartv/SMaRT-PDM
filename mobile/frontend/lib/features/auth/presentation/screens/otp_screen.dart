@@ -139,7 +139,10 @@ class _OtpScreenState extends State<OtpScreen> {
         (route) => false,
       );
     } on TimeoutException {
-      _showMessage('Request timed out. Server might be down.', isError: true);
+      _showMessage(
+        'Request timed out. Check your connection and try again.',
+        isError: true,
+      );
     } on ApiException catch (error) {
       _showMessage(error.message, isError: true);
     } catch (_) {
@@ -164,7 +167,10 @@ class _OtpScreenState extends State<OtpScreen> {
       _showMessage('OTP resent! Check your email.');
       _startCooldown();
     } on TimeoutException {
-      _showMessage('Request timed out. Server might be down.', isError: true);
+      _showMessage(
+        'Request timed out. Check your connection and try again.',
+        isError: true,
+      );
     } on ApiException catch (error) {
       _showMessage(error.message, isError: true);
     } catch (_) {
@@ -462,25 +468,6 @@ class _OtpScreenState extends State<OtpScreen> {
                               ),
                             ),
                           ],
-                        ),
-
-                        const SizedBox(height: 4),
-
-                        TextButton(
-                          onPressed: _isLoading
-                              ? null
-                              : () async {
-                                  final canLeave = await _handleBackPress();
-                                  if (!mounted || !canLeave) return;
-                                  Navigator.of(context).pop();
-                                },
-                          child: Text(
-                            'Cancel registration',
-                            style: TextStyle(
-                              color: mutedText,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
                         ),
                       ],
                     ),

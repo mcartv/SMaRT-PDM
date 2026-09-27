@@ -391,6 +391,9 @@ export default function AdminLayout() {
         '--portal-surface': '#ffffff',
         '--portal-surface-soft': theme.accentSoft,
         '--portal-border': `color-mix(in srgb, ${theme.base} 38%, white)`,
+        '--admin-card-border': `color-mix(in srgb, ${theme.base} 16%, #aeb6be)`,
+        '--admin-card-border-strong': `color-mix(in srgb, ${theme.base} 24%, #969fa8)`,
+        '--admin-card-divider': `color-mix(in srgb, ${theme.base} 8%, #d5d9dd)`,
         '--portal-muted': `color-mix(in srgb, ${theme.base} 55%, white)`,
         '--portal-text': `color-mix(in srgb, ${theme.base} 24%, black)`,
       }}

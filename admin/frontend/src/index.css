@@ -4163,6 +4163,34 @@ html.smartpdm-admin-active.smartpdm-force-dark .portal-shell {
   --portal-border: var(--border-default) !important;
 }
 
+
+/* Give major Admin cards a clearer edge against pale theme canvases without
+ * turning every control or small information row into a boxed element. This
+ * is intentionally Admin-only and keeps selected/semantic accents separate. */
+html.smartpdm-admin-active .admin-responsive-content [data-slot="card"] {
+  border: 1px solid var(--admin-card-border, var(--border-default));
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 5px 16px rgb(15 23 42 / 0.025);
+}
+
+html.smartpdm-admin-active .admin-responsive-content [data-slot="card"] > [data-slot="card-header"].border-b {
+  border-color: var(--admin-card-divider, var(--border-subtle)) !important;
+}
+
+/* A few Admin screens use semantic section/div surfaces instead of the shared
+ * Card component. Strengthen only the larger padded containers so compact rows,
+ * chips, fields, and buttons stay visually quiet. */
+html.smartpdm-admin-active .admin-responsive-content :where(section, article)[class~="border"][class~="bg-white"],
+html.smartpdm-admin-active .admin-responsive-content :where(div)[class~="rounded-2xl"][class~="border"][class~="bg-white"]:where([class~="p-4"], [class~="p-5"], [class~="p-6"]) {
+  border-color: var(--admin-card-border, var(--border-default)) !important;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.035);
+}
+
+html.smartpdm-admin-active.smartpdm-force-dark .portal-shell {
+  --admin-card-border: #55585c !important;
+  --admin-card-border-strong: #696d72 !important;
+  --admin-card-divider: #3f4246 !important;
+}
+
 /* Ordinary outline buttons use the same quiet neutral border as cards. Keep
  * semantic danger/warning/success/info controls colored, and leave explicitly
  * portal-themed selected/active controls alone. */

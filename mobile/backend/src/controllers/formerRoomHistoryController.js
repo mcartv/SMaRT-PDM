@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../config/db');
+const messageReplyCompatibility = require('../services/messageReplyCompatibility');
 
 const DEFAULT_LIMIT = 30;
 const MAX_LIMIT = 50;
@@ -137,6 +138,7 @@ exports.getFormerRoomWindow = async (req, res) => {
     const hasMore = result.rows.length > limit;
     const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
     const enriched = rows.map((row) => ({ ...row, messageId: row.message_id, senderId: row.sender_id, receiverId: row.receiver_id, roomId: row.room_id, messageBody: row.message_body, sentAt: row.sent_at, senderName: row.sender_name || null, isRead: row.is_read === true, attachmentUrl: row.attachment_url, isUnsent: Boolean(row.unsent_at), unsentAt: row.unsent_at || null }));
+    const replyAwareItems = await messageReplyCompatibility.enrichReplyContexts(enriched);
     const oldest = rows[rows.length - 1] || null;
 
     return res.json({
@@ -145,7 +147,7 @@ exports.getFormerRoomWindow = async (req, res) => {
       formerMember: true, former_member: true,
       cutoffAt: access.archived_at, cutoff_at: access.archived_at,
       roomName: access.room_name || 'Group Chat', room_name: access.room_name || 'Group Chat',
-      items: enriched,
+      items: replyAwareItems,
       pagination: {
         limit,
         hasMore,

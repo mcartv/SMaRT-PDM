@@ -25,7 +25,7 @@ test('Application Form remains editable while lifecycle allows editing', () => {
   );
   assert.match(
     mobileService,
-    /const canEdit =\s*lifecycleCanEdit &&\s*!applicationFormAwaitingVerification &&\s*applicationFormReviewStatus !== 'verified';/s
+    /const canEdit =\s*lifecycleCanEdit &&\s*!applicationFormAwaitingVerification &&\s*applicationFormReviewStatus !== 'verified' &&\s*!verifiedRequirementLocked;/s
   );
 });
 

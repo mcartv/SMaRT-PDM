@@ -42,28 +42,22 @@ class _AppearanceSheet extends StatelessWidget {
     final options =
         <({ThemeMode mode, IconData icon, String title, String subtitle})>[
           (
-            mode: ThemeMode.system,
-            icon: Icons.settings_suggest_outlined,
-            title: 'System',
-            subtitle: 'Follow your phone appearance',
-          ),
-          (
             mode: ThemeMode.light,
             icon: Icons.light_mode_outlined,
             title: 'Light',
-            subtitle: 'Always use the light palette',
+            subtitle: 'Use the light appearance',
           ),
           (
             mode: ThemeMode.dark,
             icon: Icons.dark_mode_outlined,
             title: 'Dark',
-            subtitle: 'Always use the dark palette',
+            subtitle: 'Use the dark appearance',
           ),
         ];
 
     return DraggableScrollableSheet(
-      initialChildSize: largeText ? 0.72 : 0.48,
-      minChildSize: largeText ? 0.58 : 0.40,
+      initialChildSize: largeText ? 0.62 : 0.40,
+      minChildSize: largeText ? 0.52 : 0.34,
       maxChildSize: 0.92,
       expand: false,
       builder: (context, scrollController) {

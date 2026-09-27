@@ -20,7 +20,7 @@ test('resubmitting a corrected Application Form always persists an awaiting-veri
 
 test('backend locks Edit Form while corrected form is awaiting verification', () => {
   assert.match(service, /applicationFormAwaitingVerification =\s*applicationFormReviewStatus === 'pending'[\s\S]*APPLICATION_FORM_RESUBMITTED/);
-  assert.match(service, /const canEdit =\s*lifecycleCanEdit &&\s*!applicationFormAwaitingVerification &&\s*applicationFormReviewStatus !== 'verified';/);
+  assert.match(service, /const canEdit =\s*lifecycleCanEdit &&\s*!applicationFormAwaitingVerification &&\s*applicationFormReviewStatus !== 'verified' &&\s*!verifiedRequirementLocked;/);
 });
 
 test('backend exposes awaiting_verification to Preview Form', () => {
@@ -49,4 +49,5 @@ test('Preview shows a clear review state rather than editing availability after 
 test('another correction request can unlock editing again', () => {
   assert.match(service, /applicationFormCorrectionRequested =\s*applicationFormReviewStatus === 'reupload_required'/);
   assert.match(service, /applicationFormAwaitingVerification =\s*applicationFormReviewStatus === 'pending'/);
+  assert.match(service, /verifiedRequirementLocked\s*=\s*lifecycleCanEdit[\s\S]*!applicationFormCorrectionRequested/);
 });

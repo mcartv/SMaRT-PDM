@@ -1,8 +1,7 @@
 class ChatMessage {
   final String messageId;
   final String senderId;
-  final String?
-  receiverId; // Now nullable because group chats don't have a single receiver
+  final String? receiverId;
   final String? roomId;
   final String? senderName;
   final String? senderAvatarUrl;
@@ -13,6 +12,10 @@ class ChatMessage {
   final String? attachmentUrl;
   final bool isUnsent;
   final DateTime? unsentAt;
+  final String? replyToMessageId;
+  final String? replyMessageBody;
+  final String? replySenderId;
+  final String? replySenderName;
 
   const ChatMessage({
     required this.messageId,
@@ -28,18 +31,20 @@ class ChatMessage {
     this.attachmentUrl,
     this.isUnsent = false,
     this.unsentAt,
+    this.replyToMessageId,
+    this.replyMessageBody,
+    this.replySenderId,
+    this.replySenderName,
   });
+
+  bool get isReply => (replyToMessageId ?? '').trim().isNotEmpty;
 
   static String _pickString(Map<String, dynamic> json, List<String> keys) {
     for (final key in keys) {
       final value = json[key];
-      if (value == null) {
-        continue;
-      }
+      if (value == null) continue;
       final text = value.toString();
-      if (text.isNotEmpty) {
-        return text;
-      }
+      if (text.isNotEmpty) return text;
     }
     return '';
   }
@@ -55,20 +60,12 @@ class ChatMessage {
   static bool _pickBool(Map<String, dynamic> json, List<String> keys) {
     for (final key in keys) {
       final value = json[key];
-      if (value is bool) {
-        return value;
-      }
-      if (value is num) {
-        return value != 0;
-      }
+      if (value is bool) return value;
+      if (value is num) return value != 0;
       if (value is String) {
         final normalized = value.trim().toLowerCase();
-        if (normalized == 'true' || normalized == '1') {
-          return true;
-        }
-        if (normalized == 'false' || normalized == '0') {
-          return false;
-        }
+        if (normalized == 'true' || normalized == '1') return true;
+        if (normalized == 'false' || normalized == '0') return false;
       }
     }
     return false;
@@ -100,6 +97,22 @@ class ChatMessage {
           _pickString(json, ['messageBody', 'message_body']).trim() ==
               'This message was unsent',
       unsentAt: DateTime.tryParse(_pickString(json, ['unsentAt', 'unsent_at'])),
+      replyToMessageId: _pickNullableString(json, [
+        'replyToMessageId',
+        'reply_to_message_id',
+      ]),
+      replyMessageBody: _pickNullableString(json, [
+        'replyMessageBody',
+        'reply_message_body',
+      ]),
+      replySenderId: _pickNullableString(json, [
+        'replySenderId',
+        'reply_sender_id',
+      ]),
+      replySenderName: _pickNullableString(json, [
+        'replySenderName',
+        'reply_sender_name',
+      ]),
     );
   }
 
@@ -117,6 +130,10 @@ class ChatMessage {
     String? attachmentUrl,
     bool? isUnsent,
     DateTime? unsentAt,
+    String? replyToMessageId,
+    String? replyMessageBody,
+    String? replySenderId,
+    String? replySenderName,
   }) {
     return ChatMessage(
       messageId: messageId ?? this.messageId,
@@ -132,6 +149,10 @@ class ChatMessage {
       attachmentUrl: attachmentUrl ?? this.attachmentUrl,
       isUnsent: isUnsent ?? this.isUnsent,
       unsentAt: unsentAt ?? this.unsentAt,
+      replyToMessageId: replyToMessageId ?? this.replyToMessageId,
+      replyMessageBody: replyMessageBody ?? this.replyMessageBody,
+      replySenderId: replySenderId ?? this.replySenderId,
+      replySenderName: replySenderName ?? this.replySenderName,
     );
   }
 }

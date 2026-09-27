@@ -28,10 +28,20 @@ test('review validation banner stays hidden before a submit attempt', () => {
   );
 });
 
-test('review section asks the applicant to double-check the form', () => {
-  assert.match(source, /V\. REVIEW APPLICATION/);
+test('review section asks the applicant to check every saved detail', () => {
+  assert.match(source, /V\. REVIEW & SUBMIT/);
   assert.match(
     source,
-    /Please double-check your application form and make sure all information is correct before submitting\./
+    /Open each section and check every detail you entered before submitting\./
   );
+});
+
+test('review sections are collapsible and Personal Information opens first', () => {
+  assert.match(source, /_expandedSections = <String>\{'personal'\}/);
+  assert.match(source, /AnimatedRotation\(/);
+  assert.match(source, /AnimatedSize\(/);
+  assert.match(source, /Icons\.keyboard_arrow_down_rounded/);
+  for (const key of ['personal', 'family', 'academic', 'statement']) {
+    assert.match(source, new RegExp(`sectionKey: '${key}'`));
+  }
 });

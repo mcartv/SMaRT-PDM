@@ -210,7 +210,11 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     } catch (error) {
       if (!mounted) return;
       if (!silent || _items.isEmpty) {
-        setState(() => _errorMessage = _cleanError(error));
+        debugPrint('RO LOAD ERROR: $error');
+        setState(
+          () => _errorMessage =
+              'We could not load your Return of Obligation details. Check your connection and try again.',
+        );
       }
     } finally {
       _roFetchInProgress = false;
@@ -443,7 +447,9 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
 
     if (decoded is Map<String, dynamic>) return decoded;
 
-    throw Exception('Unexpected response from server.');
+    throw Exception(
+      'We could not complete the request right now. Please try again.',
+    );
   }
 
   Future<Map<String, dynamic>> _sendRoMultipart({
@@ -478,10 +484,12 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
       );
     } on http.ClientException {
       throw Exception(
-        'Connection error. Please ensure your backend is running and accessible.',
+        'We could not connect right now. Check your connection and try again.',
       );
     } on FormatException {
-      throw Exception('Unexpected response from server.');
+      throw Exception(
+        'We could not complete the request right now. Please try again.',
+      );
     }
   }
 
@@ -515,7 +523,14 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                   selectedPhoto = photo;
                 });
               } catch (error) {
-                _showSnack('Unable to get photo: ${_cleanError(error)}');
+                debugPrint('RO PHOTO CAPTURE ERROR: $error');
+                _showSnack(
+                  _studentSafeError(
+                    error,
+                    fallback:
+                        'We could not prepare the attendance photo. Check camera and location permissions, then try again.',
+                  ),
+                );
               }
             }
 
@@ -636,7 +651,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Live camera proof is required',
+                                    'Take an attendance photo',
                                     style: TextStyle(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w900,
@@ -646,8 +661,8 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                   const SizedBox(height: 4),
                                   Text(
                                     selectedPhoto == null
-                                        ? 'Take a live camera photo. The date, time, RO area, and GPS coordinates will be burned into the image.'
-                                        : 'Selected: ${selectedPhoto!.fileName}',
+                                        ? 'Take a live photo for attendance. The photo will include the date, time, assigned RO area, and location for verification.'
+                                        : 'Attendance photo ready',
                                     style: TextStyle(
                                       fontSize: 12,
                                       height: 1.35,
@@ -997,10 +1012,10 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
           builder: (dialogContext) => AlertDialog(
             title: Text('Confirm $actionLabel?'),
             content: Text(
-              'Your evidence is ready for ${item.assignedArea}. '
-              '${hasPhoto ? 'A live camera photo is attached. ' : ''}'
-              '${hasLocation ? 'Location data is ready. ' : 'Location data could not be collected. '}'
-              'Submit this RO $actionLabel now?',
+              'Your attendance proof is ready for ${item.assignedArea}. '
+              '${hasPhoto ? 'Your live photo is attached. ' : ''}'
+              '${hasLocation ? 'Your location was recorded. ' : 'Your location could not be recorded. '}'
+              'Submit your $actionLabel now?',
             ),
             actions: [
               TextButton(
@@ -1060,7 +1075,14 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
       _applyResponse(response);
       _showSnack(response['message']?.toString() ?? 'RO notice acknowledged.');
     } catch (error) {
-      setState(() => _errorMessage = _cleanError(error));
+      debugPrint('RO ACKNOWLEDGMENT ERROR: $error');
+      setState(
+        () => _errorMessage = _studentSafeError(
+          error,
+          fallback:
+              'We could not acknowledge this RO notice. Check your connection and try again.',
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -1117,7 +1139,14 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     } catch (error) {
       if (!mounted) return;
 
-      _showSnack('Unable to submit concern: ${_cleanError(error)}');
+      debugPrint('RO CONCERN SUBMIT ERROR: $error');
+      _showSnack(
+        _studentSafeError(
+          error,
+          fallback:
+              'We could not submit your concern. Check your connection and try again.',
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -1130,7 +1159,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
         .where((placement) => placement.isApproved)
         .toList();
     if (approvedPlacements.isEmpty) {
-      _showSnack('Wait for an RO Area coordinator to approve your placement.');
+      _showSnack('Your RO placement must be approved before you can Time In.');
       return;
     }
 
@@ -1139,7 +1168,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
       final choice = await showDialog<RoPlacement>(
         context: context,
         builder: (context) => SimpleDialog(
-          title: const Text('Where will you render service?'),
+          title: const Text('Select your RO area'),
           children: approvedPlacements
               .map(
                 (placement) => SimpleDialogOption(
@@ -1200,7 +1229,14 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
       _showSnack(response['message']?.toString() ?? 'Timed in successfully.');
     } catch (error) {
       if (!mounted) return;
-      setState(() => _errorMessage = _cleanError(error));
+      debugPrint('RO TIME IN ERROR: $error');
+      setState(
+        () => _errorMessage = _studentSafeError(
+          error,
+          fallback:
+              'We could not submit your Time In. Check your connection, camera, and location, then try again.',
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -1248,7 +1284,14 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
       _showSnack(response['message']?.toString() ?? 'Timed out successfully.');
     } catch (error) {
       if (!mounted) return;
-      setState(() => _errorMessage = _cleanError(error));
+      debugPrint('RO TIME OUT ERROR: $error');
+      setState(
+        () => _errorMessage = _studentSafeError(
+          error,
+          fallback:
+              'We could not submit your Time Out. Check your connection, camera, and location, then try again.',
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -1400,7 +1443,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Supporting attachments are not requested here because the current RO concern endpoint stores text concerns only. Attendance proof uploads remain separate.',
+                    'Describe the concern clearly. If OSFA needs supporting documents, they can request them separately.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: scheme.onSurfaceVariant.withValues(alpha: 0.82),
                       height: 1.35,
@@ -1525,6 +1568,21 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
 
   String _cleanError(Object error) {
     return error.toString().replaceFirst('Exception: ', '').trim();
+  }
+
+  String _studentSafeError(
+    Object error, {
+    required String fallback,
+  }) {
+    final message = _cleanError(error);
+    if (message.isEmpty) return fallback;
+
+    final technicalPattern = RegExp(
+      r'backend|server|endpoint|api|http|socket|json|uri|url|supabase|postgres|database|sql|column|relation|clientexception|formatexception|stack trace|internal server error|status code|connection refused',
+      caseSensitive: false,
+    );
+
+    return technicalPattern.hasMatch(message) ? fallback : message;
   }
 
   String _formatMinutes(int minutes) {
@@ -2196,7 +2254,7 @@ class _AssignmentCard extends StatelessWidget {
                       const SizedBox(height: AppSpacing.xs),
                     ],
                     Text(
-                      '$progress% (${formatMinutes(item.validatedMinutes)} / ${formatMinutes(item.requiredMinutes)})',
+                      'Verified: $progress% (${formatMinutes(item.validatedMinutes)} / ${formatMinutes(item.requiredMinutes)})',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: progress >= 100
                             ? AppStatusColors.of(context).successOutline
@@ -2417,7 +2475,7 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                         icon: Icons.gavel_rounded,
                         title: 'Required Scholarship Obligation',
                         message:
-                            'This assignment is mandatory. A legitimate conflict may be reported to OSFA. Complete attendance evidence is still required unless the RO Coordinator verifies an exception.',
+                            'This assignment is required. If you have a valid conflict, report it to OSFA. You still need attendance proof unless the RO Coordinator approves an exception.',
                         color: Color(0xFF8A4B08),
                       ),
                     ],
@@ -2481,7 +2539,7 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
 
                     const SizedBox(height: 18),
                     _ProgressLine(
-                      label: 'Submitted',
+                      label: 'Hours Submitted',
                       value:
                           item.submittedProgress.clamp(0, 100).toDouble() / 100,
                       percent: item.submittedProgress,
@@ -2491,12 +2549,12 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                     ),
                     const SizedBox(height: 14),
                     _ProgressLine(
-                      label: 'Validated',
+                      label: 'Hours Verified',
                       value:
                           item.validatedProgress.clamp(0, 100).toDouble() / 100,
                       percent: item.validatedProgress,
                       caption:
-                          '${widget.formatMinutes(item.validatedMinutes)} validated of ${widget.formatMinutes(item.requiredMinutes)}',
+                          '${widget.formatMinutes(item.validatedMinutes)} verified of ${widget.formatMinutes(item.requiredMinutes)}',
                       color: Colors.green,
                     ),
 
@@ -2507,10 +2565,10 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                         title:
                             validationFeedbackStatus == 'returned' ||
                                 validationFeedbackStatus == 'rejected'
-                            ? 'Validation Feedback - Returned'
+                            ? 'RO Coordinator Feedback - Returned'
                             : validationFeedbackStatus == 'approved'
-                            ? 'Validation Feedback - Approved'
-                            : 'Validation Feedback',
+                            ? 'RO Coordinator Feedback - Verified'
+                            : 'RO Coordinator Feedback',
                         message: validationFeedback,
                         color: validationFeedbackColor,
                       ),
@@ -2541,7 +2599,7 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
 
                     const SizedBox(height: 20),
                     Text(
-                      'Attendance Proofs',
+                      'Attendance Photos',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
                       ),
@@ -2549,8 +2607,8 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                     const SizedBox(height: 4),
                     Text(
                       proofEntries.isEmpty
-                          ? 'No time-in or time-out images have been recorded yet.'
-                          : 'Tap an image to preview the recorded attendance proof.',
+                          ? 'No Time In or Time Out photos have been recorded yet.'
+                          : 'Tap a photo to view your recorded attendance proof.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: mutedText,
                         fontWeight: FontWeight.w600,
@@ -2939,7 +2997,7 @@ class _ProofPreviewCard extends StatelessWidget {
                     if (proof.latitude != null && proof.longitude != null) ...[
                       const SizedBox(height: 2),
                       Text(
-                        '${proof.latitude!.toStringAsFixed(5)}, ${proof.longitude!.toStringAsFixed(5)}',
+                        'Location recorded',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -3309,7 +3367,7 @@ class _ActiveSessionBox extends StatelessWidget {
             )
           else if (!graceExpired)
             Text(
-              'Your credited time has stopped. Please Time Out and submit your proof within ${formatElapsed(graceSecondsRemaining)}. The checkout grace period is $checkoutGraceMinutes minute(s).',
+              'Your required time is complete. Please Time Out and submit your attendance photo within ${formatElapsed(graceSecondsRemaining)}. The allowed Time Out period is $checkoutGraceMinutes minute(s).',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: isDark ? const Color(0xFF9BE9A8) : Colors.green.shade800,
                 fontWeight: FontWeight.w700,
@@ -3317,7 +3375,7 @@ class _ActiveSessionBox extends StatelessWidget {
             )
           else
             Text(
-              'The checkout grace period has ended. The backend will automatically close this session; refresh if the status has not updated yet.',
+              'The allowed Time Out period has ended. This attendance session will close automatically. Refresh if the status has not updated yet.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: isDark
                     ? const Color(0xFFFFC47A)
@@ -3368,7 +3426,7 @@ class _LogsSection extends StatelessWidget {
       tilePadding: EdgeInsets.zero,
       childrenPadding: EdgeInsets.zero,
       title: const Text(
-        'Recent Time Logs',
+        'Recent Attendance',
         style: TextStyle(fontWeight: FontWeight.w900),
       ),
       children: logs.take(5).map((log) {
@@ -3394,7 +3452,7 @@ class _LogsSection extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '${formatMinutes(log.durationMinutes)} · ${log.validationStatus}',
+                '${formatMinutes(log.durationMinutes)} · ${_studentReviewStatusLabel(log.validationStatus)}',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: scheme.onSurfaceVariant,
                   fontWeight: FontWeight.w600,
@@ -3568,6 +3626,19 @@ class _StateCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+String _studentReviewStatusLabel(String value) {
+  switch (value.trim().toLowerCase()) {
+    case 'approved':
+      return 'Verified';
+    case 'returned':
+    case 'rejected':
+      return 'Returned';
+    case 'pending':
+    default:
+      return 'Waiting for Review';
   }
 }
 

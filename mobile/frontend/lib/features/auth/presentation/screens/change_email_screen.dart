@@ -283,32 +283,35 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
                           onFieldSubmitted: (_) => _requestCode(),
                         ),
                         const SizedBox(height: 20),
-                        SizedBox(
-                          height: 52,
-                          child: ElevatedButton(
-                            onPressed: _isLoading ? null : _requestCode,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.gold,
-                              foregroundColor: AppColors.darkBrown,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
+                        ElevatedButton(
+                          onPressed: _isLoading ? null : _requestCode,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.gold,
+                            foregroundColor: AppColors.darkBrown,
+                            minimumSize: const Size.fromHeight(52),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
                             ),
-                            child: _isLoading
-                                ? const SizedBox(
-                                    height: 21,
-                                    width: 21,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.4,
-                                    ),
-                                  )
-                                : const Text(
-                                    'Send Verification Code',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                           ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 21,
+                                  width: 21,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.4,
+                                  ),
+                                )
+                              : const Text(
+                                  'Send Verification Code',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
                         ),
                       ] else ...[
                         TextFormField(
@@ -335,32 +338,35 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
                           onFieldSubmitted: (_) => _verifyCode(),
                         ),
                         const SizedBox(height: 20),
-                        SizedBox(
-                          height: 52,
-                          child: ElevatedButton(
-                            onPressed: _isLoading ? null : _verifyCode,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.gold,
-                              foregroundColor: AppColors.darkBrown,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
+                        ElevatedButton(
+                          onPressed: _isLoading ? null : _verifyCode,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.gold,
+                            foregroundColor: AppColors.darkBrown,
+                            minimumSize: const Size.fromHeight(52),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
                             ),
-                            child: _isLoading
-                                ? const SizedBox(
-                                    height: 21,
-                                    width: 21,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.4,
-                                    ),
-                                  )
-                                : const Text(
-                                    'Verify and Change Email',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                           ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 21,
+                                  width: 21,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.4,
+                                  ),
+                                )
+                              : const Text(
+                                  'Verify and Change Email',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
                         ),
                         const SizedBox(height: 10),
                         TextButton(

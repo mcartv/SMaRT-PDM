@@ -42,7 +42,10 @@ test('Dashboard keeps the existing scholar-access resolver injection functional'
 
   assert.match(dashboard, /scholarAccessResolver:\s*scholarAccessResolver/);
   assert.match(dashboard, /final DashboardScholarAccessResolver\? scholarAccessResolver/);
-  assert.match(dashboard, /resolvedScholarAccess = await resolver\(provider, widget\.sessionService\)/);
+  assert.match(
+    dashboard,
+    /resolvedScholarAccess\s*=\s*await resolver\(\s*provider,\s*widget\.sessionService,?\s*\)/
+  );
   assert.match(dashboard, /if \(widget\.scholarAccessResolver != null\) return _cachedScholarAccess/);
 });
 

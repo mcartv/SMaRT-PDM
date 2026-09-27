@@ -4,11 +4,16 @@ const router = express.Router();
 const messageController = require('../controllers/messageController');
 const formerRoomHistoryController = require('../controllers/formerRoomHistoryController');
 const groupRemovalController = require('../controllers/groupRemovalController');
+const messageReplyController = require('../controllers/messageReplyController');
+const messageReplyCompatibility = require('../services/messageReplyCompatibility');
 const { protect } = require('../middleware/authMiddleware');
+
+messageReplyCompatibility.installMessageReplyCompatibility();
 
 router.get('/unread-count', protect, messageController.getUnreadCount);
 router.get('/thread', protect, messageController.getThread);
 router.post('/thread', protect, messageController.sendThreadMessage);
+router.post('/thread/reply', protect, messageReplyController.sendThreadReply);
 router.patch('/thread/read', protect, messageController.markThreadRead);
 router.patch('/thread/archive', protect, messageController.archiveThread);
 router.patch('/thread/restore', protect, messageController.restoreThread);
@@ -26,6 +31,7 @@ router.get('/rooms/:roomId/thread', protect, messageController.getRoomThread);
 router.get('/rooms/:roomId/messages', protect, messageController.getRoomThread);
 router.post('/rooms/:roomId/send', protect, messageController.sendRoomMessage);
 router.post('/rooms/:roomId/messages', protect, messageController.sendRoomMessage);
+router.post('/rooms/:roomId/reply', protect, messageReplyController.sendRoomReply);
 router.patch('/rooms/:roomId/read', protect, messageController.markRoomThreadRead);
 router.patch('/rooms/:roomId/archive', protect, messageController.archiveRoom);
 router.patch('/rooms/:roomId/restore', protect, messageController.restoreRoom);

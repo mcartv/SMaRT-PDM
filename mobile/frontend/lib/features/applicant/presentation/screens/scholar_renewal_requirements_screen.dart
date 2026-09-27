@@ -100,11 +100,10 @@ class _ScholarRenewalRequirementsScreenState
     } catch (error) {
       if (!mounted) return;
       if (!silent || _renewalPackage == null) {
+        debugPrint('RENEWAL LOAD ERROR: $error');
         setState(() {
-          _errorMessage = error
-              .toString()
-              .replaceFirst('Exception: ', '')
-              .trim();
+          _errorMessage =
+              'We could not load your renewal details. Check your connection and try again.';
         });
       }
     } finally {
@@ -314,7 +313,10 @@ class _ScholarRenewalRequirementsScreenState
       _showSnackBar('${document.documentType} uploaded successfully.');
     } catch (error) {
       if (!mounted) return;
-      _showSnackBar(error.toString().replaceFirst('Exception: ', '').trim());
+      debugPrint('RENEWAL DOCUMENT UPLOAD ERROR: $error');
+      _showSnackBar(
+        'We could not upload this document. Check the file and try again.',
+      );
     } finally {
       if (mounted) {
         setState(() => _uploadingDocuments.remove(document.id));
@@ -344,7 +346,7 @@ class _ScholarRenewalRequirementsScreenState
 
     if (_hasPendingReupload) {
       _showSnackBar(
-        'Replace every document marked for re-upload before submitting again.',
+        'Replace every document marked "New File Needed" before submitting again.',
       );
       return;
     }
@@ -364,7 +366,7 @@ class _ScholarRenewalRequirementsScreenState
         builder: (dialogContext) => AlertDialog(
           title: const Text('Renewal Submitted'),
           content: const Text(
-            'Your renewal requirements have been submitted for admin review.',
+            'Your renewal requirements have been submitted to OSFA for review.',
           ),
           actions: [
             TextButton(
@@ -376,7 +378,10 @@ class _ScholarRenewalRequirementsScreenState
       );
     } catch (error) {
       if (!mounted) return;
-      _showSnackBar(error.toString().replaceFirst('Exception: ', '').trim());
+      debugPrint('RENEWAL SUBMIT ERROR: $error');
+      _showSnackBar(
+        'We could not submit your renewal. Check your connection and try again.',
+      );
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -410,7 +415,7 @@ class _ScholarRenewalRequirementsScreenState
     if (!_isImageDocument(document)) {
       final uri = Uri.tryParse(fileUrl.trim());
       if (uri == null || !uri.hasScheme) {
-        _showSnackBar('The uploaded file URL is invalid.');
+        _showSnackBar('This file cannot be opened right now. Try again later.');
         return;
       }
 
@@ -524,57 +529,131 @@ class _ScholarRenewalRequirementsScreenState
       case 'uploaded':
         return 'Uploaded';
       case 'rejected':
-        return package.renewal.isRejected ? 'Rejected' : 'Needs Re-upload';
+        return package.renewal.isRejected ? 'Rejected' : 'New File Needed';
       case 'pending':
       default:
         return 'Required';
     }
   }
 
+  String _formatSubmittedDate(String? value) {
+    final raw = value?.trim() ?? '';
+    if (raw.isEmpty) return '';
+
+    final parsed = DateTime.tryParse(raw)?.toLocal();
+    if (parsed == null) return 'Uploaded';
+
+    const months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final hour = parsed.hour == 0
+        ? 12
+        : parsed.hour > 12
+        ? parsed.hour - 12
+        : parsed.hour;
+    final minute = parsed.minute.toString().padLeft(2, '0');
+    final period = parsed.hour >= 12 ? 'PM' : 'AM';
+
+    return 'Uploaded ${months[parsed.month - 1]} ${parsed.day}, ${parsed.year} at $hour:$minute $period';
+  }
+
+  String _renewalStatusLabel(ScholarRenewal renewal) {
+    switch (renewal.normalizedStatus) {
+      case 'approved':
+        return 'Approved';
+      case 'rejected':
+        return 'Rejected';
+      case 'flagged':
+        return 'Needs Attention';
+      case 'submitted':
+      case 'under review':
+        return 'Under Review';
+      case 'needs reupload':
+        return 'File Update Needed';
+      default:
+        return 'Not Submitted';
+    }
+  }
+
+  String _renewalDocumentStatusLabel(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'verified':
+      case 'complete':
+      case 'completed':
+        return 'Documents Verified';
+      case 'documents ready':
+      case 'ready':
+        return 'Documents Ready';
+      case 'under review':
+      case 'submitted':
+        return 'Documents Under Review';
+      case 'requires reupload':
+      case 'needs reupload':
+      case 'reupload required':
+        return 'File Update Needed';
+      case 'missing docs':
+      case 'missing':
+        return 'Documents Needed';
+      default:
+        return status.trim().isEmpty ? 'Documents Needed' : status;
+    }
+  }
+
+  String _renewalPeriodLabel(ScholarRenewalPackage package) {
+    final parts = <String>[
+      if (package.semesterLabel.trim().isNotEmpty) package.semesterLabel.trim(),
+      if (package.schoolYearLabel.trim().isNotEmpty)
+        'AY ${package.schoolYearLabel.trim()}',
+    ];
+    return parts.join(' ');
+  }
+
   String _renewalSummary(ScholarRenewalPackage package) {
     if (!package.isRenewalAvailable) {
-      return package.availabilityReason.trim().isNotEmpty
-          ? package.availabilityReason
-          : 'Renewal is not currently available for this academic semester.';
-    }
-    final renewal = package.renewal;
-    final status = renewal.normalizedStatus;
-    final adminComment = renewal.adminComment?.trim() ?? '';
+      final reasonCode = package.availabilityReasonCode.trim().toUpperCase();
+      if (reasonCode == 'CURRENT_SCHOLARSHIP_SEMESTER_STILL_ACTIVE') {
+        return 'Renewal is not required for this semester because your scholarship is already active. Renewal is only needed for the next semester.';
+      }
 
-    if (status == 'approved') {
-      return 'Your renewal package has been approved for this cycle.';
-    }
-
-    if (status == 'rejected') {
-      return adminComment.isNotEmpty
-          ? 'Your renewal was rejected. Admin feedback: $adminComment'
-          : 'Your renewal was rejected by the administrator.';
+      final reason = package.availabilityReason.trim();
+      return reason.isNotEmpty
+          ? reason
+          : 'Renewal is not available for this semester.';
     }
 
-    if (status == 'flagged') {
-      return adminComment.isNotEmpty
-          ? 'Your renewal needs administrator attention. Feedback: $adminComment'
-          : 'Your renewal needs administrator attention.';
+    switch (package.renewal.normalizedStatus) {
+      case 'approved':
+        return 'Your renewal for this semester has been approved.';
+      case 'rejected':
+        return 'Your renewal was not approved. Review the document statuses below.';
+      case 'flagged':
+        return 'Your renewal needs attention. Review the document statuses below.';
+      case 'submitted':
+      case 'under review':
+        return 'Your renewal has been submitted and is being reviewed.';
+      case 'needs reupload':
+        return 'A document needs to be updated before you can continue.';
+      default:
+        return 'Upload the required documents, review them, then submit your renewal.';
     }
-
-    if (status == 'submitted' || status == 'under review') {
-      return 'Your renewal package is now pending admin review.';
-    }
-
-    if (status == 'needs reupload') {
-      return adminComment.isNotEmpty
-          ? 'Admin requested a re-upload. Feedback: $adminComment'
-          : 'Admin requested a re-upload. Replace the flagged file and submit again.';
-    }
-
-    return 'Upload both required documents to maintain your scholarship for the current release cycle.';
   }
 
   String _lockedSubmitLabel(ScholarRenewal renewal) {
     if (renewal.isApproved) return 'Renewal Approved';
     if (renewal.isRejected) return 'Renewal Rejected';
-    if (renewal.isFlagged) return 'Renewal Flagged';
-    return 'Awaiting Admin Review';
+    if (renewal.isFlagged) return 'Renewal Needs Attention';
+    return 'Waiting for OSFA Review';
   }
 
   List<ScholarRenewalDocument> _sortedDocuments(
@@ -615,11 +694,11 @@ class _ScholarRenewalRequirementsScreenState
     final submitLabel = _isSubmitting
         ? 'Submitting...'
         : _renewalPackage?.isRenewalAvailable == false
-        ? 'Renewal Not Yet Available'
+        ? 'Renewal Not Available'
         : _renewalPackage?.renewal.isLockedForReview == true
         ? _lockedSubmitLabel(_renewalPackage!.renewal)
         : _hasPendingReupload
-        ? 'Replace Re-upload Documents First'
+        ? 'Replace Requested File First'
         : 'Submit Renewal Requirements';
 
     return SmartPdmPageScaffold(
@@ -669,93 +748,42 @@ class _ScholarRenewalRequirementsScreenState
                 subtitleColor: subtitleColor,
                 accentColor: accentColor,
               ),
-              if ((_renewalPackage!.renewal.adminComment ?? '')
-                  .trim()
-                  .isNotEmpty) ...[
+              if (_renewalPackage!.isRenewalAvailable) ...[
+                const SizedBox(height: AppSpacing.xl),
+                AppSectionHeading(
+                  title: 'Required Documents',
+                  subtitle:
+                      'Upload your current Certificate of Registration and latest grades. You can use PDF, JPG/JPEG, PNG, or WEBP files.',
+                ),
                 const SizedBox(height: AppSpacing.md),
-                AppSurfaceCard(
-                  backgroundColor: AppStatusColors.of(
-                    context,
-                  ).actionRequiredContainer,
-                  borderColor: AppStatusColors.of(
-                    context,
-                  ).actionRequiredOutline,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      AppIconTile(
-                        icon: Icons.feedback_outlined,
-                        accent: AppStatusColors.of(
-                          context,
-                        ).actionRequiredOutline,
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Administrator feedback',
-                              style: Theme.of(context).textTheme.titleSmall
-                                  ?.copyWith(
-                                    color: AppStatusColors.of(
-                                      context,
-                                    ).onActionRequiredContainer,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                            ),
-                            const SizedBox(height: AppSpacing.xs),
-                            Text(
-                              _renewalPackage!.renewal.adminComment!,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: AppStatusColors.of(
-                                      context,
-                                    ).onActionRequiredContainer,
-                                    height: 1.4,
-                                  ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                ...documents.map(
+                  (document) => _buildDocumentRow(
+                    document: document,
+                    package: _renewalPackage!,
+                    titleColor: titleColor,
+                    subtitleColor: subtitleColor,
+                    accentColor: accentColor,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: submitDisabled ? null : _submitRenewal,
+                    icon: _isSubmitting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.send),
+                    label: Text(submitLabel),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                    ),
                   ),
                 ),
               ],
-              const SizedBox(height: AppSpacing.xl),
-              AppSectionHeading(
-                title: 'Required Documents',
-                subtitle:
-                    'Upload your Certificate of Registration and latest Grade Form / Transcript. Allowed files: PDF, JPG, and PNG.',
-              ),
-              const SizedBox(height: AppSpacing.md),
-              ...documents.map(
-                (document) => _buildDocumentRow(
-                  document: document,
-                  package: _renewalPackage!,
-                  titleColor: titleColor,
-                  subtitleColor: subtitleColor,
-                  accentColor: accentColor,
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: submitDisabled ? null : _submitRenewal,
-                  icon: _isSubmitting
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.send),
-                  label: Text(submitLabel),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52),
-                  ),
-                ),
-              ),
             ],
           ],
         ),
@@ -769,103 +797,166 @@ class _ScholarRenewalRequirementsScreenState
     required Color subtitleColor,
     required Color accentColor,
   }) {
-    final progress = package.documents.isEmpty
-        ? 0.0
-        : package.documents.where((document) => document.hasFile).length /
-              package.documents.length;
+    final showProgress = package.isRenewalAvailable;
+    final uploadedCount = package.documents
+        .where((document) => document.hasFile)
+        .length;
+    final totalCount = package.documents.length;
+    final progress = totalCount == 0 ? 0.0 : uploadedCount / totalCount;
+    final statusLabel = package.isRenewalAvailable
+        ? _renewalStatusLabel(package.renewal)
+        : 'Not Open';
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textScale = MediaQuery.textScalerOf(context).scale(1);
+        final stackHeader = constraints.maxWidth < 300 || textScale > 1.3;
+        final headerDetails = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              package.isRenewalAvailable
+                  ? 'Renewal Progress'
+                  : 'Renewal Status',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: titleColor,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _renewalSummary(package),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: subtitleColor,
+                height: 1.5,
+              ),
+            ),
+          ],
+        );
+
+        final headerIcon = AppIconTile(
+          icon: package.isRenewalAvailable
+              ? Icons.autorenew_rounded
+              : Icons.event_busy_outlined,
+          accent: accentColor,
+        );
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AppSurfaceCard(
+              backgroundColor: AppSurfacePalette.surface(context),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (stackHeader) ...[
+                    headerIcon,
+                    const SizedBox(height: AppSpacing.md),
+                    headerDetails,
+                  ] else
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        headerIcon,
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(child: headerDetails),
+                      ],
+                    ),
+                  const SizedBox(height: AppSpacing.md),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _InfoChip(
+                        icon: package.isRenewalAvailable
+                            ? Icons.verified_outlined
+                            : Icons.pause_circle_outline_rounded,
+                        label: statusLabel,
+                        semanticStatus: true,
+                      ),
+                      if (showProgress)
+                        _InfoChip(
+                          icon: Icons.description_outlined,
+                          label: '$uploadedCount of $totalCount uploaded',
+                        ),
+                    ],
+                  ),
+                  if (showProgress) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    ClipRRect(
+                      borderRadius: AppRadii.status,
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 9,
+                        backgroundColor: AppSurfacePalette.surfaceMuted(
+                          context,
+                        ),
+                        valueColor: AlwaysStoppedAnimation<Color>(accentColor),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _buildPeriodCard(
+              package: package,
+              titleColor: titleColor,
+              subtitleColor: subtitleColor,
+              accentColor: accentColor,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildPeriodCard({
+    required ScholarRenewalPackage package,
+    required Color titleColor,
+    required Color subtitleColor,
+    required Color accentColor,
+  }) {
+    final period = _renewalPeriodLabel(package);
 
     return AppSurfaceCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
       backgroundColor: AppSurfacePalette.surface(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final textScale = MediaQuery.textScalerOf(context).scale(1);
-              final stackProgress =
-                  constraints.maxWidth < 300 || textScale > 1.3;
-              final summary = Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Renewal Progress',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: titleColor,
-                    ),
+          AppIconTile(icon: Icons.calendar_month_outlined, accent: accentColor),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Academic Period',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: subtitleColor,
+                    fontWeight: FontWeight.w700,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _renewalSummary(package),
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: subtitleColor,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              );
-              final count = Text(
-                '${package.documents.where((doc) => doc.hasFile).length}/${package.documents.length}',
-                style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: accentColor,
                 ),
-              );
-
-              if (stackProgress) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    summary,
-                    const SizedBox(height: AppSpacing.sm),
-                    count,
-                  ],
-                );
-              }
-
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: summary),
-                  const SizedBox(width: 12),
-                  count,
+                const SizedBox(height: 3),
+                Text(
+                  period.isEmpty ? 'Current semester' : period,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: titleColor,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                if (package.programName.trim().isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    package.programName.trim(),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: subtitleColor),
+                  ),
                 ],
-              );
-            },
-          ),
-          const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: AppRadii.status,
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              backgroundColor: AppSurfacePalette.surfaceMuted(context),
-              valueColor: AlwaysStoppedAnimation<Color>(accentColor),
+              ],
             ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _InfoChip(
-                icon: Icons.badge_outlined,
-                label: package.studentNumber.isEmpty
-                    ? package.studentName
-                    : '${package.studentName} • ${package.studentNumber}',
-              ),
-              _InfoChip(
-                icon: Icons.school_outlined,
-                label:
-                    '${package.programName} • ${package.semesterLabel} AY ${package.schoolYearLabel}',
-              ),
-              _InfoChip(
-                icon: Icons.verified_outlined,
-                label:
-                    '${package.renewal.renewalStatus} • ${package.renewal.documentStatus}',
-                semanticStatus: true,
-              ),
-            ],
           ),
         ],
       ),
@@ -910,7 +1001,7 @@ class _ScholarRenewalRequirementsScreenState
                 Text(
                   document.documentType == 'Certificate of Registration'
                       ? 'Official COR from the registrar for the current term.'
-                      : 'Latest semester grades or transcript for renewal validation.',
+                      : 'Latest semester grades or transcript for renewal review.',
                   style: Theme.of(
                     context,
                   ).textTheme.labelMedium?.copyWith(color: subtitleColor),
@@ -933,7 +1024,7 @@ class _ScholarRenewalRequirementsScreenState
                   const SizedBox(height: 6),
                   if (document.hasFile)
                     Text(
-                      'Submitted file available',
+                      'File uploaded',
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: AppSurfacePalette.mutedText(context),
                         fontWeight: FontWeight.w600,
@@ -941,7 +1032,7 @@ class _ScholarRenewalRequirementsScreenState
                     ),
                   if (document.submittedAt != null)
                     Text(
-                      document.submittedAt!,
+                      _formatSubmittedDate(document.submittedAt),
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: AppSurfacePalette.mutedText(context),
                       ),
@@ -1131,7 +1222,7 @@ class _RenewalErrorCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Unable to load renewal package',
+            'Unable to load renewal',
             style: TextStyle(
               color: colors.onDangerContainer,
               fontWeight: FontWeight.w700,
@@ -1164,7 +1255,7 @@ class _RenewalEmptyState extends StatelessWidget {
           SizedBox(width: AppSpacing.md),
           Expanded(
             child: Text(
-              'No active renewal package is available for your scholar account yet.',
+              'No renewal is available yet. When OSFA opens renewal for your account, your requirements will appear here.',
             ),
           ),
         ],

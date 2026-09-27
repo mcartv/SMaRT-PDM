@@ -1,0 +1,8 @@
+const test=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');const R=path.resolve(__dirname,'../../..');const src=p=>fs.readFileSync(path.join(R,p),'utf8');
+const profile=src('mobile/frontend/lib/features/profile/presentation/screens/profile_screen.dart');
+const menu=src('mobile/frontend/lib/features/menu/presentation/screens/mobile_menu_screen.dart');
+const faq=src('mobile/frontend/lib/features/dashboard/presentation/screens/faqs_screen.dart');
+test('profile groups student information clearly',()=>{for(const x of ['Personal Information','Academic Information','Contact Information',"title: 'Address'"])assert.match(profile,new RegExp(x));assert.match(profile,/readOnly: true/);assert.match(profile,/Scholar Access Removed/);assert.match(profile,/Mobile Number/);});
+test('profile errors stay student-facing',()=>{assert.match(profile,/PROFILE UPDATE ERROR/);assert.match(profile,/We could not update your profile/);assert.doesNotMatch(profile,/Unable to update profile: \$error/);});
+test('menu uses normal status casing and keeps revised guidance',()=>{assert.match(menu,/Scholar Access Removed/);assert.match(menu,/Payout, Obligation, and Renewal are available from the navigation bar/);assert.match(menu,/Scholar features become available after your scholarship is approved/);assert.doesNotMatch(menu,/'SCHOLAR'|'APPLICANT'|'REMOVED'/);});
+test('faqs prioritize search and safe errors',()=>{assert.match(faq,/How can we help\?/);assert.match(faq,/Search FAQs/);assert.match(faq,/FAQ LOAD ERROR/);assert.match(faq,/We could not load the FAQs/);assert.doesNotMatch(faq,/setState\(\(\) => _error = error\.toString\(\)\)/);});

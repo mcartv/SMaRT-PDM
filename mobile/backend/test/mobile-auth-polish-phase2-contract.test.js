@@ -26,18 +26,19 @@ const resetOtp = readScreen('reset_password_otp_screen.dart');
 const resetPassword = readScreen('reset_password_screen.dart');
 const authScreens = [register, otp, forgotPassword, resetOtp, resetPassword];
 
-test('Phase 2.2 registration keeps its workflow while reducing oversized branding', () => {
+test('Phase 2.2 registration keeps its workflow while using student-facing wording', () => {
   assert.match(register, /SMART-PDM_MOBILE_AUTH_REGISTRATION_POLISH_PHASE2_2_V1/);
   assert.match(register, /height: isCompact \? 96 : 108/);
   assert.doesNotMatch(register, /height: 132/);
-  assert.match(register, /Registry Record Found/);
+  assert.match(register, /Student Record Found/);
+  assert.doesNotMatch(register, /Registry Record Found/);
   assert.match(register, /padding: EdgeInsets\.all\(isCompact \? 12 : 14\)/);
   assert.match(register, /Terms of Service/);
   assert.match(register, /Privacy Statement/);
   assert.match(register, /_authService\.register\(/);
 });
 
-test('Phase 2.3 registration OTP keeps six sequential responsive boxes', () => {
+test('Phase 2.3 registration OTP keeps six sequential responsive boxes and one clear exit', () => {
   assert.match(otp, /SMART-PDM_MOBILE_AUTH_OTP_POLISH_PHASE2_3_V1/);
   assert.match(otp, /Widget _buildOtpRow\(\)/);
   assert.match(otp, /LayoutBuilder/);
@@ -47,6 +48,9 @@ test('Phase 2.3 registration OTP keeps six sequential responsive boxes', () => {
   assert.doesNotMatch(otp, /textTheme\.displayLarge\?\.copyWith\(fontWeight: FontWeight\.w700\)/);
   assert.match(otp, /'Verify Code'/);
   assert.match(otp, /_authService\.verifyOtp/);
+  assert.doesNotMatch(otp, /Cancel registration/);
+  assert.doesNotMatch(otp, /Server might be down/);
+  assert.match(otp, /Request timed out\. Check your connection and try again\./);
 });
 
 test('Phase 2.4 forgot-password screen follows compact auth proportions', () => {

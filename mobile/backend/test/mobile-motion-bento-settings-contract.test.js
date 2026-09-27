@@ -83,10 +83,10 @@ test('mobile motion, bento dashboard, and menu settings contract', () => {
   assert.ok(menu.includes("title: 'Appearance'"));
   assert.equal(menu.includes("title: 'Haptic Feedback'"), false);
   assert.ok(menu.includes("title: 'Getting Started Guide'"));
-  assert.ok(settings.includes("title: 'System'"));
   assert.ok(settings.includes("title: 'Light'"));
   assert.ok(settings.includes("title: 'Dark'"));
-  assert.ok(themeProvider.includes('ThemeMode.system'));
+  assert.equal(themeProvider.includes('ThemeMode.system'), false);
+  assert.ok(themeProvider.includes('ThemeMode.light'));
 
   // Existing haptic preference remains persisted and wired into navigation.
   assert.ok(interaction.includes('smart_pdm_haptic_feedback_enabled'));

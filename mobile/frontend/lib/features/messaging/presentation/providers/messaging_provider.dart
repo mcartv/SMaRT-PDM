@@ -59,7 +59,8 @@ class MessagingProvider extends ChangeNotifier {
   List<ChatMessage> get messages => _messages;
   List<ChatRoom> get rooms => _rooms;
   List<ArchivedMessageThread> get archivedThreads => _archivedThreads;
-  bool get isPrivateThreadArchived => _archivedThreads.any((item) => !item.isGroup);
+  bool get isPrivateThreadArchived =>
+      _archivedThreads.any((item) => !item.isGroup);
   ChatMessage? get privatePreview => _privatePreview;
 
   int get unreadCount => _unreadCount;
@@ -81,6 +82,7 @@ class MessagingProvider extends ChangeNotifier {
     }
     return null;
   }
+
   bool get isActiveGroupReadOnly => activeGroupRoom?.readOnly == true;
   DateTime? get activeGroupCutoffAt => activeGroupRoom?.cutoffAt;
 
@@ -278,7 +280,9 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   Future<void> archiveRoom(String roomId) async {
-    final readOnly = _rooms.any((item) => item.roomId == roomId && item.readOnly);
+    final readOnly = _rooms.any(
+      (item) => item.roomId == roomId && item.readOnly,
+    );
     if (readOnly) return;
     await _messageService.archiveRoom(roomId);
     if (_activeGroupId == roomId) {
@@ -403,15 +407,19 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> sendMessage(String text) async {
+  Future<void> sendMessage(String text, {ChatMessage? replyTo}) async {
     if (_activeGroupId != null && isActiveGroupReadOnly) {
-      throw Exception('This group is read-only because you are no longer a member.');
+      throw Exception(
+        'This group is read-only because you are no longer a member.',
+      );
     }
     final trimmed = text.trim();
 
     if (trimmed.isEmpty) {
       return;
     }
+
+    final replyToMessageId = replyTo?.messageId.trim() ?? '';
 
     try {
       ChatMessage message;
@@ -420,9 +428,13 @@ class MessagingProvider extends ChangeNotifier {
         message = await _messageService.sendRoomMessage(
           _activeGroupId!,
           trimmed,
+          replyToMessageId: replyToMessageId.isEmpty ? null : replyToMessageId,
         );
       } else {
-        message = await _messageService.sendThreadMessage(trimmed);
+        message = await _messageService.sendThreadMessage(
+          trimmed,
+          replyToMessageId: replyToMessageId.isEmpty ? null : replyToMessageId,
+        );
       }
 
       _errorMessage = null;
@@ -590,8 +602,7 @@ class MessagingProvider extends ChangeNotifier {
     switch (event.name) {
       case 'socket:connected':
       case 'socket:reconnected':
-        _isRealtimeConnected =
-            MobileRealtimeService.instance.isRealtimeHealthy;
+        _isRealtimeConnected = MobileRealtimeService.instance.isRealtimeHealthy;
         _errorMessage = null;
 
         // Reconcile authoritative state after a fresh/recovered socket. This
@@ -609,8 +620,7 @@ class MessagingProvider extends ChangeNotifier {
 
       case MobileRealtimeEvents.bridgeStatus:
         final wasHealthy = _isRealtimeConnected;
-        _isRealtimeConnected =
-            MobileRealtimeService.instance.isRealtimeHealthy;
+        _isRealtimeConnected = MobileRealtimeService.instance.isRealtimeHealthy;
 
         if (_isRealtimeConnected && !wasHealthy) {
           await fetchArchivedThreads(notify: false);
@@ -670,7 +680,8 @@ class MessagingProvider extends ChangeNotifier {
         await fetchGroups(notify: false);
         await refreshUnreadCount(notify: false);
         final activeRoomId = _activeGroupId;
-        if (activeRoomId != null && !_rooms.any((room) => room.roomId == activeRoomId)) {
+        if (activeRoomId != null &&
+            !_rooms.any((room) => room.roomId == activeRoomId)) {
           _threadRevision += 1;
           _isLoading = false;
           _isViewingThread = false;
@@ -746,8 +757,9 @@ class MessagingProvider extends ChangeNotifier {
         _privatePreview = message;
       }
 
-      final privateCounterpartyId =
-          senderId == _currentUserId ? receiverId : senderId;
+      final privateCounterpartyId = senderId == _currentUserId
+          ? receiverId
+          : senderId;
       final activeCounterpartyId = _counterpartyId.trim();
       final isCurrentPrivateCounterparty =
           activeCounterpartyId.isEmpty ||
@@ -1040,8 +1052,10 @@ class MessagingProvider extends ChangeNotifier {
     );
 
     _rooms.sort((left, right) {
-      final leftTime = left.lastSentAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final rightTime = right.lastSentAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final leftTime =
+          left.lastSentAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final rightTime =
+          right.lastSentAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       return rightTime.compareTo(leftTime);
     });
   }
@@ -1075,21 +1089,27 @@ class MessagingProvider extends ChangeNotifier {
     final lower = text.toLowerCase();
 
     if (lower.contains('timeout')) {
-      return 'The messaging server took too long to respond. Try again.';
+      return 'Messages are taking longer than expected. Try again.';
+    }
+
+    if (lower.contains('too long') ||
+        lower.contains('maximum length') ||
+        lower.contains('5000')) {
+      return 'Your message is too long. Shorten it and try again.';
     }
 
     if (lower.contains('socket') ||
         lower.contains('connection') ||
         lower.contains('network') ||
         lower.contains('failed host lookup')) {
-      return 'Messaging is temporarily offline. Check your connection and retry.';
+      return 'We could not connect to messages. Check your connection and try again.';
     }
 
     if (lower.contains('401') || lower.contains('unauthorized')) {
       return 'Your session expired. Sign in again to continue messaging.';
     }
 
-    return text.isEmpty ? 'Unable to load messages.' : text;
+    return 'We could not complete that messaging action. Try again.';
   }
 
   void _notify() {

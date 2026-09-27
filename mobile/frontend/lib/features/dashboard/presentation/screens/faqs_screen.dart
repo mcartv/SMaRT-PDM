@@ -80,8 +80,9 @@ class _FaqsScreenState extends State<FaqsScreen> {
       });
     } catch (error) {
       if (!mounted) return;
+      debugPrint('FAQ LOAD ERROR: $error');
       if (!silent || _faqs.isEmpty) {
-        setState(() => _error = error.toString());
+        setState(() => _error = 'We could not load the FAQs. Check your connection and try again.');
       }
     } finally {
       _fetchInProgress = false;
@@ -133,20 +134,20 @@ class _FaqsScreenState extends State<FaqsScreen> {
           padding: const EdgeInsets.only(top: 12, bottom: 20),
           children: [
             AppSurfaceCard(
-              padding: const EdgeInsets.all(AppSpacing.xl),
+              padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Scholarship Help Center',
-                    style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                    'How can we help?',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w900,
                       color: titleColor,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Browse the most common questions from applicants and scholars. Pull down to refresh any time.',
+                    'Search common questions about applications, scholarships, and scholar services.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       height: 1.45,
                       color: subtitleColor,
@@ -159,7 +160,7 @@ class _FaqsScreenState extends State<FaqsScreen> {
                       setState(() => _searchQuery = value);
                     },
                     decoration: InputDecoration(
-                      hintText: 'Search questions or answers',
+                      hintText: 'Search FAQs',
                       prefixIcon: const Icon(Icons.search),
                       suffixIcon: _searchQuery.isEmpty
                           ? null
@@ -177,8 +178,8 @@ class _FaqsScreenState extends State<FaqsScreen> {
                   const SizedBox(height: 12),
                   Text(
                     _searchQuery.trim().isEmpty
-                        ? '${_faqs.length} questions available'
-                        : '${filteredFaqs.length} matching questions',
+                        ? '${_faqs.length} questions'
+                        : '${filteredFaqs.length} results',
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                       color: subtitleColor,
@@ -288,7 +289,7 @@ class _FaqsEmptyState extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Text(
-                isSearching ? 'No matching FAQ found' : 'No FAQs available yet',
+                isSearching ? 'No matching questions' : 'No FAQs are available yet',
                 style: Theme.of(context).textTheme.titleMedium,
                 textAlign: TextAlign.center,
               ),

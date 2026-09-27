@@ -22,7 +22,7 @@ test('application form editing follows lifecycle and persisted verification stat
   );
   assert.match(
     service,
-    /const canEdit\s*=\s*lifecycleCanEdit\s*&&\s*!applicationFormAwaitingVerification\s*&&\s*applicationFormReviewStatus !== 'verified';/s
+    /const canEdit\s*=\s*lifecycleCanEdit\s*&&\s*!applicationFormAwaitingVerification\s*&&\s*applicationFormReviewStatus !== 'verified'\s*&&\s*!verifiedRequirementLocked;/s
   );
 });
 

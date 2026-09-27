@@ -368,35 +368,40 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
                               },
                             ),
                             const SizedBox(height: 18),
-                            SizedBox(
-                              height: 52,
-                              child: FilledButton(
-                                onPressed: _loading ? null : _checkStudent,
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: AppColors.gold,
-                                  foregroundColor: AppColors.darkBrown,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(17),
-                                  ),
+                            FilledButton(
+                              onPressed: _loading ? null : _checkStudent,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.gold,
+                                foregroundColor: AppColors.darkBrown,
+                                minimumSize: const Size.fromHeight(52),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 14,
                                 ),
-                                child: _loading
-                                    ? const SizedBox(
-                                        width: 22,
-                                        height: 22,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: AppColors.darkBrown,
-                                        ),
-                                      )
-                                    : Text(
-                                        _isExisting
-                                            ? 'Continue to Login'
-                                            : 'Continue to Registration',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(17),
+                                ),
                               ),
+                              child: _loading
+                                  ? const SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: AppColors.darkBrown,
+                                      ),
+                                    )
+                                  : Text(
+                                      _isExisting
+                                          ? 'Continue to Login'
+                                          : 'Continue to Registration',
+                                      textAlign: TextAlign.center,
+                                      maxLines: 2,
+                                      softWrap: true,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
                             ),
                             const SizedBox(height: 12),
                             TextButton(

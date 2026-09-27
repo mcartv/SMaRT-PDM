@@ -38,8 +38,9 @@ test('GWA requirement is shown only from configured opening data', () => {
   assert.match(openings, /GWA requirement:/);
 });
 
-test('benefactor is presented without a nested description card', () => {
-  assert.match(openings, /Supported by/);
+test('benefactor metadata is not shown as a Supported by line on applicant opening cards', () => {
+  assert.doesNotMatch(openings, /Supported by/);
+  assert.doesNotMatch(openings, /Icons\.handshake_outlined/);
   assert.doesNotMatch(openings, /benefactorDescription/);
 });
 

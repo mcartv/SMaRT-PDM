@@ -145,7 +145,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       case _NotificationFilter.payouts:
         return 'Payouts';
       case _NotificationFilter.ro:
-        return 'RO';
+        return 'Obligation';
     }
   }
 
@@ -220,6 +220,42 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     return AppColors.gold;
+  }
+
+  String _notificationTypeLabel(AppNotification notification) {
+    final type = notification.type.toLowerCase();
+    final title = notification.title.toLowerCase();
+    final referenceType = (notification.referenceType ?? '').toLowerCase();
+
+    if (notification.isPayoutNotification ||
+        type.contains('payout') ||
+        title.contains('payout')) {
+      return 'Payout';
+    }
+    if (_isRenewalNotification(notification)) return 'Renewal';
+    if (_isRoNotification(notification)) return 'Obligation';
+    if (notification.isAnnouncementNotification ||
+        referenceType.contains('announcement') ||
+        type.contains('announcement')) {
+      return 'Announcement';
+    }
+    if (notification.isOpeningUpdate ||
+        referenceType.contains('opening') ||
+        type.contains('opening')) {
+      return 'Scholarship Opening';
+    }
+    if (type.contains('document') || title.contains('document')) {
+      return 'Documents';
+    }
+    if (type.contains('application') || title.contains('application')) {
+      return 'Application';
+    }
+    if (type.contains('message') ||
+        referenceType.contains('message') ||
+        referenceType.contains('chat')) {
+      return 'Message';
+    }
+    return 'Update';
   }
 
   String _formatTime(DateTime value) {
@@ -440,9 +476,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     } catch (error) {
       if (!mounted) return;
 
+      debugPrint('NOTIFICATION DELETE ERROR: $error');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to delete notification: $error'),
+        const SnackBar(
+          content: Text('We could not delete this notification. Try again.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -684,9 +721,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         _MetaChip(
-                          label: notification.type.trim().isEmpty
-                              ? 'General'
-                              : notification.type.trim(),
+                          label: _notificationTypeLabel(notification),
                           color: accent,
                         ),
                         Text(

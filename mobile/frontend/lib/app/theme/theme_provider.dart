@@ -5,7 +5,7 @@ class ThemeProvider extends ChangeNotifier {
   static const _appearancePrefsKey = 'appearance_mode';
   static const _legacyDarkModePrefsKey = 'dark_mode_enabled';
 
-  ThemeMode _themeMode = ThemeMode.system;
+  ThemeMode _themeMode = ThemeMode.light;
   bool _isLoaded = false;
 
   ThemeMode get themeMode => _themeMode;
@@ -15,14 +15,7 @@ class ThemeProvider extends ChangeNotifier {
   bool get isDarkMode => _themeMode == ThemeMode.dark;
 
   String get appearanceLabel {
-    switch (_themeMode) {
-      case ThemeMode.light:
-        return 'Light';
-      case ThemeMode.dark:
-        return 'Dark';
-      case ThemeMode.system:
-        return 'System';
-    }
+    return _themeMode == ThemeMode.dark ? 'Dark' : 'Light';
   }
 
   ThemeProvider({
@@ -30,7 +23,9 @@ class ThemeProvider extends ChangeNotifier {
     bool? initialDarkMode,
   }) {
     if (initialThemeMode != null) {
-      _themeMode = initialThemeMode;
+      _themeMode = initialThemeMode == ThemeMode.dark
+          ? ThemeMode.dark
+          : ThemeMode.light;
       _isLoaded = true;
       return;
     }
@@ -46,26 +41,11 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   static ThemeMode _parseMode(String? value) {
-    switch (value) {
-      case 'light':
-        return ThemeMode.light;
-      case 'dark':
-        return ThemeMode.dark;
-      case 'system':
-      default:
-        return ThemeMode.system;
-    }
+    return value == 'dark' ? ThemeMode.dark : ThemeMode.light;
   }
 
   static String _serializeMode(ThemeMode mode) {
-    switch (mode) {
-      case ThemeMode.light:
-        return 'light';
-      case ThemeMode.dark:
-        return 'dark';
-      case ThemeMode.system:
-        return 'system';
-    }
+    return mode == ThemeMode.dark ? 'dark' : 'light';
   }
 
   static Future<ThemeProvider> loadFromPreferences() async {
@@ -87,7 +67,7 @@ class ThemeProvider extends ChangeNotifier {
       );
     }
 
-    return ThemeProvider(initialThemeMode: ThemeMode.system);
+    return ThemeProvider(initialThemeMode: ThemeMode.light);
   }
 
   Future<void> _load() async {
@@ -98,24 +78,25 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   Future<void> setThemeMode(ThemeMode value) async {
-    if (_themeMode == value) return;
+    final normalized = value == ThemeMode.dark
+        ? ThemeMode.dark
+        : ThemeMode.light;
+    if (_themeMode == normalized) return;
 
-    _themeMode = value;
+    _themeMode = normalized;
     notifyListeners();
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
       _appearancePrefsKey,
-      _serializeMode(value),
+      _serializeMode(normalized),
     );
 
     // Keep the old preference synchronized for older builds.
-    if (value != ThemeMode.system) {
-      await prefs.setBool(
-        _legacyDarkModePrefsKey,
-        value == ThemeMode.dark,
-      );
-    }
+    await prefs.setBool(
+      _legacyDarkModePrefsKey,
+      normalized == ThemeMode.dark,
+    );
   }
 
   // Compatibility path for older callers.

@@ -46,6 +46,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
   NotificationProvider? _notificationProvider;
   int _lastPayoutRevision = 0;
   final Set<String> _uploadingProofs = <String>{};
+  final Set<String> _expandedPayouts = <String>{};
   Timer? _liveSyncTimer;
   bool _fetchInProgress = false;
   bool _pendingLiveRefresh = false;
@@ -121,11 +122,18 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
       setState(() {
         _payouts = items;
         _error = null;
+        _expandedPayouts.removeWhere(
+          (id) => !items.any((item) => item.payoutEntryId == id),
+        );
       });
     } catch (e) {
       if (!mounted) return;
       if (!silent || _payouts.isEmpty) {
-        setState(() => _error = e.toString());
+        debugPrint('PAYOUT LOAD ERROR: $e');
+        setState(
+          () => _error =
+              'We could not load your payout details. Check your connection and try again.',
+        );
       }
     } finally {
       _fetchInProgress = false;
@@ -280,7 +288,10 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
       await _loadPayouts(silent: true);
     } catch (error) {
       if (!mounted) return;
-      _showMessage(error.toString());
+      debugPrint('PAYOUT PROOF UPLOAD ERROR: $error');
+      _showMessage(
+        'We could not upload your payout proof. Check the file and try again.',
+      );
     } finally {
       if (mounted) {
         setState(() => _uploadingProofs.remove(payout.payoutEntryId));
@@ -302,7 +313,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
 
     final uri = Uri.tryParse(fileUrl);
     if (uri == null || !uri.hasScheme) {
-      _showMessage('The uploaded proof URL is invalid.');
+      _showMessage('This proof cannot be opened right now. Try again later.');
       return;
     }
 
@@ -412,6 +423,21 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  String _proofStatusLabel(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'verified':
+        return 'Verified';
+      case 'rejected':
+      case 'resubmission required':
+        return 'New Proof Needed';
+      case 'pending':
+      case 'pending review':
+        return 'Under Review';
+      default:
+        return status.trim().isEmpty ? 'Under Review' : status;
+    }
+  }
+
   AppStatusTone _proofStatusTone(String status) {
     switch (status.trim().toLowerCase()) {
       case 'verified':
@@ -455,7 +481,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
               final stackHeader =
                   constraints.maxWidth < 300 || textScale > 1.25;
               final title = Text(
-                proof == null ? 'Proof of Payout Required' : 'Proof of Payout',
+                proof == null ? 'Payout Proof Needed' : 'Payout Proof',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.w700,
                   color: titleColor,
@@ -464,7 +490,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
               final status = proof == null
                   ? null
                   : AppStatusCapsule(
-                      label: proof.status,
+                      label: _proofStatusLabel(proof.status),
                       tone: _proofStatusTone(proof.status),
                       compact: true,
                     );
@@ -496,7 +522,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
           const SizedBox(height: 6),
           Text(
             proof == null
-                ? 'Your payout has been released. Please upload your proof of payout for verification by OSFA.'
+                ? 'Your payout has been released. Upload your proof so OSFA can review it.'
                 : (proof.fileName?.trim().isNotEmpty == true
                       ? proof.fileName!
                       : 'Proof submitted'),
@@ -507,7 +533,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
           if (feedback.isNotEmpty) ...[
             const SizedBox(height: 5),
             Text(
-              'Admin feedback: $feedback',
+              'OSFA Feedback: $feedback',
               style: Theme.of(
                 context,
               ).textTheme.labelMedium?.copyWith(color: subtitleColor),
@@ -675,7 +701,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
               AppSectionHeading(
                 title: 'Payout Schedule',
                 subtitle:
-                    'Track payout dates, release status, and Proof of Payout review.',
+                    'View current and previous payout releases. Tap a payout to see its full details.',
               ),
               const SizedBox(height: AppSpacing.md),
 
@@ -696,7 +722,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                       ),
                       const SizedBox(height: AppSpacing.md),
                       Text(
-                        'Failed to load payout schedule.',
+                        'Unable to load payouts',
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
                               fontWeight: FontWeight.w800,
@@ -742,58 +768,58 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                   itemCount: _payouts.length,
                   itemBuilder: (context, index) {
                     final payout = _payouts[index];
+                    final isExpanded = _expandedPayouts.contains(payout.payoutEntryId);
                     return AppSurfaceCard(
                       margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                      padding: EdgeInsets.zero,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildPayoutHeader(payout, titleColor, subtitleColor),
-                          const SizedBox(height: 14),
-                          const Divider(),
-                          const SizedBox(height: 10),
-                          _infoRow(
-                            'Payout Date',
-                            _formatPayoutDate(payout.payoutDate),
-                            subtitleColor,
-                          ),
-                          _infoRow(
-                            'Semester',
-                            payout.semester.isEmpty ? '-' : payout.semester,
-                            subtitleColor,
-                          ),
-                          _infoRow(
-                            'School Year',
-                            payout.schoolYear.isEmpty ? '-' : payout.schoolYear,
-                            subtitleColor,
-                          ),
-                          _infoRow(
-                            'Payout Mode',
-                            payout.paymentMode.isEmpty
-                                ? '-'
-                                : payout.paymentMode,
-                            subtitleColor,
-                          ),
-                          if (payout.paymentMode.trim().toLowerCase() ==
-                                  'other' &&
-                              payout.payoutType.trim().isNotEmpty)
-                            _infoRow(
-                              'Payout Type',
-                              payout.payoutType,
-                              subtitleColor,
+                          InkWell(
+                            onTap: () => setState(() {
+                              if (isExpanded) {
+                                _expandedPayouts.remove(payout.payoutEntryId);
+                              } else {
+                                _expandedPayouts
+                                  ..clear()
+                                  ..add(payout.payoutEntryId);
+                              }
+                            }),
+                            borderRadius: AppRadii.card,
+                            child: Padding(
+                              padding: const EdgeInsets.all(AppSpacing.md),
+                              child: _buildPayoutHeader(
+                                payout, titleColor, subtitleColor,
+                                isExpanded: isExpanded,
+                              ),
                             ),
-                          _infoRow(
-                            'Batch Status',
-                            payout.batchStatus.isEmpty
-                                ? '-'
-                                : payout.batchStatus,
-                            subtitleColor,
                           ),
-                          _infoRow(
-                            'Payout Code',
-                            payout.payoutCode.isEmpty ? '-' : payout.payoutCode,
-                            subtitleColor,
+                          AnimatedSize(
+                            duration: const Duration(milliseconds: 220),
+                            curve: Curves.easeOutCubic,
+                            child: isExpanded
+                                ? Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      AppSpacing.md, 0, AppSpacing.md, AppSpacing.md),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Divider(),
+                                        const SizedBox(height: 10),
+                                        _infoRow('Payout Date', _formatPayoutDate(payout.payoutDate), subtitleColor),
+                                        _infoRow('Semester', payout.semester.isEmpty ? '-' : payout.semester, subtitleColor),
+                                        _infoRow('School Year', payout.schoolYear.isEmpty ? '-' : payout.schoolYear, subtitleColor),
+                                        _infoRow('Payment Method', payout.paymentMode.isEmpty ? '-' : payout.paymentMode, subtitleColor),
+                                        if (payout.paymentMode.trim().toLowerCase() == 'other' && payout.payoutType.trim().isNotEmpty)
+                                          _infoRow('Payment Method Details', payout.payoutType, subtitleColor),
+                                        _infoRow('Batch Status', payout.batchStatus.isEmpty ? '-' : payout.batchStatus, subtitleColor),
+                                        _infoRow('Payout Code', payout.payoutCode.isEmpty ? '-' : payout.payoutCode, subtitleColor),
+                                        _buildProofSection(payout, titleColor, subtitleColor),
+                                      ],
+                                    ),
+                                  )
+                                : const SizedBox.shrink(),
                           ),
-                          _buildProofSection(payout, titleColor, subtitleColor),
                         ],
                       ),
                     );
@@ -849,8 +875,9 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
   Widget _buildPayoutHeader(
     MobilePayoutItem payout,
     Color titleColor,
-    Color subtitleColor,
-  ) {
+    Color subtitleColor, {
+    required bool isExpanded,
+  }) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final textScale = MediaQuery.textScalerOf(context).scale(1);
@@ -875,6 +902,17 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
+                  Text(
+                    [
+                      if (payout.semester.trim().isNotEmpty) payout.semester.trim(),
+                      if (payout.schoolYear.trim().isNotEmpty) 'AY ${payout.schoolYear.trim()}',
+                    ].join(' - '),
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: titleColor,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
                   Text(
                     payout.programName,
                     style: Theme.of(
@@ -908,10 +946,21 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
               ),
             ),
             const SizedBox(height: 4),
-            AppStatusCapsule(
-              label: payout.status,
-              tone: _statusTone(payout.status),
-              compact: true,
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppStatusCapsule(
+                  label: payout.status,
+                  tone: _statusTone(payout.status),
+                  compact: true,
+                ),
+                const SizedBox(width: 8),
+                AnimatedRotation(
+                  turns: isExpanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 180),
+                  child: Icon(Icons.keyboard_arrow_down_rounded, color: subtitleColor),
+                ),
+              ],
             ),
           ],
         );

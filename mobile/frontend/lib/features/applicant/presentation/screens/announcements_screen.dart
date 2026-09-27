@@ -79,12 +79,11 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
       });
     } catch (error) {
       if (!mounted) return;
+      debugPrint('ANNOUNCEMENT LOAD ERROR: $error');
       if (!silent || _announcements.isEmpty) {
         setState(() {
-          _errorMessage = error
-              .toString()
-              .replaceFirst('Exception: ', '')
-              .trim();
+          _errorMessage =
+              'We could not load announcements. Check your connection and try again.';
         });
       }
     } finally {
@@ -141,7 +140,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
       case 'all':
         return 'All';
       default:
-        return 'Targeted';
+        return 'For You';
     }
   }
 
@@ -151,7 +150,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
         return AppStatusTone.inProgress;
       case 'Scholars':
         return AppStatusTone.brand;
-      case 'Targeted':
+      case 'For You':
         return AppStatusTone.actionRequired;
       default:
         return AppStatusTone.neutral;
@@ -193,7 +192,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                       _buildFilterChip('All'),
                       _buildFilterChip('Applicants'),
                       _buildFilterChip('Scholars'),
-                      _buildFilterChip('Targeted'),
+                      _buildFilterChip('For You'),
                     ],
                   ),
                 ),
@@ -209,13 +208,13 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                   AppSectionHeading(
                     title: 'Latest announcements',
                     subtitle:
-                        '${filtered.length} announcement${filtered.length == 1 ? '' : 's'} in this view',
+                        '${filtered.length} announcement${filtered.length == 1 ? '' : 's'}',
                   ),
                   const SizedBox(height: AppSpacing.md),
                   if (filtered.isEmpty)
                     AppSurfaceCard(
                       child: Text(
-                        'No announcements are available for this filter right now.',
+                        'No announcements match this filter right now.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: AppSurfacePalette.mutedText(context),
                         ),
@@ -287,7 +286,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
           const SizedBox(height: AppSpacing.md),
           FilledButton(
             onPressed: _loadAnnouncements,
-            child: const Text('Try Again'),
+            child: const Text('Try again'),
           ),
         ],
       ),
@@ -441,8 +440,8 @@ class _AnnouncementListCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Read announcement',
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            'Read more',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: Theme.of(context).colorScheme.primary,
               fontWeight: FontWeight.w800,
             ),

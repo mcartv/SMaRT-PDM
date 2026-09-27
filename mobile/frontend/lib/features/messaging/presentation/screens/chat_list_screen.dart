@@ -21,6 +21,9 @@ String _messagePreview(String? value, String fallback) {
 }
 
 // SMART-PDM_MOBILE_MESSAGING_LIST_RESPONSIVE_PHASE5_V1
+// SMART-PDM_MOBILE_MESSAGING_REFACTOR_FINAL_V1
+
+enum _MessageListFilter { all, unread, groups }
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
@@ -31,6 +34,9 @@ class ChatListScreen extends StatefulWidget {
 class _ChatListScreenState extends State<ChatListScreen> {
   Timer? _liveSyncTimer;
   bool _refreshing = false;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  _MessageListFilter _selectedFilter = _MessageListFilter.all;
 
   @override
   void initState() {
@@ -69,6 +75,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   void dispose() {
     _liveSyncTimer?.cancel();
     _liveSyncTimer = null;
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -148,11 +155,80 @@ class _ChatListScreenState extends State<ChatListScreen> {
     );
   }
 
+  String _conversationTime(DateTime? value) {
+    if (value == null) return '';
+    final local = value.toLocal();
+    final now = DateTime.now();
+    final sameDay =
+        local.year == now.year &&
+        local.month == now.month &&
+        local.day == now.day;
+    if (sameDay) {
+      final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+      final minute = local.minute.toString().padLeft(2, '0');
+      return '$hour:$minute ${local.hour >= 12 ? 'PM' : 'AM'}';
+    }
+    const months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[local.month - 1]} ${local.day}';
+  }
+
+  bool _matchesSearch(String title, String preview) {
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) return true;
+    return title.toLowerCase().contains(query) ||
+        preview.toLowerCase().contains(query);
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<MessagingProvider>();
     final titleColor = AppSurfacePalette.text(context);
     final mutedColor = AppSurfacePalette.mutedText(context);
+    final privatePreview = _messagePreview(
+      provider.privatePreview?.messageBody,
+      'Start a private conversation',
+    );
+    final privateMatches = _matchesSearch('OSFA Administrator', privatePreview);
+    final showPrivate =
+        !provider.isPrivateThreadArchived &&
+        _selectedFilter != _MessageListFilter.groups &&
+        (_selectedFilter != _MessageListFilter.unread ||
+            provider.privateUnreadCount > 0) &&
+        privateMatches;
+
+    final visibleRooms = provider.rooms
+        .where((room) {
+          if (_selectedFilter == _MessageListFilter.unread &&
+              room.unreadCount <= 0) {
+            return false;
+          }
+          final preview = _messagePreview(
+            room.lastMessage,
+            room.readOnly ? 'Previous group · read-only history' : 'Group chat',
+          );
+          return _matchesSearch(room.roomName, preview);
+        })
+        .toList(growable: false);
+
+    final showArchivedPrivateHint =
+        provider.isPrivateThreadArchived &&
+        _selectedFilter == _MessageListFilter.all &&
+        _searchQuery.trim().isEmpty;
+    final hasVisibleConversation =
+        showPrivate || visibleRooms.isNotEmpty || showArchivedPrivateHint;
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
@@ -160,7 +236,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => AppNavigator.goBackOrHome(context),
         ),
-        title: const Text('Chats'),
+        title: const Text('Messages'),
         centerTitle: false,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -186,81 +262,98 @@ class _ChatListScreenState extends State<ChatListScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.lg,
-              AppSpacing.lg,
+              AppSpacing.md,
               AppSpacing.lg,
               AppSpacing.xxl,
             ),
             children: [
-              _MessagesHeader(totalUnread: provider.unreadCount),
-              const SizedBox(height: 18),
-              Text(
-                'OSFA Support',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: titleColor,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Use this private conversation for questions, document concerns, and application follow-ups.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: mutedColor,
-                  height: 1.45,
+              TextField(
+                controller: _searchController,
+                onChanged: (value) => setState(() => _searchQuery = value),
+                decoration: InputDecoration(
+                  hintText: 'Search messages',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: _searchQuery.trim().isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Clear search',
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _searchQuery = '');
+                          },
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                  filled: true,
+                  fillColor: AppSurfacePalette.surfaceMuted(context),
+                  border: OutlineInputBorder(
+                    borderRadius: AppRadii.control,
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: AppRadii.control,
+                    borderSide: BorderSide(
+                      color: AppSurfacePalette.outline(context),
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
-              if (!provider.isPrivateThreadArchived)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _MessageFilterChip(
+                    label: 'All',
+                    selected: _selectedFilter == _MessageListFilter.all,
+                    onTap: () => setState(
+                      () => _selectedFilter = _MessageListFilter.all,
+                    ),
+                  ),
+                  _MessageFilterChip(
+                    label: 'Unread',
+                    count: provider.unreadCount,
+                    selected: _selectedFilter == _MessageListFilter.unread,
+                    onTap: () => setState(
+                      () => _selectedFilter = _MessageListFilter.unread,
+                    ),
+                  ),
+                  _MessageFilterChip(
+                    label: 'Groups',
+                    selected: _selectedFilter == _MessageListFilter.groups,
+                    onTap: () => setState(
+                      () => _selectedFilter = _MessageListFilter.groups,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (showPrivate)
                 _ConversationTile(
                   icon: Icons.support_agent_rounded,
                   title: 'OSFA Administrator',
-                  subtitle: _messagePreview(
-                    provider.privatePreview?.messageBody,
-                    'Direct support conversation',
-                  ),
+                  subtitle: privatePreview,
+                  timeLabel: _conversationTime(provider.privatePreview?.sentAt),
                   unreadCount: provider.privateUnreadCount,
+                  pinned: true,
                   onTap: _openAdminThread,
                   onArchive: _archivePrivateThread,
                 )
-              else
+              else if (showArchivedPrivateHint)
                 _ArchivedHint(onOpenArchived: _showArchivedThreads),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Scholarship Group Chats',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: titleColor,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                  if (provider.isLoading)
-                    const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Groups assigned by OSFA will appear here. Previous groups remain available as read-only history.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: mutedColor),
-              ),
-              const SizedBox(height: 12),
-              if (provider.rooms.isEmpty)
-                _EmptyGroupsCard(
-                  isLoading: provider.isLoading,
-                  errorMessage: provider.errorMessage,
-                  onRetry: _refreshMessaging,
+              if (showPrivate && visibleRooms.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Divider(color: AppSurfacePalette.outline(context)),
+                const SizedBox(height: 6),
+              ],
+              if (provider.isLoading && !hasVisibleConversation)
+                const Padding(
+                  padding: EdgeInsets.only(top: 42),
+                  child: Center(child: CircularProgressIndicator()),
                 )
-              else
-                ...provider.rooms.map(
+              else if (visibleRooms.isNotEmpty)
+                ...visibleRooms.map(
                   (room) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.only(bottom: 8),
                     child: _ConversationTile(
                       icon: room.readOnly
                           ? Icons.history_rounded
@@ -272,6 +365,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                             ? 'Previous group · read-only history'
                             : 'Group chat',
                       ),
+                      timeLabel: _conversationTime(room.lastSentAt),
                       unreadCount: room.readOnly ? 0 : room.unreadCount,
                       readOnly: room.readOnly,
                       onTap: () => _openGroupThread(room.roomId, room.roomName),
@@ -280,7 +374,34 @@ class _ChatListScreenState extends State<ChatListScreen> {
                           : () => _archiveGroup(room),
                     ),
                   ),
+                )
+              else if (!hasVisibleConversation)
+                _EmptyConversationState(
+                  filter: _selectedFilter,
+                  hasSearch: _searchQuery.trim().isNotEmpty,
+                  errorMessage: provider.errorMessage,
+                  onRetry: _refreshMessaging,
                 ),
+              if (provider.isLoading && hasVisibleConversation) ...[
+                const SizedBox(height: 8),
+                Center(
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              ],
+              if (provider.errorMessage != null && hasVisibleConversation) ...[
+                const SizedBox(height: 12),
+                Text(
+                  provider.errorMessage!,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: mutedColor),
+                ),
+              ],
             ],
           ),
         ),
@@ -289,39 +410,155 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 }
 
-class _MessagesHeader extends StatelessWidget {
-  const _MessagesHeader({required this.totalUnread});
-  final int totalUnread;
+class _MessageFilterChip extends StatelessWidget {
+  const _MessageFilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.count = 0,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final int count;
+
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const AppIconTile(icon: Icons.forum_rounded),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: selected
+          ? AppColors.gold.withValues(alpha: isDark ? 0.28 : 0.20)
+          : AppSurfacePalette.surface(context),
+      borderRadius: AppRadii.status,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadii.status,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 42),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+          decoration: BoxDecoration(
+            borderRadius: AppRadii.status,
+            border: Border.all(
+              color: selected
+                  ? AppColors.gold.withValues(alpha: 0.65)
+                  : AppSurfacePalette.outline(context),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Conversations',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppSurfacePalette.text(context),
-                  fontWeight: FontWeight.w900,
+                label,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: selected
+                      ? (isDark
+                            ? AppColors.applicantDarkText
+                            : AppColors.darkBrown)
+                      : AppSurfacePalette.text(context),
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: 3),
-              Text(
-                totalUnread > 0
-                    ? '$totalUnread unread message${totalUnread == 1 ? '' : 's'}'
-                    : 'You are all caught up.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppSurfacePalette.mutedText(context),
+              if (count > 0) ...[
+                const SizedBox(width: 7),
+                Container(
+                  constraints: const BoxConstraints(
+                    minWidth: 20,
+                    minHeight: 20,
+                  ),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  decoration: BoxDecoration(
+                    color: AppColors.gold,
+                    borderRadius: AppRadii.status,
+                  ),
+                  child: Text(
+                    count > 99 ? '99+' : '$count',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: AppColors.darkBrown,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),
-      ],
+      ),
+    );
+  }
+}
+
+class _EmptyConversationState extends StatelessWidget {
+  const _EmptyConversationState({
+    required this.filter,
+    required this.hasSearch,
+    required this.errorMessage,
+    required this.onRetry,
+  });
+
+  final _MessageListFilter filter;
+  final bool hasSearch;
+  final String? errorMessage;
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = errorMessage != null
+        ? 'Unable to load messages'
+        : hasSearch
+        ? 'No matching conversations'
+        : filter == _MessageListFilter.unread
+        ? 'No unread messages'
+        : filter == _MessageListFilter.groups
+        ? 'No group chats yet'
+        : 'No conversations yet';
+    final detail =
+        errorMessage ??
+        (hasSearch
+            ? 'Try another name or message.'
+            : filter == _MessageListFilter.groups
+            ? 'Group chats assigned to you will appear here.'
+            : filter == _MessageListFilter.unread
+            ? 'New unread conversations will appear here.'
+            : 'Your conversations will appear here.');
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 44, 12, 20),
+      child: Column(
+        children: [
+          AppIconTile(
+            icon: errorMessage != null
+                ? Icons.cloud_off_rounded
+                : Icons.chat_bubble_outline_rounded,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: AppSurfacePalette.text(context),
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            detail,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppSurfacePalette.mutedText(context),
+            ),
+          ),
+          if (errorMessage != null) ...[
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Try Again'),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -333,8 +570,10 @@ class _ConversationTile extends StatelessWidget {
     required this.subtitle,
     required this.unreadCount,
     required this.onTap,
+    this.timeLabel = '',
     this.onArchive,
     this.readOnly = false,
+    this.pinned = false,
   });
 
   final IconData icon;
@@ -342,8 +581,10 @@ class _ConversationTile extends StatelessWidget {
   final String subtitle;
   final int unreadCount;
   final VoidCallback onTap;
+  final String timeLabel;
   final Future<void> Function()? onArchive;
   final bool readOnly;
+  final bool pinned;
 
   @override
   Widget build(BuildContext context) {
@@ -351,7 +592,13 @@ class _ConversationTile extends StatelessWidget {
     final status = Theme.of(context).extension<AppStatusColors>()!;
 
     return Material(
-      color: hasUnread
+      color: pinned
+          ? AppColors.gold.withValues(
+              alpha: Theme.of(context).brightness == Brightness.dark
+                  ? 0.16
+                  : 0.10,
+            )
+          : hasUnread
           ? AppColors.gold.withValues(
               alpha: Theme.of(context).brightness == Brightness.dark
                   ? 0.12
@@ -366,7 +613,11 @@ class _ConversationTile extends StatelessWidget {
           padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
             borderRadius: AppRadii.card,
-            border: Border.all(color: AppSurfacePalette.outline(context)),
+            border: Border.all(
+              color: pinned
+                  ? AppColors.gold.withValues(alpha: 0.58)
+                  : AppSurfacePalette.outline(context),
+            ),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -377,14 +628,30 @@ class _ConversationTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: AppSurfacePalette.text(context),
-                        fontWeight: hasUnread
-                            ? FontWeight.w900
-                            : FontWeight.w700,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            softWrap: true,
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  color: AppSurfacePalette.text(context),
+                                  fontWeight: hasUnread || pinned
+                                      ? FontWeight.w900
+                                      : FontWeight.w700,
+                                ),
+                          ),
+                        ),
+                        if (pinned) ...[
+                          const SizedBox(width: 6),
+                          const Icon(
+                            Icons.push_pin_rounded,
+                            size: 16,
+                            color: AppColors.gold,
+                          ),
+                        ],
+                      ],
                     ),
                     if (readOnly) ...[
                       const SizedBox(height: AppSpacing.xs),
@@ -429,7 +696,18 @@ class _ConversationTile extends StatelessWidget {
               const SizedBox(width: AppSpacing.sm),
               Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
+                  if (timeLabel.isNotEmpty) ...[
+                    Text(
+                      timeLabel,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: AppSurfacePalette.mutedText(context),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                  ],
                   if (unreadCount > 0)
                     Container(
                       constraints: const BoxConstraints(
@@ -544,7 +822,7 @@ class _ArchivedThreadsSheet extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'Archived Messages',
+                    'Archived chats',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
@@ -615,65 +893,6 @@ class _ArchivedThreadsSheet extends StatelessWidget {
               ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _EmptyGroupsCard extends StatelessWidget {
-  const _EmptyGroupsCard({
-    required this.isLoading,
-    required this.errorMessage,
-    required this.onRetry,
-  });
-  final bool isLoading;
-  final String? errorMessage;
-  final Future<void> Function() onRetry;
-  @override
-  Widget build(BuildContext context) {
-    final status = Theme.of(context).extension<AppStatusColors>()!;
-    return AppSurfaceCard(
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      child: Column(
-        children: [
-          Icon(
-            errorMessage != null
-                ? Icons.cloud_off_rounded
-                : Icons.groups_outlined,
-            color: errorMessage != null ? status.dangerOutline : AppColors.gold,
-            size: 34,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            isLoading
-                ? 'Loading group chats...'
-                : errorMessage != null
-                ? 'Unable to load group chats'
-                : 'No group chats yet',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: AppSurfacePalette.text(context),
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            errorMessage ??
-                'Once OSFA adds you to a scholarship group, it will appear here.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppSurfacePalette.mutedText(context),
-              height: 1.4,
-            ),
-          ),
-          if (errorMessage != null) ...[
-            const SizedBox(height: 12),
-            TextButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Try Again'),
-            ),
-          ],
-        ],
       ),
     );
   }

@@ -737,6 +737,7 @@ class _StepFamilyState extends State<StepFamily> {
     required TextEditingController companyController,
     required String? selectedEducation,
     required ValueChanged<String> onEducationChanged,
+    Widget? helperActions,
   }) {
     return IntakeCard(
       margin: const EdgeInsets.only(bottom: 16),
@@ -752,6 +753,10 @@ class _StepFamilyState extends State<StepFamily> {
               fontSize: 19,
             ),
           ),
+          if (helperActions != null) ...[
+            const SizedBox(height: 12),
+            helperActions,
+          ],
           const SizedBox(height: 18),
           _row([
             _field(
@@ -1283,7 +1288,7 @@ class _StepFamilyState extends State<StepFamily> {
                 TextFormField(
                   style: intakeInputTextStyle(context),
                   controller: siblingOccupationController,
-                    readOnly: noSibling,
+                  readOnly: noSibling,
                   decoration: _dec(
                     'Occupation',
                     errorText: _requiredError(
@@ -1299,7 +1304,7 @@ class _StepFamilyState extends State<StepFamily> {
                 TextFormField(
                   style: intakeInputTextStyle(context),
                   controller: siblingCompanyController,
-                    readOnly: noSibling,
+                  readOnly: noSibling,
                   decoration: _dec(
                     'Company Name / Address',
                     errorText: _requiredError(
@@ -1313,9 +1318,9 @@ class _StepFamilyState extends State<StepFamily> {
           ),
         ),
         if (_showGuardianFields)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Wrap(
+          _personSection(
+            title: 'Guardian\'s Details',
+            helperActions: Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
@@ -1328,15 +1333,15 @@ class _StepFamilyState extends State<StepFamily> {
                     onPressed: () => _copyGuardian(relation),
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size(0, 52),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                     ),
-                    child: Text('Use $relation as Guardian'),
+                    child: Text('Use $relation'),
                   ),
               ],
             ),
-          ),
-        if (_showGuardianFields)
-          _personSection(
-            title: 'Guardian\'s Details',
             lastNameController: guardianLastNameController,
             firstNameController: guardianFirstNameController,
             middleNameController: guardianMiddleNameController,

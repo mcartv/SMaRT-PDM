@@ -188,7 +188,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Registry Record Found',
+            'Student Record Found',
             style: TextStyle(fontWeight: FontWeight.bold, color: textColor),
           ),
           const SizedBox(height: 8),

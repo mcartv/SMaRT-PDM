@@ -2,7 +2,7 @@ const adminRealtimeRelayService = require('./adminRealtimeRelayService');
 const { resolveAvatarUrl } = require('./avatarService');
 
 const MESSAGE_FIELDS =
-  'message_id, sender_id, receiver_id, room_id, subject, message_body, sent_at, is_read, attachment_url, unsent_at, unsent_by';
+  'message_id, sender_id, receiver_id, room_id, subject, message_body, sent_at, is_read, attachment_url, unsent_at, unsent_by, reply_to_message_id';
 
 const FETCH_PAGE_SIZE = 1000;
 
@@ -155,6 +155,9 @@ function mapMessageRow(row = {}, profiles = null) {
     unsent_at: row.unsent_at || null,
     unsentBy: row.unsent_by || null,
     unsent_by: row.unsent_by || null,
+
+    replyToMessageId: row.reply_to_message_id || null,
+    reply_to_message_id: row.reply_to_message_id || null,
 
     senderName: profile?.name || null,
     sender_name: profile?.name || null,
@@ -926,7 +929,13 @@ function emitAutoRestoreEvents({ restoredUserIds = [], roomId = null, senderId =
   }
 }
 
-async function createMessage({ senderId, receiverId, roomId, messageBody }) {
+async function createMessage({
+  senderId,
+  receiverId,
+  roomId,
+  messageBody,
+  replyToMessageId = null,
+}) {
   const trimmedBody = validateConversationMessageBody(messageBody);
   console.log('[MessageService] createMessage called', {
     senderId,
@@ -955,6 +964,7 @@ async function createMessage({ senderId, receiverId, roomId, messageBody }) {
         message_body: trimmedBody,
         subject: null,
         attachment_url: null,
+        reply_to_message_id: replyToMessageId || null,
       },
     ])
     .select(MESSAGE_FIELDS)
@@ -1146,6 +1156,22 @@ async function sendToFixedThread(userId, messageBody, counterpartyId = null) {
     senderId: userId,
     receiverId: supportUserId,
     messageBody,
+  });
+}
+
+async function sendToFixedThreadReply(
+  userId,
+  messageBody,
+  counterpartyId,
+  replyToMessageId
+) {
+  const supportUserId = await resolveSupportCounterpartyId(userId, counterpartyId);
+
+  return createMessage({
+    senderId: userId,
+    receiverId: supportUserId,
+    messageBody,
+    replyToMessageId,
   });
 }
 
@@ -1725,6 +1751,22 @@ async function sendRoomMessage(userId, roomId, messageBody) {
     senderId: userId,
     roomId,
     messageBody,
+  });
+}
+
+async function sendRoomMessageReply(
+  userId,
+  roomId,
+  messageBody,
+  replyToMessageId
+) {
+  await ensureRoomMember(userId, roomId);
+
+  return createMessage({
+    senderId: userId,
+    roomId,
+    messageBody,
+    replyToMessageId,
   });
 }
 
@@ -2356,6 +2398,7 @@ module.exports = {
 
   listFixedThread,
   sendToFixedThread,
+  sendToFixedThreadReply,
   markFixedThreadRead,
 
   listAdminConversations,
@@ -2372,6 +2415,7 @@ module.exports = {
   listRoomsForUser,
   fetchRoomThread,
   sendRoomMessage,
+  sendRoomMessageReply,
   markRoomThreadRead,
   fetchRoomMembers,
   leaveRoom,

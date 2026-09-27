@@ -222,21 +222,21 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
                   _MenuListTile(
                     icon: Icons.lock_reset_rounded,
                     title: 'Change Password',
-                    subtitle: 'Update account security',
+                    subtitle: 'Update your account password',
                     onTap: () => _openRoute(AppRoutes.forgotPassword),
                   ),
                   const Divider(height: 1, indent: 72),
                   _MenuListTile(
                     icon: Icons.alternate_email_rounded,
                     title: 'Registered Email',
-                    subtitle: 'Update your account email',
+                    subtitle: 'Manage your sign-in email',
                     onTap: () => _openRoute(AppRoutes.changeEmail),
                   ),
                   const Divider(height: 1, indent: 72),
                   _MenuListTile(
                     icon: Icons.palette_rounded,
                     title: 'Appearance',
-                    subtitle: 'System, light, or dark',
+                    subtitle: 'Choose system, light, or dark mode',
                     onTap: () => showAppearanceSheet(context),
                   ),
                 ],
@@ -255,14 +255,14 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
                   _MenuListTile(
                     icon: Icons.help_outline_rounded,
                     title: 'Frequently Asked Questions',
-                    subtitle: 'Answers about applications and scholarships',
+                    subtitle: 'Find answers about scholarships and the app',
                     onTap: () => _openRoute(AppRoutes.faqs),
                   ),
                   const Divider(height: 1, indent: 72),
                   _MenuListTile(
                     icon: Icons.explore_outlined,
                     title: 'Getting Started Guide',
-                    subtitle: 'Review the SMaRT-PDM application walkthrough',
+                    subtitle: 'Review how to use SMaRT-PDM',
                     onTap: () => showSmartPdmGettingStartedGuide(context),
                   ),
                   if (hasScholarAccess) ...[
@@ -270,7 +270,7 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
                     _MenuListTile(
                       icon: Icons.rule_rounded,
                       title: 'Scholar Responsibilities',
-                      subtitle: 'Scholar obligations and conduct requirements',
+                      subtitle: 'Review scholar requirements and conduct',
                       onTap: _openScholarResponsibilities,
                     ),
                   ],
@@ -278,7 +278,7 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
                   _MenuListTile(
                     icon: Icons.info_outline_rounded,
                     title: 'About SMaRT-PDM',
-                    subtitle: 'System purpose and OSFA information',
+                    subtitle: 'Learn about SMaRT-PDM, PDM, and OSFA',
                     onTap: () => _openRoute(AppRoutes.about),
                   ),
                 ],
@@ -302,8 +302,8 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
             const SizedBox(height: 14),
             Text(
               hasScholarAccess
-                  ? 'Scholar services are available from the navigation bar.'
-                  : 'Scholar-only services remain locked until your application is accepted and activated.',
+                  ? 'Payout, Obligation, and Renewal are available from the navigation bar.'
+                  : 'Scholar features become available after your scholarship is approved.',
               textAlign: TextAlign.center,
               style: Theme.of(
                 context,
@@ -412,14 +412,13 @@ class _ProfileSummaryCard extends StatelessWidget {
                   ),
                   child: Text(
                     scholarPrivilegeRemoved
-                        ? 'REMOVED'
+                        ? 'Scholar Access Removed'
                         : hasScholarAccess
-                        ? 'SCHOLAR'
-                        : 'APPLICANT',
+                        ? 'Scholar'
+                        : 'Applicant',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: AppColors.darkBrown,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 0.7,
                     ),
                   ),
                 ),

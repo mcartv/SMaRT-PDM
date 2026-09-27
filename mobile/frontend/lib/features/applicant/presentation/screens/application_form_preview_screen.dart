@@ -30,10 +30,12 @@ class _ApplicationFormPreviewScreenState
   bool _canEdit = false;
   bool _correctionRequested = false;
   bool _awaitingVerification = false;
+  bool _verifiedRequirementLocked = false;
   bool _loading = true;
   bool _isExportingPdf = false;
   String? _pdfError;
   String? _correctionComment;
+  String? _editabilityReason;
   String? _error;
 
   final Set<String> _expandedLongFields = <String>{};
@@ -114,7 +116,9 @@ class _ApplicationFormPreviewScreenState
           _canEdit = false;
           _correctionRequested = false;
           _awaitingVerification = false;
+          _verifiedRequirementLocked = false;
           _correctionComment = null;
+          _editabilityReason = null;
           _error = 'No submitted application is available yet.';
           _loading = false;
         });
@@ -140,7 +144,10 @@ class _ApplicationFormPreviewScreenState
         _canEdit = editability['can_edit'] == true;
         _correctionRequested = editability['correction_requested'] == true;
         _awaitingVerification = editability['awaiting_verification'] == true;
+        _verifiedRequirementLocked =
+            editability['verified_requirement_locked'] == true;
         _correctionComment = _optional(editability['correction_comment']);
+        _editabilityReason = _optional(editability['reason']);
         _loading = false;
       });
     } catch (error) {
@@ -185,6 +192,8 @@ class _ApplicationFormPreviewScreenState
         _canEdit = false;
         _correctionRequested = false;
         _awaitingVerification = true;
+        _verifiedRequirementLocked = false;
+        _editabilityReason = null;
       });
 
       await _load();
@@ -246,6 +255,7 @@ class _ApplicationFormPreviewScreenState
     if (_awaitingVerification) return 'Under Review';
     if (_correctionRequested) return 'Correction Needed';
     if (_canEdit) return 'Editing Available';
+    if (_verifiedRequirementLocked) return 'Form Locked';
     return 'Editing Closed';
   }
 
@@ -268,11 +278,19 @@ class _ApplicationFormPreviewScreenState
       return 'OSFA requested a correction. Note: $_correctionComment';
     }
 
+    if (_verifiedRequirementLocked) {
+      return 'One of your submitted requirements has already been verified, so your Application Form is now locked. You can still review or export it. If OSFA asks for a correction, editing will reopen.';
+    }
+
     if (_canEdit) {
       return 'You can update this application while editing is available.';
     }
 
-    return 'This application can no longer be edited.';
+    if (_editabilityReason != null) {
+      return _editabilityReason!;
+    }
+
+    return 'Editing is no longer available for this Application Form. You can still review or export it.';
   }
 
   String _text(String value) {

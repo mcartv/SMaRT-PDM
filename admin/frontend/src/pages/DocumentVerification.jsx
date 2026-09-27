@@ -150,18 +150,59 @@ const ACTIVE_IOT_OCR_STATUSES = new Set([
 const IOT_OCR_STATUS_POLL_INTERVAL_MS = 2000;
 
 const IOT_OCR_STATUS_MESSAGES = {
-  pending: 'Waiting for Raspberry Pi',
-  claimed: 'Raspberry Pi received the request',
-  previewing: 'Position the document on the Raspberry Pi',
-  focusing: 'Locking the fixed camera position',
-  capturing: 'Capturing once at fixed lens position 1.50',
-  processing: 'Preprocessing the capture and running OCR',
-  review_required: 'OCR ready for admin review',
+  pending: 'Waiting for capture',
+  claimed: 'Document captured',
+  previewing: 'Position the document on the scanner',
+  focusing: 'Preparing the camera',
+  capturing: 'Capturing the document',
+  processing: 'OCR processing continues in the background',
+  review_required: 'Ready for review',
   completed: 'OCR confirmed',
   cancelled: 'Capture cancelled',
-  failed: 'OCR failed',
+  failed: 'OCR unavailable',
   expired: 'OCR request expired',
 };
+
+const OCR_ERROR_MESSAGES = {
+  ENHANCED_OCR_PROVIDER_FAILED: 'The OCR service is temporarily unavailable.',
+  ENHANCED_OCR_RATE_LIMITED: 'The OCR service is temporarily busy.',
+  ENHANCED_OCR_TIMEOUT: 'The OCR service took too long to respond.',
+  OCR_PREVIEW_ACCESS_FAILED: 'The document preview could not be loaded.',
+  OCR_ARTIFACT_MISSING: 'The captured document is unavailable.',
+  OCR_CHECKSUM_MISMATCH: 'The captured document could not be verified.',
+};
+
+function humanOcrError(code, fallback = 'OCR could not complete this request.') {
+  return OCR_ERROR_MESSAGES[String(code || '').trim()] || fallback;
+}
+
+function operationalOcrStatus(request, candidate) {
+  const status = String(candidate?.status || request?.status || '').toLowerCase();
+  const retryAt = request?.processing_retry_at;
+  const attempts = Number(request?.processing_attempt_count || 0);
+  if (retryAt) return { label: 'Retry scheduled', detail: 'The captured document is preserved and will be retried automatically.', tone: 'warning' };
+  if (status === 'processing' && attempts > 0) return { label: 'Retrying OCR', detail: 'Using the existing captured document.', tone: 'warning' };
+  if (status === 'processing') return { label: 'Processing OCR', detail: 'OCR processing continues in the background.', tone: 'info' };
+  if (status === 'review_required') return { label: 'Ready for review', detail: 'Review the extracted information before confirming it.', tone: 'success' };
+  if (status === 'failed') {
+    return attempts >= 3
+      ? { label: 'Automatic retries unsuccessful', detail: 'You can retry OCR using the existing captured document.', tone: 'danger' }
+      : { label: 'OCR unavailable', detail: humanOcrError(request?.error_code || request?.processing_last_error_code), tone: 'danger' };
+  }
+  if (status === 'completed') return { label: 'OCR confirmed', detail: 'This OCR result has been confirmed.', tone: 'success' };
+  if (status) return { label: IOT_OCR_STATUS_MESSAGES[status] || 'OCR request active', detail: IOT_OCR_STATUS_MESSAGES[status] || 'The OCR request is active.', tone: 'info' };
+  return null;
+}
+
+function operationalToneClass(tone) {
+  return tone === 'success'
+    ? 'border-green-200 bg-green-50 text-green-800'
+    : tone === 'warning'
+      ? 'border-amber-200 bg-amber-50 text-amber-800'
+      : tone === 'danger'
+        ? 'border-red-200 bg-red-50 text-red-800'
+        : 'border-stone-200 bg-stone-50 text-stone-700';
+}
 
 function getActiveIotRequest(document = {}) {
   return document?.iot_ocr_request || document?.ocr_job || null;
@@ -1986,10 +2027,68 @@ function OCRPanel({
         )}
 
         {iotOcrError && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {iotOcrError}
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+            {humanOcrError(reviewCandidate?.error_code || getActiveIotRequest(activeDoc)?.error_code, iotOcrError)}
           </div>
         )}
+
+        {(() => {
+          const request = getActiveIotRequest(activeDoc);
+          const status = operationalOcrStatus(request, reviewCandidate);
+          const processing = reviewCandidate?.processing || {};
+          const evidence = processing.evidence;
+          if (!status && !reviewCandidate) return null;
+          return (
+            <section className="space-y-3 rounded-xl border border-stone-200 bg-white p-4" aria-labelledby="ocr-operational-status">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 id="ocr-operational-status" className="text-sm font-bold text-stone-900">OCR status</h3>
+                  <p className="mt-1 text-xs text-stone-600">{status?.detail || 'OCR information is available for review.'}</p>
+                </div>
+                {status && <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${operationalToneClass(status.tone)}`}>{status.label}</span>}
+              </div>
+
+              {activeDoc?.id === 'birth_certificate' && (processing.raw_text_status || processing.cell_extraction_status) && (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-lg border border-stone-200 px-3 py-2 text-xs">
+                    <p className="font-semibold text-stone-700">Structured OCR</p>
+                    <p className="mt-1 text-stone-600">{processing.cell_extraction_status === 'available' || processing.structured_value_source ? 'Ready' : processing.cell_extraction_status === 'unavailable' ? 'Unavailable' : 'Processing'}</p>
+                  </div>
+                  <div className="rounded-lg border border-stone-200 px-3 py-2 text-xs">
+                    <p className="font-semibold text-stone-700">Full-page OCR</p>
+                    <p className="mt-1 text-stone-600">{processing.raw_text_status === 'available' ? 'Ready' : processing.raw_text_status === 'unavailable' ? 'Unavailable' : 'Processing'}</p>
+                  </div>
+                </div>
+              )}
+
+              {evidence?.fields && (
+                <div className="grid gap-2 sm:grid-cols-3" aria-label="OCR evidence states">
+                  {Object.entries(evidence.fields).map(([fieldKey, item]) => (
+                    <div key={fieldKey} className="flex items-center justify-between gap-2 rounded-lg border border-stone-200 px-3 py-2 text-xs">
+                      <span className="text-stone-600">{fieldKey.replaceAll('_', ' ')}</span>
+                      <span className={item.state === 'confirmed' ? 'font-semibold text-green-700' : item.state === 'conflict' ? 'font-semibold text-red-700' : 'font-semibold text-amber-700'}>{item.state}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {(request?.request_id || request?.ocr_version || request?.processing_attempt_count || request?.processing_last_error_code) && (
+                <details className="rounded-lg border border-stone-200 px-3 py-2 text-xs text-stone-600">
+                  <summary className="cursor-pointer font-semibold text-stone-700">Technical details</summary>
+                  <dl className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-2">
+                    {request?.request_id && <><dt>Request ID</dt><dd className="truncate font-mono">{request.request_id}</dd></>}
+                    {request?.ocr_version && <><dt>OCR version</dt><dd>{request.ocr_version}</dd></>}
+                    {request?.document_key && <><dt>Document</dt><dd>{request.document_key.replaceAll('_', ' ')}</dd></>}
+                    {request?.processing_attempt_count != null && <><dt>Processing attempt</dt><dd>{request.processing_attempt_count}</dd></>}
+                    {request?.processing_retry_at && <><dt>Next retry</dt><dd>{new Date(request.processing_retry_at).toLocaleString()}</dd></>}
+                    {request?.processing_last_error_code && <><dt>Last OCR error</dt><dd>{humanOcrError(request.processing_last_error_code)}</dd></>}
+                    {processing.ocr_engine && <><dt>OCR provider</dt><dd>{processing.ocr_engine}</dd></>}
+                  </dl>
+                </details>
+              )}
+            </section>
+          );
+        })()}
 
         {['student_grade_forms', 'certificate_of_indigency'].includes(activeDoc?.id) && <ScannedDocumentPreview candidate={reviewCandidate} request={getActiveIotRequest(activeDoc)} documentKey={activeDoc.id} />}
 

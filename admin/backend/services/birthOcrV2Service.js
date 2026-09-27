@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const ocrComparison = require('./ocrComparison');
 
 const pool = require('../config/db');
 const supabase = require('../config/supabase');
@@ -777,10 +778,6 @@ function buildCandidate(result) {
     };
 }
 
-function comparableName(value) {
-    return String(value || '').replace(/\s+/g, ' ').trim().toUpperCase();
-}
-
 function proposalDisagreementIssues(cellFields, fullPageFields) {
     if (!cellFields || !fullPageFields) return [];
     const groups = [
@@ -790,13 +787,33 @@ function proposalDisagreementIssues(cellFields, fullPageFields) {
     ];
     return groups
         .filter(([, keys]) => keys.some((key) => (
-            comparableName(cellFields[key]) !== comparableName(fullPageFields[key])
+            ocrComparison.compareOcrValues(cellFields[key], fullPageFields[key]) === 'different'
         )))
         .map(([fieldKey]) => ({
             code: 'BIRTH_V2_SOURCE_DISAGREEMENT',
             field: fieldKey,
             message: 'Exact-cell and full-page Enhanced OCR proposals differ. Review this field against the private capture.',
         }));
+}
+
+function birthEvidence(cellFields, fullPageFields, fullPageAvailable, selectedFields) {
+    const fields = [
+        ['child_name', 'child_first_name', 'child_middle_name', 'child_last_name'],
+        ['mother_maiden_name', 'mothers_maiden_first', 'mothers_maiden_middle', 'mothers_maiden_last'],
+        ['father_name', 'father_first_name', 'father_middle_name', 'father_last_name'],
+    ];
+    const evidence = Object.fromEntries(fields.map(([fieldKey, ...keys]) => {
+        const primary = cellFields ? keys.map((key) => cellFields[key] || '').join(' ').trim() : selectedFields?.[fieldKey]?.raw_text || '';
+        const supporting = fullPageFields ? keys.map((key) => fullPageFields[key] || '').join(' ').trim() : '';
+        const comparison = fullPageAvailable
+            ? ocrComparison.compareOcrValues(primary, supporting)
+            : 'missing';
+        return [fieldKey, {
+            state: ocrComparison.evidenceState({ primary, supporting, supportingAvailable: fullPageAvailable }),
+            comparison,
+        }];
+    }));
+    return { fields: evidence, overall_state: ocrComparison.overallEvidenceState(evidence) };
 }
 
 function selectBirthV2Candidate({ cellGemini, fullPageGemini, diagnosticResult = null }) {
@@ -853,6 +870,7 @@ function selectBirthV2Candidate({ cellGemini, fullPageGemini, diagnosticResult =
         fields: selectedFields || {},
         diagnostic_only: !selectedFields,
         structured_value_source: structuredValueSource,
+        evidence: birthEvidence(cellFields, fullPageFields, Boolean(fullPageGemini?.ok), selectedFields || {}),
         validation_issues: validationIssues,
     };
 }
@@ -1009,6 +1027,7 @@ exports.completeUploads = async ({ requestId, deviceId, diagnostic = null }) => 
                 ? 'exact_cells'
                 : diagnosticResult.region_mode,
             registration_mode: diagnosticResult?.registration_mode || 'automatic',
+            evidence: selected.evidence,
         },
         claimedBy: deviceId,
     });

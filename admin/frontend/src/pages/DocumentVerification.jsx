@@ -2160,6 +2160,27 @@ function OCRPanel({
               </div>
             )}
 
+            {reviewCandidate?.processing?.evidence?.fields && (
+              <div className="rounded-lg border border-stone-200 bg-white px-3 py-2">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">Evidence state</p>
+                  <Badge className="border-stone-200 bg-stone-50 text-stone-700">
+                    {String(reviewCandidate.processing.evidence.overall_state || 'unavailable').replaceAll('_', ' ')}
+                  </Badge>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {Object.entries(reviewCandidate.processing.evidence.fields).map(([fieldKey, item]) => (
+                    <div key={fieldKey} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-stone-600">{fieldKey.replaceAll('_', ' ')}</span>
+                      <span className={`font-semibold ${item.state === 'conflict' ? 'text-red-700' : item.state === 'confirmed' ? 'text-green-700' : 'text-amber-700'}`}>
+                        {item.state}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className={birthShowReviewImage && !birthDiagnosticOnly
               ? 'grid items-start gap-5 2xl:grid-cols-[minmax(360px,0.95fr)_minmax(0,1.05fr)]'
               : 'space-y-4'}>

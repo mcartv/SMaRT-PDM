@@ -3,6 +3,7 @@ const scholarshipProgramService = require('../services/scholarshipProgramService
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
+const scholarshipBrandingService = require('../services/scholarshipBrandingService');
 
 function sendError(res, err, fallbackMessage) {
     const message = err?.message || fallbackMessage;
@@ -204,5 +205,68 @@ exports.updateBenefactor = async (req, res) => {
     } catch (err) {
         console.error('UPDATE BENEFACTOR CONTROLLER ERROR:', err);
         return sendError(res, err, 'Failed to update benefactor');
+    }
+};
+
+exports.uploadBenefactorBranding = async (req, res) => {
+    try {
+        const updated = await scholarshipBrandingService.uploadBrandingImage({
+            entityType: 'benefactor',
+            entityId: req.params.id,
+            slot: req.params.slot,
+            file: req.file,
+        });
+
+        await safeAudit({
+            req,
+            actionTaken: 'UPDATE_BENEFACTOR_BRANDING',
+            module: 'Maintenance - Scholarship Programs',
+            entityType: 'benefactor',
+            entityId: req.params.id,
+            description: `Updated benefactor ${req.params.slot}.`,
+            metadata: { slot: req.params.slot },
+        });
+
+        emitMaintenanceUpdated(req, {
+            module: 'scholarship-programs',
+            action: 'update-benefactor-branding',
+            id: req.params.id,
+        });
+
+        return res.status(200).json(updated);
+    } catch (err) {
+        console.error('UPLOAD BENEFACTOR BRANDING ERROR:', err);
+        return sendError(res, err, 'Failed to upload benefactor image');
+    }
+};
+
+exports.removeBenefactorBranding = async (req, res) => {
+    try {
+        const updated = await scholarshipBrandingService.removeBrandingImage({
+            entityType: 'benefactor',
+            entityId: req.params.id,
+            slot: req.params.slot,
+        });
+
+        await safeAudit({
+            req,
+            actionTaken: 'REMOVE_BENEFACTOR_BRANDING',
+            module: 'Maintenance - Scholarship Programs',
+            entityType: 'benefactor',
+            entityId: req.params.id,
+            description: `Removed benefactor ${req.params.slot}.`,
+            metadata: { slot: req.params.slot },
+        });
+
+        emitMaintenanceUpdated(req, {
+            module: 'scholarship-programs',
+            action: 'remove-benefactor-branding',
+            id: req.params.id,
+        });
+
+        return res.status(200).json(updated);
+    } catch (err) {
+        console.error('REMOVE BENEFACTOR BRANDING ERROR:', err);
+        return sendError(res, err, 'Failed to remove benefactor image');
     }
 };

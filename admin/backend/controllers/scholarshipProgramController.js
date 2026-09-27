@@ -2,6 +2,7 @@ const scholarshipProgramService = require('../services/scholarshipProgramService
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
+const scholarshipBrandingService = require('../services/scholarshipBrandingService');
 
 exports.getScholarshipPrograms = async (req, res) => {
     try {
@@ -86,6 +87,62 @@ exports.updateScholarshipProgram = async (req, res) => {
         res.status(500).json({
             message: err.message || 'Failed to update scholarship program',
             error: err.message || 'Unknown backend error',
+        });
+    }
+};
+
+
+exports.uploadProgramBranding = async (req, res) => {
+    try {
+        const updated = await scholarshipBrandingService.uploadBrandingImage({
+            entityType: 'program',
+            entityId: req.params.id,
+            slot: req.params.slot,
+            file: req.file,
+        });
+
+        const io = req.app.get('io');
+        socketEvents.maintenanceUpdated(io, {
+            module: 'programs',
+            action: 'update-branding',
+            id: req.params.id,
+            updated_at: new Date().toISOString(),
+        });
+
+        return res.status(200).json(updated);
+    } catch (err) {
+        console.error('UPLOAD PROGRAM BRANDING ERROR:', err);
+        const statusCode = Number(err?.statusCode || 500);
+        return res.status(statusCode >= 400 && statusCode < 600 ? statusCode : 500).json({
+            message: err.message || 'Failed to upload program image',
+            error: err.message || 'Failed to upload program image',
+        });
+    }
+};
+
+exports.removeProgramBranding = async (req, res) => {
+    try {
+        const updated = await scholarshipBrandingService.removeBrandingImage({
+            entityType: 'program',
+            entityId: req.params.id,
+            slot: req.params.slot,
+        });
+
+        const io = req.app.get('io');
+        socketEvents.maintenanceUpdated(io, {
+            module: 'programs',
+            action: 'remove-branding',
+            id: req.params.id,
+            updated_at: new Date().toISOString(),
+        });
+
+        return res.status(200).json(updated);
+    } catch (err) {
+        console.error('REMOVE PROGRAM BRANDING ERROR:', err);
+        const statusCode = Number(err?.statusCode || 500);
+        return res.status(statusCode >= 400 && statusCode < 600 ? statusCode : 500).json({
+            message: err.message || 'Failed to remove program image',
+            error: err.message || 'Failed to remove program image',
         });
     }
 };

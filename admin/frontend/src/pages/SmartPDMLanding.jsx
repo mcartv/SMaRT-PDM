@@ -32,10 +32,6 @@ import LandingInstitutionHeader from '@/components/landing/LandingInstitutionHea
 import pdmLogo from '../assets/pdm-logo.png';
 import pdmFacade from '../assets/PDM-Facade-optimized.jpg';
 import marilaoLogo from '../assets/MARILAO-LOGO-optimized.png';
-import bcPackagingLogo from '../assets/BC PACKAGING.png';
-import foodCraftersLogo from '../assets/FOOD CRAFTERS.png';
-import kaizenFoundationLogo from '../assets/KAIZEN-FOUNDATION-optimized.png';
-import pusongMapagkalingaLogo from '../assets/PUSONG MAPAGKALINGA.jpg';
 import mobileLoginScreenshot from '../assets/mobile-app/login-cropped.png';
 import mobileDashboardScreenshot from '../assets/mobile-app/dashboard-cropped.png';
 import mobileSubmittedScreenshot from '../assets/mobile-app/application-submitted-cropped.png';
@@ -87,12 +83,6 @@ function normalizePublicFeaturedNotices(value) {
     });
 }
 
-const benefactorLogos = {
-  'bc packaging': { src: bcPackagingLogo, scale: 1 },
-  'food crafters': { src: foodCraftersLogo, scale: 0.9 },
-  'kaizen foundation': { src: kaizenFoundationLogo, scale: 0.92 },
-  'pusong mapagkalinga': { src: pusongMapagkalingaLogo, scale: 1.7 },
-};
 
 const defaultFaqItems = [
   {
@@ -245,8 +235,7 @@ function NavDropdownLink({ href, title, onClick }) {
 }
 
 function BenefactorCard({ benefactor, theme }) {
-  const normalizedName = String(benefactor.benefactor_name || '').trim().toLowerCase();
-  const logo = benefactorLogos[normalizedName];
+  const landingImage = benefactor.landing_image_url || null;
 
   return (
     <div
@@ -259,14 +248,13 @@ function BenefactorCard({ benefactor, theme }) {
             className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-stone-200 bg-white p-1.5"
             aria-label={`${benefactor.benefactor_name} logo`}
           >
-            {logo ? (
+            {landingImage ? (
               <img
-                src={logo.src}
-                alt={`${benefactor.benefactor_name} logo`}
+                src={landingImage}
+                alt={`${benefactor.benefactor_name} public image`}
                 loading="lazy"
                 decoding="async"
-                className="h-full w-full object-contain"
-                style={{ transform: `scale(${logo.scale})` }}
+                className="h-full w-full object-cover"
               />
             ) : (
               <UserRound size={24} strokeWidth={1.5} className="text-stone-400" aria-label="No profile image available" />

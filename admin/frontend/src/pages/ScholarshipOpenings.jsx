@@ -69,6 +69,18 @@ const STATUS_META = {
     archived: { label: 'Archived', color: '#57534e', bg: '#f5f5f4' },
 };
 
+function getBenefactorInitials(name) {
+    const initials = String(name || '')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase())
+        .join('');
+
+    return initials || 'SP';
+}
+
 const INITIAL_FORM = {
     program_id: '',
     opening_title: '',
@@ -1054,11 +1066,28 @@ function PostCreatePrompt({ open, opening, onClose, onCreateAnnouncement }) {
 }
 
 function TemplateCard({ template, onOpen }) {
+    const templateLogoUrl = template.admin_logo_url || template.benefactor_admin_logo_url || null;
+    const templateInitials = getBenefactorInitials(template.program_name || template.benefactor_name);
+
     return (
         <Card className="rounded-2xl border-stone-200 bg-white shadow-none transition hover:border-stone-300">
             <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
+                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-stone-200 bg-white p-1.5">
+                            {templateLogoUrl ? (
+                                <img
+                                    src={templateLogoUrl}
+                                    alt={`${template.benefactor_name || 'Benefactor'} logo`}
+                                    className="h-full w-full object-contain"
+                                    loading="lazy"
+                                    decoding="async"
+                                />
+                            ) : (
+                                <span className="text-xs font-bold text-[var(--portal-base)]">{templateInitials}</span>
+                            )}
+                        </div>
+                        <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                             <h3 className="text-sm font-semibold text-stone-900">
                                 {template.program_name || 'Untitled Program'}
@@ -1085,6 +1114,7 @@ function TemplateCard({ template, onOpen }) {
                         <p className="mt-2 text-xs leading-relaxed text-stone-500">
                             {template.description || 'No description available.'}
                         </p>
+                        </div>
                     </div>
 
                     <Button
@@ -1170,6 +1200,8 @@ function OpeningCard({
     const meta = STATUS_META[computedStatus] || STATUS_META.draft;
     const audience = normalizeAudience(opening.target_audience) || 'Applicants';
     const audienceLabelValue = targetAudienceLabel(audience);
+    const benefactorLogoUrl = opening.admin_logo_url || null;
+    const benefactorInitials = getBenefactorInitials(opening.benefactor_name || opening.program_name);
 
     const allocatedSlots = getAllocatedSlots(opening);
     const filledSlots = getFilledSlots(opening);
@@ -1195,8 +1227,44 @@ function OpeningCard({
         >
             <CardContent className="p-0">
                 <div className="flex flex-col gap-3 border-b border-stone-100 px-4 py-3.5 lg:flex-row lg:items-start lg:justify-between sm:px-5">
-                    <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex min-w-0 flex-1 items-start gap-4">
+                        <div
+                            className="relative flex h-20 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl sm:h-28 sm:w-36"
+                            style={{
+                                background:
+                                    'linear-gradient(145deg, color-mix(in srgb, var(--portal-base) 92%, black 8%) 0%, color-mix(in srgb, var(--portal-accent) 82%, white 18%) 100%)',
+                            }}
+                        >
+                            <div aria-hidden="true" className="absolute -right-6 -top-7 h-20 w-20 rounded-full border border-white/15 bg-white/10" />
+                            <div aria-hidden="true" className="absolute -bottom-8 -left-5 h-24 w-24 rounded-full border border-white/10 bg-black/5" />
+                            <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-white/70 bg-white p-2.5 shadow-lg shadow-black/10">
+                                {benefactorLogoUrl ? (
+                                    <img
+                                        src={benefactorLogoUrl}
+                                        alt={`${opening.benefactor_name || 'Benefactor'} logo`}
+                                        loading="lazy"
+                                        decoding="async"
+                                        className="h-full w-full object-contain"
+                                    />
+                                ) : (
+                                    <span
+                                        className="text-xl font-bold tracking-tight"
+                                        style={{ color: 'var(--portal-base)' }}
+                                        aria-label={`${opening.benefactor_name || 'Scholarship'} initials`}
+                                    >
+                                        {benefactorInitials}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="absolute bottom-2 left-2 right-2 rounded-md bg-black/15 px-2 py-1 text-center backdrop-blur-sm">
+                                <p className="truncate text-[10px] font-semibold text-white">
+                                    {opening.benefactor_name || 'Scholarship Benefactor'}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
                             <h3 className="text-base font-semibold leading-6 text-stone-900">
                                 {opening.opening_title || 'Untitled Opening'}
                             </h3>
@@ -1227,6 +1295,7 @@ function OpeningCard({
                                 {audienceLabelValue}
                             </Badge>
                         </div>
+                    </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 lg:max-w-[55%] lg:justify-end">

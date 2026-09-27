@@ -82,8 +82,14 @@ function mapProgramRow(row) {
         benefactor_id: row.benefactor_id,
         benefactor_name: row.benefactors?.benefactor_name || null,
         benefactor_type: row.benefactors?.benefactor_type || null,
+        benefactor_admin_logo_url: row.benefactors?.admin_logo_url || null,
+        benefactor_landing_image_url: row.benefactors?.landing_image_url || null,
         program_name: row.program_name,
         description: row.description,
+        admin_logo_url: row.admin_logo_url || null,
+        admin_logo_path: row.admin_logo_path || null,
+        landing_image_url: row.landing_image_url || null,
+        landing_image_path: row.landing_image_path || null,
         target_audience: row.target_audience || 'Applicants',
         gwa_threshold: row.gwa_threshold ?? null,
         renewal_cycle: row.renewal_cycle,
@@ -102,6 +108,10 @@ exports.getScholarshipPrograms = async () => {
             benefactor_id,
             program_name,
             description,
+            admin_logo_url,
+            admin_logo_path,
+            landing_image_url,
+            landing_image_path,
             target_audience,
             gwa_threshold,
             renewal_cycle,
@@ -113,6 +123,8 @@ exports.getScholarshipPrograms = async () => {
                 benefactor_id,
                 benefactor_name,
                 benefactor_type,
+                admin_logo_url,
+                landing_image_url,
                 is_archived
             )
         `)
@@ -163,6 +175,10 @@ exports.createScholarshipProgram = async (payload = {}) => {
             benefactor_id,
             program_name,
             description,
+            admin_logo_url,
+            admin_logo_path,
+            landing_image_url,
+            landing_image_path,
             target_audience,
             gwa_threshold,
             renewal_cycle,
@@ -174,6 +190,8 @@ exports.createScholarshipProgram = async (payload = {}) => {
                 benefactor_id,
                 benefactor_name,
                 benefactor_type,
+                admin_logo_url,
+                landing_image_url,
                 is_archived
             )
         `)
@@ -256,6 +274,10 @@ exports.updateScholarshipProgram = async (programId, payload = {}) => {
             benefactor_id,
             program_name,
             description,
+            admin_logo_url,
+            admin_logo_path,
+            landing_image_url,
+            landing_image_path,
             target_audience,
             gwa_threshold,
             renewal_cycle,
@@ -267,6 +289,8 @@ exports.updateScholarshipProgram = async (programId, payload = {}) => {
                 benefactor_id,
                 benefactor_name,
                 benefactor_type,
+                admin_logo_url,
+                landing_image_url,
                 is_archived
             )
         `)

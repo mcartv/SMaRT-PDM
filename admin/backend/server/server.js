@@ -1,9 +1,10 @@
-﻿const path = require('path');
+const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const { ensureCanonicalIotOcrMigration } = require('../services/liveMigrationService');
 const { ensureSystemMaintenanceMigration } = require('../services/systemMaintenanceMigrationService'); // SMART-PDM_SYSTEM_MAINTENANCE_SERVER_V1
 const { ensureSystemActivityMigration } = require('../services/systemActivityMigrationService');
+const { ensureScholarshipBrandingMigration } = require('../services/scholarshipBrandingMigrationService');
 const socketIO = require('socket.io');
 
 if (process.env.NODE_ENV !== 'production') {
@@ -663,6 +664,7 @@ async function startServer() {
     await ensureCanonicalIotOcrMigration();
     await ensureSystemMaintenanceMigration();
     await ensureSystemActivityMigration();
+    await ensureScholarshipBrandingMigration();
     global._applicationIo = io;
     require('../services/ocrProcessingRecoveryService').start();
     systemActivityService.startMetricsFlushTimer();

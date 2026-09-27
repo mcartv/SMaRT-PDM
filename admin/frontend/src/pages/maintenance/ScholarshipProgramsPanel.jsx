@@ -23,6 +23,8 @@ import {
   RefreshCw,
   Save,
   Search,
+  Trash2,
+  Upload,
   X,
 } from 'lucide-react';
 import {
@@ -39,11 +41,14 @@ import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { confirmArchive } from '@/utils/confirmArchive';
 import { toast } from 'sonner';
+import BenefactorLogo from '@/components/scholarships/BenefactorLogo';
 
 const EMPTY_BENEFACTOR = {
   benefactor_name: '',
   benefactor_type: 'Public',
   description: '',
+  admin_logo_url: null,
+  landing_image_url: null,
   is_archived: false,
 };
 
@@ -51,6 +56,9 @@ const EMPTY_PROGRAM = {
   benefactor_id: '',
   program_name: '',
   description: '',
+  admin_logo_url: null,
+  landing_image_url: null,
+  benefactor_admin_logo_url: null,
   target_audience: 'Applicants',
   gwa_threshold: null,
   renewal_cycle: 'Semester',
@@ -161,6 +169,74 @@ function BenefactorFields({ form, setForm, includeArchive = true }) {
           placeholder="Optional notes about the scholarship provider..."
           className="min-h-[88px] resize-none rounded-lg border-stone-200 text-sm"
         />
+      </div>
+    </div>
+  );
+}
+
+function BrandingImageField({
+  label,
+  helper,
+  imageUrl,
+  fallbackName,
+  onUpload,
+  onRemove,
+  busy,
+  uploadLabel = 'Upload Image',
+}) {
+  const inputId = `branding-${String(label || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+
+  return (
+    <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <BenefactorLogo
+          src={imageUrl}
+          name={fallbackName}
+          className="h-16 w-16 rounded-2xl"
+          imageClassName="h-full w-full object-contain"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-stone-800">{label}</p>
+          <p className="mt-1 text-xs leading-5 text-stone-500">{helper}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <input
+              id={inputId}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              disabled={busy}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = '';
+                if (file) onUpload(file);
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 rounded-lg border-stone-200 px-3 text-xs"
+              disabled={busy}
+              onClick={() => document.getElementById(inputId)?.click()}
+            >
+              {busy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1.5 h-3.5 w-3.5" />}
+              {imageUrl ? 'Change Image' : uploadLabel}
+            </Button>
+            {imageUrl ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-lg border-red-200 px-3 text-xs text-red-600 hover:bg-red-50"
+                disabled={busy}
+                onClick={onRemove}
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                Remove
+              </Button>
+            ) : null}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -355,7 +431,13 @@ function latestBenefactorActivity(benefactor, programsByBenefactor) {
 function ProgramRow({ program, onEdit, onArchive }) {
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-stone-50/70 p-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0">
+      <div className="flex min-w-0 flex-1 items-start gap-3">
+        <BenefactorLogo
+          src={program.admin_logo_url || program.benefactor_admin_logo_url}
+          name={program.program_name || program.benefactor_name}
+          className="h-10 w-10"
+        />
+        <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <p className="truncate text-sm font-semibold text-stone-900">
             {program.program_name}
@@ -385,6 +467,7 @@ function ProgramRow({ program, onEdit, onArchive }) {
             {program.description}
           </p>
         ) : null}
+        </div>
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
@@ -422,6 +505,7 @@ export default function ScholarshipProgramsPanel() {
   const [programs, setPrograms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [brandingBusy, setBrandingBusy] = useState('');
   const [search, setSearch] = useState('');
   const [pageTab, setPageTab] = useState('current');
   const [expanded, setExpanded] = useState({});
@@ -466,6 +550,47 @@ export default function ScholarshipProgramsPanel() {
     }
 
     return data;
+  };
+
+  const uploadBranding = async ({ entity, id, slot, file }) => {
+    const busyKey = `${entity}:${id}:${slot}`;
+    try {
+      setBrandingBusy(busyKey);
+      const formData = new FormData();
+      formData.append('file', file);
+      const token = sessionStorage.getItem('adminToken');
+      const base = entity === 'benefactor' ? '/api/benefactors' : '/api/scholarship-program';
+      const response = await fetch(buildApiUrl(`${base}/${id}/branding/${slot}`), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || data.message || 'Image upload failed');
+      await loadAll();
+      return data;
+    } finally {
+      setBrandingBusy('');
+    }
+  };
+
+  const removeBranding = async ({ entity, id, slot }) => {
+    const busyKey = `${entity}:${id}:${slot}`;
+    try {
+      setBrandingBusy(busyKey);
+      const token = sessionStorage.getItem('adminToken');
+      const base = entity === 'benefactor' ? '/api/benefactors' : '/api/scholarship-program';
+      const response = await fetch(buildApiUrl(`${base}/${id}/branding/${slot}`), {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || data.message || 'Image removal failed');
+      await loadAll();
+      return data;
+    } finally {
+      setBrandingBusy('');
+    }
   };
 
   const loadAll = async () => {
@@ -630,6 +755,8 @@ export default function ScholarshipProgramsPanel() {
       benefactor_name: benefactor.benefactor_name || '',
       benefactor_type: benefactor.benefactor_type || 'Public',
       description: benefactor.description || '',
+      admin_logo_url: benefactor.admin_logo_url || null,
+      landing_image_url: benefactor.landing_image_url || null,
       is_archived: !!benefactor.is_archived,
     });
     setBenefactorModalOpen(true);
@@ -705,6 +832,9 @@ export default function ScholarshipProgramsPanel() {
       benefactor_id: program.benefactor_id || '',
       program_name: program.program_name || '',
       description: program.description || '',
+      admin_logo_url: program.admin_logo_url || null,
+      landing_image_url: program.landing_image_url || null,
+      benefactor_admin_logo_url: program.benefactor_admin_logo_url || null,
       target_audience: program.target_audience || 'Applicants',
       gwa_threshold:
         program.gwa_threshold === null || program.gwa_threshold === undefined
@@ -930,6 +1060,59 @@ export default function ScholarshipProgramsPanel() {
           setForm={setBenefactorForm}
           includeArchive
         />
+        <div className="mt-5 border-t border-stone-100 pt-4">
+          <div className="mb-3">
+            <p className="text-sm font-semibold text-stone-800">Benefactor Branding</p>
+            <p className="mt-1 text-xs text-stone-500">
+              Admin visuals are separate from public landing visuals. New benefactors have no image by default.
+            </p>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <BrandingImageField
+              label="Admin Logo"
+              helper="Used in Maintenance and Opening Registry. Programs inherit this logo unless they have their own override."
+              imageUrl={benefactorForm.admin_logo_url}
+              fallbackName={benefactorForm.benefactor_name}
+              busy={brandingBusy === `benefactor:${editingBenefactorId}:admin-logo`}
+              onUpload={async (file) => {
+                try {
+                  const data = await uploadBranding({ entity: 'benefactor', id: editingBenefactorId, slot: 'admin-logo', file });
+                  setBenefactorForm((previous) => ({ ...previous, admin_logo_url: data.admin_logo_url || null }));
+                  toast.success('Admin logo updated');
+                } catch (error) { toast.error(error.message || 'Failed to upload logo'); }
+              }}
+              onRemove={async () => {
+                try {
+                  await removeBranding({ entity: 'benefactor', id: editingBenefactorId, slot: 'admin-logo' });
+                  setBenefactorForm((previous) => ({ ...previous, admin_logo_url: null }));
+                  toast.success('Admin logo removed');
+                } catch (error) { toast.error(error.message || 'Failed to remove logo'); }
+              }}
+            />
+            <BrandingImageField
+              label="Landing Image"
+              helper="Reserved for the public landing experience and kept separate from the Admin logo."
+              imageUrl={benefactorForm.landing_image_url}
+              fallbackName={benefactorForm.benefactor_name}
+              busy={brandingBusy === `benefactor:${editingBenefactorId}:landing-image`}
+              uploadLabel="Upload Landing Image"
+              onUpload={async (file) => {
+                try {
+                  const data = await uploadBranding({ entity: 'benefactor', id: editingBenefactorId, slot: 'landing-image', file });
+                  setBenefactorForm((previous) => ({ ...previous, landing_image_url: data.landing_image_url || null }));
+                  toast.success('Landing image updated');
+                } catch (error) { toast.error(error.message || 'Failed to upload landing image'); }
+              }}
+              onRemove={async () => {
+                try {
+                  await removeBranding({ entity: 'benefactor', id: editingBenefactorId, slot: 'landing-image' });
+                  setBenefactorForm((previous) => ({ ...previous, landing_image_url: null }));
+                  toast.success('Landing image removed');
+                } catch (error) { toast.error(error.message || 'Failed to remove landing image'); }
+              }}
+            />
+          </div>
+        </div>
       </ModalShell>
 
       <ModalShell
@@ -974,6 +1157,61 @@ export default function ScholarshipProgramsPanel() {
           includeBenefactor={programMode === 'edit'}
           benefactors={benefactors.filter((row) => !row.is_archived)}
         />
+        {programMode === 'edit' && editingProgramId ? (
+          <div className="mt-5 border-t border-stone-100 pt-4">
+            <div className="mb-3">
+              <p className="text-sm font-semibold text-stone-800">Program Visuals</p>
+              <p className="mt-1 text-xs text-stone-500">
+                Leave Admin Logo empty to inherit the benefactor logo. Public landing imagery is managed separately.
+              </p>
+            </div>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <BrandingImageField
+                label="Admin Logo Override"
+                helper="Optional. Used only for this program in Admin views. Remove it to inherit the benefactor logo again."
+                imageUrl={programForm.admin_logo_url}
+                fallbackName={programForm.program_name}
+                busy={brandingBusy === `program:${editingProgramId}:admin-logo`}
+                onUpload={async (file) => {
+                  try {
+                    const data = await uploadBranding({ entity: 'program', id: editingProgramId, slot: 'admin-logo', file });
+                    setProgramForm((previous) => ({ ...previous, admin_logo_url: data.admin_logo_url || null }));
+                    toast.success('Program logo updated');
+                  } catch (error) { toast.error(error.message || 'Failed to upload program logo'); }
+                }}
+                onRemove={async () => {
+                  try {
+                    await removeBranding({ entity: 'program', id: editingProgramId, slot: 'admin-logo' });
+                    setProgramForm((previous) => ({ ...previous, admin_logo_url: null }));
+                    toast.success('Program logo override removed');
+                  } catch (error) { toast.error(error.message || 'Failed to remove program logo'); }
+                }}
+              />
+              <BrandingImageField
+                label="Landing Image Override"
+                helper="Optional public image for this program. It is never used as the Admin logo."
+                imageUrl={programForm.landing_image_url}
+                fallbackName={programForm.program_name}
+                busy={brandingBusy === `program:${editingProgramId}:landing-image`}
+                uploadLabel="Upload Landing Image"
+                onUpload={async (file) => {
+                  try {
+                    const data = await uploadBranding({ entity: 'program', id: editingProgramId, slot: 'landing-image', file });
+                    setProgramForm((previous) => ({ ...previous, landing_image_url: data.landing_image_url || null }));
+                    toast.success('Program landing image updated');
+                  } catch (error) { toast.error(error.message || 'Failed to upload landing image'); }
+                }}
+                onRemove={async () => {
+                  try {
+                    await removeBranding({ entity: 'program', id: editingProgramId, slot: 'landing-image' });
+                    setProgramForm((previous) => ({ ...previous, landing_image_url: null }));
+                    toast.success('Program landing image removed');
+                  } catch (error) { toast.error(error.message || 'Failed to remove landing image'); }
+                }}
+              />
+            </div>
+          </div>
+        ) : null}
       </ModalShell>
 
       <section className="rounded-2xl border border-stone-200 bg-white p-4">
@@ -1097,15 +1335,12 @@ export default function ScholarshipProgramsPanel() {
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <div
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-                          style={{
-                            background: 'var(--portal-accent-soft)',
-                            color: 'var(--portal-base)',
-                          }}
-                        >
-                          <Building2 className="h-4 w-4" />
-                        </div>
+                        <BenefactorLogo
+                          src={benefactor.admin_logo_url}
+                          name={benefactor.benefactor_name}
+                          className="h-10 w-10"
+                          showBuildingFallback
+                        />
                         <div className="min-w-0">
                           <h3 className="truncate text-base font-semibold text-stone-900">
                             {benefactor.benefactor_name}

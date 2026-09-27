@@ -62,6 +62,10 @@ for (const [name, key] of [['gradeOcrV2Service', 'student_grade_forms'], ['indig
       './iotOcrRequestService': {
         getRequestById: async () => ({ document_key: key, ocr_version: 'v2', status: 'processing', claimed_by: 'device' }),
         completeRequest: async (input) => { events.push(input); return { request: { status: input.status }, candidate: input.status === 'review_required' ? input : null }; },
+        scheduleProcessingRetry: async (input) => {
+          events.push({ ...input, status: 'processing', errorCode: input.errorCode, errorMessage: 'OCR provider temporarily unavailable; retry scheduled.' });
+          return { request: { status: 'processing', processing_retry_at: new Date().toISOString() }, retryScheduled: true };
+        },
       },
     });
     return { service, events, run: () => service.completeUploads({ requestId: 'request', deviceId: 'device' }) };
@@ -81,7 +85,7 @@ for (const [name, key] of [['gradeOcrV2Service', 'student_grade_forms'], ['indig
     await assert.rejects(f.run(), { code: 'ENHANCED_OCR_RATE_LIMITED' });
     assert.equal(f.events[1], 'available');
     const result = f.events.at(-1);
-    assert.equal(result.status, 'failed'); assert.equal(result.errorCode, 'ENHANCED_OCR_RATE_LIMITED');
+    assert.equal(result.status, 'processing'); assert.equal(result.errorCode, 'ENHANCED_OCR_RATE_LIMITED');
     assert.doesNotMatch(result.errorMessage, /private provider detail/);
   });
 }
@@ -89,11 +93,11 @@ for (const [name, key] of [['gradeOcrV2Service', 'student_grade_forms'], ['indig
 test('grade completion failure emits failed status and uses grade diagnostics without leaking provider data', async () => {
   const emissions = []; const logs = [];
   const failure = Object.assign(new Error('private provider body'), {
-    code: 'ENHANCED_OCR_RATE_LIMITED', statusCode: 502, providerStatus: 429,
+    status: 429, statusCode: 429, providerStatus: 429,
     request: { request_id: 'request', application_id: 'application', status: 'failed' },
   });
   const mocks = {
-    '../services/iotOcrRequestService': { getRequestById: async () => ({ document_key: 'student_grade_forms', ocr_version: 'v2' }) },
+    '../services/iotOcrRequestService': { getRequestById: async () => ({ document_key: 'student_grade_forms', document_type: 'student_grade_forms', ocr_version: 'v2' }) },
     '../services/iotOcrSchemaService': {}, '../services/auditLogService': {},
     '../utils/socketEvents': { applicationOcrStatus: (_io, data) => emissions.push(data) },
     '../services/iotOcrPresenceService': { checkIn: () => {} },
@@ -104,12 +108,11 @@ test('grade completion failure emits failed status and uses grade diagnostics wi
   context.module = { exports: context.exports };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../controllers/piIotOcrController.js'), 'utf8'), context);
   const res = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
-  await context.exports.completeBirthV2Uploads({ params: { requestId: 'request' }, piAuth: { deviceId: 'device' } }, res);
+  await context.exports.completeBirthV2Uploads({ params: { requestId: 'request' }, piAuth: { deviceId: 'device' }, app: { get: () => ({}) } }, res);
   assert.equal(res.statusCode, 502);
-  assert.equal(res.body.code, 'ENHANCED_OCR_RATE_LIMITED');
-  assert.equal(emissions[0].status, 'failed');
-  assert.equal(emissions[0].document_key, 'student_grade_forms');
+  assert.equal(res.body.code, 'ENHANCED_OCR_PROVIDER_FAILED');
+  assert.equal(emissions.length, 0);
   assert.equal(logs[0][0], 'ENHANCED_OCR_UPLOAD_COMPLETION_ERROR');
-  assert.equal(logs[0][1].provider_status, 429);
+  assert.ok(logs[0][1].status_code >= 400);
   assert.doesNotMatch(JSON.stringify({ body: res.body, logs }), /private provider body/);
 });

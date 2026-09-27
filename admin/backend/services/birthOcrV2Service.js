@@ -1025,6 +1025,10 @@ exports.acceptUploads = async ({ requestId, deviceId, diagnostic = null }) => {
     const diagnosticResult = normalizeDiagnostic(diagnostic);
     const artifacts = await downloadAndVerifyArtifacts(requestId, { originalOnly: Boolean(diagnosticResult) });
     if (artifacts.filter(({ artifact_kind }) => artifact_kind === 'cell').length === 0 && !diagnosticResult) throw httpError(400, 'Birth V2 original-only upload requires diagnostic metadata');
+    await iotOcrRequestService.setProcessingMetadata({
+        requestId,
+        metadata: { diagnostic: diagnosticResult },
+    });
     const claim = await iotOcrRequestService.claimAsyncProcessing({ requestId, owner: `backend:${process.pid}:${crypto.randomUUID()}` });
     return claim.claimed ? { accepted: true, request: claim.request, artifacts_preserved: true } : { accepted: false, idempotent: true, request: await iotOcrRequestService.getRequestById({ requestId }) };
 };

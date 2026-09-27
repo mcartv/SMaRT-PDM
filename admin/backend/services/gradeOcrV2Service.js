@@ -157,8 +157,13 @@ exports.completeUploads = async ({ requestId, deviceId }) => {
         });
     } catch (error) {
         const failure = require('./enhancedOcrErrors').normalizeEnhancedOcrError(error);
-        const failed = await iotOcrRequestService.completeRequest({ requestId, status: 'failed', errorCode: failure.code, errorMessage: failure.message, claimedBy: deviceId });
-        failure.request = failed.request;
+        if (failure.retryable) {
+            const scheduled = await iotOcrRequestService.scheduleProcessingRetry({ requestId, errorCode: failure.code, errorMessage: failure.message });
+            failure.request = scheduled.request;
+        } else {
+            const failed = await iotOcrRequestService.completeRequest({ requestId, status: 'failed', errorCode: failure.code, errorMessage: failure.message, claimedBy: deviceId });
+            failure.request = failed.request;
+        }
         throw failure;
     }
     const fields = normalizeFields(result.fields);

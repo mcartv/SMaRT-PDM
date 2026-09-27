@@ -85,6 +85,11 @@ function mapRequestRow(row) {
         processing_heartbeat_at: row.processing_heartbeat_at || null,
         processing_owner: row.processing_owner || null,
         processing_claimed_at: row.processing_claimed_at || null,
+        processing_attempt_count: Number(row.processing_attempt_count || 0),
+        processing_retry_at: row.processing_retry_at || null,
+        processing_last_error_code: row.processing_last_error_code || null,
+        processing_last_error_at: row.processing_last_error_at || null,
+        ocr_processing_metadata: row.ocr_processing_metadata || {},
         reviewed_by: row.reviewed_by || null,
         reviewed_at: row.reviewed_at || null,
         retry_of_request_id: row.retry_of_request_id || null,
@@ -804,6 +809,102 @@ exports.claimAsyncProcessing = async ({ requestId, owner } = {}) => {
     return result.rows.length
         ? { claimed: true, request: mapRequestRow(result.rows[0]) }
         : { claimed: false };
+};
+
+function retryConfig() {
+    const enabled = String(process.env.OCR_AUTO_RETRY_ENABLED || 'true').toLowerCase() !== 'false';
+    const maxAttempts = Math.min(3, Math.max(1, Number.parseInt(process.env.OCR_AUTO_RETRY_MAX_ATTEMPTS || '3', 10) || 3));
+    const delays = String(process.env.OCR_AUTO_RETRY_BACKOFF_SECONDS || '5,20,60').split(',')
+        .map((value) => Math.max(1, Number.parseInt(value.trim(), 10) || 1)).slice(0, 3);
+    while (delays.length < maxAttempts) delays.push(delays[delays.length - 1] || 5);
+    return { enabled, maxAttempts, delays };
+}
+
+exports.scheduleProcessingRetry = async ({ requestId, errorCode, errorMessage } = {}) => {
+    const config = retryConfig();
+    const result = await pool.query(`
+        UPDATE public.iot_ocr_requests
+        SET processing_attempt_count = processing_attempt_count + 1,
+            processing_last_error_code = $2,
+            processing_last_error_at = NOW(),
+            processing_owner = NULL,
+            processing_claimed_at = NULL,
+            processing_retry_at = CASE
+                WHEN $4::boolean AND processing_attempt_count + 1 < $3::integer
+                THEN NOW() + (CASE processing_attempt_count WHEN 0 THEN $5 WHEN 1 THEN $6 ELSE $7 END * INTERVAL '1 second')
+                ELSE NULL
+            END,
+            status = CASE
+                WHEN $4::boolean AND processing_attempt_count + 1 < $3::integer THEN 'processing'
+                ELSE 'failed'
+            END,
+            error_code = CASE
+                WHEN $4::boolean AND processing_attempt_count + 1 < $3::integer THEN NULL
+                ELSE $2
+            END,
+        error_message = CASE
+                WHEN $4::boolean AND processing_attempt_count + 1 < $3::integer THEN 'OCR provider temporarily unavailable; retry scheduled.'
+        ELSE $8
+            END,
+            completed_at = CASE
+                WHEN $4::boolean AND processing_attempt_count + 1 < $3::integer THEN NULL
+                ELSE NOW()
+            END,
+            updated_at = NOW()
+        WHERE request_id = $1::uuid AND status = 'processing'
+        RETURNING *
+    `, [requestId, errorCode || 'OCR_PROVIDER_FAILED', config.maxAttempts, config.enabled,
+        config.delays[0] || 5, config.delays[1] || config.delays[0] || 5, config.delays[2] || config.delays[1] || config.delays[0] || 5,
+        String(errorMessage || 'OCR processing failed after automatic retries')]);
+    const request = result.rows[0] ? mapRequestRow(result.rows[0]) : await exports.getRequestById({ requestId });
+    const retryScheduled = Boolean(request?.processing_retry_at);
+    console.info(retryScheduled ? 'OCR_RETRY_SCHEDULED' : 'OCR_RETRY_EXHAUSTED', {
+        request_id: String(requestId).slice(0, 8), document_key: request?.document_key || null,
+        attempt: request?.processing_attempt_count || 0, error_code: errorCode || null,
+    });
+    return { request, retryScheduled };
+};
+
+exports.setProcessingMetadata = async ({ requestId, metadata = {} } = {}) => {
+    const result = await pool.query(`
+        UPDATE public.iot_ocr_requests
+        SET ocr_processing_metadata = COALESCE(ocr_processing_metadata, '{}'::jsonb) || $2::jsonb,
+            updated_at = NOW()
+        WHERE request_id = $1::uuid AND status = 'processing'
+        RETURNING *
+    `, [requestId, JSON.stringify(metadata)]);
+    return mapRequestRow(result.rows[0]);
+};
+
+exports.failProcessing = async ({ requestId, errorCode, errorMessage } = {}) => {
+    const result = await pool.query(`
+        UPDATE public.iot_ocr_requests
+        SET status = 'failed', error_code = $2, error_message = $3,
+            processing_owner = NULL, processing_claimed_at = NULL,
+            completed_at = NOW(), updated_at = NOW()
+        WHERE request_id = $1::uuid AND status = 'processing'
+        RETURNING *
+    `, [requestId, errorCode || 'OCR_PROCESSING_FAILED', errorMessage || 'OCR processing failed.']);
+    return mapRequestRow(result.rows[0]);
+};
+
+exports.claimDueOrStaleProcessing = async ({ owner, staleSeconds = 180 } = {}) => {
+    const seconds = Math.max(30, Math.min(3600, Number.parseInt(staleSeconds, 10) || 180));
+    const result = await pool.query(`
+        WITH candidate AS (
+            SELECT request_id FROM public.iot_ocr_requests
+            WHERE status = 'processing'
+              AND (processing_retry_at <= NOW()
+                OR (processing_retry_at IS NULL AND processing_claimed_at < NOW() - ($1::integer * INTERVAL '1 second')))
+            ORDER BY COALESCE(processing_retry_at, processing_claimed_at) ASC
+            FOR UPDATE SKIP LOCKED LIMIT 1
+        )
+        UPDATE public.iot_ocr_requests r
+        SET processing_owner = $2, processing_claimed_at = NOW(), processing_retry_at = NULL, updated_at = NOW()
+        WHERE r.request_id IN (SELECT request_id FROM candidate) AND r.status = 'processing'
+        RETURNING *
+    `, [seconds, String(owner || '').trim()]);
+    return result.rows[0] ? mapRequestRow(result.rows[0]) : null;
 };
 
 exports.getRequestById = async ({ requestId, applicationId = null, documentKey = null }) => {

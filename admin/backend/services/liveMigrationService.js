@@ -17,6 +17,14 @@ const MIGRATIONS = Object.freeze([
       '../../../supabase/migrations/20260813000100_birth_ocr_v2_review_architecture.sql'
     ),
   },
+  {
+    key: '20260927000100_iot_ocr_async_processing_owner',
+    path: path.resolve(__dirname, '../../../supabase/migrations/20260927000100_iot_ocr_async_processing_owner.sql'),
+  },
+  {
+    key: '20260927000200_iot_ocr_retry_recovery',
+    path: path.resolve(__dirname, '../../../supabase/migrations/20260927000200_iot_ocr_retry_recovery.sql'),
+  },
 ]);
 const MIGRATION_KEY = MIGRATIONS.at(-1).key;
 const MIGRATION_PATH = MIGRATIONS.at(-1).path;

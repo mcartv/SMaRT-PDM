@@ -663,6 +663,8 @@ async function startServer() {
     await ensureCanonicalIotOcrMigration();
     await ensureSystemMaintenanceMigration();
     await ensureSystemActivityMigration();
+    global._applicationIo = io;
+    require('../services/ocrProcessingRecoveryService').start();
     systemActivityService.startMetricsFlushTimer();
     require('../services/birthOcrV2Service').cleanupPendingArtifacts().catch((error) => {
       console.warn('IOT_OCR_ARTIFACT_CLEANUP_RETRY_FAILED', { code: error.code || 'CLEANUP_FAILED' });

@@ -7,9 +7,18 @@ const frontend = path.join(__dirname, '..', '..', 'frontend', 'src');
 const read = (relative) => fs.readFileSync(path.join(frontend, relative), 'utf8');
 
 test('Admin-visible OCR terminology uses Local and Enhanced OCR', () => {
-    for (const relative of ['pages/DocumentVerification.jsx', 'pages/AboutPage.jsx']) {
-        const source = read(relative);
-        assert.doesNotMatch(source, /Gemini/i, relative);
+    const files = [];
+    const walk = (directory) => {
+        for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+            const fullPath = path.join(directory, entry.name);
+            if (entry.isDirectory()) walk(fullPath);
+            else if (/\.(js|jsx|ts|tsx)$/.test(entry.name)) files.push(fullPath);
+        }
+    };
+    walk(frontend);
+    for (const file of files) {
+        const source = fs.readFileSync(file, 'utf8');
+        assert.doesNotMatch(source, /\bGemini\b|\bArtificial Intelligence\b|\bAI\b/i, file);
     }
     const verification = read('pages/DocumentVerification.jsx');
     assert.match(verification, /Version 1 - Local OCR/);

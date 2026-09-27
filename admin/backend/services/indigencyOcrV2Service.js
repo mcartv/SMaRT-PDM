@@ -126,6 +126,7 @@ function normalizeFields(value) {
 }
 
 exports.completeUploads = async ({ requestId, deviceId }) => {
+    const startedAt = Date.now();
     const request = await iotOcrRequestService.getRequestById({ requestId });
     if (!request || request.document_key !== 'certificate_of_indigency' || request.ocr_version !== 'v2') {
         throw httpError(409, 'Indigency Enhanced OCR request is not available');
@@ -135,6 +136,10 @@ exports.completeUploads = async ({ requestId, deviceId }) => {
         return iotOcrRequestService.getCandidate({ applicationId: request.application_id, documentKey: request.document_key, requestId });
     }
     if (request.status !== 'processing') throw httpError(409, `Cannot complete uploads from ${request.status}`);
+    const attempt = Number(request.processing_attempt_count || 0) + 1;
+    console.info('INDIGENCY_V2_PROVIDER_STARTED', {
+        request_id: String(requestId).slice(0, 8), attempt, status: request.status,
+    });
     const original = await downloadOriginal(requestId);
     await pool.query(`
         UPDATE public.iot_ocr_capture_artifacts SET upload_status = 'available', uploaded_at = COALESCE(uploaded_at, NOW()), updated_at = NOW()
@@ -148,8 +153,17 @@ exports.completeUploads = async ({ requestId, deviceId }) => {
             schema: INDIGENCY_SCHEMA,
             instruction: 'Read the Certificate of Indigency literally. Extract certificate_subject_name and residency_address exactly as printed. Do not guess, infer, or add fields.',
         });
+        console.info('INDIGENCY_V2_PROVIDER_COMPLETED', {
+            request_id: String(requestId).slice(0, 8), attempt,
+            duration_ms: Date.now() - startedAt, status: 'completed',
+        });
     } catch (error) {
         const failure = require('./enhancedOcrErrors').normalizeEnhancedOcrError(error);
+        console.error('INDIGENCY_V2_PROVIDER_FAILED', {
+            request_id: String(requestId).slice(0, 8), attempt,
+            duration_ms: Date.now() - startedAt, error_code: failure.code,
+            provider_status: failure.providerStatus || null,
+        });
         if (failure.retryable) {
             const scheduled = await iotOcrRequestService.scheduleProcessingRetry({ requestId, errorCode: failure.code, errorMessage: failure.message });
             failure.request = scheduled.request;
@@ -160,7 +174,7 @@ exports.completeUploads = async ({ requestId, deviceId }) => {
         throw failure;
     }
     const fields = normalizeFields(result.fields);
-    return iotOcrRequestService.completeRequest({
+    const completed = await iotOcrRequestService.completeRequest({
         requestId,
         status: 'review_required',
         rawText: String(result.raw_text || ''),
@@ -177,6 +191,17 @@ exports.completeUploads = async ({ requestId, deviceId }) => {
         },
         claimedBy: deviceId,
     });
+    console.info('INDIGENCY_V2_CANDIDATE_PERSISTED', {
+        request_id: String(requestId).slice(0, 8), attempt,
+        duration_ms: Date.now() - startedAt, status: completed.request?.status || 'review_required',
+    });
+    if (completed.request?.status === 'review_required') {
+        console.info('INDIGENCY_V2_REVIEW_REQUIRED', {
+            request_id: String(requestId).slice(0, 8), attempt,
+            duration_ms: Date.now() - startedAt, status: completed.request.status,
+        });
+    }
+    return completed;
 };
 
 exports.acceptUploads = async ({ requestId, deviceId }) => {
@@ -191,6 +216,11 @@ exports.acceptUploads = async ({ requestId, deviceId }) => {
         WHERE request_id = $1::uuid AND artifact_kind = 'original' AND upload_status = 'pending'
     `, [requestId]);
     const claim = await iotOcrRequestService.claimAsyncProcessing({ requestId, owner: `backend:${process.pid}:${crypto.randomUUID()}` });
+    console.info('INDIGENCY_V2_ACCEPTED', {
+        request_id: String(requestId).slice(0, 8),
+        attempt: Number(claim.request?.processing_attempt_count || 0),
+        status: claim.request?.status || 'processing',
+    });
     return claim.claimed ? { accepted: true, request: claim.request, artifacts_preserved: true } : { accepted: false, idempotent: true, request: await iotOcrRequestService.getRequestById({ requestId }) };
 };
 

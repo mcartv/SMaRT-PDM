@@ -26,10 +26,8 @@ const DEFAULT_STATUS = {
             'SMaRT-PDM is temporarily unavailable while system maintenance is in progress. Please try again later.',
     },
     ocr: {
-        primary: 'Tesseract + OpenCV',
-        review: 'Gemini V2',
-        gemini_model: 'gemini-3.6-flash',
-        gemini_configured: false,
+        primary: 'Local OCR',
+        review: 'Enhanced OCR',
         iot: {
             online: false,
             device_count: 0,
@@ -323,7 +321,7 @@ export default function SystemPanel({ embedded = false, editing = true }) {
                     </div>
                     <div className="min-w-0">
                         <p className="break-words text-base font-semibold leading-tight text-stone-900">OCR Processing</p>
-                        <p className="mt-1 break-words text-xs font-medium text-stone-500">Tesseract + OpenCV</p>
+                        <p className="mt-1 break-words text-xs font-medium text-stone-500">Local + Enhanced OCR</p>
                         <p className={`mt-1 inline-flex items-center gap-1.5 text-xs font-medium ${iotOcrOnline ? 'text-emerald-600' : 'text-stone-500'}`}>
                             <span
                                 className={`h-1.5 w-1.5 shrink-0 rounded-full ${iotOcrOnline ? 'bg-emerald-500' : 'bg-stone-400'}`}

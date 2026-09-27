@@ -182,7 +182,7 @@ exports.submitIotOcrRequestResult = async (req, res) => {
     }
 };
 
-exports.authorizeBirthV2Uploads = async (req, res) => {
+exports.authorizeV2CaptureUploads = async (req, res) => {
     try {
         iotOcrPresenceService.checkIn(req.piAuth?.deviceId);
         const request = await iotOcrRequestService.getRequestById({ requestId: req.params.requestId });
@@ -201,7 +201,7 @@ exports.authorizeBirthV2Uploads = async (req, res) => {
         return res.status(200).json({ message: 'Private artifact uploads authorized',
             data: enhanced ? require('../services/captureUploadRelay').authorize(req, data) : data });
     } catch (error) {
-        console.error('BIRTH_V2_UPLOAD_AUTHORIZATION_ERROR', {
+        console.error('V2_CAPTURE_UPLOAD_AUTHORIZATION_ERROR', {
             request_id: String(req.params?.requestId || '').slice(0, 8),
             code: error.code || null,
             constraint: error.constraint || null,
@@ -209,12 +209,12 @@ exports.authorizeBirthV2Uploads = async (req, res) => {
         });
         return res.status(error.statusCode || 500).json({
             code: error.code || null,
-            error: error.message || 'Failed to authorize Birth V2 uploads',
+            error: error.message || 'Failed to authorize OCR capture uploads',
         });
     }
 };
 
-exports.completeBirthV2Uploads = async (req, res) => {
+exports.completeV2CaptureUploads = async (req, res) => {
     let enhancedDocumentKey = null;
     try {
         iotOcrPresenceService.checkIn(req.piAuth?.deviceId);
@@ -310,7 +310,7 @@ exports.completeBirthV2Uploads = async (req, res) => {
                 capture_preserved: true,
             });
         }
-        console.error('BIRTH_V2_UPLOAD_COMPLETION_ERROR', {
+        console.error('V2_CAPTURE_UPLOAD_COMPLETION_ERROR', {
             request_id: String(req.params?.requestId || '').slice(0, 8),
             code: error.code || null,
             constraint: error.constraint || null,
@@ -319,10 +319,14 @@ exports.completeBirthV2Uploads = async (req, res) => {
         });
         return res.status(error.statusCode || 500).json({
             code: error.code || null,
-            error: error.message || 'Failed to complete Birth V2 extraction',
+            error: error.message || 'Failed to complete OCR extraction',
         });
     }
 };
+
+// Backward-compatible exports for integrations that import the old names.
+exports.authorizeBirthV2Uploads = exports.authorizeV2CaptureUploads;
+exports.completeBirthV2Uploads = exports.completeV2CaptureUploads;
 
 /* Realtime + audit wrapper
  * This adds audit trail coverage to controller actions that previously had realtime only,

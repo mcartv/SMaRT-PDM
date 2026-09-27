@@ -67,7 +67,7 @@ const C = {
   greenSoft: 'color-mix(in srgb, var(--portal-chart-positive) 12%, white)',
   red: 'var(--portal-chart-negative)',
   redSoft: 'color-mix(in srgb, var(--portal-chart-negative) 12%, white)',
-  border: 'var(--admin-card-border, var(--portal-border))',
+  border: 'var(--portal-border)',
   muted: 'var(--portal-muted)',
   text: 'var(--portal-text)',
   surface: 'var(--portal-surface)',

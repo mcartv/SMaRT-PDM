@@ -596,22 +596,27 @@ function isDifferentRegistryIdentity(existing = {}, incoming = {}) {
   const lastChanged =
     Boolean(existingLast && incomingLast && existingLast !== incomingLast);
 
-  if (firstChanged && lastChanged) return true;
-
   const existingDob = normalizeText(existing.date_of_birth);
   const incomingDob = normalizeText(incoming.date_of_birth);
-  const dobChanged =
-    Boolean(existingDob && incomingDob && existingDob !== incomingDob);
+  const dobComparable = Boolean(existingDob && incomingDob);
+  const dobMatches = dobComparable && existingDob === incomingDob;
+  const dobChanged = dobComparable && existingDob !== incomingDob;
 
   const existingLrn =
     normalizeRegistryIdentityValue(existing.learners_reference_number);
   const incomingLrn =
     normalizeRegistryIdentityValue(incoming.learners_reference_number);
-  const lrnChanged =
-    Boolean(existingLrn && incomingLrn && existingLrn !== incomingLrn);
+  const lrnComparable = Boolean(existingLrn && incomingLrn);
+  const lrnMatches = lrnComparable && existingLrn === incomingLrn;
+  const lrnChanged = lrnComparable && existingLrn !== incomingLrn;
+
+  if (dobMatches || lrnMatches) return false;
+  if (firstChanged && lastChanged) return true;
 
   return (firstChanged || lastChanged) && (dobChanged || lrnChanged);
 }
+
+
 
 async function classifyProtectedRegistryRows(importBatchId, importRows) {
   if (!Array.isArray(importRows) || importRows.length === 0) {
@@ -704,20 +709,223 @@ async function classifyProtectedRegistryRows(importBatchId, importRows) {
   return { safeRows, conflicts };
 }
 
+// SMART_PDM_REGISTRY_IMPORT_DATA_SAFETY_V1
+function hasMeaningfulRegistryValue(value) {
+  return value !== null &&
+    value !== undefined &&
+    String(value).trim() !== '';
+}
+
+function preserveExistingRegistryValue(incoming, existing) {
+  return hasMeaningfulRegistryValue(incoming)
+    ? incoming
+    : existing ?? null;
+}
+
+function preserveExistingRegistryBoolean(incoming, existing) {
+  return incoming === null || incoming === undefined
+    ? existing ?? null
+    : incoming;
+}
+
+function mergeRegistrySnapshot(existingSnapshot = {}, incomingSnapshot = {}) {
+  const merged = {
+    ...(existingSnapshot && typeof existingSnapshot === 'object'
+      ? existingSnapshot
+      : {}),
+  };
+
+  if (incomingSnapshot && typeof incomingSnapshot === 'object') {
+    for (const [key, value] of Object.entries(incomingSnapshot)) {
+      if (key === HEADER_ORDER_META_KEY) continue;
+
+      if (hasMeaningfulRegistryValue(value)) {
+        merged[key] = value;
+      } else if (!Object.prototype.hasOwnProperty.call(merged, key)) {
+        merged[key] = value;
+      }
+    }
+
+    const incomingHeaders = Array.isArray(incomingSnapshot[HEADER_ORDER_META_KEY])
+      ? incomingSnapshot[HEADER_ORDER_META_KEY]
+      : [];
+    const existingHeaders = Array.isArray(merged[HEADER_ORDER_META_KEY])
+      ? merged[HEADER_ORDER_META_KEY]
+      : [];
+
+    merged[HEADER_ORDER_META_KEY] = [
+      ...new Set([...incomingHeaders, ...existingHeaders]),
+    ];
+  }
+
+  return merged;
+}
+
+async function markRegistryImportFailures(importBatchId, failures = []) {
+  if (!Array.isArray(failures) || failures.length === 0) return;
+
+  await db.query(
+    `
+      UPDATE student_import_rows AS import_row
+      SET
+        status = 'failed',
+        error_message = failure.error_message
+      FROM jsonb_to_recordset($2::jsonb) AS failure(
+        row_number integer,
+        student_number text,
+        error_message text
+      )
+      WHERE import_row.import_batch_id = $1
+        AND import_row.row_number = failure.row_number
+        AND import_row.student_number = failure.student_number
+    `,
+    [importBatchId, JSON.stringify(failures)]
+  );
+}
+
+async function classifyRegistryDataQualityRows(
+  importBatchId,
+  importRows,
+  courseMap
+) {
+  const counts = new Map();
+
+  for (const row of importRows || []) {
+    const key = normalizeText(row.student_number).toUpperCase();
+    if (!key) continue;
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+
+  const safeRows = [];
+  const failures = [];
+
+  for (const row of importRows || []) {
+    const studentNumber = normalizeText(row.student_number).toUpperCase();
+    const normalizedCourse = normalizeLookupValue(row.course_code);
+
+    if ((counts.get(studentNumber) || 0) > 1) {
+      failures.push({
+        row_number: row.row_number,
+        student_number: row.student_number,
+        error_message:
+          'Duplicate Student Number appears more than once in the uploaded file. Remove the duplicate rows and import again.',
+      });
+      continue;
+    }
+
+    if (normalizedCourse && !courseMap.has(normalizedCourse)) {
+      failures.push({
+        row_number: row.row_number,
+        student_number: row.student_number,
+        error_message:
+          'Course "' + row.course_code + '" was not found in Maintenance > Courses. Correct the course value before importing.',
+      });
+      continue;
+    }
+
+    safeRows.push(row);
+  }
+
+  await markRegistryImportFailures(importBatchId, failures);
+
+  return { safeRows, failures };
+}
+
+async function loadExistingRegistryMasters(studentNumbers = []) {
+  const normalized = [
+    ...new Set(
+      (studentNumbers || [])
+        .map((value) => normalizeText(value).toUpperCase())
+        .filter(Boolean)
+    ),
+  ];
+
+  if (!normalized.length) return new Map();
+
+  const result = await db.query(
+    `
+      SELECT
+        master_student_id,
+        student_number,
+        pdm_id,
+        learners_reference_number,
+        first_name,
+        middle_name,
+        last_name,
+        sex_at_birth,
+        email_address,
+        phone_number,
+        course_id,
+        year_level,
+        sequence_number,
+        religion,
+        sibling_last_name,
+        sibling_first_name,
+        sibling_middle_name,
+        sibling_mobile_no,
+        financial_support_parents,
+        financial_support_scholarship,
+        financial_support_loan,
+        financial_support_other,
+        has_been_scholar,
+        date_of_birth,
+        place_of_birth,
+        civil_status,
+        age,
+        raw_snapshot
+      FROM student_master_records
+      WHERE student_number = ANY($1::text[])
+        AND COALESCE(is_archived, false) = false
+    `,
+    [normalized]
+  );
+
+  return new Map(
+    result.rows.map((row) => [
+      normalizeText(row.student_number).toUpperCase(),
+      row,
+    ])
+  );
+}
+
 async function syncLinkedStudentsFromRegistryMaster(importBatchId) {
+  // SMART_PDM_LINKED_STUDENT_SAFE_SYNC_V1
   await db.query(
     `
       UPDATE students AS student
       SET
-        pdm_id = COALESCE(NULLIF(master.pdm_id, ''), master.student_number),
-        registrar_student_number = master.student_number,
-        first_name = master.first_name,
-        middle_name = master.middle_name,
-        last_name = master.last_name,
-        course_id = master.course_id,
-        year_level = master.year_level,
-        sex_at_birth = master.sex_at_birth,
-        sequence_number = master.sequence_number,
+        registrar_student_number = COALESCE(
+          NULLIF(master.student_number, ''),
+          student.registrar_student_number
+        ),
+        first_name = COALESCE(
+          NULLIF(master.first_name, ''),
+          student.first_name
+        ),
+        middle_name = COALESCE(
+          NULLIF(master.middle_name, ''),
+          student.middle_name
+        ),
+        last_name = COALESCE(
+          NULLIF(master.last_name, ''),
+          student.last_name
+        ),
+        course_id = COALESCE(
+          master.course_id,
+          student.course_id
+        ),
+        year_level = COALESCE(
+          master.year_level,
+          student.year_level
+        ),
+        sex_at_birth = COALESCE(
+          NULLIF(master.sex_at_birth, ''),
+          student.sex_at_birth
+        ),
+        sequence_number = COALESCE(
+          master.sequence_number,
+          student.sequence_number
+        ),
         updated_at = now()
       FROM student_master_records AS master
       WHERE student.master_student_id = master.master_student_id
@@ -727,52 +935,168 @@ async function syncLinkedStudentsFromRegistryMaster(importBatchId) {
   );
 }
 
+
+
 async function upsertMasterRows(importBatchId, importRows, courseMap) {
-  // SMART_PDM_REGISTRY_UPSERT_GUARD_V3
+  // SMART_PDM_REGISTRY_SAFE_UPSERT_V1
   if (!Array.isArray(importRows) || importRows.length === 0) return 0;
 
-  const { safeRows } = await classifyProtectedRegistryRows(
+  const protectedResult = await classifyProtectedRegistryRows(
     importBatchId,
     importRows
   );
+
+  const qualityResult = await classifyRegistryDataQualityRows(
+    importBatchId,
+    protectedResult.safeRows,
+    courseMap
+  );
+
+  const safeRows = qualityResult.safeRows;
 
   if (safeRows.length === 0) {
     return 0;
   }
 
-  const payload = safeRows.map((row) => ({
-    student_number: row.student_number,
-    pdm_id: row.pdm_id || row.student_number,
-    learners_reference_number: row.learners_reference_number || null,
-    first_name: row.given_name,
-    middle_name: row.middle_name || null,
-    last_name: row.last_name,
-    sex_at_birth: row.sex_at_birth || null,
-    email_address: row.email_address || null,
-    phone_number: row.phone_number || null,
-    course_id: courseMap.get(normalizeLookupValue(row.course_code)) || null,
-    year_level: row.year_level || null,
-    sequence_number: row.sequence_number || null,
-    religion: row.religion || null,
-    sibling_last_name: row.sibling_last_name || null,
-    sibling_first_name: row.sibling_first_name || null,
-    sibling_middle_name: row.sibling_middle_name || null,
-    sibling_mobile_no: row.sibling_mobile_no || null,
-    financial_support_parents: row.financial_support_parents,
-    financial_support_scholarship: row.financial_support_scholarship,
-    financial_support_loan: row.financial_support_loan,
-    financial_support_other: row.financial_support_other,
-    has_been_scholar: row.has_been_scholar,
-    date_of_birth: row.date_of_birth || null,
-    place_of_birth: row.place_of_birth || null,
-    civil_status: row.civil_status || null,
-    age: row.age,
-    latest_import_batch_id: importBatchId,
-    source_registry: true,
-    raw_snapshot: row.raw_payload || {},
-    is_active: true,
-    is_archived: false,
-  }));
+  const existingByNumber = await loadExistingRegistryMasters(
+    safeRows.map((row) => row.student_number)
+  );
+
+  const payload = safeRows.map((row) => {
+    const key = normalizeText(row.student_number).toUpperCase();
+    const existing = existingByNumber.get(key) || {};
+    const normalizedCourse = normalizeLookupValue(row.course_code);
+    const incomingCourseId = normalizedCourse
+      ? courseMap.get(normalizedCourse) || null
+      : null;
+
+    return {
+      student_number: row.student_number,
+      pdm_id:
+        existing.pdm_id ||
+        row.pdm_id ||
+        row.student_number,
+
+      learners_reference_number:
+        preserveExistingRegistryValue(
+          row.learners_reference_number,
+          existing.learners_reference_number
+        ),
+
+      first_name: row.given_name,
+      middle_name:
+        preserveExistingRegistryValue(
+          row.middle_name,
+          existing.middle_name
+        ),
+      last_name: row.last_name,
+
+      sex_at_birth:
+        preserveExistingRegistryValue(
+          row.sex_at_birth,
+          existing.sex_at_birth
+        ),
+      email_address:
+        preserveExistingRegistryValue(
+          row.email_address,
+          existing.email_address
+        ),
+      phone_number:
+        preserveExistingRegistryValue(
+          row.phone_number,
+          existing.phone_number
+        ),
+
+      course_id:
+        incomingCourseId ||
+        existing.course_id ||
+        null,
+
+      year_level:
+        row.year_level ?? existing.year_level ?? null,
+      sequence_number:
+        row.sequence_number ?? existing.sequence_number ?? null,
+      religion:
+        preserveExistingRegistryValue(
+          row.religion,
+          existing.religion
+        ),
+
+      sibling_last_name:
+        preserveExistingRegistryValue(
+          row.sibling_last_name,
+          existing.sibling_last_name
+        ),
+      sibling_first_name:
+        preserveExistingRegistryValue(
+          row.sibling_first_name,
+          existing.sibling_first_name
+        ),
+      sibling_middle_name:
+        preserveExistingRegistryValue(
+          row.sibling_middle_name,
+          existing.sibling_middle_name
+        ),
+      sibling_mobile_no:
+        preserveExistingRegistryValue(
+          row.sibling_mobile_no,
+          existing.sibling_mobile_no
+        ),
+
+      financial_support_parents:
+        preserveExistingRegistryBoolean(
+          row.financial_support_parents,
+          existing.financial_support_parents
+        ),
+      financial_support_scholarship:
+        preserveExistingRegistryBoolean(
+          row.financial_support_scholarship,
+          existing.financial_support_scholarship
+        ),
+      financial_support_loan:
+        preserveExistingRegistryBoolean(
+          row.financial_support_loan,
+          existing.financial_support_loan
+        ),
+      financial_support_other:
+        preserveExistingRegistryBoolean(
+          row.financial_support_other,
+          existing.financial_support_other
+        ),
+      has_been_scholar:
+        preserveExistingRegistryBoolean(
+          row.has_been_scholar,
+          existing.has_been_scholar
+        ),
+
+      date_of_birth:
+        preserveExistingRegistryValue(
+          row.date_of_birth,
+          existing.date_of_birth
+        ),
+      place_of_birth:
+        preserveExistingRegistryValue(
+          row.place_of_birth,
+          existing.place_of_birth
+        ),
+      civil_status:
+        preserveExistingRegistryValue(
+          row.civil_status,
+          existing.civil_status
+        ),
+      age:
+        row.age ?? existing.age ?? null,
+
+      latest_import_batch_id: importBatchId,
+      source_registry: true,
+      raw_snapshot: mergeRegistrySnapshot(
+        existing.raw_snapshot,
+        row.raw_payload || {}
+      ),
+      is_active: true,
+      is_archived: false,
+    };
+  });
 
   for (let index = 0; index < payload.length; index += IMPORT_CHUNK_SIZE) {
     const { error } = await supabase
@@ -789,6 +1113,8 @@ async function upsertMasterRows(importBatchId, importRows, courseMap) {
 
   return payload.length;
 }
+
+
 
 async function markImportRowsCompleted(importBatchId) {
   // SMART_PDM_REGISTRY_FAILED_ROW_PRESERVATION_V3

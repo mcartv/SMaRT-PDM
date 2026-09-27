@@ -12,13 +12,33 @@ test('protects account-bound Student Number from identity replacement', () => {
   assert.match(service, /different student account\/history/i);
 });
 
-test('safe registry corrections sync to linked students', () => {
+test('safe registry corrections sync to linked students without blank-value loss', () => {
   assert.match(service, /syncLinkedStudentsFromRegistryMaster/);
   assert.match(service, /student\.master_student_id = master\.master_student_id/);
-  assert.match(service, /first_name = master\.first_name/);
-  assert.match(service, /last_name = master\.last_name/);
-  assert.match(service, /course_id = master\.course_id/);
-  assert.match(service, /year_level = master\.year_level/);
+  assert.match(service, /SMART_PDM_LINKED_STUDENT_SAFE_SYNC_V1/);
+
+  assert.match(
+    service,
+    /first_name\s*=\s*COALESCE\([\s\S]*?master\.first_name[\s\S]*?student\.first_name/
+  );
+  assert.match(
+    service,
+    /last_name\s*=\s*COALESCE\([\s\S]*?master\.last_name[\s\S]*?student\.last_name/
+  );
+  assert.match(
+    service,
+    /course_id\s*=\s*COALESCE\([\s\S]*?master\.course_id[\s\S]*?student\.course_id/
+  );
+  assert.match(
+    service,
+    /year_level\s*=\s*COALESCE\([\s\S]*?master\.year_level[\s\S]*?student\.year_level/
+  );
+
+  const syncStart = service.indexOf('async function syncLinkedStudentsFromRegistryMaster');
+  const syncEnd = service.indexOf('async function upsertMasterRows', syncStart);
+  const syncBlock = service.slice(syncStart, syncEnd);
+
+  assert.doesNotMatch(syncBlock, /\bpdm_id\s*=/);
 });
 
 test('identity conflict rows remain failed', () => {

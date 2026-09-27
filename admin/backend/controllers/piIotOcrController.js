@@ -263,7 +263,12 @@ exports.completeBirthV2Uploads = async (req, res) => {
                 status_code: error.statusCode || failure.statusCode,
             });
             return res.status(error.statusCode || failure.statusCode).json({
-                code: failure.code, error: failure.message,
+                code: failure.code,
+                error: 'The OCR service could not complete extraction. The captured document was preserved. Retry OCR using the existing capture.',
+                retryable: failure.retryable === true,
+                provider_status: failure.providerStatus || null,
+                request_status: error.request?.status || 'failed',
+                capture_preserved: true,
             });
         }
         console.error('BIRTH_V2_UPLOAD_COMPLETION_ERROR', {

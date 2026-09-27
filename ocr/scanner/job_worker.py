@@ -1712,6 +1712,23 @@ def _run_grade_form_v2_scan(request: Dict, capture_path: str, api: ApiClient | N
     except OSError:
         result = None
     if not result:
+        backend_error = getattr(api, "last_ocr_error", None)
+        if (
+            backend_error
+            and backend_error.request_status in {"failed", "cancelled", "expired", "completed"}
+            and (backend_error.capture_preserved or backend_error.code == "ENHANCED_OCR_PROVIDER_FAILED")
+        ):
+            log.warning(
+                "Grade V2 provider unavailable for request=%s; backend finalized request=%s; "
+                "capture preserved; skipping further lifecycle/result submission.",
+                _safe_request_ref(get_request_id(request)),
+                backend_error.request_status,
+            )
+            return True, {
+                "status": backend_error.request_status,
+                "_backend_terminal_acknowledged": True,
+                "_workspace_cleanup_only": True,
+            }
         return False, {"status": "failed", "error_code": "GRADE_V2_UPLOAD_FAILED", "error_message": "Private Grade V2 upload or backend extraction failed."}
     return True, {"status": "review_required", "_v2_backend_completed": True, "source_payload": {"ocr_version": "v2", "mode": "grade_form_enhanced_backend"}}
 
@@ -1830,9 +1847,18 @@ def run_scan(request: Dict, status_callback=None, request_stop=None, api: ApiCli
 
 def submit_and_verify(api: ApiClient, request_id: str, payload: Dict, request=None) -> bool:
     request_ref = _safe_request_ref(request_id)
-    log.info("Submitting result request=%s status=%s", request_ref, payload.get("status"))
-
     workspace = payload.pop("_workspace", None)
+    if payload.pop("_backend_terminal_acknowledged", False):
+        log.info(
+            "Backend terminal acknowledgement received request=%s status=%s; "
+            "no result submission attempted.",
+            request_ref,
+            payload.get("status"),
+        )
+        if workspace:
+            shutil.rmtree(workspace, ignore_errors=True)
+        return True
+    log.info("Submitting result request=%s status=%s", request_ref, payload.get("status"))
     if payload.pop("_v2_backend_completed", False):
         if workspace:
             shutil.rmtree(workspace, ignore_errors=True)
@@ -2032,11 +2058,12 @@ def main():
                 )
                 if not request_stop.is_set():
                     stop_heartbeat_before_result()
-                    publish_worker_activity(
-                        "submitting_result",
-                        request=request,
-                        camera_status="captured",
-                    )
+                    if not payload.get("_backend_terminal_acknowledged"):
+                        publish_worker_activity(
+                            "submitting_result",
+                            request=request,
+                            camera_status="captured",
+                        )
                     submitted = submit_and_verify(
                         api,
                         request_id,

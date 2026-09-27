@@ -25,6 +25,34 @@ except ImportError:  # pragma: no cover
 ENV_PATH = Path(__file__).resolve().with_name(".env")
 
 
+class OcrApiError(Exception):
+    """Sanitized OCR API failure with lifecycle information preserved."""
+
+    def __init__(self, message, *, status_code=None, code=None, retryable=False,
+                 request_status=None, capture_preserved=False):
+        super().__init__(message)
+        self.status_code = status_code
+        self.code = code
+        self.retryable = retryable
+        self.request_status = request_status
+        self.capture_preserved = capture_preserved
+
+
+def _response_error(response: requests.Response, fallback: str) -> OcrApiError:
+    try:
+        body = response.json()
+    except ValueError:
+        body = {}
+    return OcrApiError(
+        str(body.get("error") or fallback),
+        status_code=response.status_code,
+        code=body.get("code"),
+        retryable=body.get("retryable") is True,
+        request_status=body.get("request_status") or body.get("current_status"),
+        capture_preserved=body.get("capture_preserved") is True,
+    )
+
+
 def _bounded_concurrency(name: str, default: int = 4) -> int:
     try:
         value = int(os.getenv(name, str(default)))
@@ -135,6 +163,7 @@ class ApiClient:
         self.session = requests.Session()
         self.session.trust_env = False
         self._last_transport_error_log = 0.0
+        self.last_ocr_error = None
         self.backend_online = False
 
         if not self.base_url:
@@ -489,6 +518,7 @@ class ApiClient:
         return self.authorize_birth_v2_uploads(request_id, artifacts)
 
     def submit_grade_v2_artifact(self, request_id: str, content: bytes, mime_type: str) -> Optional[Dict[str, Any]]:
+        self.last_ocr_error = None
         manifest = [{
             "artifact_kind": "original",
             "cell_key": None,
@@ -505,10 +535,19 @@ class ApiClient:
         url = f"{self.base_url}/api/pi/iot-ocr/{request_id}/capture-artifacts/complete"
         try:
             response = self.session.post(url, headers=self._headers(), json={}, timeout=self.birth_v2_completion_timeout)
-            response.raise_for_status()
+            if response.status_code >= 400:
+                raise _response_error(response, "Grade V2 extraction could not be completed")
             payload = response.json()
             return payload.get("data") if isinstance(payload, dict) else None
+        except OcrApiError as exc:
+            self.last_ocr_error = exc
+            self._log_transport_error(
+                f"Complete Grade V2 extraction for {request_id[:8]}",
+                f"code={exc.code} request_status={exc.request_status} capture_preserved={exc.capture_preserved}",
+            )
+            return None
         except (requests.RequestException, ValueError) as exc:
+            self.last_ocr_error = OcrApiError(str(exc), status_code=getattr(exc.response, "status_code", None))
             self._log_transport_error(f"Complete Grade V2 extraction for {request_id[:8]}", str(exc))
             return None
 

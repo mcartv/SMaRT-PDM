@@ -43,6 +43,7 @@ test('provider errors retain safe actionable codes without raw credential or doc
     await assert.rejects(provider(null, Object.assign(new Error('secret applicant data and key'), { status })).run(), (error) => {
       assert.equal(error.code, code);
       assert.equal(errors.normalizeEnhancedOcrError(error).providerStatus, status);
+      assert.equal(errors.normalizeEnhancedOcrError(error).retryable, [429, 503].includes(status));
       assert.doesNotMatch(error.message, /secret|applicant data/); return true;
     });
   }

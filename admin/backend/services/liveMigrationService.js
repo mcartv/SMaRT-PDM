@@ -25,6 +25,10 @@ const MIGRATIONS = Object.freeze([
     key: '20260927000200_iot_ocr_retry_recovery',
     path: path.resolve(__dirname, '../../../supabase/migrations/20260927000200_iot_ocr_retry_recovery.sql'),
   },
+  {
+    key: '20260927000300_add_iot_ocr_request_processing_metadata',
+    path: path.resolve(__dirname, '../../../supabase/migrations/20260927000300_add_iot_ocr_request_processing_metadata.sql'),
+  },
 ]);
 const MIGRATION_KEY = MIGRATIONS.at(-1).key;
 const MIGRATION_PATH = MIGRATIONS.at(-1).path;
@@ -107,13 +111,20 @@ async function verifySchema(client) {
         WHERE schemaname = 'public' AND tablename = 'iot_ocr_requests'
           AND indexname = 'idx_iot_ocr_processing_retry'
       ) AS has_processing_retry_index
+      , EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'iot_ocr_requests'
+          AND column_name = 'ocr_processing_metadata'
+          AND data_type = 'jsonb'
+      ) AS has_request_processing_metadata
   `);
   const row = objects.rows[0] || {};
   if (!row.has_requests || !row.has_candidates || !row.has_reviews
       || !row.has_artifacts || !row.has_exceptions || !row.has_review_events
       || !row.has_immutability_trigger || !row.has_review_event_trigger
       || !row.has_processing_recovery_columns
-      || !row.has_processing_owner_index || !row.has_processing_retry_index) {
+      || !row.has_processing_owner_index || !row.has_processing_retry_index
+      || !row.has_request_processing_metadata) {
     throw new Error(`Canonical OCR schema verification failed: ${JSON.stringify(row)}`);
   }
 

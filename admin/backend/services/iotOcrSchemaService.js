@@ -32,6 +32,13 @@ async function verifyRuntimeSchema() {
                   AND indexname = 'idx_iot_ocr_processing_retry'
             ) AS has_processing_retry_index,
             EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'iot_ocr_requests'
+                  AND column_name = 'ocr_processing_metadata'
+                  AND data_type = 'jsonb'
+            ) AS has_request_processing_metadata,
+            EXISTS (
                 SELECT 1 FROM pg_trigger t
                 JOIN pg_class c ON c.oid = t.tgrelid
                 JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -55,11 +62,13 @@ async function verifyRuntimeSchema() {
         || !row.has_exceptions || !row.has_review_events
         || !row.has_processing_recovery_columns
         || !row.has_processing_owner_index || !row.has_processing_retry_index
+        || !row.has_request_processing_metadata
         || !row.has_immutability_trigger || !row.has_review_event_trigger) {
         const error = new Error(`Canonical IoT OCR schema is not ready: ${JSON.stringify({
             has_processing_recovery_columns: row.has_processing_recovery_columns,
             has_processing_owner_index: row.has_processing_owner_index,
             has_processing_retry_index: row.has_processing_retry_index,
+            has_request_processing_metadata: row.has_request_processing_metadata,
         })}`);
         error.statusCode = 503;
         throw error;

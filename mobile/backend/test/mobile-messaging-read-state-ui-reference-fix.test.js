@@ -50,3 +50,30 @@ test('conversation keeps search collapsed, removes online status, and uses compa
   assert.doesNotMatch(thread, /Contact Info/);
   assert.match(thread, /hintText: 'Type a message\.\.\.'/);
 });
+
+
+test('message timeline groups timestamps by sender within five minutes', () => {
+  assert.match(thread, /difference\(older\.sentAt\)\.inMinutes <= 5/);
+  assert.match(thread, /showTimestamp: !groupedWithNewer/);
+  assert.match(thread, /if \(!isMe && showTimestamp\)/);
+  assert.match(thread, /if \(isMe && showTimestamp && !showDeliveryStatus\)/);
+  assert.match(thread, /Delivered · \$timeLabel/);
+  assert.match(thread, /older\.subject\?\.toLowerCase\(\) == 'system'/);
+  assert.match(thread, /newer\.subject\?\.toLowerCase\(\) == 'system'/);
+});
+
+test('group activity is plain centered timeline text without a capsule', () => {
+  const bubbleStart = thread.indexOf('class _MessageBubble');
+  assert.notEqual(bubbleStart, -1);
+  const start = thread.indexOf("if (message.subject?.toLowerCase() == 'system')", bubbleStart);
+  assert.notEqual(start, -1);
+  const end = thread.indexOf('final isDark', start);
+  assert.notEqual(end, -1);
+  const systemActivity = thread.slice(start, end);
+  assert.match(systemActivity, /Center\(/);
+  assert.match(systemActivity, /Text\(\s*message\.messageBody/);
+  assert.doesNotMatch(systemActivity, /Container\(/);
+  assert.doesNotMatch(systemActivity, /Border\.all/);
+  assert.doesNotMatch(systemActivity, /Icons\.info_outline_rounded/);
+  assert.doesNotMatch(systemActivity, /person_remove_alt/);
+});

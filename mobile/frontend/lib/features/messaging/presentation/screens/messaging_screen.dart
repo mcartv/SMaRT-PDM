@@ -219,6 +219,10 @@ class _MessagingScreenState extends State<MessagingScreen> {
   }
 
   bool _messagesBelongTogether(ChatMessage older, ChatMessage newer) {
+    if (older.subject?.toLowerCase() == 'system' ||
+        newer.subject?.toLowerCase() == 'system') {
+      return false;
+    }
     if (older.senderId != newer.senderId) return false;
     final olderLocal = older.sentAt.toLocal();
     final newerLocal = newer.sentAt.toLocal();
@@ -1347,6 +1351,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
                 groupedWithNext: groupedWithNewer,
                 showSenderName: !groupedWithOlder,
                 showAvatar: !groupedWithNewer,
+                showTimestamp: !groupedWithNewer,
                 showDeliveryStatus:
                     isMe && message.messageId == _deliveredStatusMessageId,
                 isSearchMatch: _chatSearchTerm.trim().isNotEmpty &&
@@ -1438,6 +1443,7 @@ class _MessageBubble extends StatelessWidget {
     this.groupedWithNext = false,
     this.showSenderName = true,
     this.showAvatar = true,
+    this.showTimestamp = true,
     this.showDeliveryStatus = false,
     this.isSearchMatch = false,
     this.onLongPress,
@@ -1451,6 +1457,7 @@ class _MessageBubble extends StatelessWidget {
   final bool groupedWithNext;
   final bool showSenderName;
   final bool showAvatar;
+  final bool showTimestamp;
   final bool showDeliveryStatus;
   final bool isSearchMatch;
   final VoidCallback? onLongPress;
@@ -1458,46 +1465,19 @@ class _MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (message.subject?.toLowerCase() == 'system') {
-      final removalEvent = RegExp(r'\bremoved\b.*\bfrom the group\b', caseSensitive: false)
-          .hasMatch(message.messageBody);
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
         child: Center(
-          child: Container(
+          child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-            decoration: BoxDecoration(
-              color: removalEvent
-                  ? AppColors.gold.withValues(alpha: 0.10)
-                  : AppSurfacePalette.surface(context),
-              borderRadius: AppRadii.status,
-              border: Border.all(
-                color: removalEvent
-                    ? AppColors.gold.withValues(alpha: 0.28)
-                    : AppSurfacePalette.outline(context),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  removalEvent ? Icons.person_remove_alt_1_rounded : Icons.info_outline_rounded,
-                  size: 16,
-                  color: removalEvent ? AppColors.gold : AppSurfacePalette.mutedText(context),
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    message.messageBody,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: AppSurfacePalette.mutedText(context),
-                      fontWeight: FontWeight.w700,
-                      height: 1.35,
-                    ),
+            child: Text(
+              message.messageBody,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: AppSurfacePalette.mutedText(context),
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
                   ),
-                ),
-              ],
             ),
           ),
         ),
@@ -1683,11 +1663,25 @@ class _MessageBubble extends StatelessWidget {
               ),
             ],
             messageRow,
-            if (!isMe)
+            if (!isMe && showTimestamp)
               Padding(
                 padding: EdgeInsets.only(
                   top: 4,
                   left: isGroupChat ? 40 : 2,
+                ),
+                child: Text(
+                  timeLabel,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: AppSurfacePalette.mutedText(context),
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+              ),
+            if (isMe && showTimestamp && !showDeliveryStatus)
+              Padding(
+                padding: EdgeInsets.only(
+                  top: 4,
+                  right: isGroupChat ? 40 : 2,
                 ),
                 child: Text(
                   timeLabel,

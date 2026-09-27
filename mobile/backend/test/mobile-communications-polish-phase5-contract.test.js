@@ -90,9 +90,10 @@ test('message thread scales its header and bounds bubbles on wide screens', () =
   assert.match(messaging, /FittedBox\(/);
   assert.match(messaging, /fit: BoxFit\.scaleDown/);
   assert.match(messaging, /screenWidth > 680 \? 520 : screenWidth \* 0\.76/);
-  assert.match(messaging, /message: canSend \? 'Send message' : 'Send a quick like'/);
-  assert.match(messaging, /Icons\.thumb_up_rounded/);
-  assert.match(messaging, /semanticLabel: 'Send a quick like'/);
+  assert.match(messaging, /hintText: 'Type a message\.\.\.'/);
+  assert.match(messaging, /Icons\.send_rounded/);
+  assert.match(messaging, /ValueKey<String>\('send-like'\)/);
+  assert.match(messaging, /'👍'/);
 });
 
 test('notifications keep the compact app bar and reclaim card width', () => {

@@ -2101,58 +2101,58 @@ function OCRPanel({
         )}
 
         {isGradeReview && (
-          <div className={`rounded-xl border p-4 space-y-4 ${gradeReviewCompleted ? 'border-green-200 bg-green-50' : ''}`} style={!gradeReviewCompleted ? { background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-sub)' } : undefined}>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-base font-bold tracking-wide text-stone-900">GRADE FORM OCR</p>
-                <p className="text-xs text-stone-600">Template: {reviewCandidate.template_id}</p>
+          <div className={`space-y-5 rounded-2xl border p-5 shadow-[0_18px_45px_-35px_rgba(190,24,93,0.45)] sm:p-6 ${gradeReviewCompleted ? 'border-green-200 bg-green-50/70' : 'border-rose-200 bg-[#fff8f7]'}`}>
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="truncate text-lg font-extrabold tracking-tight text-stone-900 sm:text-xl">GRADE FORM OCR</p>
+                <p className="mt-1 truncate text-sm font-medium text-stone-500">Template: {reviewCandidate.template_id}</p>
               </div>
-              <Badge
-                className={gradeReviewCompleted ? 'border-green-200 bg-green-100 text-green-800' : 'border'}
-                style={!gradeReviewCompleted ? { background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-sub)', color: 'var(--portal-base)' } : undefined}
-              >
+              <Badge className={`shrink-0 whitespace-nowrap px-3 py-1 text-sm ${gradeReviewCompleted
+                ? 'border-green-200 bg-green-100 text-green-800'
+                : 'border-rose-200 bg-rose-100 text-rose-800'}`}>
                 {gradeReviewCompleted ? 'OCR confirmed' : 'Review required'}
               </Badge>
             </div>
 
             <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(440px,1.08fr)_minmax(0,0.92fr)]">
               <ScannedDocumentPreview candidate={reviewCandidate} request={getActiveIotRequest(activeDoc)} documentKey={activeDoc.id} />
-              <div className="min-w-0 space-y-3">
-              {GRADE_REVIEW_FIELDS.map(([key, label]) => (
-                <label key={key} className="grid gap-1 sm:grid-cols-[130px_1fr_auto] sm:items-center">
-                  <span className="text-sm font-semibold text-stone-700">{label}</span>
-                  <Input
-                    value={ocrFieldValue(correctedFields?.[key])}
-                    readOnly={gradeReviewCompleted}
-                    onChange={(event) => onCorrectedFieldsChange({
-                      ...correctedFields,
-                      [key]: event.target.value,
-                    })}
-                    className={gradeReviewCompleted ? 'bg-stone-100' : 'bg-white'}
-                  />
-                  <span className="whitespace-nowrap text-right text-xs font-semibold text-[var(--portal-base)]">
-                    {String(ocrFieldValue(correctedFields?.[key]) || '').trim() ? 'Detected' : '\u2014'}
-                  </span>
-                </label>
-              ))}
+              <div className="grid min-w-0 gap-3 sm:grid-rows-2">
+                {GRADE_REVIEW_FIELDS.map(([key, label]) => (
+                  <label key={key} className="flex min-h-0 min-w-0 flex-col justify-center rounded-2xl border border-rose-100 bg-white p-4 shadow-[0_10px_30px_-24px_rgba(28,25,23,0.45)] sm:p-5">
+                    <div className="mb-4 flex items-start justify-between gap-3">
+                      <span className="min-w-0 truncate text-base font-bold leading-6 text-stone-900">{label}</span>
+                      <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-sm font-semibold text-rose-700">
+                        {String(ocrFieldValue(correctedFields?.[key]) || '').trim() ? 'Detected' : '\u2014'}
+                      </span>
+                    </div>
+                    <Input
+                      value={ocrFieldValue(correctedFields?.[key])}
+                      readOnly={gradeReviewCompleted}
+                      onChange={(event) => onCorrectedFieldsChange({ ...correctedFields, [key]: event.target.value })}
+                      className={`h-11 w-full min-w-0 rounded-xl px-3 text-base ${gradeReviewCompleted ? 'bg-stone-100' : 'bg-white'}`}
+                    />
+                  </label>
+                ))}
 
-              <div className="grid gap-1 border-t pt-3 sm:grid-cols-[130px_1fr_auto] sm:items-center" style={{ borderColor: 'var(--portal-sub)' }}>
-                <span className="text-sm font-bold text-stone-800">GWA</span>
-                <Input
-                  value={ocrFieldValue(correctedFields?.gwa)}
-                  readOnly
-                  aria-label="Detected GWA (read only)"
-                  className="bg-stone-100 font-bold text-stone-900"
-                />
-                <span className="whitespace-nowrap text-right text-xs font-semibold text-[var(--portal-base)]">
-                  {String(ocrFieldValue(correctedFields?.gwa) || '').trim() ? 'Detected' : '\u2014'}
-                </span>
-              </div>
+                <div className="flex min-h-0 min-w-0 flex-col justify-center rounded-2xl border border-rose-100 bg-white p-4 shadow-[0_10px_30px_-24px_rgba(28,25,23,0.45)] sm:p-5">
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <span className="min-w-0 truncate text-base font-bold leading-6 text-stone-900">GWA</span>
+                    <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-sm font-semibold text-rose-700">
+                      {String(ocrFieldValue(correctedFields?.gwa) || '').trim() ? 'Detected' : '\u2014'}
+                    </span>
+                  </div>
+                  <Input
+                    value={ocrFieldValue(correctedFields?.gwa)}
+                    readOnly
+                    aria-label="Detected GWA (read only)"
+                    className="h-11 w-full min-w-0 rounded-xl bg-stone-100 px-3 text-base font-bold text-stone-900"
+                  />
+                </div>
               </div>
             </div>
 
             {!gradeReviewCompleted && (
-              <div className="flex justify-between gap-2">
+              <div className="flex flex-wrap justify-end gap-3 rounded-2xl border border-stone-200 bg-white p-4 shadow-[0_10px_30px_-24px_rgba(28,25,23,0.45)] sm:p-5">
                 <Button variant="outline" onClick={onRetryCandidate} disabled={reviewingCandidate}>Retry OCR</Button>
                 <Button onClick={onConfirmCandidate} disabled={reviewingCandidate}>
                   {reviewingCandidate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -2164,62 +2164,55 @@ function OCRPanel({
         )}
 
         {isIndigencyReview && (
-          <div className={`space-y-6 rounded-2xl border p-5 shadow-[0_18px_45px_-35px_rgba(15,118,110,0.45)] sm:p-6 ${indigencyReviewCompleted ? 'border-emerald-200 bg-emerald-50/70' : 'border-amber-200 bg-amber-50/55'}`}>
-            <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-start">
+          <div className={`space-y-5 rounded-2xl border p-5 shadow-[0_18px_45px_-35px_rgba(190,24,93,0.45)] sm:p-6 ${indigencyReviewCompleted ? 'border-green-200 bg-green-50/70' : 'border-rose-200 bg-[#fff8f7]'}`}>
+            <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-lg font-extrabold tracking-tight text-stone-900">INDIGENCY OCR</p>
-                <p className="mt-1 text-xs font-medium text-stone-500">Template: {reviewCandidate.template_id}</p>
+                <p className="truncate text-lg font-extrabold tracking-tight text-stone-900 sm:text-xl">INDIGENCY OCR</p>
+                <p className="mt-1 truncate text-sm font-medium text-stone-500">Template: {reviewCandidate.template_id}</p>
               </div>
-              <Badge className={`shrink-0 whitespace-nowrap ${indigencyReviewCompleted
+              <Badge className={`shrink-0 whitespace-nowrap px-3 py-1 text-sm ${indigencyReviewCompleted
                 ? 'border-green-200 bg-green-100 text-green-800'
-                : 'border-amber-200 bg-amber-100 text-amber-800'}`}>
+                : 'border-rose-200 bg-rose-100 text-rose-800'}`}>
                 {indigencyReviewCompleted ? 'OCR confirmed' : 'Review required'}
               </Badge>
             </div>
 
             <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(440px,1.08fr)_minmax(0,0.92fr)]">
               <ScannedDocumentPreview candidate={reviewCandidate} request={getActiveIotRequest(activeDoc)} documentKey={activeDoc.id} />
-              <div className="min-w-0 space-y-5">
-              {INDIGENCY_REVIEW_FIELDS.map(([key, label]) => (
-                <label key={key} className={`block min-w-0 rounded-2xl border bg-white/90 p-4 shadow-[0_10px_30px_-24px_rgba(28,25,23,0.45)] sm:p-5 ${indigencyReviewCompleted ? 'border-emerald-100' : 'border-amber-100'}`}>
-                  <span className="block text-left text-sm font-bold leading-5 text-stone-900">{label}</span>
-                  <div className="mt-3 min-w-0">
+              <div className="grid min-w-0 gap-3 sm:grid-rows-2">
+                {INDIGENCY_REVIEW_FIELDS.map(([key, label]) => (
+                  <label key={key} className="flex min-h-0 min-w-0 flex-col justify-center rounded-2xl border border-rose-100 bg-white p-4 shadow-[0_10px_30px_-24px_rgba(28,25,23,0.45)] sm:p-5">
+                    <div className="mb-4 flex items-start justify-between gap-3">
+                      <span className="min-w-0 truncate text-base font-bold leading-6 text-stone-900">{label}</span>
+                      <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-sm font-semibold text-rose-700">
+                        {String(ocrFieldValue(correctedFields?.[key]) || '').trim() ? 'Detected' : '\u2014'}
+                      </span>
+                    </div>
                     {key === 'residency_address' ? (
                       <Textarea
                         value={ocrFieldValue(correctedFields?.[key])}
                         readOnly={indigencyReviewCompleted}
                         aria-label="Verified full residence address"
-                        onChange={(event) => onCorrectedFieldsChange({
-                          ...correctedFields,
-                          [key]: event.target.value,
-                        })}
-                        className={`min-h-24 w-full min-w-0 resize-y rounded-xl border-stone-200 px-4 py-3 text-sm leading-6 shadow-inner shadow-stone-100/60 focus-visible:border-[var(--portal-sub)] focus-visible:ring-[var(--portal-sub)] ${indigencyReviewCompleted ? 'bg-stone-50' : 'bg-white'}`}
+                        onChange={(event) => onCorrectedFieldsChange({ ...correctedFields, [key]: event.target.value })}
+                        className={`min-h-28 w-full min-w-0 resize-y rounded-xl px-3 py-3 text-base leading-6 ${indigencyReviewCompleted ? 'bg-stone-100' : 'bg-white'}`}
                       />
                     ) : (
                       <Input
                         value={ocrFieldValue(correctedFields?.[key])}
                         readOnly={indigencyReviewCompleted}
-                        onChange={(event) => onCorrectedFieldsChange({
-                          ...correctedFields,
-                          [key]: event.target.value,
-                        })}
-                        className={`h-11 w-full min-w-0 rounded-xl border-stone-200 px-4 text-sm shadow-inner shadow-stone-100/60 focus-visible:border-[var(--portal-sub)] focus-visible:ring-[var(--portal-sub)] ${indigencyReviewCompleted ? 'bg-stone-50' : 'bg-white'}`}
+                        onChange={(event) => onCorrectedFieldsChange({ ...correctedFields, [key]: event.target.value })}
+                        className={`h-11 w-full min-w-0 rounded-xl px-3 text-base ${indigencyReviewCompleted ? 'bg-stone-100' : 'bg-white'}`}
                       />
                     )}
-                    <span className={`mt-3 flex min-h-5 items-center justify-end gap-1.5 whitespace-nowrap text-right text-xs font-bold ${indigencyReviewCompleted ? 'text-emerald-700' : 'text-amber-700'}`}>
-                      {String(ocrFieldValue(correctedFields?.[key]) || '').trim() ? <CheckCircle className="h-3.5 w-3.5" aria-hidden="true" /> : null}
-                      {String(ocrFieldValue(correctedFields?.[key]) || '').trim() ? 'Detected' : '\u2014'}
-                    </span>
-                  </div>
-                </label>
-              ))}
+                  </label>
+                ))}
               </div>
             </div>
 
             {!indigencyReviewCompleted && (
-              <div className="flex flex-wrap justify-end gap-2">
-                <Button className="whitespace-nowrap" variant="outline" onClick={onRetryCandidate} disabled={reviewingCandidate}>Retry OCR</Button>
-                <Button className="whitespace-nowrap" onClick={onConfirmCandidate} disabled={reviewingCandidate}>
+              <div className="flex flex-wrap justify-end gap-3 rounded-2xl border border-stone-200 bg-white p-4 shadow-[0_10px_30px_-24px_rgba(28,25,23,0.45)] sm:p-5">
+                <Button variant="outline" onClick={onRetryCandidate} disabled={reviewingCandidate}>Retry OCR</Button>
+                <Button onClick={onConfirmCandidate} disabled={reviewingCandidate}>
                   {reviewingCandidate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Confirm OCR
                 </Button>

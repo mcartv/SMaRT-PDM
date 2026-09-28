@@ -27,7 +27,7 @@ test('Imported registry rows preserve source-specific blanks across different Ex
 test('Student Registry keeps Supabase canonical columns fixed while storing arbitrary source columns in raw_snapshot', () => {
   const service = read('backend/services/studentRegistryService.js');
   assert.match(service, /MASTER_TABLE = 'student_master_records'/);
-  assert.match(service, /raw_snapshot: row\.raw_payload \|\| \{\}/);
+  assert.match(service, /raw_snapshot: mergeRegistrySnapshot\(/);
   assert.match(service, /HEADER_ORDER_META_KEY/);
   assert.match(service, /source_headers: sourceHeaders/);
 });
@@ -44,4 +44,27 @@ test('CSV imports support quoted commas and quoted fields', () => {
   assert.match(service, /function parseCsvLine/);
   assert.match(service, /function parseCsvRows/);
   assert.match(service, /return parseCsvRows\(file\.buffer\.toString\('utf8'\)\)/);
+});
+
+test('Student Registry UI shows import counts and failed-row review details', () => {
+  const panel = read('frontend/src/pages/maintenance/StudentRegistryPanel.jsx');
+  assert.match(panel, /Import completed with issues/);
+  assert.match(panel, /View failed rows/);
+  assert.match(panel, /Identity conflict details/);
+  assert.match(panel, /Existing Registry Record/);
+  assert.match(panel, /Uploaded Row/);
+});
+
+test('registry import and display normalize dates, phone numbers, and Excel email objects', () => {
+  const service = read('backend/services/studentRegistryService.js');
+  const panel = read('frontend/src/pages/maintenance/StudentRegistryPanel.jsx');
+  assert.match(service, /function unwrapWorkbookCellValue/);
+  assert.match(service, /function normalizePhilippinePhone/);
+  assert.match(service, /function normalizeEmailAddress/);
+  assert.match(service, /replace\(\/\^mailto:\/i, ''\)/);
+  assert.match(panel, /function formatRegistryDate/);
+  assert.match(panel, /`\$\{match\[2\]\}\/\$\{match\[3\]\}\/\$\{match\[1\]\}`/);
+  assert.match(panel, /function formatRegistryPhone/);
+  assert.match(panel, /formatRegistryCellValue\(column\.label, row\[column\.index\]\)/);
+  assert.match(panel, /text\.toLowerCase\(\) === '\[object object\]' \? '' : text/);
 });

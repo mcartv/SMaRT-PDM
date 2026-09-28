@@ -19,7 +19,12 @@ test('registry import chunks writes and completes a batch with one database upda
       return {
         select() {
           assert.equal(table, 'academic_course');
-          return { eq: async () => ({ data: [], error: null }) };
+          return {
+            eq: async () => ({
+              data: [{ course_id: 'course-bs-it', course_code: 'BSIT', course_name: 'BS Information Technology' }],
+              error: null,
+            }),
+          };
         },
         insert(payload) {
           if (table === 'student_import_batches') {
@@ -48,8 +53,11 @@ test('registry import chunks writes and completes a batch with one database upda
     loaded: true,
     exports: {
       query: async (sql, values) => {
-        completed.push({ sql, values });
-        return { rows: [{ imported: 401, failed: 0 }] };
+        if (/count\(\*\) FILTER \(WHERE status = 'imported'\)/.test(sql)) {
+          completed.push({ sql, values });
+          return { rows: [{ imported: 401, failed: 0 }] };
+        }
+        return { rows: [] };
       },
     },
   };

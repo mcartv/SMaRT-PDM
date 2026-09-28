@@ -3,6 +3,7 @@ const JSZip = require('jszip');
 const crypto = require('crypto');
 const supabase = require('../config/supabase');
 const db = require('../config/db');
+const { evaluateRegistryIdentity } = require('./studentRegistryIdentity');
 
 const IMPORT_BATCH_TABLE = 'student_import_batches';
 const IMPORT_ROW_TABLE = 'student_import_rows';
@@ -22,6 +23,49 @@ function buildError(message, statusCode = 500, details = null) {
 
 function normalizeText(value) {
   return String(value || '').trim();
+}
+
+function unwrapWorkbookCellValue(value) {
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  if (typeof value !== 'object') return value;
+  if (Array.isArray(value.richText)) {
+    return value.richText.map((part) => part?.text || '').join('');
+  }
+  if (value.result !== undefined && value.result !== null) {
+    return unwrapWorkbookCellValue(value.result);
+  }
+  if (value.text !== undefined && value.text !== null) {
+    return unwrapWorkbookCellValue(value.text);
+  }
+  if (typeof value.hyperlink === 'string') {
+    return value.hyperlink.replace(/^mailto:/i, '');
+  }
+  return '';
+}
+
+function normalizePhilippinePhone(value) {
+  const text = normalizeText(unwrapWorkbookCellValue(value));
+  if (!text) return null;
+  const digits = text.replace(/\D/g, '');
+  if (/^9\d{9}$/.test(digits)) return `0${digits}`;
+  if (/^63\d{10}$/.test(digits)) return `0${digits.slice(2)}`;
+  return text;
+}
+
+function normalizeEmailAddress(value) {
+  const linkedEmail =
+    value &&
+    typeof value === 'object' &&
+    typeof value.hyperlink === 'string' &&
+    /^mailto:/i.test(value.hyperlink)
+      ? value.hyperlink
+      : value;
+  const text = normalizeText(unwrapWorkbookCellValue(linkedEmail));
+  if (!text || text.toLowerCase() === '[object object]') return null;
+  return text.replace(/^mailto:/i, '').toLowerCase();
 }
 
 function normalizeLookupValue(value) {
@@ -422,7 +466,7 @@ function parseRows(rows) {
     };
 
     sourceColumns.forEach(({ index, label }) => {
-      const value = row[index] ?? '';
+      const value = unwrapWorkbookCellValue(row[index] ?? '');
       const key = headerMap.get(index);
       if (key) obj[key] = value;
       obj.raw_payload[label] = value;
@@ -459,13 +503,13 @@ function parseRows(rows) {
       age: parseInteger(obj.age),
       place_of_birth: normalizeText(obj.place_of_birth) || null,
       civil_status: normalizeText(obj.civil_status) || null,
-      email_address: normalizeText(obj.email_address).toLowerCase() || null,
-      phone_number: normalizeText(obj.phone_number) || null,
+      email_address: normalizeEmailAddress(obj.email_address),
+      phone_number: normalizePhilippinePhone(obj.phone_number),
       sequence_number: obj.sequence_number ? Number(obj.sequence_number) || null : null,
       sibling_last_name: normalizeText(obj.sibling_last_name) || null,
       sibling_first_name: normalizeText(obj.sibling_first_name) || null,
       sibling_middle_name: normalizeText(obj.sibling_middle_name) || null,
-      sibling_mobile_no: normalizeText(obj.sibling_mobile_no) || null,
+      sibling_mobile_no: normalizePhilippinePhone(obj.sibling_mobile_no),
       financial_support_parents: hasField('financial_support_parents')
         ? parseNullableBoolean(obj.financial_support_parents)
         : null,
@@ -581,43 +625,6 @@ async function insertImportRows(importBatchId, parsedRows) {
   }
 }
 
-function normalizeRegistryIdentityValue(value) {
-  return normalizeLookupValue(value).replace(/[^a-z0-9]/g, '');
-}
-
-function isDifferentRegistryIdentity(existing = {}, incoming = {}) {
-  const existingFirst = normalizeRegistryIdentityValue(existing.first_name);
-  const existingLast = normalizeRegistryIdentityValue(existing.last_name);
-  const incomingFirst = normalizeRegistryIdentityValue(incoming.given_name);
-  const incomingLast = normalizeRegistryIdentityValue(incoming.last_name);
-
-  const firstChanged =
-    Boolean(existingFirst && incomingFirst && existingFirst !== incomingFirst);
-  const lastChanged =
-    Boolean(existingLast && incomingLast && existingLast !== incomingLast);
-
-  const existingDob = normalizeText(existing.date_of_birth);
-  const incomingDob = normalizeText(incoming.date_of_birth);
-  const dobComparable = Boolean(existingDob && incomingDob);
-  const dobMatches = dobComparable && existingDob === incomingDob;
-  const dobChanged = dobComparable && existingDob !== incomingDob;
-
-  const existingLrn =
-    normalizeRegistryIdentityValue(existing.learners_reference_number);
-  const incomingLrn =
-    normalizeRegistryIdentityValue(incoming.learners_reference_number);
-  const lrnComparable = Boolean(existingLrn && incomingLrn);
-  const lrnMatches = lrnComparable && existingLrn === incomingLrn;
-  const lrnChanged = lrnComparable && existingLrn !== incomingLrn;
-
-  if (dobMatches || lrnMatches) return false;
-  if (firstChanged && lastChanged) return true;
-
-  return (firstChanged || lastChanged) && (dobChanged || lrnChanged);
-}
-
-
-
 async function classifyProtectedRegistryRows(importBatchId, importRows) {
   if (!Array.isArray(importRows) || importRows.length === 0) {
     return { safeRows: [], conflicts: [] };
@@ -643,12 +650,7 @@ async function classifyProtectedRegistryRows(importBatchId, importRows) {
         master.learners_reference_number,
         master.first_name,
         master.last_name,
-        master.date_of_birth,
-        EXISTS (
-          SELECT 1
-          FROM students AS student
-          WHERE student.master_student_id = master.master_student_id
-        ) AS has_linked_student
+        master.date_of_birth
       FROM student_master_records AS master
       WHERE master.student_number = ANY($1::text[])
         AND COALESCE(master.is_archived, false) = false
@@ -670,15 +672,15 @@ async function classifyProtectedRegistryRows(importBatchId, importRows) {
     const key = normalizeText(row.student_number).toUpperCase();
     const existing = existingByNumber.get(key);
 
-    if (
-      existing?.has_linked_student &&
-      isDifferentRegistryIdentity(existing, row)
-    ) {
+    const identity = existing
+      ? evaluateRegistryIdentity(existing, row)
+      : { conflict: false };
+
+    if (identity.conflict) {
       conflicts.push({
         row_number: row.row_number,
         student_number: row.student_number,
-        error_message:
-          'Student Number is already linked to a different student account/history. Existing identity was preserved.',
+        error_message: identity.reason,
       });
       continue;
     }
@@ -687,23 +689,7 @@ async function classifyProtectedRegistryRows(importBatchId, importRows) {
   }
 
   if (conflicts.length > 0) {
-    await db.query(
-      `
-        UPDATE student_import_rows AS import_row
-        SET
-          status = 'failed',
-          error_message = conflict.error_message
-        FROM jsonb_to_recordset($2::jsonb) AS conflict(
-          row_number integer,
-          student_number text,
-          error_message text
-        )
-        WHERE import_row.import_batch_id = $1
-          AND import_row.row_number = conflict.row_number
-          AND import_row.student_number = conflict.student_number
-      `,
-      [importBatchId, JSON.stringify(conflicts)]
-    );
+    await markRegistryImportFailures(importBatchId, conflicts);
   }
 
   return { safeRows, conflicts };
@@ -769,7 +755,8 @@ async function markRegistryImportFailures(importBatchId, failures = []) {
       UPDATE student_import_rows AS import_row
       SET
         status = 'failed',
-        error_message = failure.error_message
+        error_message = failure.error_message,
+        matched_master_student_id = NULL
       FROM jsonb_to_recordset($2::jsonb) AS failure(
         row_number integer,
         student_number text,
@@ -939,28 +926,36 @@ async function syncLinkedStudentsFromRegistryMaster(importBatchId) {
 
 async function upsertMasterRows(importBatchId, importRows, courseMap) {
   // SMART_PDM_REGISTRY_SAFE_UPSERT_V1
-  if (!Array.isArray(importRows) || importRows.length === 0) return 0;
+  if (!Array.isArray(importRows) || importRows.length === 0) {
+    return { processed: 0, added: 0, updated: 0 };
+  }
 
-  const protectedResult = await classifyProtectedRegistryRows(
-    importBatchId,
-    importRows
-  );
-
+  // Validate duplicate keys against the complete upload before identity
+  // conflicts are removed, so one failed duplicate cannot make its twin valid.
   const qualityResult = await classifyRegistryDataQualityRows(
     importBatchId,
-    protectedResult.safeRows,
+    importRows,
     courseMap
   );
 
-  const safeRows = qualityResult.safeRows;
+  const protectedResult = await classifyProtectedRegistryRows(
+    importBatchId,
+    qualityResult.safeRows
+  );
+
+  const safeRows = protectedResult.safeRows;
 
   if (safeRows.length === 0) {
-    return 0;
+    return { processed: 0, added: 0, updated: 0 };
   }
 
   const existingByNumber = await loadExistingRegistryMasters(
     safeRows.map((row) => row.student_number)
   );
+  const updated = safeRows.reduce((count, row) => {
+    const key = normalizeText(row.student_number).toUpperCase();
+    return count + (existingByNumber.has(key) ? 1 : 0);
+  }, 0);
 
   const payload = safeRows.map((row) => {
     const key = normalizeText(row.student_number).toUpperCase();
@@ -1111,7 +1106,11 @@ async function upsertMasterRows(importBatchId, importRows, courseMap) {
 
   await syncLinkedStudentsFromRegistryMaster(importBatchId);
 
-  return payload.length;
+  return {
+    processed: payload.length,
+    added: payload.length - updated,
+    updated,
+  };
 }
 
 
@@ -1169,6 +1168,98 @@ async function finalizeBatch(importBatchId, totalRows, successRows, failedRows) 
   if (error) throw error;
 }
 
+function importFailureLabel(message) {
+  const normalized = normalizeLookupValue(message);
+  if (normalized.includes('identity conflict')) return 'Identity conflict';
+  if (normalized.includes('duplicate student number')) {
+    return 'Duplicate PDM ID in uploaded file';
+  }
+  if (normalized.includes('maintenance courses')) return 'Unknown course';
+  if (normalized.includes('pdm id') || normalized.includes('student number')) {
+    return 'Invalid PDM ID';
+  }
+  return 'Invalid required field';
+}
+
+async function loadFailedImportResults(importBatchId) {
+  const result = await db.query(
+    `
+      SELECT
+        import_row.row_number,
+        import_row.student_number,
+        import_row.pdm_id,
+        import_row.learners_reference_number,
+        import_row.given_name,
+        import_row.middle_name,
+        import_row.last_name,
+        import_row.date_of_birth,
+        import_row.status,
+        import_row.error_message,
+        import_row.matched_master_student_id,
+        master.student_number AS existing_student_number,
+        master.learners_reference_number AS existing_lrn,
+        master.first_name AS existing_first_name,
+        master.middle_name AS existing_middle_name,
+        master.last_name AS existing_last_name,
+        master.date_of_birth AS existing_date_of_birth
+      FROM student_import_rows AS import_row
+      LEFT JOIN student_master_records AS master
+        ON master.student_number = import_row.student_number
+       AND COALESCE(master.is_archived, false) = false
+      WHERE import_row.import_batch_id = $1
+        AND import_row.status = 'failed'
+      ORDER BY import_row.row_number ASC
+    `,
+    [importBatchId]
+  );
+
+  return result.rows.map((row) => {
+    const uploadedName = [row.given_name, row.middle_name, row.last_name]
+      .map(normalizeText)
+      .filter(Boolean)
+      .join(' ');
+    const existingName = [
+      row.existing_first_name,
+      row.existing_middle_name,
+      row.existing_last_name,
+    ]
+      .map(normalizeText)
+      .filter(Boolean)
+      .join(' ');
+    const failureReason = normalizeText(row.error_message) || 'This row could not be imported.';
+    const identityConflict = normalizeLookupValue(failureReason).includes(
+      'identity conflict'
+    );
+
+    return {
+      row_number: row.row_number,
+      pdm_id: row.pdm_id || row.student_number,
+      uploaded_name: uploadedName,
+      result: importFailureLabel(failureReason),
+      failure_reason: failureReason,
+      status: 'failed',
+      matched_master_student_id: row.matched_master_student_id || null,
+      identity_conflict: identityConflict,
+      existing_record: identityConflict
+        ? {
+            pdm_id: row.existing_student_number,
+            name: existingName,
+            lrn: row.existing_lrn,
+            date_of_birth: row.existing_date_of_birth,
+          }
+        : null,
+      uploaded_record: identityConflict
+        ? {
+            pdm_id: row.pdm_id || row.student_number,
+            name: uploadedName,
+            lrn: row.learners_reference_number,
+            date_of_birth: row.date_of_birth,
+          }
+        : null,
+    };
+  });
+}
+
 async function importStudentRegistryFile({ file, adminId }) {
   if (!file || !file.buffer) {
     throw buildError('No file uploaded.', 400);
@@ -1193,7 +1284,11 @@ async function importStudentRegistryFile({ file, adminId }) {
   const importBatchId = await createBatch(file, adminId);
   const courseMap = await loadCourseMap();
   await insertImportRows(importBatchId, parsedRows);
-  await upsertMasterRows(importBatchId, parsedRows, courseMap);
+  const upsertSummary = await upsertMasterRows(
+    importBatchId,
+    parsedRows,
+    courseMap
+  );
   const completion = await markImportRowsCompleted(importBatchId);
   const imported = completion.imported;
   const failedRows = completion.failed;
@@ -1203,12 +1298,18 @@ async function importStudentRegistryFile({ file, adminId }) {
     imported,
     failedRows
   );
+  const failedResults = failedRows > 0
+    ? await loadFailedImportResults(importBatchId)
+    : [];
 
   return {
     import_batch_id: importBatchId,
     imported,
     total: parsedRows.length,
+    added: upsertSummary.added,
+    updated: upsertSummary.updated,
     failed_rows: failedRows,
+    failed_results: failedResults,
     source_headers: sourceHeaders,
   };
 }

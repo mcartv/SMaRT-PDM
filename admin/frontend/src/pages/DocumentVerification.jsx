@@ -2100,8 +2100,6 @@ function OCRPanel({
           </div>
         )}
 
-        {['student_grade_forms', 'certificate_of_indigency'].includes(activeDoc?.id) && <ScannedDocumentPreview candidate={reviewCandidate} request={getActiveIotRequest(activeDoc)} documentKey={activeDoc.id} />}
-
         {isGradeReview && (
           <div className={`rounded-xl border p-4 space-y-4 ${gradeReviewCompleted ? 'border-green-200 bg-green-50' : ''}`} style={!gradeReviewCompleted ? { background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-sub)' } : undefined}>
             <div className="flex items-center justify-between gap-3">
@@ -2117,7 +2115,9 @@ function OCRPanel({
               </Badge>
             </div>
 
-            <div className="space-y-3">
+            <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(440px,1.08fr)_minmax(0,0.92fr)]">
+              <ScannedDocumentPreview candidate={reviewCandidate} request={getActiveIotRequest(activeDoc)} documentKey={activeDoc.id} />
+              <div className="min-w-0 space-y-3">
               {GRADE_REVIEW_FIELDS.map(([key, label]) => (
                 <label key={key} className="grid gap-1 sm:grid-cols-[130px_1fr_auto] sm:items-center">
                   <span className="text-sm font-semibold text-stone-700">{label}</span>
@@ -2148,6 +2148,7 @@ function OCRPanel({
                   {String(ocrFieldValue(correctedFields?.gwa) || '').trim() ? 'Detected' : '\u2014'}
                 </span>
               </div>
+              </div>
             </div>
 
             {!gradeReviewCompleted && (
@@ -2176,7 +2177,9 @@ function OCRPanel({
               </Badge>
             </div>
 
-            <div className="space-y-5">
+            <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(440px,1.08fr)_minmax(0,0.92fr)]">
+              <ScannedDocumentPreview candidate={reviewCandidate} request={getActiveIotRequest(activeDoc)} documentKey={activeDoc.id} />
+              <div className="min-w-0 space-y-5">
               {INDIGENCY_REVIEW_FIELDS.map(([key, label]) => (
                 <label key={key} className={`block min-w-0 rounded-2xl border bg-white/90 p-4 shadow-[0_10px_30px_-24px_rgba(28,25,23,0.45)] sm:p-5 ${indigencyReviewCompleted ? 'border-emerald-100' : 'border-amber-100'}`}>
                   <span className="block text-left text-sm font-bold leading-5 text-stone-900">{label}</span>
@@ -2210,6 +2213,7 @@ function OCRPanel({
                   </div>
                 </label>
               ))}
+              </div>
             </div>
 
             {!indigencyReviewCompleted && (

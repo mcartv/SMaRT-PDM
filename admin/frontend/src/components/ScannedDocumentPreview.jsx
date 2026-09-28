@@ -13,13 +13,20 @@ export default function ScannedDocumentPreview({ candidate, request, documentKey
   const [previewDragging, setPreviewDragging] = useState(false);
   const dragStateRef = useRef({ pointerId: null, startX: 0, startY: 0, panX: 0, panY: 0 });
 
-  // A newer request must supersede an older candidate, including failed scans.
-  const scan = request?.request_id ? request : candidate;
+  const supportedDocument = ['student_grade_forms', 'certificate_of_indigency'].includes(documentKey);
+  const isPreviewableScan = (scan) => Boolean(
+    scan?.request_id
+    && scan?.document_key === documentKey
+    && scan?.ocr_version === 'v2'
+    && ['review_required', 'completed', 'failed'].includes(scan?.status)
+  );
+
+  // Prefer the current request only when it can supply a captured-image preview.
+  // Otherwise keep the review candidate visible instead of collapsing the left column.
+  const scan = isPreviewableScan(request) ? request : candidate;
   const requestId = scan?.request_id;
   const identity = `${id}/${documentKey}/${requestId}/${retry}`;
-  const supported = ['student_grade_forms', 'certificate_of_indigency'].includes(documentKey)
-    && scan?.document_key === documentKey && scan?.ocr_version === 'v2'
-    && ['review_required', 'completed', 'failed'].includes(scan?.status) && requestId;
+  const supported = supportedDocument && isPreviewableScan(scan);
 
   const resetPreviewTransform = () => {
     setPreviewZoom(1);

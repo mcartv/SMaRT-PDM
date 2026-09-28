@@ -2115,8 +2115,10 @@ function OCRPanel({
             </div>
 
             <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(440px,1.08fr)_minmax(0,0.92fr)]">
-              <ScannedDocumentPreview candidate={reviewCandidate} request={getActiveIotRequest(activeDoc)} documentKey={activeDoc.id} />
-              <div className="grid min-w-0 gap-3 sm:grid-rows-2">
+              <div className="min-w-0 xl:col-start-1">
+                <ScannedDocumentPreview candidate={reviewCandidate} request={getActiveIotRequest(activeDoc)} documentKey={activeDoc.id} />
+              </div>
+              <div className="grid min-w-0 gap-3 sm:grid-rows-2 xl:col-start-2">
                 {GRADE_REVIEW_FIELDS.map(([key, label]) => (
                   <label key={key} className="flex min-h-0 min-w-0 flex-col justify-center rounded-2xl border border-rose-100 bg-white p-4 shadow-[0_10px_30px_-24px_rgba(28,25,23,0.45)] sm:p-5">
                     <div className="mb-4 flex items-start justify-between gap-3">
@@ -2178,8 +2180,10 @@ function OCRPanel({
             </div>
 
             <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(440px,1.08fr)_minmax(0,0.92fr)]">
-              <ScannedDocumentPreview candidate={reviewCandidate} request={getActiveIotRequest(activeDoc)} documentKey={activeDoc.id} />
-              <div className="grid min-w-0 gap-3 sm:grid-rows-2">
+              <div className="min-w-0 xl:col-start-1">
+                <ScannedDocumentPreview candidate={reviewCandidate} request={getActiveIotRequest(activeDoc)} documentKey={activeDoc.id} />
+              </div>
+              <div className="grid min-w-0 gap-3 sm:grid-rows-2 xl:col-start-2">
                 {INDIGENCY_REVIEW_FIELDS.map(([key, label]) => (
                   <label key={key} className="flex min-h-0 min-w-0 flex-col justify-center rounded-2xl border border-rose-100 bg-white p-4 shadow-[0_10px_30px_-24px_rgba(28,25,23,0.45)] sm:p-5">
                     <div className="mb-4 flex items-start justify-between gap-3">

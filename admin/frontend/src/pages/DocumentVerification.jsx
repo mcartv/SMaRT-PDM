@@ -2650,10 +2650,7 @@ function OCRPanel({
 
           {birthRawUnavailable ? (
             <div className="min-h-[120px] rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" role="status">
-              Full-page transcription is unavailable
-              {reviewCandidate?.processing?.raw_text_error_code || reviewCandidate?.processing?.diagnostic_raw_error_code
-                ? ` (${reviewCandidate.processing.raw_text_error_code || reviewCandidate.processing.diagnostic_raw_error_code})`
-                : ''}. Request a rescan; no OCR text was fabricated.
+              Full-page transcription is unavailable (FULL_PAGE_UNAVAILABLE). Request a rescan; no OCR text was fabricated.
             </div>
           ) : (
             <Textarea

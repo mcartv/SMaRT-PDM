@@ -13,11 +13,17 @@ const family = read('mobile/frontend/lib/features/forms/presentation/screens/ste
 const documents = read('mobile/frontend/lib/features/applicant/presentation/screens/applicant_documents_screen.dart');
 const status = read('mobile/frontend/lib/features/dashboard/presentation/widgets/applicant_application_status_panel.dart');
 
-test('registration legal agreement uses responsive document rows and a usable legal sheet', () => {
-  assert.match(register, /Widget _policyLink\(/);
-  assert.match(register, /'Terms & Privacy'/);
-  assert.match(register, /title: 'Terms of Service'/);
-  assert.match(register, /title: 'Privacy Statement'/);
+test('registration uses one consent checkbox with inline legal links and a usable legal sheet', () => {
+  const agreement = register.slice(
+    register.indexOf('Widget _buildPolicyAgreement()'),
+    register.indexOf('String? _validateStudentId')
+  );
+  assert.match(register, /Widget _policyTextLink\(/);
+  assert.match(agreement, /Checkbox\(/);
+  assert.match(agreement, /label: 'Terms of Service'/);
+  assert.match(agreement, /label: 'Privacy Statement'/);
+  assert.doesNotMatch(agreement, /chevron_right_rounded/);
+  assert.doesNotMatch(agreement, /_policyLink\(/);
   assert.match(legalSheet, /DraggableScrollableSheet\(/);
   assert.match(legalSheet, /SelectableText\(/);
   assert.match(legalSheet, /maxLines: 2/);

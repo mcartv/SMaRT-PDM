@@ -690,7 +690,7 @@ exports.updateRequestStatus = async ({ requestId, status, claimedBy } = {}) => {
                 WHERE request_id = $1::uuid RETURNING *
             `, [requestId]);
             await client.query('COMMIT');
-            return mapRequestRow(heartbeat.rows[0]);
+            return { ...mapRequestRow(heartbeat.rows[0]), heartbeat_only: true };
         }
         if (!transitionAllowed(row.status, nextStatus) || nextStatus === 'review_required' || nextStatus === 'completed') {
             const error = buildHttpError(409, `Invalid IoT OCR transition: ${row.status} -> ${nextStatus}`);
@@ -710,7 +710,7 @@ exports.updateRequestStatus = async ({ requestId, status, claimedBy } = {}) => {
             WHERE request_id = $1::uuid RETURNING *
         `, [requestId, nextStatus, deviceId]);
         await client.query('COMMIT');
-        return mapRequestRow(updated.rows[0]);
+        return { ...mapRequestRow(updated.rows[0]), heartbeat_only: false };
     } catch (error) {
         await client.query('ROLLBACK');
         throw error;

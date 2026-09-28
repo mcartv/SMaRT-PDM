@@ -3529,6 +3529,7 @@ export default function DocumentVerification() {
   const [iotOcrCapabilities, setIotOcrCapabilities] = useState({});
   const pollingRef = useRef(null);
   const activeIotRequestRef = useRef(null);
+  const terminalOcrFetchesRef = useRef(new Set());
   const ocrRefreshSuppressedUntilRef = useRef(0);
 
   // Keep local state stable while an immediate per-document review write and
@@ -3722,19 +3723,16 @@ export default function DocumentVerification() {
       if (String(data.application_id || '') !== String(id || '')) return;
 
       const documentId = data.document_key;
-      if (!documentId || !data.request_id) return;
+      const requestId = data.request_id;
+      if (!documentId || !requestId) return;
 
-      // OCR status events can arrive several times per second while the Pi moves
-      // through pending/claimed/previewing/focusing/capturing/processing.
-      // Keep these updates local. Re-fetching the entire application bundle here
-      // caused the PostgREST storm seen in Supabase logs.
       setIotOcrResults((current) => {
         const existing = current[documentId] || {};
         const existingRequest = existing.iot_ocr_request || existing.ocr_job || {};
 
         if (
           existingRequest.request_id &&
-          existingRequest.request_id !== data.request_id
+          existingRequest.request_id !== requestId
         ) {
           const activeRequestId = activeIotRequestRef.current?.requestId;
           const existingTime = new Date(
@@ -3745,7 +3743,7 @@ export default function DocumentVerification() {
           ).getTime();
 
           if (
-            activeRequestId !== data.request_id &&
+            activeRequestId !== requestId &&
             incomingTime <= existingTime
           ) {
             return current;
@@ -3764,12 +3762,74 @@ export default function DocumentVerification() {
         };
       });
 
-      // No fetchApplicationDocuments() here.
-      // - active OCR state is already carried by the socket payload above
-      // - the small /iot-ocr and /ocr-snapshot fallbacks hydrate candidate data
-      // - snapshot-saved / terminal paths perform the one allowed full refresh
+      const requestStatus = String(data.status || '').trim().toLowerCase();
+      if (!['review_required', 'completed', 'cancelled', 'failed', 'expired'].includes(requestStatus)) {
+        return;
+      }
+
+      const fetchKey = `${documentId}:${requestId}:${requestStatus}`;
+      if (terminalOcrFetchesRef.current.has(fetchKey)) return;
+      terminalOcrFetchesRef.current.add(fetchKey);
+
+      void (async () => {
+        try {
+          const response = await fetch(
+            `${API_BASE}/api/applications/${id}/documents/${documentId}/iot-ocr?request_id=${encodeURIComponent(requestId)}`,
+            {
+              headers: {
+                Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+              },
+              cache: 'no-store',
+            }
+          );
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(payload.error || 'Failed to load the completed OCR result.');
+          }
+
+          const latestRequest = payload?.data?.request || data;
+          const candidate = payload?.data?.candidate || null;
+
+          setIotOcrResults((current) => ({
+            ...current,
+            [documentId]: {
+              ...(current[documentId] || {}),
+              iot_ocr_request: latestRequest,
+              ocr_job: latestRequest,
+            },
+          }));
+
+          if (candidate) {
+            setReviewCandidate(candidate);
+            setCorrectedFields(normalizeReviewFields(candidate));
+            setRawOcrSnapshot(candidate.raw_text || '');
+          }
+
+          stopPolling();
+          setRunningIotOcr(false);
+          if (activeIotRequestRef.current?.requestId === requestId) {
+            activeIotRequestRef.current = null;
+          }
+
+          if (['failed', 'cancelled', 'expired'].includes(requestStatus)) {
+            setIotOcrError(
+              latestRequest?.error_message || `OCR request ${requestStatus}. Retry the capture.`
+            );
+          } else {
+            setIotOcrError('');
+          }
+
+          ocrRefreshSuppressedUntilRef.current = Date.now() + 1000;
+          await fetchApplicationDocuments({ soft: true });
+        } catch (error) {
+          console.error('REALTIME OCR TERMINAL FETCH ERROR:', error);
+          setIotOcrError(error.message || 'Failed to load the completed OCR result.');
+        } finally {
+          terminalOcrFetchesRef.current.delete(fetchKey);
+        }
+      })();
     },
-    [id]
+    [fetchApplicationDocuments, id, stopPolling]
   );
 
   useSocketEvent(

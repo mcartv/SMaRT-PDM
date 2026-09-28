@@ -71,15 +71,17 @@ exports.updateIotOcrRequestStatus = async (req, res) => {
             claimedBy: req.piAuth?.deviceId || null,
         });
 
-        socketEvents.applicationOcrStatus(req.app?.get?.('io'), {
-            request_id: result.request_id,
-            application_id: result.application_id,
-            document_key: result.document_key,
-            status: result.status,
-            ocr_version: result.ocr_version || 'v1',
-            expires_at: result.expires_at,
-            updated_at: result.updated_at,
-        });
+        if (!result.heartbeat_only) {
+            socketEvents.applicationOcrStatus(req.app?.get?.('io'), {
+                request_id: result.request_id,
+                application_id: result.application_id,
+                document_key: result.document_key,
+                status: result.status,
+                ocr_version: result.ocr_version || 'v1',
+                expires_at: result.expires_at,
+                updated_at: result.updated_at,
+            });
+        }
 
         res.status(200).json({
             message: 'IoT OCR request status updated successfully',

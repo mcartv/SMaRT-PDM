@@ -73,6 +73,7 @@ const EXCEL_HEADERS_FALLBACK = [
   'Father Contact',
   'Father Educational Attainment',
   'Father Occupation',
+  'Father Company Name/Address',
   'Father Living/Vital Status',
   'Mother Name',
   'Mother Address',
@@ -81,6 +82,7 @@ const EXCEL_HEADERS_FALLBACK = [
   'Mother Contact',
   'Mother Educational Attainment',
   'Mother Occupation',
+  'Mother Company Name/Address',
   'Mother Living/Vital Status',
   'Elem School',
   'Elem Inclusive Year',
@@ -126,6 +128,75 @@ function normalizeHeaderKey(header) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, ' ');
+}
+
+async function downloadRegistryTemplate() {
+  const { default: ExcelJS } = await import('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Pambayang Dalubhasaan ng Marilao';
+  workbook.subject = 'SMaRT-PDM Student Registry Import Template';
+
+  const worksheet = workbook.addWorksheet('Student Registry', {
+    views: [{ state: 'frozen', ySplit: 7 }],
+  });
+
+  const bannerResponse = await fetch('/templates/student-registry-banner.png');
+  if (!bannerResponse.ok) {
+    throw new Error('Unable to load the official PDM banner.');
+  }
+
+  const bannerBuffer = await bannerResponse.arrayBuffer();
+  const bannerBase64 = btoa(
+    new Uint8Array(bannerBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+  );
+  const bannerId = workbook.addImage({
+    base64: `data:image/png;base64,${bannerBase64}`,
+    extension: 'png',
+  });
+
+  worksheet.addImage(bannerId, {
+    tl: { col: 0, row: 0 },
+    ext: { width: 682, height: 125 },
+  });
+
+  for (let row = 1; row <= 6; row += 1) {
+    worksheet.getRow(row).height = row === 1 ? 24 : 18;
+  }
+
+  const headerRow = worksheet.getRow(7);
+  headerRow.values = EXCEL_HEADERS_FALLBACK;
+  headerRow.height = 32;
+  headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  headerRow.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FF8B451F' },
+  };
+  headerRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+
+  EXCEL_HEADERS_FALLBACK.forEach((header, index) => {
+    const column = worksheet.getColumn(index + 1);
+    const longField = /address|school|company|educational attainment/i.test(header);
+    column.width = longField ? 28 : Math.max(14, Math.min(22, header.length + 2));
+  });
+
+  worksheet.autoFilter = {
+    from: { row: 7, column: 1 },
+    to: { row: 7, column: EXCEL_HEADERS_FALLBACK.length },
+  };
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'student-registry-import-template.xlsx';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 const REGISTRY_HEADER_ORDER_KEY = '__smart_pdm_header_order';
@@ -1283,11 +1354,18 @@ export default function StudentRegistryPanel() {
                 Import
               </Button>
 
-              <Button asChild variant="outline" size="sm" className="h-8 rounded-lg border-stone-200 text-xs">
-                <a href="/templates/student-registry-import-template.csv" download>
-                  <Download className="mr-1.5 h-3.5 w-3.5" />
-                  Template
-                </a>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-lg border-stone-200 text-xs"
+                onClick={() => {
+                  downloadRegistryTemplate().catch((err) => {
+                    toast.error(err.message || 'Failed to download the registry template.');
+                  });
+                }}
+              >
+                <Download className="mr-1.5 h-3.5 w-3.5" />
+                Template
               </Button>
             </div>
           </div>

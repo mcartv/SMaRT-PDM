@@ -22,7 +22,10 @@ class ApplicationService {
     return _apiClient.postJson(
       '/api/applications/me/submit',
       body: applicationData.toSubmissionPayload(),
-      timeout: const Duration(seconds: 30),
+      // Submission persists the complete form, initializes document slots,
+      // and creates the endorsement workflow. Allow for Render cold starts
+      // without changing the shorter timeout used by ordinary API requests.
+      timeout: const Duration(seconds: 90),
     );
   }
 
@@ -58,7 +61,7 @@ class ApplicationService {
     return _apiClient.postJson(
       '/api/applications/me/submit',
       body: body,
-      timeout: const Duration(seconds: 30),
+      timeout: const Duration(seconds: 90),
     );
   }
 

@@ -1220,14 +1220,31 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
         : _step < 4
         ? NavyButton(label: _nextButtonLabel, onTap: _next)
         : provider.isLoading
-        ? const SizedBox(
+        ? Container(
             height: 52,
-            child: Center(
-              child: SizedBox(
-                height: 24,
-                width: 24,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: AppColors.gold.withValues(alpha: 0.14),
+              borderRadius: AppRadii.control,
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    'Submitting...',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
             ),
           )
         : ElevatedButton(

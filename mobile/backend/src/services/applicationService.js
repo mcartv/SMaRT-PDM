@@ -4432,7 +4432,7 @@ async function submitMyApplicationForm(userId, payload = {}) {
         updated_at: new Date().toISOString(),
     };
 
-    const { error: profileError } = await supabase
+    const profileRequest = supabase
         .from('student_profiles')
         .upsert(
             profilePayload,
@@ -4440,10 +4440,6 @@ async function submitMyApplicationForm(userId, payload = {}) {
                 onConflict: 'student_id',
             }
         );
-
-    if (profileError) {
-        throw profileError;
-    }
 
     // ---------------------------------------------------------
     // Family information
@@ -4510,7 +4506,7 @@ async function submitMyApplicationForm(userId, payload = {}) {
         ),
     ];
 
-    const { error: familyError } = await supabase
+    const familyRequest = supabase
         .from('student_family')
         .upsert(
             familyRows,
@@ -4518,10 +4514,6 @@ async function submitMyApplicationForm(userId, payload = {}) {
                 onConflict: 'student_id,relation',
             }
         );
-
-    if (familyError) {
-        throw familyError;
-    }
 
     // ---------------------------------------------------------
     // Educational history
@@ -4605,7 +4597,7 @@ async function submitMyApplicationForm(userId, payload = {}) {
         ),
     ];
 
-    const { error: educationError } = await supabase
+    const educationRequest = supabase
         .from('student_education')
         .upsert(
             educationRows,
@@ -4615,9 +4607,22 @@ async function submitMyApplicationForm(userId, payload = {}) {
             }
         );
 
-    if (educationError) {
-        throw educationError;
-    }
+    // These records belong to separate tables and do not depend on one
+    // another. Saving them together removes two avoidable network round trips
+    // from the critical application-submission path.
+    const [
+        { error: profileError },
+        { error: familyError },
+        { error: educationError },
+    ] = await Promise.all([
+        profileRequest,
+        familyRequest,
+        educationRequest,
+    ]);
+
+    if (profileError) throw profileError;
+    if (familyError) throw familyError;
+    if (educationError) throw educationError;
 
     // ---------------------------------------------------------
     // Student update payload

@@ -76,6 +76,19 @@ test('explicit controller logs suppress duplicate fallback logs', () => {
     assert.match(coverage, /__systemAuditLogged/);
 });
 
+test('successful staff logins keep the authenticated account identity in System Logs', () => {
+    const authController = read('controllers/authController.js');
+    const service = read('services/auditLogService.js');
+
+    assert.match(authController, /const authenticatedUser\s*=/);
+    assert.match(authController, /userId: authenticatedUserId/);
+    assert.match(authController, /actorEmail: req\.user\?\.email \|\| authenticatedUser\.email \|\| null/);
+    assert.match(authController, /actorRole: req\.user\?\.role \|\| authenticatedUser\.role \|\| null/);
+    assert.match(service, /actorEmail: suppliedActorEmail = null/);
+    assert.match(service, /actorRole: suppliedActorRole = null/);
+    assert.match(service, /suppliedActorEmail \|\|[\s\S]*req\?\.body\?\.identifier/);
+});
+
 test('fallback never copies request bodies or uploaded files into metadata', () => {
     const coverage = read('middleware/systemAuditCoverageMiddleware.js');
     assert.doesNotMatch(coverage, /req\.body/);

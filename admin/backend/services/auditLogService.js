@@ -311,6 +311,8 @@ async function listRecentActivityForUser({
 async function logAudit({
     req = null,
     userId = null,
+    actorEmail: suppliedActorEmail = null,
+    actorRole: suppliedActorRole = null,
     actionTaken,
     module = null,
     entityType = null,
@@ -341,11 +343,14 @@ async function logAudit({
     try {
         const pathname = getRequestPath(req).toLowerCase();
         const actorUserId = userId || getActorUserId(req);
-        const actorRole = req?.user?.role || null;
+        const actorRole = suppliedActorRole || req?.user?.role || null;
         const actorEmail =
+            suppliedActorEmail ||
             req?.user?.email ||
             (/\/api\/auth\/login(?:\/|$)/.test(pathname)
-                ? String(req?.body?.email || '').trim().toLowerCase() || null
+                ? String(req?.body?.email || req?.body?.identifier || '')
+                    .trim()
+                    .toLowerCase() || null
                 : null);
         const ipAddress =
             req?.headers?.['x-forwarded-for']?.split(',')?.[0]?.trim() ||

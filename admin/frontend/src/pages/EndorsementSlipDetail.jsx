@@ -369,18 +369,20 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button
-              className="bg-white text-stone-900 hover:bg-stone-100"
-              onClick={handleDownloadSlip}
-              disabled={downloading}
-            >
-              {downloading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="mr-2 h-4 w-4" />
-              )}
-              Download PDF
-            </Button>
+            {isAdminView ? (
+              <Button
+                className="bg-white text-stone-900 hover:bg-stone-100"
+                onClick={handleDownloadSlip}
+                disabled={downloading}
+              >
+                {downloading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                Download PDF
+              </Button>
+            ) : null}
 
             {isAdminView ? (
               <Button

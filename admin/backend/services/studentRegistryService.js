@@ -475,9 +475,19 @@ function parseRows(rows) {
     const studentNumber = normalizeText(obj.student_number).toUpperCase();
     const givenName = normalizeText(obj.given_name);
     const lastName = normalizeText(obj.last_name);
+    const rowHasData = sourceColumns.some(({ index }) =>
+      normalizeText(unwrapWorkbookCellValue(row[index] ?? '')) !== ''
+    );
 
-    if (!studentNumber && !givenName && !lastName) continue;
-    if (!studentNumber || !givenName || !lastName) continue;
+    if (!rowHasData) continue;
+
+    const missingRequiredFields = [];
+    if (!studentNumber) missingRequiredFields.push('PDM ID / Student Number');
+    if (!givenName) missingRequiredFields.push('First Name / Given Name');
+    if (!lastName) missingRequiredFields.push('Surname / Last Name');
+    const validationError = missingRequiredFields.length
+      ? `${missingRequiredFields.join(', ')} ${missingRequiredFields.length === 1 ? 'is' : 'are'} required.`
+      : null;
 
     const hasField = (field) => Object.prototype.hasOwnProperty.call(obj, field);
     const explicitDisciplinary = hasField('has_disciplinary_action')
@@ -489,6 +499,7 @@ function parseRows(rows) {
 
     records.push({
       row_number: obj.row_number,
+      validation_error: validationError,
       student_number: studentNumber,
       pdm_id: studentNumber,
       learners_reference_number: normalizeText(obj.learners_reference_number) || null,
@@ -613,8 +624,8 @@ async function insertImportRows(importBatchId, parsedRows) {
     civil_status: row.civil_status,
     religion: row.religion,
     age: row.age,
-    status: 'validated',
-    error_message: null,
+    status: row.validation_error ? 'failed' : 'validated',
+    error_message: row.validation_error || null,
   }));
 
   for (let index = 0; index < payload.length; index += IMPORT_CHUNK_SIZE) {
@@ -789,6 +800,8 @@ async function classifyRegistryDataQualityRows(
   for (const row of importRows || []) {
     const studentNumber = normalizeText(row.student_number).toUpperCase();
     const normalizedCourse = normalizeLookupValue(row.course_code);
+
+    if (row.validation_error) continue;
 
     if ((counts.get(studentNumber) || 0) > 1) {
       failures.push({
@@ -1175,6 +1188,12 @@ function importFailureLabel(message) {
     return 'Duplicate PDM ID in uploaded file';
   }
   if (normalized.includes('maintenance courses')) return 'Unknown course';
+  if (
+    normalized.includes('required') &&
+    (normalized.includes('pdm id') || normalized.includes('student number'))
+  ) {
+    return 'Missing PDM ID';
+  }
   if (normalized.includes('pdm id') || normalized.includes('student number')) {
     return 'Invalid PDM ID';
   }

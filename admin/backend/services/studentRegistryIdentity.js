@@ -86,12 +86,26 @@ function evaluateRegistryIdentity(existing = {}, incoming = {}) {
     };
   }
 
-  const nameHasStrongSupport =
-    firstMatches ||
-    lastMatches ||
-    (birthdayMatches && firstReasonablyMatches && lastReasonablyMatches);
+  const bothNamePartsComparable = firstComparable && lastComparable;
+  const oneNamePartComparable = firstComparable !== lastComparable;
+  const firstCorrectionMatches =
+    firstReasonablyMatches ||
+    (birthdayMatches &&
+      lastMatches &&
+      editDistance(existingFirst, incomingFirst) <= 2);
+  const lastCorrectionMatches =
+    lastReasonablyMatches ||
+    (birthdayMatches &&
+      firstMatches &&
+      editDistance(existingLast, incomingLast) <= 2);
+
+  const nameHasStrongSupport = bothNamePartsComparable
+    ? firstCorrectionMatches && lastCorrectionMatches
+    : oneNamePartComparable
+      ? birthdayMatches && (firstReasonablyMatches || lastReasonablyMatches)
+      : false;
   const completelyDifferentName =
-    firstComparable && lastComparable && !nameHasStrongSupport;
+    (bothNamePartsComparable || oneNamePartComparable) && !nameHasStrongSupport;
 
   if (completelyDifferentName) {
     return {

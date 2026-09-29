@@ -133,7 +133,8 @@ class _OfflineScreen extends StatelessWidget {
                   Text(
                     controller.isChecking
                         ? 'Please wait while SMaRT-PDM checks its connection '
-                              'to the server.'
+                              'to the server. This may take up to a minute '
+                              'while the service starts.'
                         : 'SMaRT-PDM requires an active internet connection. '
                               'Typing, navigation, uploads, and other actions are '
                               'disabled until the connection is restored.',

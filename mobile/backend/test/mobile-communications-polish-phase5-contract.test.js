@@ -89,7 +89,8 @@ test('message thread scales its header and bounds bubbles on wide screens', () =
   assert.match(messaging, /SMART-PDM_MOBILE_MESSAGING_THREAD_RESPONSIVE_PHASE5_V1/);
   assert.match(messaging, /FittedBox\(/);
   assert.match(messaging, /fit: BoxFit\.scaleDown/);
-  assert.match(messaging, /screenWidth > 680 \? 520 : screenWidth \* 0\.76/);
+  assert.match(messaging, /bubbleMaxWidth = screenWidth > 680 \? 520\.0 : screenWidth \* 0\.76/);
+  assert.match(messaging, /BoxConstraints\(maxWidth: bubbleMaxWidth\)/);
   assert.match(messaging, /hintText: 'Type a message\.\.\.'/);
   assert.match(messaging, /Icons\.send_rounded/);
   assert.match(messaging, /ValueKey<String>\('send-like'\)/);

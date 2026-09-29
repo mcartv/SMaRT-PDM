@@ -52,11 +52,12 @@ test('conversation keeps search collapsed, removes online status, and uses compa
 });
 
 
-test('message timeline groups timestamps by sender within five minutes', () => {
+test('message timeline groups bubbles and only separates meaningful time gaps', () => {
   assert.match(thread, /difference\(older\.sentAt\)\.inMinutes <= 5/);
-  assert.match(thread, /showTimestamp: !groupedWithNewer/);
-  assert.match(thread, /if \(!isMe && showTimestamp\)/);
-  assert.match(thread, /if \(isMe && showTimestamp && !showDeliveryStatus\)/);
+  assert.match(thread, /bool _shouldShowTimeDivider/);
+  assert.match(thread, /const Duration\(hours: 1\)/);
+  assert.match(thread, /class _TimeDivider/);
+  assert.doesNotMatch(thread, /showTimestamp/);
   assert.match(thread, /Delivered · \$timeLabel/);
   assert.match(thread, /older\.subject\?\.toLowerCase\(\) == 'system'/);
   assert.match(thread, /newer\.subject\?\.toLowerCase\(\) == 'system'/);

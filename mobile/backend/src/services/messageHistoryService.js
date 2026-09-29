@@ -62,6 +62,32 @@ async function resolveUsableAvatar(value) {
   }
 }
 
+async function fetchAdminPhotoMap(userIds = []) {
+  const ids = [...new Set(userIds.map(safeText).filter(Boolean))];
+  if (!ids.length) return new Map();
+
+  try {
+    const { rows } = await db.query(
+      `
+        SELECT user_id, profile_photo_url
+        FROM admin_profiles
+        WHERE user_id = ANY($1::uuid[]);
+      `,
+      [ids]
+    );
+    return new Map(
+      rows.map((row) => [row.user_id, row.profile_photo_url || null])
+    );
+  } catch (error) {
+    // Keep message history available on older deployments where the optional
+    // admin profile-photo column has not been added yet.
+    if (error?.code !== '42703') {
+      console.warn('MESSAGE HISTORY ADMIN PHOTO FETCH ERROR:', error?.message || error);
+    }
+    return new Map();
+  }
+}
+
 async function fetchProfileMap(userIds = []) {
   const ids = [...new Set(userIds.map(safeText).filter(Boolean))];
   if (!ids.length) return new Map();
@@ -84,6 +110,7 @@ async function fetchProfileMap(userIds = []) {
     `,
     [ids]
   );
+  const adminPhotoMap = await fetchAdminPhotoMap(ids);
 
   const map = new Map();
   await Promise.all(
@@ -104,7 +131,9 @@ async function fetchProfileMap(userIds = []) {
         studentName ||
         adminName ||
         (deleted ? 'Deleted user' : rawUsername || rawEmail || 'Unknown user');
-      const avatarUrl = await resolveUsableAvatar(row.student_photo);
+      const avatarUrl = await resolveUsableAvatar(
+        row.student_photo || adminPhotoMap.get(row.user_id)
+      );
 
       map.set(row.user_id, { name, avatarUrl });
     })

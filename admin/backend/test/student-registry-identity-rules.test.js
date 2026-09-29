@@ -127,3 +127,54 @@ test('minor spelling corrections in both name parts are allowed when DOB also ma
   assert.equal(result.conflict, false);
   assert.equal(result.basis, 'supporting_name_match');
 });
+
+
+test('missing LRN does not let a matching first name hide a conflicting surname and DOB', () => {
+  const result = evaluateRegistryIdentity(
+    { ...existing, learners_reference_number: null },
+    incoming({
+      learners_reference_number: null,
+      last_name: 'Reyes',
+      date_of_birth: '2007-10-04',
+    })
+  );
+  assert.equal(result.conflict, true);
+  assert.equal(result.basis, 'different_name_without_lrn');
+});
+
+test('missing LRN does not let a matching surname hide a conflicting first name and DOB', () => {
+  const result = evaluateRegistryIdentity(
+    { ...existing, learners_reference_number: null },
+    incoming({
+      learners_reference_number: null,
+      given_name: 'Maria Anne',
+      date_of_birth: '2007-10-04',
+    })
+  );
+  assert.equal(result.conflict, true);
+  assert.equal(result.basis, 'different_name_without_lrn');
+});
+
+test('with only one comparable name part, matching DOB is also required', () => {
+  const existingPartial = {
+    ...existing,
+    learners_reference_number: null,
+    last_name: null,
+  };
+
+  const allowed = evaluateRegistryIdentity(
+    existingPartial,
+    incoming({ learners_reference_number: null, last_name: null })
+  );
+  assert.equal(allowed.conflict, false);
+
+  const rejected = evaluateRegistryIdentity(
+    existingPartial,
+    incoming({
+      learners_reference_number: null,
+      last_name: null,
+      date_of_birth: '2007-10-04',
+    })
+  );
+  assert.equal(rejected.conflict, true);
+});

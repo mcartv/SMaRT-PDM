@@ -16,6 +16,8 @@ class ConnectivityController extends ChangeNotifier
   final Connectivity _connectivity;
   final http.Client _httpClient;
 
+  static const Duration serverWakeTimeout = Duration(minutes: 1);
+
   StreamSubscription<List<ConnectivityResult>>? _subscription;
   Timer? _periodicCheck;
   bool _started = false;
@@ -82,7 +84,7 @@ class ConnectivityController extends ChangeNotifier
               'Cache-Control': 'no-cache',
             },
           )
-          .timeout(const Duration(seconds: 5));
+          .timeout(serverWakeTimeout);
 
       final connected = response.statusCode >= 200 && response.statusCode < 300;
       _setAvailability(

@@ -13,14 +13,19 @@ import {
 } from '@/utils/authStorage';
 
 const TRANSIENT_RETRY_MS = 3_000;
+const SLOW_VALIDATION_MS = 10_000;
+const VALIDATION_ERROR_AFTER_MS = 60_000;
 
 export default function ProtectedRoute({ children, storageKey, redirectTo }) {
   const portalName = getPortalNameFromTokenKey(storageKey);
   const [status, setStatus] = useState('checking');
   const [showCheckingLoader, setShowCheckingLoader] = useState(false);
+  const [connectionState, setConnectionState] = useState('loading');
+  const [isRetrying, setIsRetrying] = useState(false);
   const validatedTokenRef = useRef('');
   const retryTimerRef = useRef(null);
   const validateRef = useRef(null);
+  const validationStartedAtRef = useRef(Date.now());
 
   const scheduleRetry = useCallback((delay = TRANSIENT_RETRY_MS) => {
     if (retryTimerRef.current) {
@@ -38,6 +43,7 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
 
     if (!token) {
       validatedTokenRef.current = '';
+      validationStartedAtRef.current = Date.now();
       setStatus('denied');
       return;
     }
@@ -60,6 +66,8 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
       }
 
       validatedTokenRef.current = token;
+      validationStartedAtRef.current = Date.now();
+      setConnectionState('success');
       setStatus('allowed');
     } catch (error) {
       const latestToken = getStoredItem(storageKey);
@@ -79,6 +87,14 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
         if (validatedTokenRef.current === token) {
           setStatus('allowed');
         } else {
+          const elapsed = Date.now() - validationStartedAtRef.current;
+          setConnectionState(!navigator.onLine
+            ? 'offline'
+            : elapsed >= VALIDATION_ERROR_AFTER_MS
+              ? 'server_error'
+              : elapsed >= SLOW_VALIDATION_MS
+                ? 'slow'
+                : 'loading');
           setStatus('checking');
           scheduleRetry();
         }
@@ -92,6 +108,12 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
         if (validatedTokenRef.current === token) {
           setStatus('allowed');
         } else {
+          const elapsed = Date.now() - validationStartedAtRef.current;
+          setConnectionState(elapsed >= VALIDATION_ERROR_AFTER_MS
+            ? 'server_error'
+            : elapsed >= SLOW_VALIDATION_MS
+              ? 'slow'
+              : 'loading');
           setStatus('checking');
           scheduleRetry();
         }
@@ -117,26 +139,40 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
       }
 
       validatedTokenRef.current = '';
+      validationStartedAtRef.current = Date.now();
       setStatus('denied');
     }
   }, [portalName, scheduleRetry, storageKey]);
 
   validateRef.current = validate;
 
+  const retryValidation = useCallback(async () => {
+    validationStartedAtRef.current = Date.now();
+    setIsRetrying(true);
+    try {
+      await validate();
+    } finally {
+      setIsRetrying(false);
+    }
+  }, [validate]);
+
   useEffect(() => {
     void validate();
 
-    const retry = () => void validate();
+    const retry = () => void retryValidation();
+    const markOffline = () => setConnectionState('offline');
     window.addEventListener('online', retry);
+    window.addEventListener('offline', markOffline);
 
     return () => {
       window.removeEventListener('online', retry);
+      window.removeEventListener('offline', markOffline);
       if (retryTimerRef.current) {
         window.clearTimeout(retryTimerRef.current);
         retryTimerRef.current = null;
       }
     };
-  }, [validate]);
+  }, [retryValidation, validate]);
 
   useEffect(() => {
     if (status !== 'checking') {
@@ -151,6 +187,15 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
 
     return () => window.clearTimeout(timer);
   }, [status]);
+
+  useEffect(() => {
+    if (status !== 'checking' || connectionState !== 'loading') return undefined;
+    const elapsed = Date.now() - validationStartedAtRef.current;
+    const timer = window.setTimeout(() => {
+      setConnectionState((current) => (current === 'loading' ? 'slow' : current));
+    }, Math.max(0, SLOW_VALIDATION_MS - elapsed));
+    return () => window.clearTimeout(timer);
+  }, [connectionState, status]);
 
   useEffect(() => {
     if (status !== 'allowed') return undefined;
@@ -194,9 +239,9 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
 
     return (
       <PublicLogoLoader
-        status="checking"
-        isRetrying={false}
-        onRetry={validate}
+        status={connectionState}
+        isRetrying={isRetrying}
+        onRetry={retryValidation}
       />
     );
   }

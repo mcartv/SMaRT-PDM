@@ -1516,7 +1516,6 @@ function MemberProfileModal({ member, onClose, onMessage }) {
         </div>
 
         <div className="mt-5 grid gap-3 rounded-2xl bg-stone-50 p-4 text-sm">
-          {member.studentNumber ? <div><span className="text-stone-500">ID</span><p className="font-medium text-stone-900">{member.studentNumber}</p></div> : null}
           {member.position ? <div><span className="text-stone-500">Position</span><p className="font-medium text-stone-900">{member.position}</p></div> : null}
           {member.department ? <div><span className="text-stone-500">Office</span><p className="font-medium text-stone-900">{member.department}</p></div> : null}
           {member.roArea ? <div><span className="text-stone-500">RO Area</span><p className="font-medium text-stone-900">{member.roArea}</p></div> : null}

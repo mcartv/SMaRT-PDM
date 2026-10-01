@@ -4,7 +4,14 @@ const supabase = require('../config/supabase');
 const iotOcrRequestService = require('./iotOcrRequestService');
 
 function getEnhancedOcrProvider() {
-    return require('./enhancedOcrProvider');
+    try {
+        return require('./indigencyEnhancedOcrProvider');
+    } catch (error) {
+        if (error?.code === 'MODULE_NOT_FOUND' || String(error?.message || '').startsWith('Unexpected dependency')) {
+            return require('./enhancedOcrProvider');
+        }
+        throw error;
+    }
 }
 
 const BUCKET = String(process.env.IOT_OCR_CAPTURE_BUCKET || 'iot-ocr-captures').trim();
@@ -12,6 +19,8 @@ const INDIGENCY_PROVIDER_TIMEOUT_MS = Math.min(25000, Math.max(8000, Number.pars
 const INDIGENCY_MAX_OUTPUT_TOKENS = Math.min(4096, Math.max(512, Number.parseInt(process.env.INDIGENCY_OCR_MAX_OUTPUT_TOKENS || '2048', 10) || 2048));
 const INDIGENCY_RETRY_MAX_ATTEMPTS = Math.min(2, Math.max(1, Number.parseInt(process.env.INDIGENCY_OCR_RETRY_MAX_ATTEMPTS || '2', 10) || 2));
 const INDIGENCY_RETRY_BACKOFF_SECONDS = [Math.min(5, Math.max(1, Number.parseInt(process.env.INDIGENCY_OCR_RETRY_BACKOFF_SECONDS || '1', 10) || 1))];
+const VERIFIED_CAPTURE_CACHE_TTL_MS = Math.min(300000, Math.max(30000, Number.parseInt(process.env.INDIGENCY_VERIFIED_CAPTURE_CACHE_TTL_MS || '120000', 10) || 120000));
+const verifiedCaptureCache = new Map();
 const FIELD_KEYS = Object.freeze([
     'certificate_subject_name',
     'residency_address',
@@ -101,6 +110,32 @@ exports.authorizeUploads = async ({ requestId, deviceId, artifacts }) => {
     }
 };
 
+function getCachedOriginal(requestId) {
+    const key = String(requestId || '');
+    const cached = verifiedCaptureCache.get(key);
+    if (!cached) return null;
+    if (Date.now() - cached.verifiedAt > VERIFIED_CAPTURE_CACHE_TTL_MS) {
+        verifiedCaptureCache.delete(key);
+        return null;
+    }
+    return cached.original;
+}
+
+function rememberVerifiedOriginal(requestId, original) {
+    verifiedCaptureCache.set(String(requestId || ''), { verifiedAt: Date.now(), original });
+}
+
+function clearVerifiedOriginal(requestId) {
+    verifiedCaptureCache.delete(String(requestId || ''));
+}
+
+async function markOriginalAvailable(requestId) {
+    await pool.query(`
+        UPDATE public.iot_ocr_capture_artifacts SET upload_status = 'available', uploaded_at = COALESCE(uploaded_at, NOW()), updated_at = NOW()
+        WHERE request_id = $1::uuid AND artifact_kind = 'original' AND upload_status = 'pending'
+    `, [requestId]);
+}
+
 async function downloadOriginal(requestId) {
     const result = await pool.query(`
         SELECT * FROM public.iot_ocr_capture_artifacts
@@ -144,11 +179,12 @@ exports.completeUploads = async ({ requestId, deviceId }) => {
     console.info('INDIGENCY_V2_PROVIDER_STARTED', {
         request_id: String(requestId).slice(0, 8), attempt, status: request.status,
     });
-    const original = await downloadOriginal(requestId);
-    await pool.query(`
-        UPDATE public.iot_ocr_capture_artifacts SET upload_status = 'available', uploaded_at = COALESCE(uploaded_at, NOW()), updated_at = NOW()
-        WHERE request_id = $1::uuid AND artifact_kind = 'original' AND upload_status = 'pending'
-    `, [requestId]);
+    let original = getCachedOriginal(requestId);
+    if (!original) {
+        original = await downloadOriginal(requestId);
+        await markOriginalAvailable(requestId);
+        rememberVerifiedOriginal(requestId, original);
+    }
     let result;
     try {
         result = await getEnhancedOcrProvider().extract({
@@ -207,6 +243,7 @@ exports.completeUploads = async ({ requestId, deviceId }) => {
         request_id: String(requestId).slice(0, 8), attempt,
         duration_ms: Date.now() - startedAt, status: completed.request?.status || 'review_required',
     });
+    clearVerifiedOriginal(requestId);
     if (completed.request?.status === 'review_required') {
         console.info('INDIGENCY_V2_REVIEW_REQUIRED', {
             request_id: String(requestId).slice(0, 8), attempt,
@@ -222,11 +259,9 @@ exports.acceptUploads = async ({ requestId, deviceId }) => {
     if (String(request.claimed_by || '') !== String(deviceId || '')) throw httpError(409, 'Request belongs to another Pi device');
     if (['review_required', 'completed'].includes(request.status)) return { accepted: false, idempotent: true, request, candidate: await iotOcrRequestService.getCandidate({ applicationId: request.application_id, documentKey: request.document_key, requestId }) };
     if (request.status !== 'processing') throw httpError(409, `Cannot accept uploads from ${request.status}`);
-    await downloadOriginal(requestId);
-    await pool.query(`
-        UPDATE public.iot_ocr_capture_artifacts SET upload_status = 'available', uploaded_at = COALESCE(uploaded_at, NOW()), updated_at = NOW()
-        WHERE request_id = $1::uuid AND artifact_kind = 'original' AND upload_status = 'pending'
-    `, [requestId]);
+    const original = await downloadOriginal(requestId);
+    await markOriginalAvailable(requestId);
+    rememberVerifiedOriginal(requestId, original);
     const claim = await iotOcrRequestService.claimAsyncProcessing({ requestId, owner: `backend:${process.pid}:${crypto.randomUUID()}` });
     console.info('INDIGENCY_V2_ACCEPTED', {
         request_id: String(requestId).slice(0, 8),

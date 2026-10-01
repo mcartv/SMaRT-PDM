@@ -51,6 +51,8 @@ const GEMINI_ENABLE_ROW_RECOVERY = String(
     process.env.GEMINI_ENABLE_ROW_RECOVERY || 'false'
 ).trim().toLowerCase() === 'true';
 const MAX_ARTIFACT_BYTES = 15 * 1024 * 1024;
+const VERIFIED_ARTIFACT_CACHE_TTL_MS = Math.min(300000, Math.max(30000, Number.parseInt(process.env.BIRTH_VERIFIED_ARTIFACT_CACHE_TTL_MS || '120000', 10) || 120000));
+const verifiedArtifactCache = new Map();
 const REVIEW_GROUPS = new Set([
     'ready_to_confirm', 'low_confidence', 'missing_field',
     'failed_validation', 'duplicate_suspicion', 'diagnostic_only',
@@ -316,6 +318,30 @@ exports.authorizeUploads = async ({ requestId, deviceId, artifacts }) => {
         client.release();
     }
 };
+
+function getCachedVerifiedArtifacts(requestId, { originalOnly = false } = {}) {
+    const key = String(requestId || '');
+    const cached = verifiedArtifactCache.get(key);
+    if (!cached) return null;
+    if (Date.now() - cached.verifiedAt > VERIFIED_ARTIFACT_CACHE_TTL_MS
+        || cached.originalOnly !== Boolean(originalOnly)) {
+        verifiedArtifactCache.delete(key);
+        return null;
+    }
+    return cached.artifacts;
+}
+
+function rememberVerifiedArtifacts(requestId, artifacts, { originalOnly = false } = {}) {
+    verifiedArtifactCache.set(String(requestId || ''), {
+        verifiedAt: Date.now(),
+        originalOnly: Boolean(originalOnly),
+        artifacts,
+    });
+}
+
+function clearVerifiedArtifacts(requestId) {
+    verifiedArtifactCache.delete(String(requestId || ''));
+}
 
 async function downloadAndVerifyArtifacts(requestId, { originalOnly = false } = {}) {
     const result = await pool.query(`
@@ -939,9 +965,9 @@ exports.completeUploads = async ({ requestId, deviceId, diagnostic = null }) => 
     }
     if (request.status !== 'processing') throw httpError(409, `Cannot complete uploads from ${request.status}`);
     const diagnosticResult = normalizeDiagnostic(diagnostic);
-    const artifacts = await downloadAndVerifyArtifacts(requestId, {
-        originalOnly: Boolean(diagnosticResult),
-    });
+    const artifactOptions = { originalOnly: Boolean(diagnosticResult) };
+    const artifacts = getCachedVerifiedArtifacts(requestId, artifactOptions)
+        || await downloadAndVerifyArtifacts(requestId, artifactOptions);
     await assertRequestStillProcessing(requestId, deviceId);
     const duplicate = await hasDuplicateCapture(request);
     const cells = artifacts.filter(({ artifact_kind }) => artifact_kind === 'cell');
@@ -1032,6 +1058,7 @@ exports.completeUploads = async ({ requestId, deviceId, diagnostic = null }) => 
         claimedBy: deviceId,
     });
     await addExceptions(result.request, result.candidate, duplicate);
+    clearVerifiedArtifacts(requestId);
     return result;
 };
 
@@ -1042,8 +1069,10 @@ exports.acceptUploads = async ({ requestId, deviceId, diagnostic = null }) => {
     if (['review_required', 'completed'].includes(request.status)) return { accepted: false, idempotent: true, request, candidate: await iotOcrRequestService.getCandidate({ applicationId: request.application_id, documentKey: request.document_key, requestId }) };
     if (request.status !== 'processing') throw httpError(409, `Cannot accept uploads from ${request.status}`);
     const diagnosticResult = normalizeDiagnostic(diagnostic);
-    const artifacts = await downloadAndVerifyArtifacts(requestId, { originalOnly: Boolean(diagnosticResult) });
+    const artifactOptions = { originalOnly: Boolean(diagnosticResult) };
+    const artifacts = await downloadAndVerifyArtifacts(requestId, artifactOptions);
     if (artifacts.filter(({ artifact_kind }) => artifact_kind === 'cell').length === 0 && !diagnosticResult) throw httpError(400, 'Birth V2 original-only upload requires diagnostic metadata');
+    rememberVerifiedArtifacts(requestId, artifacts, artifactOptions);
     await iotOcrRequestService.setProcessingMetadata({
         requestId,
         metadata: { diagnostic: diagnosticResult },

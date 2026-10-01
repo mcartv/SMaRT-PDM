@@ -831,7 +831,7 @@ exports.scheduleProcessingRetry = async ({ requestId, errorCode, errorMessage } 
             processing_claimed_at = NULL,
             processing_retry_at = CASE
                 WHEN $4::boolean AND processing_attempt_count + 1 < $3::integer
-                THEN NOW() + (CASE processing_attempt_count WHEN 0 THEN $5 WHEN 1 THEN $6 ELSE $7 END * INTERVAL '1 second')
+                THEN NOW() + (CASE processing_attempt_count WHEN 0 THEN $5::integer WHEN 1 THEN $6::integer ELSE $7::integer END * INTERVAL '1 second')
                 ELSE NULL
             END,
             status = CASE

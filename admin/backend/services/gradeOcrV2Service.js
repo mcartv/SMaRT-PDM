@@ -9,6 +9,10 @@ function getEnhancedOcrProvider() {
 }
 
 const BUCKET = String(process.env.IOT_OCR_CAPTURE_BUCKET || 'iot-ocr-captures').trim();
+const GRADE_PROVIDER_TIMEOUT_MS = Math.min(25000, Math.max(8000, Number.parseInt(process.env.GRADE_OCR_PROVIDER_TIMEOUT_MS || '15000', 10) || 15000));
+const GRADE_MAX_OUTPUT_TOKENS = Math.min(8192, Math.max(1024, Number.parseInt(process.env.GRADE_OCR_MAX_OUTPUT_TOKENS || '4096', 10) || 4096));
+const GRADE_RETRY_MAX_ATTEMPTS = Math.min(2, Math.max(1, Number.parseInt(process.env.GRADE_OCR_RETRY_MAX_ATTEMPTS || '2', 10) || 2));
+const GRADE_RETRY_BACKOFF_SECONDS = [Math.min(3, Math.max(1, Number.parseInt(process.env.GRADE_OCR_RETRY_BACKOFF_SECONDS || '1', 10) || 1))];
 const FIELD_KEYS = Object.freeze([
     'student_number', 'student_name', 'course', 'semester', 'academic_year', 'gwa',
 ]);
@@ -154,11 +158,19 @@ exports.completeUploads = async ({ requestId, deviceId }) => {
             image: original,
             schema: GRADE_SCHEMA,
             instruction: 'Transcribe the full Grade Form literally and extract student_number, student_name, course, semester, academic_year or year level, and GWA. Do not guess values. Subjects are optional.',
+            timeoutMs: GRADE_PROVIDER_TIMEOUT_MS,
+            maxOutputTokens: GRADE_MAX_OUTPUT_TOKENS,
         });
     } catch (error) {
         const failure = require('./enhancedOcrErrors').normalizeEnhancedOcrError(error);
         if (failure.retryable) {
-            const scheduled = await iotOcrRequestService.scheduleProcessingRetry({ requestId, errorCode: failure.code, errorMessage: failure.message });
+            const scheduled = await iotOcrRequestService.scheduleProcessingRetry({
+                requestId,
+                errorCode: failure.code,
+                errorMessage: failure.message,
+                maxAttempts: GRADE_RETRY_MAX_ATTEMPTS,
+                delays: GRADE_RETRY_BACKOFF_SECONDS,
+            });
             failure.request = scheduled.request;
         } else {
             const failed = await iotOcrRequestService.completeRequest({ requestId, status: 'failed', errorCode: failure.code, errorMessage: failure.message, claimedBy: deviceId });

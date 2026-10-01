@@ -48,8 +48,12 @@ async function reconcileOnce() {
     return true;
 }
 
+function recoveryIntervalMs() {
+    return Math.min(10000, Math.max(1000, Number.parseInt(process.env.OCR_RECOVERY_INTERVAL_MS || '2000', 10) || 2000));
+}
+
 function start() {
-    const interval = setInterval(() => reconcileOnce().catch((error) => console.error('OCR_RECONCILIATION_ERROR', { code: error.code || null })), 5000);
+    const interval = setInterval(() => reconcileOnce().catch((error) => console.error('OCR_RECONCILIATION_ERROR', { code: error.code || null })), recoveryIntervalMs());
     interval.unref?.();
     return interval;
 }

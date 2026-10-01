@@ -1808,7 +1808,7 @@ export default function AccountsPanel() {
 
         if (!isRestore && !(await confirmArchive({
             itemName: accountName,
-            description: `“${accountName}” will be archived and will no longer be able to use this staff account.`,
+            description: `“${accountName}” will be archived and will no longer be able to use this account.`,
         }))) {
             return;
         }
@@ -1910,7 +1910,7 @@ export default function AccountsPanel() {
                                     Account Management
                                 </h2>
                                 <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
-                                    Manage authorized staff accounts, role assignments, and Program Director course access.
+                                    Manage authorized user accounts, role assignments, and Program Director course access.
                                 </p>
                             </div>
 

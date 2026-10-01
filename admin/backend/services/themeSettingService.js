@@ -307,13 +307,13 @@ async function updateThemeSetting(portalKey, presetKey, actor = {}, customColors
     if (isMissingForceDarkColumnError(error)) {
       throw createHttpError(
         500,
-        'Force Dark Mode database column is missing. Run the 20260827 staff force dark mode migration first.'
+        'Force Dark Mode database column is missing. Run the 20260827 portal force dark mode migration first.'
       );
     }
     if (isMissingTableError(error, PERSONAL_TABLE_NAME)) {
       throw createHttpError(
         500,
-        'Personal theme settings table is missing. Please run the staff portal theme settings migration first.'
+        'Personal theme settings table is missing. Please run the portal theme settings migration first.'
       );
     }
     throw error;
@@ -363,13 +363,13 @@ async function updateForceDarkMode(portalKey, enabled, actor = {}) {
     if (isMissingForceDarkColumnError(error)) {
       throw createHttpError(
         500,
-        'Force Dark Mode database column is missing. Run the 20260827 staff force dark mode migration first.'
+        'Force Dark Mode database column is missing. Run the 20260827 portal force dark mode migration first.'
       );
     }
     if (isMissingTableError(error, PERSONAL_TABLE_NAME)) {
       throw createHttpError(
         500,
-        'Personal theme settings table is missing. Please run the staff portal theme settings migration first.'
+        'Personal theme settings table is missing. Please run the portal theme settings migration first.'
       );
     }
     throw error;

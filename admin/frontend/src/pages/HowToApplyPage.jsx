@@ -100,7 +100,7 @@ const obligations = [
   'Submit a copy of grades or valid proof of grades from the previous semester for renewal.',
   'Render no fewer than ten (10) hours of Return of Obligation per semester as a PDM student assistant.',
   'Complete the Return of Obligation within the semester or inform the coordinator as soon as possible.',
-  'Maintain good moral character and right conduct, especially toward faculty and staff.',
+  'Maintain good moral character and right conduct, especially toward faculty and school personnel.',
   'Finish the course within the prescribed curriculum period.',
   'Submit a diploma or certificate of graduation upon completion of the degree.',
   'Disclose any other scholarship grant and provide proof to the Scholarship Coordinator.',

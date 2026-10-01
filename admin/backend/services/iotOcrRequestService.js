@@ -820,8 +820,19 @@ function retryConfig() {
     return { enabled, maxAttempts, delays };
 }
 
-exports.scheduleProcessingRetry = async ({ requestId, errorCode, errorMessage } = {}) => {
+exports.scheduleProcessingRetry = async ({ requestId, errorCode, errorMessage, maxAttempts, delays } = {}) => {
     const config = retryConfig();
+    const requestedMaxAttempts = Number.parseInt(maxAttempts, 10);
+    const effectiveMaxAttempts = Number.isInteger(requestedMaxAttempts)
+        ? Math.min(config.maxAttempts, Math.max(1, requestedMaxAttempts))
+        : config.maxAttempts;
+    const requestedDelays = Array.isArray(delays)
+        ? delays.map((value) => Math.max(1, Number.parseInt(value, 10) || 1)).slice(0, 3)
+        : [];
+    const effectiveDelays = requestedDelays.length ? requestedDelays : config.delays;
+    while (effectiveDelays.length < effectiveMaxAttempts) {
+        effectiveDelays.push(effectiveDelays[effectiveDelays.length - 1] || 1);
+    }
     const result = await pool.query(`
         UPDATE public.iot_ocr_requests
         SET processing_attempt_count = processing_attempt_count + 1,
@@ -853,8 +864,8 @@ exports.scheduleProcessingRetry = async ({ requestId, errorCode, errorMessage } 
             updated_at = NOW()
         WHERE request_id = $1::uuid AND status = 'processing'
         RETURNING *
-    `, [requestId, errorCode || 'OCR_PROVIDER_FAILED', config.maxAttempts, config.enabled,
-        config.delays[0] || 5, config.delays[1] || config.delays[0] || 5, config.delays[2] || config.delays[1] || config.delays[0] || 5,
+    `, [requestId, errorCode || 'OCR_PROVIDER_FAILED', effectiveMaxAttempts, config.enabled,
+        effectiveDelays[0] || 1, effectiveDelays[1] || effectiveDelays[0] || 1, effectiveDelays[2] || effectiveDelays[1] || effectiveDelays[0] || 1,
         String(errorMessage || 'OCR processing failed after automatic retries')]);
     const request = result.rows[0] ? mapRequestRow(result.rows[0]) : await exports.getRequestById({ requestId });
     const retryScheduled = Boolean(request?.processing_retry_at);

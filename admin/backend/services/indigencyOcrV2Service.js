@@ -8,6 +8,10 @@ function getEnhancedOcrProvider() {
 }
 
 const BUCKET = String(process.env.IOT_OCR_CAPTURE_BUCKET || 'iot-ocr-captures').trim();
+const INDIGENCY_PROVIDER_TIMEOUT_MS = Math.min(25000, Math.max(8000, Number.parseInt(process.env.INDIGENCY_OCR_PROVIDER_TIMEOUT_MS || '18000', 10) || 18000));
+const INDIGENCY_MAX_OUTPUT_TOKENS = Math.min(4096, Math.max(512, Number.parseInt(process.env.INDIGENCY_OCR_MAX_OUTPUT_TOKENS || '2048', 10) || 2048));
+const INDIGENCY_RETRY_MAX_ATTEMPTS = Math.min(2, Math.max(1, Number.parseInt(process.env.INDIGENCY_OCR_RETRY_MAX_ATTEMPTS || '2', 10) || 2));
+const INDIGENCY_RETRY_BACKOFF_SECONDS = [Math.min(5, Math.max(1, Number.parseInt(process.env.INDIGENCY_OCR_RETRY_BACKOFF_SECONDS || '2', 10) || 2))];
 const FIELD_KEYS = Object.freeze([
     'certificate_subject_name',
     'residency_address',
@@ -152,6 +156,8 @@ exports.completeUploads = async ({ requestId, deviceId }) => {
             image: original,
             schema: INDIGENCY_SCHEMA,
             instruction: 'Read the Certificate of Indigency literally. Extract certificate_subject_name and residency_address exactly as printed. Do not guess, infer, or add fields.',
+            timeoutMs: INDIGENCY_PROVIDER_TIMEOUT_MS,
+            maxOutputTokens: INDIGENCY_MAX_OUTPUT_TOKENS,
         });
         console.info('INDIGENCY_V2_PROVIDER_COMPLETED', {
             request_id: String(requestId).slice(0, 8), attempt,
@@ -165,7 +171,13 @@ exports.completeUploads = async ({ requestId, deviceId }) => {
             provider_status: failure.providerStatus || null,
         });
         if (failure.retryable) {
-            const scheduled = await iotOcrRequestService.scheduleProcessingRetry({ requestId, errorCode: failure.code, errorMessage: failure.message });
+            const scheduled = await iotOcrRequestService.scheduleProcessingRetry({
+                requestId,
+                errorCode: failure.code,
+                errorMessage: failure.message,
+                maxAttempts: INDIGENCY_RETRY_MAX_ATTEMPTS,
+                delays: INDIGENCY_RETRY_BACKOFF_SECONDS,
+            });
             failure.request = scheduled.request;
         } else {
             const failed = await iotOcrRequestService.completeRequest({ requestId, status: 'failed', errorCode: failure.code, errorMessage: failure.message, claimedBy: deviceId });

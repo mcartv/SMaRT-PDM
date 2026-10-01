@@ -221,7 +221,7 @@ export default function UnifiedUserLoginCard({ theme }) {
                   required
                   disabled={isLoading}
                   autoComplete="username"
-                  placeholder="Admin email or department username"
+                  placeholder="Enter your username"
                   value={identifier}
                   onChange={(event) => {
                     setIdentifier(event.target.value);

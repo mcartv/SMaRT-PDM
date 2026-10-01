@@ -235,6 +235,18 @@ class _MessagingScreenState extends State<MessagingScreen> {
     return newer.sentAt.difference(older.sentAt).inMinutes <= 5;
   }
 
+  bool _shouldShowTimeDivider(ChatMessage older, ChatMessage newer) {
+    final olderLocal = older.sentAt.toLocal();
+    final newerLocal = newer.sentAt.toLocal();
+    final sameDay =
+        olderLocal.year == newerLocal.year &&
+        olderLocal.month == newerLocal.month &&
+        olderLocal.day == newerLocal.day;
+    if (!sameDay) return false;
+
+    return newer.sentAt.difference(older.sentAt) > const Duration(hours: 1);
+  }
+
   Future<void> _openThread() async {
     final provider = _provider ?? context.read<MessagingProvider>();
 
@@ -1338,20 +1350,25 @@ class _MessagingScreenState extends State<MessagingScreen> {
               olderMessage.sentAt.year != message.sentAt.year ||
               olderMessage.sentAt.month != message.sentAt.month ||
               olderMessage.sentAt.day != message.sentAt.day;
+          final showTimeDivider = olderMessage != null &&
+              !showDate &&
+              _shouldShowTimeDivider(olderMessage, message);
 
           Widget item = Column(
             children: [
               if (showDate) _DateDivider(label: _formatDate(message.sentAt)),
+              if (showTimeDivider)
+                _TimeDivider(label: _formatTime(message.sentAt)),
               _MessageBubble(
                 message: message,
                 isMe: isMe,
                 isGroupChat: _isGroupChat,
+                currentUserId: provider.currentUserId,
                 timeLabel: _formatTime(message.sentAt),
                 groupedWithPrevious: groupedWithOlder,
                 groupedWithNext: groupedWithNewer,
                 showSenderName: !groupedWithOlder,
                 showAvatar: !groupedWithNewer,
-                showTimestamp: !groupedWithNewer,
                 showDeliveryStatus:
                     isMe && message.messageId == _deliveredStatusMessageId,
                 isSearchMatch: _chatSearchTerm.trim().isNotEmpty &&
@@ -1433,17 +1450,50 @@ class _DateDivider extends StatelessWidget {
   }
 }
 
+class _TimeDivider extends StatelessWidget {
+  const _TimeDivider({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Row(
+        children: [
+          Expanded(
+            child: Divider(color: AppSurfacePalette.outline(context)),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: AppSurfacePalette.mutedText(context),
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ),
+          Expanded(
+            child: Divider(color: AppSurfacePalette.outline(context)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
     required this.message,
     required this.isMe,
     required this.isGroupChat,
+    required this.currentUserId,
     required this.timeLabel,
     this.groupedWithPrevious = false,
     this.groupedWithNext = false,
     this.showSenderName = true,
     this.showAvatar = true,
-    this.showTimestamp = true,
     this.showDeliveryStatus = false,
     this.isSearchMatch = false,
     this.onLongPress,
@@ -1452,12 +1502,12 @@ class _MessageBubble extends StatelessWidget {
   final ChatMessage message;
   final bool isMe;
   final bool isGroupChat;
+  final String currentUserId;
   final String timeLabel;
   final bool groupedWithPrevious;
   final bool groupedWithNext;
   final bool showSenderName;
   final bool showAvatar;
-  final bool showTimestamp;
   final bool showDeliveryStatus;
   final bool isSearchMatch;
   final VoidCallback? onLongPress;
@@ -1487,11 +1537,25 @@ class _MessageBubble extends StatelessWidget {
     final incomingSurface = AppSurfacePalette.surface(context);
     final senderName = message.senderName?.trim() ?? '';
     final screenWidth = MediaQuery.of(context).size.width;
+    final bubbleMaxWidth = screenWidth > 680 ? 520.0 : screenWidth * 0.76;
+    final replyContextMaxWidth = bubbleMaxWidth - 34;
+    final replyBody = (message.replyMessageBody ?? '').trim();
+    final replySenderName = (message.replySenderName ?? '').trim();
+    final hasReply = message.isReply && replyBody.isNotEmpty;
+    final repliedToLabel = message.replySenderId == currentUserId
+        ? 'yourself'
+        : replySenderName.isEmpty
+            ? 'a message'
+            : replySenderName;
+    final replyAuthorName = senderName.isEmpty ? 'Someone' : senderName;
+    final replyContextLabel = isMe
+        ? 'You replied to $repliedToLabel'
+        : message.replySenderId == currentUserId
+            ? '$replyAuthorName replied to you'
+            : '$replyAuthorName replied to $repliedToLabel';
 
     final bubble = Container(
-      constraints: BoxConstraints(
-        maxWidth: screenWidth > 680 ? 520 : screenWidth * 0.76,
-      ),
+      constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: message.isUnsent
@@ -1526,56 +1590,6 @@ class _MessageBubble extends StatelessWidget {
         crossAxisAlignment:
             isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          if (message.isReply &&
-              (message.replyMessageBody ?? '').trim().isNotEmpty) ...[
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 7),
-              padding: const EdgeInsets.fromLTRB(9, 7, 9, 7),
-              decoration: BoxDecoration(
-                color: isMe
-                    ? Colors.white.withValues(alpha: 0.10)
-                    : AppSurfacePalette.surfaceMuted(context),
-                borderRadius: BorderRadius.circular(10),
-                border: Border(
-                  left: BorderSide(
-                    color: isMe ? AppColors.gold : AppColors.brown,
-                    width: 2.5,
-                  ),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    (message.replySenderName ?? '').trim().isEmpty
-                        ? 'Reply'
-                        : message.replySenderName!.trim(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: isMe
-                          ? AppColors.gold
-                          : AppSurfacePalette.text(context),
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    message.replyMessageBody!.trim(),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: isMe
-                          ? Colors.white70
-                          : AppSurfacePalette.mutedText(context),
-                      height: 1.25,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
           Text(
             message.messageBody,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -1611,6 +1625,65 @@ class _MessageBubble extends StatelessWidget {
             crossAxisAlignment:
                 isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
+              if (hasReply) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.reply_rounded,
+                        size: 14,
+                        color: AppSurfacePalette.mutedText(context),
+                      ),
+                      const SizedBox(width: 4),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: replyContextMaxWidth,
+                        ),
+                        child: Text(
+                          replyContextLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: AppSurfacePalette.mutedText(context),
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
+                  margin: EdgeInsets.only(
+                    left: isMe ? 14 : 6,
+                    right: isMe ? 6 : 14,
+                    bottom: 3,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 13,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.13)
+                        : const Color(0xFFE4E4E7),
+                    borderRadius: BorderRadius.circular(17),
+                  ),
+                  child: Text(
+                    replyBody,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: isDark
+                              ? Colors.white70
+                              : const Color(0xFF66666D),
+                          height: 1.3,
+                        ),
+                  ),
+                ),
+              ],
               Tooltip(
                 message: timeLabel,
                 triggerMode: onLongPress == null
@@ -1663,34 +1736,6 @@ class _MessageBubble extends StatelessWidget {
               ),
             ],
             messageRow,
-            if (!isMe && showTimestamp)
-              Padding(
-                padding: EdgeInsets.only(
-                  top: 4,
-                  left: isGroupChat ? 40 : 2,
-                ),
-                child: Text(
-                  timeLabel,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: AppSurfacePalette.mutedText(context),
-                        fontWeight: FontWeight.w500,
-                      ),
-                ),
-              ),
-            if (isMe && showTimestamp && !showDeliveryStatus)
-              Padding(
-                padding: EdgeInsets.only(
-                  top: 4,
-                  right: isGroupChat ? 40 : 2,
-                ),
-                child: Text(
-                  timeLabel,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: AppSurfacePalette.mutedText(context),
-                        fontWeight: FontWeight.w500,
-                      ),
-                ),
-              ),
             AnimatedSize(
               duration: const Duration(milliseconds: 140),
               curve: Curves.easeOut,

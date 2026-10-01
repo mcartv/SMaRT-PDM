@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
     AlertTriangle,
+    ChevronLeft,
+    ChevronRight,
     ClipboardList,
     Eye,
     EyeOff,
@@ -32,6 +34,8 @@ import {
     MAINTENANCE_CARD_SUBTITLE_CLASS,
     MAINTENANCE_CARD_TITLE_CLASS,
 } from './components/maintenanceTypography';
+
+const PAGE_SIZE = 25;
 
 function getAuthHeaders(extra = {}) {
     return {
@@ -100,13 +104,20 @@ export default function AuditPanel() {
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [moduleFilter, setModuleFilter] = useState('all');
     const [moduleOptions, setModuleOptions] = useState([]);
+    const [page, setPage] = useState(1);
 
     useEffect(() => {
-        const timeout = setTimeout(() => setDebouncedSearch(search), 250);
+        const timeout = setTimeout(() => {
+            setPage(1);
+            setDebouncedSearch(search);
+        }, 250);
         return () => clearTimeout(timeout);
     }, [search]);
 
     const isFiltered = search.trim() || moduleFilter !== 'all';
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const firstVisibleLog = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+    const lastVisibleLog = Math.min(page * PAGE_SIZE, total);
     const loadLogs = useCallback(async () => {
         if (!auditToken) return;
 
@@ -115,8 +126,8 @@ export default function AuditPanel() {
             setError('');
 
             const params = new URLSearchParams();
-            params.set('limit', '150');
-            params.set('offset', '0');
+            params.set('limit', String(PAGE_SIZE));
+            params.set('offset', String((page - 1) * PAGE_SIZE));
 
             if (debouncedSearch.trim()) {
                 params.set('search', debouncedSearch.trim());
@@ -167,7 +178,7 @@ export default function AuditPanel() {
         } finally {
             setLoading(false);
         }
-    }, [auditToken, debouncedSearch, moduleFilter]);
+    }, [auditToken, debouncedSearch, moduleFilter, page]);
 
     useEffect(() => {
         if (unlocked && auditToken && debouncedSearch === search) {
@@ -234,6 +245,7 @@ export default function AuditPanel() {
         setLogs([]);
         setTotal(0);
         setModuleOptions([]);
+        setPage(1);
         setError('');
     };
 
@@ -328,7 +340,7 @@ export default function AuditPanel() {
                                 System Log Records
                             </h2>
                             <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
-                                {total} logged actions
+                                {total.toLocaleString()} logged actions
                             </p>
                         </div>
 
@@ -350,7 +362,13 @@ export default function AuditPanel() {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">
-                            <Select value={moduleFilter} onValueChange={setModuleFilter}>
+                            <Select
+                                value={moduleFilter}
+                                onValueChange={(value) => {
+                                    setPage(1);
+                                    setModuleFilter(value);
+                                }}
+                            >
                                 <SelectTrigger className="h-8 w-[190px] rounded-lg border-stone-200 text-xs">
                                     <SelectValue placeholder="Filter module" />
                                 </SelectTrigger>
@@ -372,6 +390,7 @@ export default function AuditPanel() {
                                     onClick={() => {
                                         setSearch('');
                                         setModuleFilter('all');
+                                        setPage(1);
                                     }}
                                     className="h-8 rounded-lg border-stone-200 text-xs"
                                 >
@@ -426,8 +445,9 @@ export default function AuditPanel() {
                         <p className="mt-1 text-xs">System actions will appear here once logged.</p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full min-w-[860px] text-xs">
+                    <div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full min-w-[860px] text-xs">
                             <thead className="bg-stone-50 text-stone-500">
                                 <tr>
                                     <th className="border-b px-4 py-3 text-left font-semibold">
@@ -493,7 +513,46 @@ export default function AuditPanel() {
                                     </tr>
                                 ))}
                             </tbody>
-                        </table>
+                            </table>
+                        </div>
+
+                        <div className="flex flex-col gap-3 border-t border-stone-200 bg-stone-50/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="text-xs text-stone-500">
+                                Showing {firstVisibleLog.toLocaleString()}–{lastVisibleLog.toLocaleString()} of {total.toLocaleString()}
+                            </p>
+
+                            <div className="flex items-center justify-between gap-3 sm:justify-end">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setPage((current) => Math.max(1, current - 1))}
+                                    disabled={loading || page <= 1}
+                                    className="h-8 rounded-lg border-stone-200 bg-white px-2.5 text-xs"
+                                    aria-label="Previous system logs page"
+                                >
+                                    <ChevronLeft className="h-3.5 w-3.5" />
+                                    <span className="ml-1 hidden sm:inline">Previous</span>
+                                </Button>
+
+                                <span className="min-w-[88px] text-center text-xs font-medium text-stone-600">
+                                    Page {page} of {totalPages}
+                                </span>
+
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                                    disabled={loading || page >= totalPages}
+                                    className="h-8 rounded-lg border-stone-200 bg-white px-2.5 text-xs"
+                                    aria-label="Next system logs page"
+                                >
+                                    <span className="mr-1 hidden sm:inline">Next</span>
+                                    <ChevronRight className="h-3.5 w-3.5" />
+                                </Button>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>

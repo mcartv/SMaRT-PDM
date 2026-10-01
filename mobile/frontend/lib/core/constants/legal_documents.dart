@@ -60,7 +60,7 @@ Your information is used to:
 • help protect accounts and prevent misuse or fraudulent applications
 
 3. Who may access your information
-Only authorized users who need the information for scholarship-related work should access it. This may include authorized OSFA staff, designated school offices involved in review or endorsement, system administrators, and authorized scholarship providers when needed for the scholarship process.
+Only authorized users who need the information for scholarship-related work should access it. This may include authorized OSFA Coordinator, designated school offices involved in review or endorsement, system administrators, and authorized scholarship providers when needed for the scholarship process.
 
 4. How your information is protected
 SMaRT-PDM uses account controls and other system safeguards to help protect student records. You should also protect your password, OTP codes, and account access. Do not share them with other people.

@@ -1025,27 +1025,29 @@ async function buildCompletedSlipPdf(detail) {
         );
     }
 
-    const verificationUrl = buildPdfVerificationUrl(detail.verification_token);
-    const qrDataUrl = await generateVerificationQrDataUrl(verificationUrl);
-    const qrBase64 = qrDataUrl.split(',')[1];
-    const qrBuffer = Buffer.from(qrBase64, 'base64');
-
     return await new Promise((resolve, reject) => {
-        const doc = new PDFDocument({ size: 'A4', margin: 28 });
+        // Print on standard short bond paper while keeping the actual slip at
+        // one-quarter of the sheet (4.25 x 5.5 inches), centered near the top.
+        // PDFKit uses points, where 72 points equal one inch.
+        const quarterBondSlipSize = [4.25 * 72, 5.5 * 72];
+        const doc = new PDFDocument({ size: 'LETTER', margin: 0 });
         const chunks = [];
         const officeResults = detail.office_results || {};
         const officeSignatories = detail.office_signatories || {};
         const hasSchoolLogo = fs.existsSync(SCHOOL_LOGO_PATH);
-        const pageWidth = doc.page.width;
-        const pageHeight = doc.page.height;
-        const left = 28;
-        const right = pageWidth - 28;
+        const printPageWidth = doc.page.width;
+        const pageWidth = quarterBondSlipSize[0];
+        const pageHeight = quarterBondSlipSize[1];
+        const slipOffsetX = (printPageWidth - pageWidth) / 2;
+        const slipOffsetY = 18;
+        const left = 10;
+        const right = pageWidth - 10;
         const contentWidth = right - left;
-        const sectionSplit = left + contentWidth * 0.53;
-        const checkboxSize = 12;
+        const sectionSplit = left + contentWidth * 0.57;
+        const checkboxSize = 7;
         const baseFont = 'Helvetica';
         const boldFont = 'Helvetica-Bold';
-        const sectionLabelFontSize = 8;
+
         const lineColor = '#111827';
         const paperBlue = '#d8f4fb';
         const summaryRemarks = [
@@ -1077,33 +1079,51 @@ async function buildCompletedSlipPdf(detail) {
         };
 
         const drawFieldRow = (y, label, value, width = contentWidth) => {
-            drawBox(left, y, width, 34);
-            doc.font(boldFont).fontSize(9).text(label, left + 10, y + 10);
-            doc.font(baseFont).fontSize(10).text(value || 'N/A', left + 72, y + 10, {
-                width: width - 82,
+            drawBox(left, y, width, 18);
+            doc.font(boldFont).fontSize(5.5).text(label, left + 6, y + 6);
+            doc.font(baseFont).fontSize(6).text(value || 'N/A', left + 39, y + 5.5, {
+                width: width - 45,
+                height: 10,
+                ellipsis: true,
             });
         };
 
         const drawCheckboxLine = (x, y, label, checked) => {
-            drawBox(x, y + 2, checkboxSize, checkboxSize);
+            drawBox(x, y + 1, checkboxSize, checkboxSize);
             if (checked) {
-                doc.font(boldFont).fontSize(11).text('X', x + 2.5, y + 0.5);
+                // Draw the check as a vector path so it is crisp and does not
+                // depend on whether the PDF viewer supports a check-mark glyph.
+                doc.save()
+                    .lineWidth(1.15)
+                    .lineCap('round')
+                    .lineJoin('round')
+                    .strokeColor(lineColor)
+                    .moveTo(x + 1.4, y + 4.5)
+                    .lineTo(x + 3.1, y + 6.2)
+                    .lineTo(x + 6.1, y + 2.1)
+                    .stroke()
+                    .restore();
             }
-            doc.font(baseFont).fontSize(9.5).text(label, x + checkboxSize + 8, y, {
-                width: sectionSplit - x - checkboxSize - 20,
+            doc.font(baseFont).fontSize(5.5).text(label, x + checkboxSize + 4, y, {
+                width: sectionSplit - x - checkboxSize - 8,
+                height: 11,
+                ellipsis: true,
             });
         };
 
-        const drawSignatureBlock = (x, y, width, title, signatoryName) => {
-            drawBox(x, y, width, 74);
-            doc.moveTo(x, y + 38).lineTo(x + width, y + 38).stroke(lineColor);
-            drawCenteredText(title, x + 10, y + 44, width - 20, {
+        const drawSignatureBlock = (x, y, width, height, title, signatoryName) => {
+            // The office row provides the signature block borders.
+            const signatureLineY = y + height * 0.52;
+            doc.moveTo(x, signatureLineY).lineTo(x + width, signatureLineY).stroke(lineColor);
+            drawCenteredText(title, x + 4, signatureLineY + 3, width - 8, {
                 font: baseFont,
-                size: 8.5,
+                size: 4.8,
             });
-            doc.font(baseFont).fontSize(8.5).text(safeText(signatoryName) || 'Pending', x + 10, y + 14, {
-                width: width - 20,
+            doc.font(baseFont).fontSize(5.2).text(safeText(signatoryName) || 'Pending', x + 4, y + height * 0.22, {
+                width: width - 8,
                 align: 'center',
+                height: height * 0.25,
+                ellipsis: true,
             });
         };
 
@@ -1118,26 +1138,27 @@ async function buildCompletedSlipPdf(detail) {
             drawBox(left, top, contentWidth, height);
             doc.moveTo(sectionSplit, top).lineTo(sectionSplit, top + height).stroke(lineColor);
 
-            let checkboxY = top + 12;
+            let checkboxY = top + 7;
             leftItems.forEach((item) => {
-                drawCheckboxLine(left + 10, checkboxY, item.label, item.checked);
-                checkboxY += 30;
+                drawCheckboxLine(left + 6, checkboxY, item.label, item.checked);
+                checkboxY += 14.5;
             });
 
-            const detailStartY = Math.max(checkboxY - 4, top + 16);
+            const detailStartY = Math.max(checkboxY - 2, top + 9);
             if (extraDetails.length) {
-                doc.font(baseFont).fontSize(7.5).fillColor('#374151');
+                doc.font(baseFont).fontSize(4.6).fillColor('#374151');
                 extraDetails.forEach((line, index) => {
-                    doc.text(line, left + 10, detailStartY + index * 11, {
-                        width: sectionSplit - left - 20,
+                    doc.text(line, left + 6, detailStartY + index * 7, {
+                        width: sectionSplit - left - 12,
                     });
                 });
             }
 
             drawSignatureBlock(
                 sectionSplit,
-                top + Math.max(10, (height - 74) / 2),
+                top,
                 right - sectionSplit,
+                height,
                 signatureTitle,
                 signatoryName
             );
@@ -1147,83 +1168,85 @@ async function buildCompletedSlipPdf(detail) {
         doc.on('error', reject);
         doc.on('end', () => resolve(Buffer.concat(chunks)));
 
+        doc.save().translate(slipOffsetX, slipOffsetY);
         drawBox(0, 0, pageWidth, pageHeight, { fillColor: paperBlue, strokeColor: paperBlue });
-        drawBox(left, 28, contentWidth, pageHeight - 56);
 
-        const headerTop = 40;
+
+        const headerTop = 10;
         if (hasSchoolLogo) {
-            doc.image(SCHOOL_LOGO_PATH, left + 10, headerTop + 4, { fit: [54, 54], align: 'left' });
+            doc.image(SCHOOL_LOGO_PATH, left + 5, headerTop + 3, { fit: [28, 28], align: 'left' });
         }
 
-        drawCenteredText(INSTITUTION_NAME, left + 72, headerTop + 4, contentWidth - 144, {
+        drawCenteredText(INSTITUTION_NAME, left + 38, headerTop + 2, contentWidth - 72, {
             font: boldFont,
-            size: 18,
+            size: 8.2,
         });
-        drawCenteredText(INSTITUTION_ADDRESS, left + 72, headerTop + 28, contentWidth - 144, {
-            size: 10,
+        drawCenteredText(INSTITUTION_ADDRESS, left + 38, headerTop + 17, contentWidth - 80, {
+            size: 5.8,
         });
-        drawCenteredText(SCHOLARSHIP_OFFICE_LABEL, left + 72, headerTop + 58, contentWidth - 144, {
+        drawCenteredText(SCHOLARSHIP_OFFICE_LABEL, left + 5, headerTop + 34, contentWidth - 10, {
             font: boldFont,
-            size: 9.5,
+            size: 5.6,
         });
 
-        doc.font(baseFont).fontSize(9).text('PMA-OSFA', right - 96, headerTop + 8, { width: 70, align: 'left' });
-        doc.text('Form-02', right - 96, headerTop + 28, { width: 70, align: 'left' });
+        doc.font(baseFont).fontSize(5).text('PMA-OSFA', right - 42, headerTop + 17, { width: 38, align: 'left' });
+        doc.text('Form-02', right - 42, headerTop + 24, { width: 38, align: 'left' });
 
-        drawCenteredText('ENDORSEMENT SLIP', left, 126, contentWidth, {
+        drawCenteredText('ENDORSEMENT SLIP', left, 55, contentWidth, {
             font: boldFont,
-            size: 16,
+            size: 9,
         });
-        drawCenteredText('APPLICATION FOR SCHOLARSHIP', left, 150, contentWidth, {
+        drawCenteredText('APPLICATION FOR SCHOLARSHIP', left, 69, contentWidth, {
             font: boldFont,
-            size: 14,
+            size: 7.6,
         });
         drawCenteredText(
-            `${detail.semester || 'N/A'} SEMESTER, A.Y ${detail.school_year || 'N/A'}`,
+            `${String(detail.semester || 'N/A').replace(/\s*semester\s*$/i, '')} SEMESTER, A.Y ${detail.school_year || 'N/A'}`,
             left,
-            177,
+            83,
             contentWidth,
             {
                 font: boldFont,
-                size: 11.5,
+                size: 6.5,
             }
         );
 
-        let cursorY = 214;
+        let cursorY = 98;
         drawFieldRow(cursorY, 'NAME:', detail.student_name || 'N/A');
-        cursorY += 34;
+        cursorY += 18;
 
         const courseWidth = contentWidth * 0.46;
         const yearWidth = contentWidth * 0.26;
         const sectionWidth = contentWidth - courseWidth - yearWidth;
-        drawBox(left, cursorY, courseWidth, 34);
-        drawBox(left + courseWidth, cursorY, yearWidth, 34);
-        drawBox(left + courseWidth + yearWidth, cursorY, sectionWidth, 34);
-        doc.font(boldFont).fontSize(9)
-            .text('COURSE:', left + 10, cursorY + 10)
-            .text('YEAR:', left + courseWidth + 10, cursorY + 10)
-            .text('SECTION:', left + courseWidth + yearWidth + 10, cursorY + 10);
-        doc.font(baseFont).fontSize(10)
-            .text(detail.course_display || formatCourseDisplay(detail), left + 68, cursorY + 10, { width: courseWidth - 78 })
-            .text(String(detail.year_level || 'N/A'), left + courseWidth + 54, cursorY + 10, { width: yearWidth - 64 })
-            .text(studentSection, left + courseWidth + yearWidth + 64, cursorY + 10, { width: sectionWidth - 74 });
-        cursorY += 34;
-
-        drawBox(left, cursorY, contentWidth, 58);
-        doc.font(baseFont).fontSize(11).text(
-            'Respectfully endorsing the above named student under the following circumstances:',
-            left + 10,
-            cursorY + 13,
-            { width: contentWidth - 20, align: 'left' }
-        );
-        cursorY += 58;
+        const courseRowHeight = 30;
+        drawBox(left, cursorY, courseWidth, courseRowHeight);
+        drawBox(left + courseWidth, cursorY, yearWidth, courseRowHeight);
+        drawBox(left + courseWidth + yearWidth, cursorY, sectionWidth, courseRowHeight);
+        doc.font(boldFont).fontSize(5.2)
+            .text('COURSE:', left + 5, cursorY + 5)
+            .text('YEAR:', left + courseWidth + 5, cursorY + 5)
+            .text('SECTION:', left + courseWidth + yearWidth + 5, cursorY + 5);
+        doc.font(baseFont).fontSize(5.4)
+            .text(detail.course_display || formatCourseDisplay(detail), left + 38, cursorY + 5, { width: courseWidth - 43, height: courseRowHeight - 9, ellipsis: true })
+            .text(String(detail.year_level || 'N/A'), left + courseWidth + 32, cursorY + 5, { width: yearWidth - 37, height: courseRowHeight - 9, ellipsis: true })
+            .text(studentSection, left + courseWidth + yearWidth + 39, cursorY + 5, { width: sectionWidth - 44, height: courseRowHeight - 9, ellipsis: true });
+        cursorY += courseRowHeight;
 
         drawBox(left, cursorY, contentWidth, 28);
-        drawCenteredText('BASED ON THE RECORD ON FILE', left, cursorY + 7, contentWidth, {
-            font: boldFont,
-            size: 11.5,
-        });
+        doc.font(baseFont).fontSize(6).text(
+            'Respectfully endorsing the above named student under the following circumstances:',
+            left + 6,
+            cursorY + 8,
+            { width: contentWidth - 12, align: 'left' }
+        );
         cursorY += 28;
+
+        drawBox(left, cursorY, contentWidth, 15);
+        drawCenteredText('BASED ON THE RECORD ON FILE', left, cursorY + 4, contentWidth, {
+            font: boldFont,
+            size: 6.4,
+        });
+        cursorY += 15;
 
         drawOfficeSection({
             top: cursorY,
@@ -1239,9 +1262,9 @@ async function buildCompletedSlipPdf(detail) {
             ],
             signatureTitle: 'Name & Signature\nProgram Director',
             signatoryName: officeSignatories.pd || detail.stages?.find((stage) => stage.key === 'pd')?.acted_by_name,
-            height: 92,
+            height: 48,
         });
-        cursorY += 92;
+        cursorY += 48;
 
         drawOfficeSection({
             top: cursorY,
@@ -1261,9 +1284,9 @@ async function buildCompletedSlipPdf(detail) {
             ],
             signatureTitle: 'Name & Signature\nStudent Discipline Officer',
             signatoryName: officeSignatories.sdo || detail.stages?.find((stage) => stage.key === 'sdo')?.acted_by_name,
-            height: 92,
+            height: 60,
         });
-        cursorY += 92;
+        cursorY += 60;
 
         drawOfficeSection({
             top: cursorY,
@@ -1278,35 +1301,21 @@ async function buildCompletedSlipPdf(detail) {
             signatureTitle: 'Name & Signature\nGuidance Counselor',
             signatoryName:
                 officeSignatories.guidance || detail.stages?.find((stage) => stage.key === 'guidance')?.acted_by_name,
-            height: 76,
+            height: 46,
         });
-        cursorY += 76;
+        cursorY += 46;
 
-        drawBox(left, cursorY, contentWidth, 54);
-        doc.font(boldFont).fontSize(9).text('REMARKS:', left + 10, cursorY + 10);
-        doc.font(baseFont).fontSize(8.5).text(summaryRemarks, left + 86, cursorY + 10, {
-            width: contentWidth - 96,
-            height: 34,
+        drawBox(left, cursorY, contentWidth, 34);
+        doc.font(boldFont).fontSize(5.2).text('REMARKS:', left + 6, cursorY + 7);
+        doc.font(baseFont).fontSize(5).text(summaryRemarks, left + 49, cursorY + 7, {
+            width: contentWidth - 55,
+            height: 21,
+            ellipsis: true,
         });
-        cursorY += 54;
+        cursorY += 34;
+        drawBox(left, 8, contentWidth, cursorY - 8);
 
-        drawBox(left, cursorY, contentWidth, 78);
-        doc.font(baseFont).fontSize(sectionLabelFontSize).fillColor('#374151');
-        doc.text(
-            `Submitted: ${detail.submitted_at ? new Date(detail.submitted_at).toLocaleString('en-PH') : 'N/A'}`,
-            left + 10,
-            cursorY + 10
-        );
-        doc.text(
-            `Completed: ${detail.completed_at ? new Date(detail.completed_at).toLocaleString('en-PH') : 'N/A'}`,
-            left + 10,
-            cursorY + 23
-        );
-        doc.text(`Slip Code: ${detail.slip_code || deriveSlipCode(detail.slip_id)}`, left + 10, cursorY + 36);
-        doc.text(`Verification URL: ${verificationUrl}`, left + 10, cursorY + 49, {
-            width: contentWidth - 150,
-        });
-        doc.image(qrBuffer, right - 86, cursorY + 7, { width: 58, height: 58 });
+        doc.restore();
         doc.end();
     });
 }

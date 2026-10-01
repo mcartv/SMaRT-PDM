@@ -595,6 +595,62 @@ function buildProfileDisplay(userId, { userMap, studentMap, adminMap }) {
   };
 }
 
+async function fetchConversationNames(userIds = []) {
+  const ids = Array.from(
+    new Set(userIds.map((item) => safeText(item)).filter(Boolean))
+  );
+  if (!ids.length) return new Map();
+
+  const supabase = getSupabase();
+  const [usersResult, studentsResult, adminsResult] = await Promise.all([
+    supabase.from('users').select('user_id, email, username').in('user_id', ids),
+    supabase
+      .from('students')
+      .select('user_id, first_name, last_name')
+      .in('user_id', ids),
+    supabase
+      .from('admin_profiles')
+      .select('user_id, first_name, last_name')
+      .in('user_id', ids),
+  ]);
+
+  if (usersResult.error) {
+    console.warn('MESSAGE PREVIEW USER NAME FETCH ERROR:', usersResult.error.message);
+  }
+  if (studentsResult.error) {
+    console.warn('MESSAGE PREVIEW STUDENT NAME FETCH ERROR:', studentsResult.error.message);
+  }
+  if (adminsResult.error) {
+    console.warn('MESSAGE PREVIEW ADMIN NAME FETCH ERROR:', adminsResult.error.message);
+  }
+
+  const userMap = new Map(
+    (usersResult.error ? [] : usersResult.data || []).map((row) => [row.user_id, row])
+  );
+  const studentMap = new Map(
+    (studentsResult.error ? [] : studentsResult.data || []).map((row) => [row.user_id, row])
+  );
+  const adminMap = new Map(
+    (adminsResult.error ? [] : adminsResult.data || []).map((row) => [row.user_id, row])
+  );
+
+  return new Map(ids.map((id) => {
+    const user = userMap.get(id);
+    const student = studentMap.get(id);
+    const admin = adminMap.get(id);
+    const studentName = [student?.first_name, student?.last_name]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    const adminName = [admin?.first_name, admin?.last_name]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    const fallback = safeText(user?.username) || safeText(user?.email) || 'Member';
+    return [id, studentName || adminName || fallback];
+  }));
+}
+
 function buildProfileMap(profilesResult) {
   const ids = new Set([
     ...profilesResult.userMap.keys(),
@@ -1620,7 +1676,7 @@ async function listRoomsForUser(userId) {
     roomIds.length
       ? supabase
           .from('messages')
-          .select('room_id,message_body,sent_at')
+          .select('room_id,message_body,sent_at,sender_id,subject')
           .in('room_id', roomIds)
           .order('sent_at', { ascending: false })
       : Promise.resolve({ data: [], error: null }),
@@ -1646,6 +1702,10 @@ async function listRoomsForUser(userId) {
     latestMessages.set(row.room_id, row);
   }
 
+  const latestSenderNames = await fetchConversationNames(
+    Array.from(latestMessages.values()).map((message) => message?.sender_id)
+  );
+
   return rooms
     .map((room) => {
       const latestMessage = latestMessages.get(room.roomId) || null;
@@ -1659,6 +1719,12 @@ async function listRoomsForUser(userId) {
         last_message: latestMessage?.message_body || '',
         lastSentAt: latestMessage?.sent_at || null,
         last_sent_at: latestMessage?.sent_at || null,
+        lastSenderId: latestMessage?.sender_id || null,
+        last_sender_id: latestMessage?.sender_id || null,
+        lastSenderName: latestSenderNames.get(latestMessage?.sender_id) || '',
+        last_sender_name: latestSenderNames.get(latestMessage?.sender_id) || '',
+        lastMessageSubject: latestMessage?.subject || '',
+        last_message_subject: latestMessage?.subject || '',
       };
     })
     .sort((left, right) => {

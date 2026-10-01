@@ -17,7 +17,7 @@ async function getSupportTickets(req, res) {
     try {
         if (!isSupportAdmin(req)) {
             return res.status(403).json({
-                error: 'Only staff accounts can access support tickets.',
+                error: 'Only authorized personnel accounts can access support tickets.',
             });
         }
 

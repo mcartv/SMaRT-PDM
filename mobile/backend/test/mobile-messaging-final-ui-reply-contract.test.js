@@ -17,6 +17,7 @@ const routes = read('mobile/backend/src/routes/messageRoutes.js');
 const replyController = read('mobile/backend/src/controllers/messageReplyController.js');
 const replyCompatibility = read('mobile/backend/src/services/messageReplyCompatibility.js');
 const formerRoom = read('mobile/backend/src/controllers/formerRoomHistoryController.js');
+const messageService = read('mobile/backend/src/services/messageService.js');
 
 
 test('message list keeps OSFA pinned while allowing other office conversations', () => {
@@ -70,6 +71,11 @@ test('mobile reply UI and API keep the web-compatible reply-to contract', () => 
   }
   assert.match(thread, /ChatMessage\? _replyingTo/);
   assert.match(thread, /message\.isReply/);
+  assert.match(thread, /replyContextLabel/);
+  assert.match(thread, /replyContextMaxWidth/);
+  assert.match(thread, /Icons\.reply_rounded/);
+  assert.match(thread, /const Color\(0xFFE4E4E7\)/);
+  assert.doesNotMatch(thread, /bottom:\s*-[0-9]/);
   assert.match(provider, /sendMessage\(String text, \{ChatMessage\? replyTo\}\)/);
   assert.match(client, /\/api\/messages\/thread\/reply/);
   assert.match(client, /\/api\/messages\/rooms\/\$roomId\/reply/);
@@ -80,4 +86,20 @@ test('mobile reply UI and API keep the web-compatible reply-to contract', () => 
   assert.match(replyCompatibility, /replyMessageBody/);
   assert.match(formerRoom, /enrichReplyContexts/);
   assert.match(formerRoom, /items: replyAwareItems/);
+});
+
+
+test('group conversation previews identify the latest sender and use solid icon colors', () => {
+  assert.match(messageService, /room_id,message_body,sent_at,sender_id,subject/);
+  assert.match(messageService, /lastSenderId/);
+  assert.match(messageService, /lastSenderName/);
+  assert.match(messageService, /lastMessageSubject/);
+  assert.match(client, /final String lastSenderId/);
+  assert.match(client, /final String lastSenderName/);
+  assert.match(provider, /lastSenderId: room\.readOnly \? room\.lastSenderId : message\.senderId/);
+  assert.match(list, /String _groupMessagePreview/);
+  assert.match(list, /return 'You: \$message'/);
+  assert.match(list, /return '\$firstName: \$message'/);
+  assert.match(list, /backgroundColor: schoolLogo/);
+  assert.match(list, /accent\.computeLuminance\(\)/);
 });

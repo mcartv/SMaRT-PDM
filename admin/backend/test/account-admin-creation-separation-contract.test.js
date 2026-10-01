@@ -157,7 +157,7 @@ test('Accounts can be filtered individually and grouped into organized role sect
   assert.match(panel, /Account Management/);
   assert.match(
     panel,
-    /Manage authorized staff accounts, role assignments, and Program Director course access\./
+    /Manage authorized personnel accounts, role assignments, and Program Director course access\./
   );
   assert.doesNotMatch(panel, /activePdCount|activeRoleCount|assignedCourseCount|Account Records|Account Overview/);
 });

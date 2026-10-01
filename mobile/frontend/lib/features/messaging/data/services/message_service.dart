@@ -173,6 +173,9 @@ class ChatRoom {
   final int unreadCount;
   final int memberCount;
   final String lastMessage;
+  final String lastSenderId;
+  final String lastSenderName;
+  final String lastMessageSubject;
   final DateTime? lastSentAt;
   final bool readOnly;
   final bool formerMember;
@@ -184,6 +187,9 @@ class ChatRoom {
     this.unreadCount = 0,
     this.memberCount = 0,
     this.lastMessage = '',
+    this.lastSenderId = '',
+    this.lastSenderName = '',
+    this.lastMessageSubject = '',
     this.lastSentAt,
     this.readOnly = false,
     this.formerMember = false,
@@ -213,6 +219,18 @@ class ChatRoom {
       lastMessage:
           json['lastMessage']?.toString() ??
           json['last_message']?.toString() ??
+          '',
+      lastSenderId:
+          json['lastSenderId']?.toString() ??
+          json['last_sender_id']?.toString() ??
+          '',
+      lastSenderName:
+          json['lastSenderName']?.toString() ??
+          json['last_sender_name']?.toString() ??
+          '',
+      lastMessageSubject:
+          json['lastMessageSubject']?.toString() ??
+          json['last_message_subject']?.toString() ??
           '',
       lastSentAt: rawLastSentAt.isEmpty ? null : DateTime.tryParse(rawLastSentAt),
       readOnly: json['readOnly'] == true || json['read_only'] == true,
@@ -566,6 +584,9 @@ class MessageService {
               lastMessage: room.lastMessage.isEmpty
                   ? 'Read-only history — you are no longer a member'
                   : 'Read-only · ${room.lastMessage}',
+              lastSenderId: room.lastSenderId,
+              lastSenderName: room.lastSenderName,
+              lastMessageSubject: room.lastMessageSubject,
               lastSentAt: room.lastSentAt,
               readOnly: true,
               formerMember: true,

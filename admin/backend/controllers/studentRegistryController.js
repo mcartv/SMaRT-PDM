@@ -37,11 +37,13 @@ exports.importRegistry = async (req, res) => {
       module: 'Student Registry',
       entityType: 'student_registry_import',
       entityId: result?.import_batch_id || null,
-      description: `Imported registrar file with ${result?.imported || 0} successful records.`,
+      description: `Processed registrar file: ${result?.added || 0} added, ${result?.updated || 0} updated, and ${result?.failed_rows || 0} failed.`,
       metadata: {
         imported: result?.imported || 0,
         total: result?.total || 0,
         failed_rows: result?.failed_rows || 0,
+        added: result?.added || 0,
+        updated: result?.updated || 0,
       },
     }).catch((auditError) => {
       console.error('STUDENT REGISTRY IMPORT AUDIT ERROR:', auditError.message);
@@ -55,7 +57,9 @@ exports.importRegistry = async (req, res) => {
       imported_count: result?.imported ?? null,
     });
     res.status(200).json({
-      message: 'Registrar file imported successfully',
+      message: result?.failed_rows
+        ? 'Registrar file imported with issues'
+        : 'Registrar file imported successfully',
       ...result,
     });
   } catch (err) {

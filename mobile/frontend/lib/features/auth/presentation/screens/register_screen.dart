@@ -222,71 +222,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  Widget _policyLink({
-    required IconData icon,
-    required String title,
-    required String subtitle,
+  Widget _policyTextLink({
+    required String label,
     required VoidCallback onTap,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark
-        ? AppColors.applicantDarkText
-        : AppColors.darkBrown;
-    final mutedColor = isDark
-        ? AppColors.applicantDarkTextMuted
-        : Colors.grey.shade700;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-          decoration: BoxDecoration(
-            color: isDark
-                ? AppColors.applicantDarkSurface
-                : Colors.white.withValues(alpha: 0.72),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isDark
-                  ? AppColors.applicantDarkOutline
-                  : Colors.grey.shade300,
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, size: 20, color: accentColor),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: textColor,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: mutedColor,
-                        height: 1.35,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(Icons.chevron_right_rounded, color: mutedColor),
-            ],
-          ),
+    return TextButton(
+      onPressed: onTap,
+      style: TextButton.styleFrom(
+        foregroundColor: accentColor,
+        minimumSize: Size.zero,
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+        textStyle: const TextStyle(
+          fontWeight: FontWeight.w800,
+          decoration: TextDecoration.underline,
+          decorationThickness: 1.5,
         ),
       ),
+      child: Text(label),
     );
   }
 
@@ -300,7 +254,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         : Colors.grey.shade800;
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
       decoration: BoxDecoration(
         color: isDark
             ? AppColors.applicantDarkSurfaceMuted
@@ -314,69 +268,74 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     : Colors.grey.shade300),
         ),
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Checkbox(
-                value: _acceptedPolicies,
-                onChanged: (value) {
-                  setState(() {
-                    _acceptedPolicies = value ?? false;
-                  });
-                },
-                activeColor: accentColor,
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Checkbox(
+              value: _acceptedPolicies,
+              onChanged: (value) {
+                setState(() {
+                  _acceptedPolicies = value ?? false;
+                });
+              },
+              activeColor: accentColor,
+              checkColor: AppColors.darkBrown,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
               ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Terms & Privacy',
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: textColor,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'I have read and agree to the documents below.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: mutedColor,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              side: BorderSide(
+                color: _acceptedPolicies ? accentColor : mutedColor,
+                width: 1.5,
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _policyLink(
-            icon: Icons.description_outlined,
-            title: 'Terms of Service',
-            subtitle: 'Read the conditions for using SMaRT-PDM.',
-            onTap: () => showLegalDocumentSheet(
-              context,
-              title: LegalDocuments.termsOfServiceTitle,
-              content: LegalDocuments.termsOfService,
             ),
           ),
-          const SizedBox(height: 10),
-          _policyLink(
-            icon: Icons.privacy_tip_outlined,
-            title: 'Privacy Statement',
-            subtitle: 'Review how account and application data are handled.',
-            onTap: () => showLegalDocumentSheet(
-              context,
-              title: LegalDocuments.privacyStatementTitle,
-              content: LegalDocuments.privacyStatement,
+          const SizedBox(width: 8),
+          Expanded(
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  'I have read and agree to the ',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: textColor,
+                    height: 1.45,
+                  ),
+                ),
+                _policyTextLink(
+                  label: 'Terms of Service',
+                  onTap: () => showLegalDocumentSheet(
+                    context,
+                    title: LegalDocuments.termsOfServiceTitle,
+                    content: LegalDocuments.termsOfService,
+                  ),
+                ),
+                Text(
+                  ' and ',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: textColor,
+                    height: 1.45,
+                  ),
+                ),
+                _policyTextLink(
+                  label: 'Privacy Statement',
+                  onTap: () => showLegalDocumentSheet(
+                    context,
+                    title: LegalDocuments.privacyStatementTitle,
+                    content: LegalDocuments.privacyStatement,
+                  ),
+                ),
+                Text(
+                  '.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: textColor,
+                    height: 1.45,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

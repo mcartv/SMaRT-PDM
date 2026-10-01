@@ -20,6 +20,26 @@ String _messagePreview(String? value, String fallback) {
   return normalized.isEmpty ? fallback : normalized;
 }
 
+String _groupMessagePreview(ChatRoom room, String currentUserId) {
+  final message = _messagePreview(
+    room.lastMessage,
+    room.readOnly ? 'Previous group · read-only history' : 'Group chat',
+  );
+  if (room.readOnly ||
+      room.lastMessage.trim().isEmpty ||
+      room.lastSenderId.trim().isEmpty ||
+      room.lastMessageSubject.toLowerCase() == 'system') {
+    return message;
+  }
+
+  if (room.lastSenderId == currentUserId) return 'You: $message';
+  final senderName = room.lastSenderName.trim();
+  final firstName = senderName.isEmpty
+      ? 'Member'
+      : senderName.split(RegExp(r'\s+')).first;
+  return '$firstName: $message';
+}
+
 // SMART-PDM_MOBILE_MESSAGING_LIST_RESPONSIVE_PHASE5_V1
 // SMART-PDM_MOBILE_MESSAGING_REFACTOR_FINAL_V2
 // SMART-PDM_MOBILE_MESSAGING_REFACTOR_FINAL_V3
@@ -167,12 +187,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
       arguments: {'roomId': roomId, 'title': roomName},
     );
     if (!mounted) return;
-    await (_provider ?? context.read<MessagingProvider>()).fetchGroups(
-      notify: false,
-    );
-    await (_provider ?? context.read<MessagingProvider>()).refreshUnreadCount(
-      notify: false,
-    );
+    final provider = _provider ?? context.read<MessagingProvider>();
+    await provider.fetchGroups(notify: false);
+    await provider.refreshUnreadCount(notify: false);
   }
 
   Future<bool> _confirmArchive(String title) async {
@@ -366,10 +383,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
           room.unreadCount <= 0) {
         return false;
       }
-      final preview = _messagePreview(
-        room.lastMessage,
-        room.readOnly ? 'Previous group · read-only history' : 'Group chat',
-      );
+      final preview = _groupMessagePreview(room, provider.currentUserId);
       return _matchesSearch(room.roomName, preview);
     }).toList(growable: false);
 
@@ -545,11 +559,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       ? Icons.history_rounded
                       : Icons.groups_rounded,
                   title: room.roomName,
-                  subtitle: _messagePreview(
-                    room.lastMessage,
-                    room.readOnly
-                        ? 'Previous group · read-only history'
-                        : 'Group chat',
+                  subtitle: _groupMessagePreview(
+                    room,
+                    provider.currentUserId,
                   ),
                   timeLabel: _conversationTime(room.lastSentAt),
                   unreadCount: room.readOnly ? 0 : room.unreadCount,
@@ -705,6 +717,9 @@ class _ConversationTile extends StatelessWidget {
     final status = Theme.of(context).extension<AppStatusColors>()!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final accent = accentColor ?? AppColors.gold;
+    final iconForeground = accent.computeLuminance() > 0.52
+        ? AppColors.darkBrown
+        : Colors.white;
     final tileColor = pinned
         ? AppColors.gold.withValues(alpha: isDark ? 0.20 : 0.12)
         : Colors.transparent;
@@ -738,7 +753,9 @@ class _ConversationTile extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: pinned ? 25 : 23,
-                backgroundColor: accent.withValues(alpha: isDark ? 0.28 : 0.16),
+                backgroundColor: schoolLogo
+                    ? accent.withValues(alpha: isDark ? 0.28 : 0.16)
+                    : accent,
                 child: schoolLogo
                     ? Padding(
                         padding: const EdgeInsets.all(4),
@@ -750,7 +767,7 @@ class _ConversationTile extends StatelessWidget {
                     : Icon(
                         icon,
                         size: pinned ? 23 : 21,
-                        color: pinned && !isDark ? AppColors.brown : accent,
+                        color: iconForeground,
                       ),
               ),
               const SizedBox(width: 12),

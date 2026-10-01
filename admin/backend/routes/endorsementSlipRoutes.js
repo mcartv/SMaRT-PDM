@@ -23,7 +23,7 @@ router.get('/pd', protect, authorizeRoles('pd'), endorsementCache, endorsementSl
 router.get('/guidance', protect, authorizeRoles('guidance'), endorsementCache, endorsementSlipController.getGuidanceQueue);
 router.get('/sdo', protect, authorizeRoles('sdo'), endorsementCache, endorsementSlipController.getSdoQueue);
 router.get('/verify/:token', endorsementSlipController.verifySlip);
-router.get('/:slipId/pdf', protect, authorizeRoles('admin', 'sdo', 'guidance', 'pd'), endorsementSlipController.downloadSlipPdf);
+router.get('/:slipId/pdf', protect, authorizeRoles('admin'), endorsementSlipController.downloadSlipPdf);
 router.get('/:slipId', protect, authorizeRoles('admin', 'sdo', 'guidance', 'pd'), endorsementCache, endorsementSlipController.getSlipDetail);
 
 // Separation of duties: OSFA/Admin can monitor the workflow but cannot sign for another office.

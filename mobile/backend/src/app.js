@@ -16,9 +16,21 @@ const forgotPasswordLimiter = rateLimit({
     },
 });
 
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    skipSuccessfulRequests: true,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        error: 'Too many failed login attempts. Please try again later.',
+    },
+});
+
 const registrationLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 5,
+    skipSuccessfulRequests: true,
     standardHeaders: true,
     legacyHeaders: false,
     message: {
@@ -66,6 +78,7 @@ function createApp() {
     });
 
     app.use('/api/auth/forgot-password', forgotPasswordLimiter);
+    app.use('/api/auth/login', loginLimiter);
     app.use('/api/auth/register', registrationLimiter);
     app.use('/api/auth/verify-otp', otpLimiter);
     app.use('/api/auth/resend-otp', otpLimiter);

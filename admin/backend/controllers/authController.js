@@ -973,11 +973,23 @@ exports.resetAdminPassword = async (req, res) => {
             const action = resolveActionName(functionName);
             const entityId = getEntityId(req, responseBody);
             const actionTaken = `${action.toUpperCase()}_${EVENT_BASE.replace(/[^a-zA-Z0-9]+/g, '_').toUpperCase()}`;
+            const authenticatedUser =
+                responseBody?.user && typeof responseBody.user === 'object'
+                    ? responseBody.user
+                    : {};
+            const authenticatedUserId =
+                getActorUserId(req) ||
+                authenticatedUser.user_id ||
+                authenticatedUser.userId ||
+                authenticatedUser.id ||
+                null;
 
             if (typeof auditLogService?.logAudit === 'function') {
                 auditLogService.logAudit({
                     req,
-                    userId: getActorUserId(req),
+                    userId: authenticatedUserId,
+                    actorEmail: req.user?.email || authenticatedUser.email || null,
+                    actorRole: req.user?.role || authenticatedUser.role || null,
                     actionTaken,
                     module: MODULE_NAME,
                     entityType: EVENT_BASE,

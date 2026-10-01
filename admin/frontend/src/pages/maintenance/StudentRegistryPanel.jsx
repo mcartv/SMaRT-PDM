@@ -25,6 +25,8 @@ import {
   ChevronRight,
   Loader2,
   FileUp,
+  CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react';
 
 import { buildApiUrl } from '@/api';
@@ -185,6 +187,55 @@ function formatWorkbookCellValue(value) {
   }
 }
 
+function formatRegistryDate(value) {
+  const text = formatWorkbookCellValue(value).trim();
+  if (!text) return '';
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return text;
+  return `${match[2]}/${match[3]}/${match[1]}`;
+}
+
+function formatRegistryPhone(value) {
+  const text = formatWorkbookCellValue(value).trim();
+  if (!text) return '';
+  const digits = text.replace(/\D/g, '');
+  if (/^9\d{9}$/.test(digits)) return `0${digits}`;
+  if (/^63\d{10}$/.test(digits)) return `0${digits.slice(2)}`;
+  return text;
+}
+
+function formatRegistryCellValue(header, value) {
+  const normalizedHeader = normalizeHeaderKey(header);
+  if (normalizedHeader.includes('email')) {
+    const emailValue =
+      value &&
+      typeof value === 'object' &&
+      typeof value.hyperlink === 'string' &&
+      /^mailto:/i.test(value.hyperlink)
+        ? value.hyperlink.replace(/^mailto:/i, '')
+        : formatWorkbookCellValue(value).trim();
+    return emailValue.toLowerCase() === '[object object]' ? '' : emailValue;
+  }
+  if (
+    normalizedHeader.includes('birthday') ||
+    normalizedHeader.includes('date of birth')
+  ) {
+    return formatRegistryDate(value);
+  }
+  if (
+    normalizedHeader.includes('personal number') ||
+    normalizedHeader.includes('phone number') ||
+    normalizedHeader.includes('mobile number') ||
+    normalizedHeader.includes('contact number') ||
+    normalizedHeader.includes('contact no') ||
+    normalizedHeader.endsWith(' contact')
+  ) {
+    return formatRegistryPhone(value);
+  }
+  const text = formatWorkbookCellValue(value).trim();
+  return text.toLowerCase() === '[object object]' ? '' : text;
+}
+
 function buildDisplayColumns(headerRow = [], bodyRows = []) {
   const maxColumns = Math.max(
     headerRow.length,
@@ -275,7 +326,12 @@ function buildImportedDisplayRow(row, headers) {
   return Object.fromEntries(
     headers.map((header) => [
       header,
-      Object.prototype.hasOwnProperty.call(snapshot, header) ? snapshot[header] ?? '' : '',
+      formatRegistryCellValue(
+        header,
+        Object.prototype.hasOwnProperty.call(snapshot, header)
+          ? snapshot[header] ?? ''
+          : ''
+      ),
     ])
   );
 }
@@ -356,8 +412,7 @@ function parseCsvRows(text) {
 }
 
 function parseExcelDate(value) {
-  if (value == null || value === '') return '';
-  return String(value);
+  return formatRegistryDate(value);
 }
 
 function buildBackendRowForExcelShape(row) {
@@ -378,8 +433,13 @@ function buildBackendRowForExcelShape(row) {
     Age: row.age || '',
     'Place of Birth': row.place_of_birth || '',
     'Civil Status': row.civil_status || '',
-    'Personal Number': row.personal_number || row.contact_number || row.phone_number || '',
-    'Email Address': row.email || row.email_address || '',
+    'Personal Number': formatRegistryPhone(
+      row.personal_number || row.contact_number || row.phone_number || ''
+    ),
+    'Email Address': formatRegistryCellValue(
+      'Email Address',
+      row.email || row.email_address || ''
+    ),
     'Present Address': row.present_address || row.address || '',
     'Present ZIP Code': row.present_zip_code || '',
     'Permanent Address': row.permanent_address || '',
@@ -387,12 +447,12 @@ function buildBackendRowForExcelShape(row) {
     'Emergency Contact Person': row.emergency_contact_person || '',
     Relationship: row.relationship || '',
     'Emergency Address': row.emergency_address || '',
-    'Emergency Contact No.': row.emergency_contact_no || '',
+    'Emergency Contact No.': formatRegistryPhone(row.emergency_contact_no || ''),
     'Father Name': row.father_name || '',
     'Father Address': row.father_address || '',
     'Father Birthday': parseExcelDate(row.father_birthday),
     'Father Age': row.father_age || '',
-    'Father Contact': row.father_contact || '',
+    'Father Contact': formatRegistryPhone(row.father_contact || ''),
     'Father Educational Attainment': row.father_educational_attainment || '',
     'Father Occupation': row.father_occupation || '',
     'Father Living/Vital Status': row.father_living_vital_status || '',
@@ -400,7 +460,7 @@ function buildBackendRowForExcelShape(row) {
     'Mother Address': row.mother_address || '',
     'Mother Birthday': parseExcelDate(row.mother_birthday),
     'Mother Age': row.mother_age || '',
-    'Mother Contact': row.mother_contact || '',
+    'Mother Contact': formatRegistryPhone(row.mother_contact || ''),
     'Mother Educational Attainment': row.mother_educational_attainment || '',
     'Mother Occupation': row.mother_occupation || '',
     'Mother Living/Vital Status': row.mother_living_vital_status || '',
@@ -782,6 +842,165 @@ function PaginationBar({ page, totalPages, totalRows, onPrev, onNext, onGoToPage
   );
 }
 
+function ImportResultSummary({ result, onDismiss, onReviewFailure }) {
+  const [showFailures, setShowFailures] = useState(false);
+  if (!result) return null;
+
+  const failed = Number(result.failed_rows) || 0;
+  const failures = Array.isArray(result.failed_results)
+    ? result.failed_results
+    : [];
+
+  return (
+    <Card className={`mb-4 overflow-hidden shadow-none ${failed ? 'border-amber-200' : 'border-emerald-200'}`}>
+      <div className={`flex flex-col gap-3 px-4 py-4 md:flex-row md:items-start md:justify-between ${failed ? 'bg-amber-50/70' : 'bg-emerald-50/70'}`}>
+        <div className="flex items-start gap-3">
+          {failed ? (
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+          ) : (
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+          )}
+          <div>
+            <p className="text-sm font-semibold text-stone-900">
+              {failed ? 'Import completed with issues' : 'Import completed'}
+            </p>
+            <p className="mt-1 text-xs text-stone-600">
+              {Number(result.total) || 0} records processed
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium">
+              <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-emerald-800">
+                {Number(result.added) || 0} Added
+              </span>
+              <span className="rounded-full bg-blue-100 px-2.5 py-1 text-blue-800">
+                {Number(result.updated) || 0} Updated
+              </span>
+              <span className={`rounded-full px-2.5 py-1 ${failed ? 'bg-red-100 text-red-700' : 'bg-stone-100 text-stone-600'}`}>
+                {failed} Failed
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {failed > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFailures((current) => !current)}
+              className="h-8 border-amber-300 bg-white text-xs text-amber-800"
+            >
+              {showFailures ? 'Hide failed rows' : 'View failed rows'}
+            </Button>
+          )}
+          <button
+            type="button"
+            onClick={onDismiss}
+            aria-label="Dismiss import summary"
+            className="rounded-md p-1.5 text-stone-400 hover:bg-white hover:text-stone-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {showFailures && (
+        <div className="overflow-x-auto border-t border-amber-200 bg-white">
+          <table className="w-full min-w-[780px] text-xs">
+            <thead className="bg-stone-50 text-stone-500">
+              <tr>
+                {['Excel row', 'PDM ID / Student Number', 'Uploaded student', 'Result', 'Failure reason', ''].map((heading) => (
+                  <th key={heading || 'action'} className="border-b px-3 py-2 text-left font-semibold">
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {failures.map((failure) => (
+                <tr key={`${failure.row_number}-${failure.pdm_id}`} className="border-b last:border-0">
+                  <td className="whitespace-nowrap px-3 py-2 text-stone-600">{failure.row_number}</td>
+                  <td className="whitespace-nowrap px-3 py-2 font-medium text-stone-800">{failure.pdm_id || '-'}</td>
+                  <td className="px-3 py-2 text-stone-700">{failure.uploaded_name || '-'}</td>
+                  <td className="whitespace-nowrap px-3 py-2">
+                    <span className="rounded-full bg-red-50 px-2 py-1 font-semibold text-red-700">
+                      {failure.result || 'Failed'}
+                    </span>
+                  </td>
+                  <td className="max-w-md px-3 py-2 leading-5 text-stone-600">{failure.failure_reason}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right">
+                    {failure.identity_conflict && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onReviewFailure(failure)}
+                        className="h-7 border-stone-200 text-[11px]"
+                      >
+                        Review details
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function IdentityConflictModal({ failure, onClose }) {
+  if (!failure) return null;
+
+  const fields = [
+    ['PDM ID', 'pdm_id'],
+    ['Name', 'name'],
+    ['LRN', 'lrn'],
+    ['Date of Birth', 'date_of_birth'],
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm" onClick={onClose}>
+      <Card className="w-full max-w-2xl overflow-hidden border-stone-200 shadow-xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between border-b bg-stone-50 px-5 py-4">
+          <div>
+            <h3 className="text-sm font-semibold text-stone-900">Identity conflict details</h3>
+            <p className="mt-1 text-xs text-stone-500">Excel row {failure.row_number}</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-md p-1.5 text-stone-400 hover:bg-white hover:text-stone-700">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="space-y-4 p-5">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+            {failure.failure_reason}
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {[
+              ['Existing Registry Record', failure.existing_record],
+              ['Uploaded Row', failure.uploaded_record],
+            ].map(([title, record]) => (
+              <div key={title} className="rounded-xl border border-stone-200 bg-white p-4">
+                <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-stone-500">{title}</h4>
+                <dl className="space-y-2">
+                  {fields.map(([label, key]) => (
+                    <div key={key} className="grid grid-cols-[100px_1fr] gap-2 text-xs">
+                      <dt className="text-stone-500">{label}</dt>
+                      <dd className="break-words font-medium text-stone-800">{record?.[key] || '-'}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 export default function StudentRegistryPanel() {
   const [file, setFile] = useState(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -802,6 +1021,8 @@ export default function StudentRegistryPanel() {
   const [excelRows, setExcelRows] = useState([]);
   const [excelSheetName, setExcelSheetName] = useState('Student Records');
   const [tableMode, setTableMode] = useState('imported');
+  const [importResult, setImportResult] = useState(null);
+  const [selectedFailure, setSelectedFailure] = useState(null);
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -928,7 +1149,7 @@ export default function StudentRegistryPanel() {
       Object.fromEntries(
         columns.map((column) => [
           column.label,
-          formatWorkbookCellValue(row[column.index]),
+          formatRegistryCellValue(column.label, row[column.index]),
         ])
       )
     );
@@ -1005,6 +1226,7 @@ export default function StudentRegistryPanel() {
           ? data.source_headers
           : excelHeaders
       );
+      setImportResult(data);
 
       setTableMode('imported');
       setImportOpen(false);
@@ -1013,7 +1235,7 @@ export default function StudentRegistryPanel() {
       const failed = Number(data.failed_rows) || 0;
       const description = `${imported} of ${Number(data.total) || imported + failed} records imported${failed ? `; ${failed} failed` : ''}.`;
       if (failed) {
-        toast.warning('Import completed with errors', { description });
+        toast.warning('Import completed with issues', { description });
       } else {
         toast.success('Student registry imported', { description });
       }
@@ -1200,12 +1422,23 @@ export default function StudentRegistryPanel() {
         onClearFile={clearSelectedFile}
       />
 
+      <IdentityConflictModal
+        failure={selectedFailure}
+        onClose={() => setSelectedFailure(null)}
+      />
+
       {error && (
         <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
           <AlertCircle className="h-4 w-4" />
           {error}
         </div>
       )}
+
+      <ImportResultSummary
+        result={importResult}
+        onDismiss={() => setImportResult(null)}
+        onReviewFailure={setSelectedFailure}
+      />
 
       <div className="mb-4 rounded-xl border border-stone-200 bg-white px-4 py-4">
         <div className="flex flex-col gap-4">

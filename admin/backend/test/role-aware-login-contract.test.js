@@ -13,7 +13,7 @@ test('web login uses Admin email and department username as role-aware identifie
 
     assert.match(controller, /resolvedRole === 'admin'[\s\S]*user\.email[\s\S]*user\.username/);
     assert.match(controller, /normalizedIdentifier !== expectedIdentifier/);
-    assert.match(loginCard, /Admin email or department username/);
+    assert.match(loginCard, /Enter your username/);
     assert.match(authService, /identifier:\s*String\(identifier/);
 });
 

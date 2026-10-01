@@ -26,6 +26,8 @@ test('visible fallback copy no longer renders Staff terminology', () => {
     'frontend/src/pages/SDOMaintenance.jsx',
     'frontend/src/pages/maintenance/ROSettingsPanel.jsx',
     'frontend/src/pages/AdminMessages.jsx',
+    'frontend/src/pages/HowToApplyPage.jsx',
+    'frontend/src/pages/maintenance/AccountsPanel.jsx',
     'frontend/src/components/department/DepartmentSettingsPage.jsx',
     'frontend/src/components/layout/AdminLayout.jsx',
     'frontend/src/components/layout/SDOLayout.jsx',

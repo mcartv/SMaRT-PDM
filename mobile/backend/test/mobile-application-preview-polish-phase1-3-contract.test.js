@@ -94,4 +94,22 @@ test('Review and submission are presented as one final user step', () => {
   assert.match(review, /certificationRead/);
   assert.match(review, /Terms of Service/);
   assert.match(review, /Privacy Statement/);
+  assert.match(review, /final consentAccepted = certRead && agreeTerms/);
+  assert.match(review, /widget\.data\.certificationRead = accepted;[\s\S]*widget\.data\.agree = accepted;/);
+  assert.equal((review.match(/CheckboxListTile\(/g) || []).length, 1);
+});
+
+test('Application submission tolerates a slow backend without hiding progress', () => {
+  const applicationService = read(
+    'mobile/frontend/lib/features/forms/data/services/application_service.dart',
+  );
+  const applicantScreen = read(
+    'mobile/frontend/lib/features/applicant/presentation/screens/new_applicant_screen.dart',
+  );
+
+  assert.equal(
+    (applicationService.match(/Duration\(seconds: 90\)/g) || []).length,
+    2,
+  );
+  assert.match(applicantScreen, /'Submitting\.\.\.'/);
 });

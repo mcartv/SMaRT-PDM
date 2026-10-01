@@ -485,58 +485,12 @@ class _StepSubmitState extends State<StepSubmit> {
     ];
   }
 
-  Widget _confirmationCard() {
-    return IntakeCard(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(18),
-      backgroundColor: intakeIsDark(context)
-          ? AppColors.applicantDarkSurfaceMuted
-          : const Color(0xFFFFEFE4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CheckboxListTile(
-            contentPadding: EdgeInsets.zero,
-            value: certRead,
-            onChanged: (value) {
-              setState(() {
-                certRead = value ?? false;
-                widget.data.certificationRead = certRead;
-              });
-              widget.onChanged();
-            },
-            title: Text(
-              'I confirm that the information I provided in this application is true, accurate, and complete to the best of my knowledge. I understand that false or misleading information may result in the rejection or disqualification of my application.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: intakeTextColor(context),
-                fontWeight: FontWeight.w700,
-                height: 1.5,
-                fontSize: 15.5,
-              ),
-            ),
-            controlAffinity: ListTileControlAffinity.leading,
-          ),
-          if (widget.showErrors && !certRead)
-            Padding(
-              padding: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
-              child: Text(
-                'You must confirm that the information you provided is accurate.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.redAccent,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13.5,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
+  Widget _consentCard() {
+    final consentAccepted = certRead && agreeTerms;
 
-  Widget _legalAgreementCard() {
     return IntakeCard(
       margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       backgroundColor: intakeIsDark(context)
           ? AppColors.applicantDarkSurfaceMuted
           : const Color(0xFFFFF8EA),
@@ -545,11 +499,15 @@ class _StepSubmitState extends State<StepSubmit> {
         children: [
           CheckboxListTile(
             contentPadding: EdgeInsets.zero,
-            value: agreeTerms,
+            visualDensity: VisualDensity.compact,
+            value: consentAccepted,
             onChanged: (value) {
+              final accepted = value ?? false;
               setState(() {
-                agreeTerms = value ?? false;
-                widget.data.agree = agreeTerms;
+                certRead = accepted;
+                agreeTerms = accepted;
+                widget.data.certificationRead = accepted;
+                widget.data.agree = accepted;
               });
               widget.onChanged();
             },
@@ -558,11 +516,14 @@ class _StepSubmitState extends State<StepSubmit> {
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: intakeTextColor(context),
                   fontWeight: FontWeight.w600,
-                  height: 1.5,
-                  fontSize: 15.5,
+                  height: 1.4,
+                  fontSize: 14.5,
                 ),
                 children: [
-                  const TextSpan(text: 'By continuing, I agree to the '),
+                  const TextSpan(
+                    text:
+                        'I certify that my application details are true and complete, and I agree to the ',
+                  ),
                   TextSpan(
                     text: 'Terms of Service',
                     style: const TextStyle(
@@ -572,9 +533,9 @@ class _StepSubmitState extends State<StepSubmit> {
                     ),
                     recognizer: _termsRecognizer,
                   ),
-                  const TextSpan(text: ' and acknowledge the '),
+                  const TextSpan(text: ' and '),
                   TextSpan(
-                    text: 'SMaRT-PDM Privacy Statement',
+                    text: 'Privacy Statement',
                     style: const TextStyle(
                       color: AppColors.gold,
                       fontWeight: FontWeight.w800,
@@ -582,20 +543,17 @@ class _StepSubmitState extends State<StepSubmit> {
                     ),
                     recognizer: _privacyRecognizer,
                   ),
-                  const TextSpan(
-                    text:
-                        '. I understand how my account and information will be used for scholarship-related services.',
-                  ),
+                  const TextSpan(text: '.'),
                 ],
               ),
             ),
             controlAffinity: ListTileControlAffinity.leading,
           ),
-          if (widget.showErrors && !agreeTerms)
+          if (widget.showErrors && !consentAccepted)
             Padding(
-              padding: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
               child: Text(
-                'You must agree to the Terms of Service and acknowledge the Privacy Statement.',
+                'Confirm this statement before submitting.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Colors.redAccent,
                   fontWeight: FontWeight.w700,
@@ -628,8 +586,7 @@ class _StepSubmitState extends State<StepSubmit> {
           icon: Icons.assignment_turned_in_outlined,
         ),
         const SizedBox(height: 18),
-        _confirmationCard(),
-        _legalAgreementCard(),
+        _consentCard(),
       ],
     );
   }

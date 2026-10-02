@@ -38,6 +38,7 @@ test('Scholar View Profile exposes scholarship program history', () => {
   assert.match(page, /SMART_PDM_SCHOLAR_PROFILE_PROGRAM_HISTORY_V1/);
   assert.match(page, /Scholarship Program History/);
   assert.match(page, /history=\{s\.program_history\}/);
-  assert.match(page, /RO Assigned Office/);
+  assert.doesNotMatch(page, /RO Assigned Office/);
+  assert.match(page, /Obligation History/);
   assert.match(page, /requestedStudentId/);
 });

@@ -1138,6 +1138,8 @@ export default function AnnouncementsManagement() {
   const [editingAnnouncementId, setEditingAnnouncementId] = useState(null);
   const operationGuards = useRef(new Set());
 
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
 
@@ -1434,6 +1436,19 @@ export default function AnnouncementsManagement() {
       return matchSearch && matchStatus;
     });
   }, [currentItems, search, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * pageSize;
+  const paginatedItems = filteredItems.slice(pageStart, pageStart + pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [tab, search, statusFilter]);
+
+  useEffect(() => {
+    setPage((previous) => Math.min(previous, totalPages));
+  }, [totalPages]);
 
   const resetForm = () => {
     setTitle('');
@@ -1987,7 +2002,7 @@ export default function AnnouncementsManagement() {
           {filteredItems.length === 0 ? (
             <EmptyList archived={tab === 'archived'} />
           ) : (
-            filteredItems.map((announcement) => (
+            paginatedItems.map((announcement) => (
               <AnnouncementRow
                 key={announcement.id}
                 announcement={announcement}
@@ -2003,6 +2018,18 @@ export default function AnnouncementsManagement() {
             ))
           )}
         </div>
+        {filteredItems.length > 0 ? (
+          <nav aria-label="Announcement pagination" className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 px-4 py-3">
+            <p className="text-xs text-stone-500" aria-live="polite">
+              Showing {pageStart + 1}–{Math.min(pageStart + pageSize, filteredItems.length)} of {filteredItems.length} announcements
+            </p>
+            <div className="flex items-center gap-3">
+              <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</Button>
+              <span className="text-xs text-stone-600">Page {currentPage} of {totalPages}</span>
+              <Button variant="outline" size="sm" disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)}>Next</Button>
+            </div>
+          </nav>
+        ) : null}
       </Card>
     </div>
   );

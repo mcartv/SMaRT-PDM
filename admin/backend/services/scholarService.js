@@ -511,6 +511,7 @@ async function fetchScholarProgramHistory(studentId) {
         a.application_status,
         a.selection_status,
         a.activation_status,
+        a.activated_at,
         a.is_disqualified,
         a.is_archived,
         a.submission_date,
@@ -556,6 +557,7 @@ async function fetchScholarProgramHistory(studentId) {
       ra.application_status,
       ra.selection_status,
       ra.activation_status,
+      ra.activated_at,
       ra.is_disqualified,
       ra.is_archived,
       CASE
@@ -629,6 +631,85 @@ async function fetchScholarProgramHistory(studentId) {
   return result.rows || [];
 }
 
+async function fetchScholarPayoutHistory(studentId) {
+  const result = await db.query(
+    `
+    SELECT
+      pbs.payout_entry_id,
+      pbs.payout_batch_id,
+      pbs.application_id,
+      COALESCE(pbs.amount_received, pb.amount_per_scholar, 0) AS amount,
+      COALESCE(NULLIF(pbs.release_status, ''), pb.batch_status, 'Pending') AS status,
+      pbs.released_at,
+      pb.payout_title,
+      pb.payout_code,
+      pb.payout_date,
+      pb.payment_mode,
+      sp.program_name,
+      ay.label AS academic_year,
+      ap.term AS semester,
+      proof.proof_status,
+      proof.submitted_at AS proof_submitted_at
+    FROM payout_batch_students pbs
+    JOIN payout_batches pb
+      ON pb.payout_batch_id = pbs.payout_batch_id
+    LEFT JOIN scholarship_program sp
+      ON sp.program_id = pb.program_id
+    LEFT JOIN academic_years ay
+      ON ay.academic_year_id = pb.academic_year_id
+    LEFT JOIN academic_period ap
+      ON ap.period_id = pb.period_id
+    LEFT JOIN LATERAL (
+      SELECT pp.proof_status, pp.submitted_at
+      FROM payout_proofs pp
+      WHERE pp.payout_entry_id = pbs.payout_entry_id
+      ORDER BY pp.submitted_at DESC NULLS LAST, pp.created_at DESC
+      LIMIT 1
+    ) proof ON true
+    WHERE pbs.student_id = $1
+      AND COALESCE(pb.is_archived, false) = false
+    ORDER BY COALESCE(pbs.released_at, pb.payout_date, pbs.created_at) DESC NULLS LAST;
+    `,
+    [studentId]
+  );
+
+  return result.rows || [];
+}
+
+async function fetchScholarRenewalHistory(studentId) {
+  const result = await db.query(
+    `
+    SELECT
+      r.renewal_id,
+      r.application_id,
+      r.program_id,
+      r.period_id,
+      r.status,
+      r.submitted_on,
+      r.reviewed_at,
+      r.deadline_date,
+      r.decision_reason,
+      r.flagged_reason,
+      sp.program_name,
+      ay.label AS academic_year,
+      ap.term AS semester,
+      COALESCE(r.reviewed_at, r.submitted_on, r.updated_at, r.created_at) AS event_at
+    FROM renewals r
+    LEFT JOIN scholarship_program sp
+      ON sp.program_id = r.program_id
+    LEFT JOIN academic_period ap
+      ON ap.period_id = r.period_id
+    LEFT JOIN academic_years ay
+      ON ay.academic_year_id = COALESCE(r.academic_year_id, ap.academic_year_id)
+    WHERE r.student_id = $1
+    ORDER BY COALESCE(r.reviewed_at, r.submitted_on, r.updated_at, r.created_at) DESC NULLS LAST;
+    `,
+    [studentId]
+  );
+
+  return result.rows || [];
+}
+
 // SMART_PDM_SCHOLAR_PROGRAM_HISTORY_V1
 
 exports.fetchScholarById = async (studentId, options = {}) => {
@@ -693,7 +774,21 @@ exports.fetchScholarById = async (studentId, options = {}) => {
       ) AS student_name,
 
       st.gwa,
+      st.year_level,
       st.sdo_status,
+      NULLIF(
+        TRIM(
+          COALESCE(
+            current_application.application_payload #>> '{academic,current_section}',
+            current_application.application_payload #>> '{academic,section}'
+          )
+        ),
+        ''
+      ) AS section,
+      current_endorsement.sdo_status AS endorsement_sdo_status,
+      current_endorsement.guidance_status,
+      current_endorsement.pd_status,
+      current_endorsement.overall_status AS endorsement_status,
       COALESCE(st.course_id, smr.course_id) AS course_id,
       ac.course_code,
       ac.course_name,
@@ -729,6 +824,21 @@ exports.fetchScholarById = async (studentId, options = {}) => {
 
     LEFT JOIN student_master_records smr
       ON smr.master_student_id = st.master_student_id
+
+    LEFT JOIN applications current_application
+      ON current_application.application_id = st.current_application_id
+
+    LEFT JOIN LATERAL (
+      SELECT
+        es.sdo_status,
+        es.guidance_status,
+        es.pd_status,
+        es.overall_status
+      FROM endorsement_slips es
+      WHERE es.application_id = st.current_application_id
+      ORDER BY es.updated_at DESC NULLS LAST
+      LIMIT 1
+    ) current_endorsement ON true
 
     LEFT JOIN academic_course ac
       ON ac.course_id = COALESCE(st.course_id, smr.course_id)
@@ -790,7 +900,11 @@ exports.fetchScholarById = async (studentId, options = {}) => {
     .filter(Boolean)
     .join(', ');
 
-  const programHistory = await fetchScholarProgramHistory(studentId);
+  const [programHistory, payoutHistory, renewalHistory] = await Promise.all([
+    fetchScholarProgramHistory(studentId),
+    fetchScholarPayoutHistory(studentId),
+    fetchScholarRenewalHistory(studentId),
+  ]);
 
   return {
     scholar_id: row.student_id,
@@ -839,6 +953,8 @@ exports.fetchScholarById = async (studentId, options = {}) => {
       row.scholar_removal_notes || null,
     scholar_removed_by:
       row.scholar_removed_by || null,
+    scholar_removed_by_name:
+      row.scholar_removed_by_name || null,
 
     user_id:
       row.user_id || null,
@@ -859,6 +975,12 @@ exports.fetchScholarById = async (studentId, options = {}) => {
     gwa:
       row.gwa ?? null,
 
+    year_level:
+      row.year_level || null,
+
+    section:
+      row.section || null,
+
     sdo_status:
       row.sdo_status || 'Clear',
 
@@ -866,6 +988,15 @@ exports.fetchScholarById = async (studentId, options = {}) => {
       mapSdoLevelFromStudentStatus(
         row.sdo_status
       ),
+
+    endorsement_sdo_status:
+      row.endorsement_sdo_status || null,
+    guidance_status:
+      row.guidance_status || null,
+    pd_status:
+      row.pd_status || null,
+    endorsement_status:
+      row.endorsement_status || null,
 
     /*
      * Retained for frontend compatibility.
@@ -993,6 +1124,10 @@ exports.fetchScholarById = async (studentId, options = {}) => {
     },
 
     program_history: programHistory,
+
+    payout_history: payoutHistory,
+
+    renewal_history: renewalHistory,
 
     activity_logs: [],
   };

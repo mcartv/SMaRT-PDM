@@ -208,47 +208,6 @@ function getScholarshipStatusMeta(value) {
   };
 }
 
-function getSdoStatusMeta(scholar = {}) {
-  const level = normalizeText(scholar.sdu_level);
-  const status = normalizeText(scholar.sdo_status);
-
-  if (level === 'major' || status.includes('major')) {
-    return {
-      label: 'Major Offense',
-      shortLabel: 'Major',
-      color: C.red,
-      bg: C.redSoft,
-      border: '#fecaca',
-      icon: ShieldAlert,
-      description:
-        'A major disciplinary offense is recorded for this scholar. Review the scholarship eligibility and any SDO decision before taking further action.',
-    };
-  }
-
-  if (level === 'minor' || status.includes('minor')) {
-    return {
-      label: 'Minor Offense',
-      shortLabel: 'Minor',
-      color: C.amber,
-      bg: C.amberSoft,
-      border: '#fed7aa',
-      icon: ShieldAlert,
-      description:
-        'A minor disciplinary offense is recorded for this scholar. The record remains visible for scholarship monitoring.',
-    };
-  }
-
-  return {
-    label: 'Clear',
-    shortLabel: 'Clear',
-    color: C.green,
-    bg: C.greenSoft,
-    border: '#bbf7d0',
-    icon: ShieldCheck,
-    description: 'No minor or major SDO offense is currently recorded for this scholar.',
-  };
-}
-
 function getRoHistoryStatusMeta(item = {}) {
   const assignment = normalizeText(
     item.assignment_status || item.assignmentStatus
@@ -615,30 +574,37 @@ function ProgramHistoryPanel({
   currentPeriodId = null,
 }) {
   const rows = Array.isArray(history) ? history : [];
+  const [expanded, setExpanded] = useState(false);
 
   return (
     <Card className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-sm">
-      <div className="flex flex-col items-start gap-3 border-b border-stone-100 bg-stone-50/70 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-stone-600 shadow-sm">
+      <button
+        type="button"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((value) => !value)}
+        className="flex min-h-14 w-full flex-wrap items-center gap-3 bg-stone-50/70 px-4 py-3.5 text-left transition hover:bg-stone-100/80"
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
             <BookOpen className="h-4 w-4" />
           </div>
-          <div>
-            <h4 className="text-base font-semibold text-stone-800">
+          <div className="min-w-0">
+            <h4 className="text-sm font-semibold text-stone-800 sm:text-base">
               Scholarship Program History
             </h4>
             <p className="mt-1 text-xs leading-5 text-stone-500">
-              Scholarship programs applied for by academic period
+              Scholarship records by academic period
             </p>
           </div>
         </div>
 
-        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-stone-500 shadow-sm">
+        <span className="ml-auto rounded-full bg-white px-2.5 py-1 text-xs font-medium text-stone-500 shadow-sm">
           {rows.length} record{rows.length === 1 ? '' : 's'}
         </span>
-      </div>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-stone-400 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+      </button>
 
-      <CardContent className="p-3 sm:p-4">
+      {expanded ? <CardContent className="border-t border-stone-100 p-3 sm:p-4">
         {rows.length === 0 ? (
           <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50 px-4 py-6 text-center">
             <BookOpen className="mx-auto mb-2 h-5 w-5 text-stone-300" />
@@ -662,13 +628,13 @@ function ProgramHistoryPanel({
                 item.academic_year ? `AY ${item.academic_year}` : '',
               ].filter(Boolean).join(' · ');
 
+              const status = item.history_status || item.application_status || 'Applied';
+              const tone = getProfileStatusTone(status);
+
               return (
                 <div
                   key={item.application_id}
-                  className={`rounded-xl border px-3.5 py-3 transition ${isCurrent
-                    ? 'border-amber-200 bg-amber-50/40'
-                    : 'border-stone-200 bg-white'
-                    }`}
+                  className="min-w-0 rounded-xl border border-stone-200 bg-white px-3.5 py-3 transition"
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
@@ -694,19 +660,17 @@ function ProgramHistoryPanel({
                         </p>
                       ) : null}
 
-                      <p className="mt-2 text-xs text-stone-500">
-                        RO Assigned Office:{' '}
-                        <span className="font-medium text-stone-700">
-                          {item.ro_assigned_office || 'No office recorded'}
-                        </span>
-                      </p>
+                      {item.activated_at ? (
+                        <p className="mt-1 text-[11px] font-medium text-blue-700">
+                          Activated {formatDate(item.activated_at, '—')}
+                        </p>
+                      ) : null}
                     </div>
 
                     <div className="shrink-0 text-left sm:text-right">
-                      <span className="inline-flex rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-semibold text-stone-600">
-                        {item.history_status ||
-                          item.application_status ||
-                          'Applied'}
+                      <span className={`inline-flex max-w-full items-center gap-1.5 break-words rounded-full border px-2.5 py-1 text-[11px] font-semibold ${tone.badge}`}>
+                        <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+                        {status}
                       </span>
 
                       <p className="mt-1.5 text-[11px] text-stone-400">
@@ -719,7 +683,7 @@ function ProgramHistoryPanel({
             })}
           </div>
         )}
-      </CardContent>
+      </CardContent> : null}
     </Card>
   );
 }
@@ -731,6 +695,7 @@ function ObligationHistoryPanel({ studentId }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [expandedRoId, setExpandedRoId] = useState(null);
+  const [sectionExpanded, setSectionExpanded] = useState(false);
 
   useEffect(() => {
     if (!studentId) {
@@ -788,13 +753,18 @@ function ObligationHistoryPanel({ studentId }) {
 
   return (
     <Card className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-sm">
-      <div className="flex flex-col items-start gap-3 border-b border-stone-100 bg-stone-50/70 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-stone-600 shadow-sm">
+      <button
+        type="button"
+        aria-expanded={sectionExpanded}
+        onClick={() => setSectionExpanded((value) => !value)}
+        className="flex min-h-14 w-full flex-wrap items-center gap-3 bg-stone-50/70 px-4 py-3.5 text-left transition hover:bg-stone-100/80"
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-700">
             <History className="h-4 w-4" />
           </div>
-          <div>
-            <h4 className="text-base font-semibold text-stone-800">
+          <div className="min-w-0">
+            <h4 className="text-sm font-semibold text-stone-800 sm:text-base">
               Obligation History
             </h4>
             <p className="mt-1 text-xs leading-5 text-stone-500">
@@ -804,13 +774,14 @@ function ObligationHistoryPanel({ studentId }) {
         </div>
 
         {!loading && !error ? (
-          <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-stone-500 shadow-sm">
+          <span className="ml-auto rounded-full bg-white px-2.5 py-1 text-xs font-medium text-stone-500 shadow-sm">
             {history.length} cycle{history.length === 1 ? '' : 's'}
           </span>
         ) : null}
-      </div>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-stone-400 transition-transform duration-200 ${sectionExpanded ? 'rotate-180' : ''}`} />
+      </button>
 
-      <CardContent className="p-3 sm:p-4">
+      {sectionExpanded ? <CardContent className="border-t border-stone-100 p-3 sm:p-4">
         {loading ? (
           <div className="flex min-h-[120px] items-center justify-center gap-2 text-sm text-stone-500">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -1050,7 +1021,7 @@ function ObligationHistoryPanel({ studentId }) {
             })}
           </div>
         )}
-      </CardContent>
+      </CardContent> : null}
     </Card>
   );
 }
@@ -1067,11 +1038,25 @@ function HistoryMetric({ label, value }) {
 }
 
 function ScholarProfileModal({ scholar, loading, onClose }) {
-  const s = scholar || {};
+  const s = useMemo(() => scholar || {}, [scholar]);
   const scholarshipMeta = getScholarshipStatusMeta(s.status);
-  const sdoMeta = getSdoStatusMeta(s);
-  const SdoIcon = sdoMeta.icon;
   const [avatarPreviewOpen, setAvatarPreviewOpen] = useState(false);
+  const profileScrollRef = useRef(null);
+
+  useEffect(() => {
+    const scrollArea = profileScrollRef.current;
+    if (!scrollArea) return;
+
+    const measure = () => {
+      scrollArea.style.setProperty('--profile-scroll-height', `${scrollArea.clientHeight}px`);
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(scrollArea);
+    measure();
+    return () => {
+      observer.disconnect();
+    };
+  }, [loading, scholar]);
 
   const gwaNumber = Number(s.gwa);
   const hasGwa =
@@ -1081,43 +1066,78 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
 
   const isAtRisk = hasGwa && gwaNumber >= 2.0;
 
-  const standingMeta = isAtRisk
-    ? {
+  const standingMeta = !hasGwa
+    ? null
+    : isAtRisk
+      ? {
       label: 'At Risk',
       color: C.red,
       bg: C.redSoft,
       border: '#fecaca',
-    }
-    : {
+      }
+      : {
       label: 'Good Standing',
       color: C.green,
       bg: C.greenSoft,
       border: '#bbf7d0',
     };
 
-  const currentPeriod = [
-    s.semester,
-    s.academic_year ? `AY ${s.academic_year}` : '',
-  ]
+  const currentPeriod = formatAcademicPeriod(s.semester, s.academic_year);
+  const yearSection = [formatYearLevel(s.year_level), cleanDisplayValue(s.section, '')]
     .filter(Boolean)
     .join(' · ');
+  const courseSummary = [cleanDisplayValue(s.course_code, ''), yearSection]
+    .filter(Boolean)
+    .join(' · ');
+  const programHistory = Array.isArray(s.program_history) ? s.program_history : [];
+  const oldestProgramRecord = programHistory.length ? programHistory[programHistory.length - 1] : null;
+  const scholarshipSince = oldestProgramRecord
+    ? formatAcademicPeriod(oldestProgramRecord.semester, oldestProgramRecord.academic_year)
+    : '—';
 
-  const semesterShort = (() => {
-    const value = String(s.semester || '').trim();
+  const statusEvents = useMemo(() => {
+    const events = [];
+    const history = Array.isArray(s.program_history) ? s.program_history : [];
+    const renewals = Array.isArray(s.renewal_history) ? s.renewal_history : [];
 
-    if (!value) return 'Semester not set';
-    if (/first/i.test(value)) return '1st Sem';
-    if (/second/i.test(value)) return '2nd Sem';
-    if (/summer/i.test(value)) return 'Summer';
+    history.forEach((item) => {
+      if (!item.activated_at) return;
+      events.push({
+        id: `activation-${item.application_id}`,
+        date: item.activated_at,
+        title: 'Scholarship activated',
+        detail: [item.program_name, formatAcademicPeriod(item.semester, item.academic_year, '')].filter(Boolean).join(' · '),
+      });
+    });
 
-    return value;
-  })();
+    renewals.forEach((item) => {
+      const status = normalizeText(item.status);
+      if (!['approved', 'rejected'].includes(status)) return;
+      events.push({
+        id: `renewal-${item.renewal_id}`,
+        date: item.reviewed_at || item.event_at,
+        title: status === 'approved' ? 'Renewal approved' : 'Renewal rejected',
+        detail: formatAcademicPeriod(item.semester, item.academic_year, ''),
+      });
+    });
+
+    if (s.scholar_is_archived && s.scholar_archived_at) {
+      events.push({
+        id: `removed-${s.scholar_id || s.student_id}`,
+        date: s.scholar_archived_at,
+        title: 'Scholar privilege removed',
+        detail: cleanDisplayValue(s.scholar_removal_reason, ''),
+      });
+    }
+
+    return events.sort((left, right) => new Date(right.date || 0) - new Date(left.date || 0));
+  }, [s]);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') onClose();
-    };
+      };
 
     document.body.style.overflow = 'hidden';
     document.addEventListener('keydown', handleKeyDown);
@@ -1140,7 +1160,7 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
         aria-modal="true"
         aria-labelledby="scholar-profile-title"
         aria-describedby="scholar-profile-description"
-        className="flex h-[100dvh] max-h-[100dvh] w-full max-w-[76rem] flex-col overflow-hidden rounded-none border-stone-200 bg-white shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
+        className="flex h-[100dvh] max-h-[100dvh] w-full max-w-[86rem] flex-col overflow-hidden rounded-none border-stone-200 bg-white shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-stone-100 bg-white px-4 py-3 sm:items-center sm:px-5 sm:py-4">
@@ -1149,7 +1169,7 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
               Scholar Profile
             </h3>
             <p id="scholar-profile-description" className="mt-1 text-xs leading-5 text-stone-500 sm:text-sm">
-              Scholar information, scholarship history, current standing, and obligation history
+              Scholar information, current standing and scholarship history
             </p>
           </div>
 
@@ -1171,10 +1191,10 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
             </p>
           </div>
         ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-stone-50/45 pb-[env(safe-area-inset-bottom)]">
-            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
-            <section className="border-b border-stone-200 bg-white p-4 sm:p-5 lg:border-b-0 lg:border-r lg:p-6">
-              <div className="space-y-5">
+          <div ref={profileScrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-stone-50/45 pb-[env(safe-area-inset-bottom)]">
+            <div className="grid min-w-0 grid-cols-1 lg:grid-cols-[minmax(0,0.4fr)_minmax(0,0.6fr)]">
+            <section className="min-w-0 border-b border-stone-200 bg-white p-3 sm:p-5 lg:border-b-0 lg:border-r lg:p-5">
+              <div className="min-w-0 space-y-4 lg:sticky lg:top-5 lg:max-h-[calc(var(--profile-scroll-height)-2.5rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-1">
                 {s.scholar_is_archived ? (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
                     <div className="flex items-start gap-2">
@@ -1189,76 +1209,56 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
                     </div>
                   </div>
                 ) : null}
-                <div className="rounded-2xl border border-stone-200 bg-gradient-to-br from-white to-stone-50/80 p-4 shadow-sm">
-                <div className="flex items-start gap-4">
-                  <button
-                    type="button"
-                    onClick={() => s.avatar_url && setAvatarPreviewOpen(true)}
-                    disabled={!s.avatar_url}
-                    className="shrink-0 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[var(--portal-base)] focus:ring-offset-2 disabled:cursor-default"
-                    aria-label={s.avatar_url ? `Enlarge ${s.student_name || 'scholar'} profile photo` : 'No profile photo available'}
-                  >
-                    <Avatar
-                      className={`h-16 w-16 rounded-2xl border border-stone-200 ${s.avatar_url ? 'cursor-zoom-in' : ''}`}
-                      style={{ background: C.amberSoft, color: C.brown }}
+                <div className="min-w-0 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+                  <div className="flex items-start gap-3.5 p-4 sm:gap-4 sm:p-5">
+                    <button
+                      type="button"
+                      onClick={() => s.avatar_url && setAvatarPreviewOpen(true)}
+                      disabled={!s.avatar_url}
+                      className="shrink-0 rounded-2xl border border-stone-200 bg-stone-50 p-1 transition-colors enabled:hover:border-stone-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-base)] focus-visible:ring-offset-2 disabled:cursor-default"
+                      aria-label={s.avatar_url ? `Enlarge ${s.student_name || 'scholar'} profile photo` : 'No profile photo available'}
                     >
-                      <AvatarImage
-                        src={s.avatar_url || undefined}
-                        alt={s.student_name || 'Scholar'}
-                        className="rounded-2xl"
-                      />
-                      <AvatarFallback className="rounded-2xl bg-transparent text-base font-medium">
-                        {getInitials(s.student_name)}
-                      </AvatarFallback>
-                    </Avatar>
-                  </button>
-
+                      <Avatar
+                        className={`h-14 w-14 rounded-xl sm:h-[72px] sm:w-[72px] ${s.avatar_url ? 'cursor-zoom-in' : ''}`}
+                        style={{ background: C.amberSoft, color: C.brown }}
+                      >
+                        <AvatarImage
+                          src={s.avatar_url || undefined}
+                          alt={s.student_name || 'Scholar'}
+                          className="rounded-xl object-cover"
+                        />
+                        <AvatarFallback className="rounded-xl bg-transparent text-lg font-medium">
+                          {getInitials(s.student_name)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </button>
                   <div className="min-w-0 flex-1">
-                    <h4 className="truncate text-xl font-semibold text-stone-900">
-                      {s.student_name || 'Unknown Scholar'}
-                    </h4>
+                      <h4 className="break-words text-lg font-semibold leading-snug tracking-tight text-stone-900 sm:text-xl">
+                        {s.student_name || 'Unknown Scholar'}
+                      </h4>
 
-                    <p className="mt-1 font-mono text-xs text-stone-400">
+                    <p className="mt-1.5 break-all font-mono text-xs leading-4 text-stone-500">
                       {s.student_number || 'N/A'}
                     </p>
 
-                    <p className="mt-2 text-sm font-medium text-stone-700">
-                      {s.program_name || 'No scholarship program'}
-                    </p>
+                    <div className="mt-3">
+                      <p className="break-words text-sm font-medium leading-5 text-stone-700">
+                        {courseSummary || 'Course information unavailable'}
+                      </p>
 
-                    <p className="mt-1 text-xs text-stone-500">
-                      {currentPeriod || 'No active academic period'}
-                    </p>
+                      <p className="mt-0.5 break-words text-xs leading-5 text-stone-500">
+                        {cleanDisplayValue(s.course_name)}
+                      </p>
+                    </div>
                   </div>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2 border-t border-stone-200 pt-3">
-                  <StatusPill meta={scholarshipMeta} compact />
-
-                  <StatusPill meta={standingMeta} compact />
-
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs font-medium text-stone-600">
-                    <CalendarDays className="h-3 w-3" />
-                    {semesterShort}
-                  </span>
-
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs font-medium text-stone-600">
-                    <BookOpen className="h-3 w-3" />
-                    GWA {hasGwa ? gwaNumber.toFixed(2) : '—'}
-                  </span>
-
-                  <span
-                    className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
-                    style={{
-                      color: sdoMeta.color,
-                      background: sdoMeta.bg,
-                      border: `1px solid ${sdoMeta.border}`,
-                    }}
-                  >
-                    <SdoIcon className="h-3 w-3" />
-                    SDO {sdoMeta.shortLabel}
-                  </span>
-                </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 border-t border-stone-100 bg-stone-50/60 px-4 py-3 sm:px-5">
+                    <StatusPill meta={scholarshipMeta} compact />
+                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold leading-4 ${normalizeText(s.sdo_status || 'Clear') === 'clear' ? 'border-green-200 bg-green-50 text-green-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                      {normalizeText(s.sdo_status || 'Clear') === 'clear' ? <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" /> : <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />}
+                      SDO {humanizeStatus(s.sdo_status || 'Clear')}
+                    </span>
+                  </div>
                 </div>
 
                 <div>
@@ -1267,65 +1267,39 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
                       Scholar Details
                     </h5>
                     <p className="mt-1 text-sm text-stone-500">
-                      Core scholarship and contact details
+                      Academic and scholarship information
                     </p>
                   </div>
 
                   <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                    <InfoItem
-                      icon={BookOpen}
-                      label="Scholarship Program"
-                      value={s.program_name || 'Not available'}
-                    />
+                    <ProfileField label="Course" value={s.course_code || s.course_name} />
+                    <ProfileField label="Year / Section" value={yearSection} />
+                    <ProfileField label="Academic Period" value={currentPeriod} />
+                    <ProfileField label="Current GWA" value={hasGwa ? gwaNumber.toFixed(2) : '—'} />
+                    <ProfileField label="Date Awarded" value={formatDate(s.date_awarded, '—')} />
+                    <ProfileField label="Scholarship Since" value={scholarshipSince} />
+                  </div>
+                </div>
 
-                    <InfoItem
-                      icon={BookOpen}
-                      label="Course"
-                      value={
-                        [s.course_code, s.course_name]
-                          .filter(Boolean)
-                          .join(' — ') || 'Not available'
-                      }
-                    />
-
-                    <InfoItem
-                      icon={CalendarDays}
-                      label="Academic Period"
-                      value={currentPeriod || 'Not available'}
-                    />
-
-                    <InfoItem
-                      icon={CalendarDays}
-                      label="Date Awarded"
-                      value={formatDate(s.date_awarded)}
-                    />
-
-                    <InfoItem
-                      icon={Mail}
-                      label="Email"
-                      value={s.email || 'Not available'}
-                    />
-
-                    <InfoItem
-                      icon={Phone}
-                      label="Phone"
-                      value={s.phone_number || 'Not available'}
-                    />
-
-                    <InfoItem
-                      icon={MapPin}
-                      label="Address"
-                      value={s.address_summary || 'Not available'}
-                      wide
-                    />
+                <div>
+                  <div className="mb-3">
+                    <h5 className="text-base font-semibold text-stone-800">Contact Information</h5>
+                    <p className="mt-1 text-sm text-stone-500">Current scholar contact details</p>
+                  </div>
+                  <div className="divide-y divide-stone-100 rounded-2xl border border-stone-200 bg-white p-3.5">
+                    <ContactRow icon={Mail} label="Email" value={s.email} breakAnywhere />
+                    <ContactRow icon={Phone} label="Mobile Number" value={s.phone_number} />
+                    <ContactRow icon={MapPin} label="Address" value={s.address_summary} />
                   </div>
                 </div>
 
               </div>
             </section>
 
-            <section className="bg-stone-50/45 p-4 sm:p-5 lg:p-6">
+            <section className="min-w-0 bg-stone-50/45 p-3 sm:p-5 lg:p-5">
               <div className="space-y-4">
+                <CurrentScholarshipPanel scholar={s} standingMeta={standingMeta} />
+
                 <ProgramHistoryPanel
                   history={s.program_history}
                   currentApplicationId={s.application_id}
@@ -1335,6 +1309,12 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
                 <ObligationHistoryPanel
                   studentId={s.student_id || s.scholar_id}
                 />
+
+                <PayoutHistoryPanel history={s.payout_history} />
+
+                <RenewalHistoryPanel history={s.renewal_history} />
+
+                <ScholarStatusHistoryPanel events={statusEvents} />
               </div>
             </section>
             </div>
@@ -2486,6 +2466,294 @@ function ScholarRegistryTable({ rows, onView, onRemove, removedMode = false }) {
       </div>
 
     </div>
+  );
+}
+
+function cleanDisplayValue(value, fallback = '—') {
+  const text = String(value ?? '').trim();
+  if (!text || ['n/a', 'null', 'undefined'].includes(text.toLowerCase())) return fallback;
+  return text;
+}
+
+function humanizeStatus(value, fallback = '—') {
+  const text = cleanDisplayValue(value, '');
+  if (!text) return fallback;
+  return text
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function getProfileStatusTone(value) {
+  const status = normalizeText(value).replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
+  if (['approved', 'cleared', 'no offense', 'good moral standing', 'good scholastic standing', 'good standing'].includes(status)) {
+    return { badge: 'border-green-200 bg-green-100 text-green-800', icon: 'bg-green-100 text-green-700', text: 'text-green-800' };
+  }
+  if (status === 'released') {
+    return { badge: 'border-teal-200 bg-teal-100 text-teal-800', icon: 'bg-teal-100 text-teal-700', text: 'text-teal-800' };
+  }
+  if (['activated', 'active', 'submitted'].includes(status)) {
+    return { badge: 'border-blue-200 bg-blue-100 text-blue-800', icon: 'bg-blue-100 text-blue-700', text: 'text-blue-800' };
+  }
+  if (['rejected', 'failed', 'removed', 'at risk', 'flagged'].includes(status)) {
+    return { badge: 'border-red-200 bg-red-100 text-red-800', icon: 'bg-red-100 text-red-700', text: 'text-red-800' };
+  }
+  if (['pending', 'pending submission', 'under review', 'in progress', 'applied'].includes(status)) {
+    return { badge: 'border-amber-200 bg-amber-100 text-amber-800', icon: 'bg-amber-100 text-amber-700', text: 'text-amber-800' };
+  }
+  return { badge: 'border-stone-200 bg-stone-50 text-stone-600', icon: 'bg-stone-100 text-stone-500', text: 'text-stone-700' };
+}
+
+function formatCurrency(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return '—';
+  return new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    minimumFractionDigits: 2,
+  }).format(amount);
+}
+
+function formatAcademicPeriod(semester, academicYear, fallback = '—') {
+  return [cleanDisplayValue(semester, ''), academicYear ? `AY ${academicYear}` : '']
+    .filter(Boolean)
+    .join(' · ') || fallback;
+}
+
+function formatYearLevel(value) {
+  const raw = cleanDisplayValue(value, '');
+  if (!raw) return '';
+  if (/year/i.test(raw)) return raw;
+  const numeric = Number(raw);
+  if (!Number.isInteger(numeric)) return raw;
+  const suffix = numeric === 1 ? 'st' : numeric === 2 ? 'nd' : numeric === 3 ? 'rd' : 'th';
+  return `${numeric}${suffix} Year`;
+}
+
+function ProfileField({ label, value }) {
+  return (
+    <div className="min-w-0 rounded-xl border border-stone-200 bg-white px-3 py-2.5">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-stone-400">{label}</p>
+      <p className="mt-1 break-words text-sm font-medium leading-5 text-stone-800">
+        {cleanDisplayValue(value)}
+      </p>
+    </div>
+  );
+}
+
+function ContactRow({ icon: Icon, label, value, breakAnywhere = false }) {
+  const iconTone = label === 'Email'
+    ? 'bg-blue-100 text-blue-700'
+    : label === 'Mobile Number'
+      ? 'bg-teal-100 text-teal-700'
+      : 'bg-rose-100 text-rose-700';
+  return (
+    <div className="flex min-w-0 gap-3 py-3 first:pt-0 last:pb-0">
+      <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${iconTone}`}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-stone-400">{label}</p>
+        <p className={`mt-1 text-sm font-medium leading-5 text-stone-700 ${breakAnywhere ? '[overflow-wrap:anywhere]' : 'break-words'}`}>
+          {cleanDisplayValue(value)}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function CompactHistorySection({ title, subtitle, countLabel, icon: Icon, iconClassName = 'bg-amber-100 text-amber-700', defaultOpen = false, children }) {
+  const [expanded, setExpanded] = useState(defaultOpen);
+
+  return (
+    <Card className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-sm">
+      <button
+        type="button"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((value) => !value)}
+        className="flex min-h-14 w-full flex-wrap items-center gap-3 bg-stone-50/70 px-4 py-3.5 text-left transition hover:bg-stone-100/80"
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${iconClassName}`}>
+            <Icon className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <h4 className="text-sm font-semibold text-stone-800 sm:text-base">{title}</h4>
+            <p className="mt-1 text-xs leading-5 text-stone-500">{subtitle}</p>
+          </div>
+        </div>
+        {countLabel ? (
+          <span className="ml-auto rounded-full bg-white px-2.5 py-1 text-xs font-medium text-stone-500 shadow-sm">
+            {countLabel}
+          </span>
+        ) : null}
+        <ChevronDown className={`h-4 w-4 shrink-0 text-stone-400 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+      </button>
+      {expanded ? <div className="border-t border-stone-100 p-3 sm:p-4">{children}</div> : null}
+    </Card>
+  );
+}
+
+function CurrentScholarshipPanel({ scholar, standingMeta }) {
+  const programHistory = Array.isArray(scholar.program_history) ? scholar.program_history : [];
+  const renewalHistory = Array.isArray(scholar.renewal_history) ? scholar.renewal_history : [];
+  const currentRenewal = renewalHistory.find((item) => String(item.period_id || '') === String(scholar.period_id || ''));
+  const statusItems = [
+    { label: 'Standing', value: standingMeta?.label || '—' },
+    { label: 'SDO', value: humanizeStatus(scholar.endorsement_sdo_status || scholar.sdo_status), icon: ShieldCheck },
+    { label: 'GCO', value: humanizeStatus(scholar.guidance_status), icon: CheckCircle2 },
+    { label: 'PD', value: humanizeStatus(scholar.pd_status), icon: BookOpen },
+    { label: 'Renewal', value: humanizeStatus(currentRenewal?.status), icon: CalendarDays },
+  ];
+  const currentRecord = programHistory.find((item) => String(item.application_id || '') === String(scholar.application_id || ''));
+  const awardedAt = scholar.date_awarded || currentRecord?.activated_at;
+  const isActive = normalizeText(scholar.status) === 'active';
+
+  return (
+    <section className="min-w-0 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-amber-700">Current Scholarship</p>
+          <h4 className="mt-1 break-words text-xl font-semibold leading-7 text-stone-900">
+            {cleanDisplayValue(scholar.program_name, 'No current scholarship')}
+          </h4>
+          <p className="mt-1.5 break-words text-xs leading-5 text-stone-600">{formatAcademicPeriod(scholar.semester, scholar.academic_year)}</p>
+        </div>
+        <div className="shrink-0">
+          {isActive ? (
+            <span className="inline-flex rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700">Active</span>
+          ) : null}
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-stone-100 pt-3 text-xs">
+        <p className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="text-stone-500">Standing</span>
+          <span className="font-semibold" style={{ color: standingMeta?.color || C.muted }}>{standingMeta?.label || 'Not recorded'}</span>
+        </p>
+        <p className="flex min-w-0 flex-wrap items-center gap-1.5 text-stone-500">
+          <CalendarDays aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+          Awarded <span className="font-medium text-stone-700">{formatDate(awardedAt, '—')}</span>
+        </p>
+      </div>
+      <dl className="mt-3 grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">
+        {statusItems.slice(1).map((item) => {
+          const Icon = item.icon;
+          const hasValue = item.value && item.value !== '—';
+          const tone = getProfileStatusTone(item.value);
+          return (
+            <div key={item.label} className="flex min-w-0 items-start gap-2.5 rounded-xl border border-stone-200 bg-white p-3">
+              <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone.icon}`}>
+                <Icon aria-hidden="true" className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <dt className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">{item.label}</dt>
+                <dd className={`mt-1 break-words text-xs leading-5 ${hasValue ? `font-semibold ${tone.text}` : 'text-stone-500'}`}>
+                  {hasValue ? item.value : 'Not recorded'}
+                </dd>
+              </div>
+            </div>
+          );
+        })}
+      </dl>
+    </section>
+  );
+}
+
+function PayoutHistoryPanel({ history = [] }) {
+  const rows = Array.isArray(history) ? history : [];
+  return (
+    <CompactHistorySection title="Payout History" subtitle="Release records" countLabel={`${rows.length} record${rows.length === 1 ? '' : 's'}`} icon={FileCheck2} iconClassName="bg-teal-100 text-teal-700">
+      {rows.length ? (
+        <div className="space-y-2">
+          {rows.map((item) => {
+            const tone = getProfileStatusTone(item.status);
+            return (
+            <div key={item.payout_entry_id} className="min-w-0 rounded-xl border border-stone-200 bg-white px-3.5 py-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-semibold text-stone-800">{formatAcademicPeriod(item.semester, item.academic_year)}</p>
+                  <p className="mt-1 text-base font-semibold text-stone-900">{formatCurrency(item.amount)}</p>
+                </div>
+                <span className={`inline-flex max-w-full items-center gap-1.5 break-words rounded-full border px-2.5 py-1 text-[11px] font-semibold ${tone.badge}`}>
+                  <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+                  {humanizeStatus(item.status)}
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-stone-500">
+                {item.payout_code ? <span className="break-all">Code: {item.payout_code}</span> : null}
+                <span>Released {formatDate(item.released_at || item.payout_date, '—')}</span>
+                {item.proof_status ? <span>Proof: {humanizeStatus(item.proof_status)}</span> : null}
+              </div>
+            </div>
+            );
+          })}
+        </div>
+      ) : <p className="rounded-xl border border-dashed border-stone-200 bg-stone-50 px-4 py-5 text-center text-sm text-stone-500">No payout records yet.</p>}
+    </CompactHistorySection>
+  );
+}
+
+function RenewalHistoryPanel({ history = [] }) {
+  const rows = Array.isArray(history) ? history : [];
+  return (
+    <CompactHistorySection title="Renewal History" subtitle="Renewal decisions" countLabel={`${rows.length} record${rows.length === 1 ? '' : 's'}`} icon={CalendarDays} iconClassName="bg-green-100 text-green-700">
+      {rows.length ? (
+        <div className="space-y-2">
+          {rows.map((item) => {
+            const meta = getRenewalStatusMeta(item.status);
+            const tone = getProfileStatusTone(meta.label);
+            return (
+              <div key={item.renewal_id} className="min-w-0 rounded-xl border border-stone-200 bg-white px-3.5 py-3">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-semibold text-stone-800">{formatAcademicPeriod(item.semester, item.academic_year)}</p>
+                    {item.program_name ? <p className="mt-1 break-words text-xs text-stone-500">{item.program_name}</p> : null}
+                  </div>
+                  <span className={`inline-flex max-w-full items-center gap-1.5 break-words rounded-full border px-2.5 py-1 text-[11px] font-semibold ${tone.badge}`}>
+                    <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+                    {meta.label}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-stone-500">{item.reviewed_at ? `Reviewed ${formatDate(item.reviewed_at, '—')}` : item.submitted_on ? `Submitted ${formatDate(item.submitted_on, '—')}` : `Deadline ${formatDate(item.deadline_date, '—')}`}</p>
+              </div>
+            );
+          })}
+        </div>
+      ) : <p className="rounded-xl border border-dashed border-stone-200 bg-stone-50 px-4 py-5 text-center text-sm text-stone-500">No renewal records yet.</p>}
+    </CompactHistorySection>
+  );
+}
+
+function ScholarStatusHistoryPanel({ events = [] }) {
+  const rows = Array.isArray(events) ? events : [];
+  return (
+    <CompactHistorySection title="Scholar Status History" subtitle="Important changes to scholarship privilege and standing" countLabel={rows.length ? `${rows.length} event${rows.length === 1 ? '' : 's'}` : ''} icon={History}>
+      {rows.length ? (
+        <div className="space-y-0">
+          {rows.map((item, index) => {
+            const eventStatus = {
+              'Scholarship activated': 'activated',
+              'Renewal approved': 'approved',
+              'Renewal rejected': 'rejected',
+              'Scholar privilege removed': 'removed',
+            }[item.title];
+            const tone = getProfileStatusTone(eventStatus);
+            return (
+            <div key={item.id} className="relative flex gap-3 pb-4 last:pb-0">
+              <div className="relative flex w-3 shrink-0 justify-center">
+                <span className={`mt-1.5 h-2.5 w-2.5 rounded-full border-2 ring-4 ring-white ${tone.badge}`} />
+                {index < rows.length - 1 ? <span className="absolute bottom-0 top-4 w-px bg-stone-200" /> : null}
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-medium text-stone-400">{formatDate(item.date, '—')}</p>
+                <p className={`mt-0.5 text-sm font-semibold ${tone.text}`}>{item.title}</p>
+                {item.detail ? <p className="mt-1 break-words text-xs leading-5 text-stone-500">{item.detail}</p> : null}
+              </div>
+            </div>
+            );
+          })}
+        </div>
+      ) : <p className="rounded-xl border border-dashed border-stone-200 bg-stone-50 px-4 py-5 text-center text-sm text-stone-500">No scholar lifecycle changes recorded yet.</p>}
+    </CompactHistorySection>
   );
 }
 

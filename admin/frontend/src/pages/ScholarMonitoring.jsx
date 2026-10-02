@@ -1089,6 +1089,7 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
   const courseSummary = [cleanDisplayValue(s.course_code, ''), yearSection]
     .filter(Boolean)
     .join(' · ');
+  const isSdoClear = normalizeText(s.sdo_status || 'Clear') === 'clear';
   const programHistory = Array.isArray(s.program_history) ? s.program_history : [];
   const oldestProgramRecord = programHistory.length ? programHistory[programHistory.length - 1] : null;
   const scholarshipSince = oldestProgramRecord
@@ -1209,55 +1210,67 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
                     </div>
                   </div>
                 ) : null}
-                <div className="min-w-0 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
-                  <div className="flex items-start gap-3.5 p-4 sm:gap-4 sm:p-5">
-                    <button
-                      type="button"
-                      onClick={() => s.avatar_url && setAvatarPreviewOpen(true)}
-                      disabled={!s.avatar_url}
-                      className="shrink-0 rounded-2xl border border-stone-200 bg-stone-50 p-1 transition-colors enabled:hover:border-stone-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-base)] focus-visible:ring-offset-2 disabled:cursor-default"
-                      aria-label={s.avatar_url ? `Enlarge ${s.student_name || 'scholar'} profile photo` : 'No profile photo available'}
-                    >
-                      <Avatar
-                        className={`h-14 w-14 rounded-xl sm:h-[72px] sm:w-[72px] ${s.avatar_url ? 'cursor-zoom-in' : ''}`}
-                        style={{ background: C.amberSoft, color: C.brown }}
+                <div className="min-w-0 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-[0_10px_30px_rgba(28,25,23,0.08)]">
+                  <div className="relative h-12 overflow-hidden bg-[var(--portal-base)]">
+                    <div className="absolute -right-8 -top-14 h-32 w-32 rounded-full bg-white/10" aria-hidden="true" />
+                    <div className="absolute right-16 top-5 h-16 w-16 rounded-full bg-amber-200/10" aria-hidden="true" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-transparent to-white/5" aria-hidden="true" />
+                  </div>
+
+                  <div className="px-4 pb-4">
+                    <div className="-mt-7 flex items-end justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => s.avatar_url && setAvatarPreviewOpen(true)}
+                        disabled={!s.avatar_url}
+                        className="shrink-0 rounded-full bg-white p-1.5 shadow-sm transition enabled:hover:-translate-y-0.5 enabled:hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-base)] focus-visible:ring-offset-2 disabled:cursor-default"
+                        aria-label={s.avatar_url ? `Enlarge ${s.student_name || 'scholar'} profile photo` : 'No profile photo available'}
                       >
-                        <AvatarImage
-                          src={s.avatar_url || undefined}
-                          alt={s.student_name || 'Scholar'}
-                          className="rounded-xl object-cover"
-                        />
-                        <AvatarFallback className="rounded-xl bg-transparent text-lg font-medium">
-                          {getInitials(s.student_name)}
-                        </AvatarFallback>
-                      </Avatar>
-                    </button>
-                  <div className="min-w-0 flex-1">
-                      <h4 className="break-words text-lg font-semibold leading-snug tracking-tight text-stone-900 sm:text-xl">
+                        <Avatar
+                          className={`h-14 w-14 rounded-full border border-stone-200 sm:h-16 sm:w-16 ${s.avatar_url ? 'cursor-zoom-in' : ''}`}
+                          style={{ background: C.amberSoft, color: C.brown }}
+                        >
+                          <AvatarImage src={s.avatar_url || undefined} alt="" className="rounded-full object-cover" />
+                          <AvatarFallback className="rounded-full bg-transparent text-base font-medium">
+                            {getInitials(s.student_name)}
+                          </AvatarFallback>
+                        </Avatar>
+                      </button>
+
+                      <div className="mb-1 shrink-0 rounded-full bg-white p-0.5 shadow-sm">
+                        <StatusPill meta={scholarshipMeta} compact />
+                      </div>
+                    </div>
+
+                    <div className="mt-2 min-w-0">
+                      <h4 className="truncate text-lg font-semibold leading-6 tracking-tight text-stone-900">
                         {s.student_name || 'Unknown Scholar'}
                       </h4>
-
-                    <p className="mt-1.5 break-all font-mono text-xs leading-4 text-stone-500">
-                      {s.student_number || 'N/A'}
-                    </p>
-
-                    <div className="mt-3">
-                      <p className="break-words text-sm font-medium leading-5 text-stone-700">
-                        {courseSummary || 'Course information unavailable'}
-                      </p>
-
-                      <p className="mt-0.5 break-words text-xs leading-5 text-stone-500">
-                        {cleanDisplayValue(s.course_name)}
+                      <p className="mt-1 truncate text-sm font-medium leading-5 text-stone-500">
+                        {s.student_number || 'N/A'}
                       </p>
                     </div>
-                  </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 border-t border-stone-100 bg-stone-50/60 px-4 py-3 sm:px-5">
-                    <StatusPill meta={scholarshipMeta} compact />
-                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold leading-4 ${normalizeText(s.sdo_status || 'Clear') === 'clear' ? 'border-green-200 bg-green-50 text-green-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
-                      {normalizeText(s.sdo_status || 'Clear') === 'clear' ? <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" /> : <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />}
-                      SDO {humanizeStatus(s.sdo_status || 'Clear')}
-                    </span>
+
+                    <div className="mt-3 flex min-w-0 items-center justify-between gap-3 rounded-xl border border-stone-100 bg-stone-50/80 px-3 py-2.5">
+                      <div className="flex min-w-0 items-start gap-2">
+                        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-stone-500 shadow-sm ring-1 ring-stone-200/70">
+                          <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-semibold leading-4 text-stone-700" title={courseSummary || undefined}>
+                            {courseSummary || 'Course information unavailable'}
+                          </p>
+                          <p className="mt-0.5 truncate text-[11px] leading-4 text-stone-500" title={cleanDisplayValue(s.course_name)}>
+                            {cleanDisplayValue(s.course_name)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold leading-4 ${isSdoClear ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                        {isSdoClear ? <ShieldCheck className="h-3 w-3" aria-hidden="true" /> : <ShieldAlert className="h-3 w-3" aria-hidden="true" />}
+                        SDO {humanizeStatus(s.sdo_status || 'Clear')}
+                      </span>
+                    </div>
                   </div>
                 </div>
 

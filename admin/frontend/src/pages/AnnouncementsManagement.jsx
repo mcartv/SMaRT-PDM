@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
@@ -57,6 +57,22 @@ const STATUS = {
   Scheduled: { bg: C.amberSoft, color: C.amber },
   Archived: { bg: '#f5f5f4', color: '#78716c' },
 };
+
+const ANNOUNCEMENTS_PER_PAGE = 10;
+const ANNOUNCEMENT_REFRESH_INTERVAL_MS = 30000;
+const ANNOUNCEMENT_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
+function formatAnnouncementDate(value) {
+  if (!value) return 'No date';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'No date' : ANNOUNCEMENT_DATE_FORMATTER.format(date);
+}
 
 const GENERAL_AUDIENCE_LABEL = {
   all: 'All Students',
@@ -901,8 +917,8 @@ function AnnouncementRow({
       : announcement.status;
 
   return (
-    <article className="group overflow-hidden rounded-xl border border-stone-200 bg-white transition hover:border-stone-300 hover:shadow-sm">
-      <div className="compact-announcement-row flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:gap-5">
+    <article className="group overflow-hidden rounded-lg border border-stone-200 bg-white transition hover:border-stone-300">
+      <div className="compact-announcement-row flex flex-col gap-2.5 px-3 py-3 lg:flex-row lg:items-center lg:gap-4">
         <div className="flex min-w-0 flex-1 items-start gap-2">
           <div
             className="announcement-icon mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
@@ -920,22 +936,14 @@ function AnnouncementRow({
               <StatusPill status={effectiveStatus} />
             </div>
 
-            <p className="mt-1.5 truncate text-sm leading-5 text-stone-600" title={announcement.content}>
+            <p className="mt-1 truncate text-xs leading-4 text-stone-600" title={announcement.content}>
               {announcement.content}
             </p>
 
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-stone-500">
+            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-stone-500">
               <span className="flex items-center gap-1.5 whitespace-nowrap">
                 <Calendar size={13} />
-                {announcement.date
-                  ? new Date(announcement.date).toLocaleString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                    hour: 'numeric',
-                    minute: '2-digit',
-                  })
-                  : 'No date'}
+                {formatAnnouncementDate(announcement.date)}
               </span>
 
               <span className="flex min-w-0 items-center gap-1.5">
@@ -953,14 +961,14 @@ function AnnouncementRow({
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-2 pt-3 lg:pl-4 lg:pt-0">
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5 lg:pl-3">
           {tab === 'active' ? (
             <>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => onEdit(announcement)}
-                className="h-9 rounded-lg border-stone-200 bg-white px-3 text-xs font-medium text-stone-700 hover:bg-stone-50"
+                className="h-8 rounded-md border-stone-200 bg-white px-2.5 text-xs font-medium text-stone-700 hover:bg-stone-50"
               >
                 <Edit className="mr-1.5 h-3.5 w-3.5" />
                 Edit
@@ -971,7 +979,7 @@ function AnnouncementRow({
                   size="sm"
                   onClick={() => onPublish(announcement.id)}
                   disabled={publishingId === announcement.id}
-                  className="h-9 rounded-lg border-none bg-green-600 px-3 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-60"
+                  className="h-8 rounded-md border-none bg-green-600 px-2.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-60"
                 >
                   {publishingId === announcement.id ? (
                     <>
@@ -992,7 +1000,7 @@ function AnnouncementRow({
                 size="sm"
                 onClick={() => onArchive(announcement.id)}
                 disabled={archivingId === announcement.id}
-                className="h-9 rounded-lg border-red-200 bg-white px-3 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-60"
+                className="h-8 rounded-md border-red-200 bg-white px-2.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-60"
               >
                 {archivingId === announcement.id ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1009,7 +1017,7 @@ function AnnouncementRow({
               size="sm"
               onClick={() => onRestore(announcement.id)}
               disabled={restoringId === announcement.id}
-              className="h-9 rounded-lg border-none px-3 text-xs font-medium text-white hover:opacity-90"
+              className="h-8 rounded-md border-none px-2.5 text-xs font-medium text-white hover:opacity-90"
               style={{ background: C.brownMid }}
             >
               {restoringId === announcement.id ? (
@@ -1139,9 +1147,9 @@ export default function AnnouncementsManagement() {
   const operationGuards = useRef(new Set());
 
   const [page, setPage] = useState(1);
-  const pageSize = 10;
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const deferredSearch = useDeferredValue(search);
 
   const loadPrograms = useCallback(async () => {
     try {
@@ -1239,8 +1247,10 @@ export default function AnnouncementsManagement() {
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
-      loadAnnouncements({ silent: true });
-    }, 10000);
+      if (document.visibilityState === 'visible') {
+        loadAnnouncements({ silent: true });
+      }
+    }, ANNOUNCEMENT_REFRESH_INTERVAL_MS);
 
     return () => {
       window.clearInterval(intervalId);
@@ -1406,22 +1416,14 @@ export default function AnnouncementsManagement() {
     }
   }, [schedDate, validationErrors.schedule]);
 
-  const activeItems = useMemo(
-    () => items.filter((item) => !item.is_archived && item.status !== 'Archived'),
-    [items]
-  );
-
-  const archivedItems = useMemo(
-    () => items.filter((item) => item.is_archived || item.status === 'Archived'),
-    [items]
-  );
-
-  const currentItems = tab === 'archived' ? archivedItems : activeItems;
-
   const filteredItems = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = deferredSearch.trim().toLowerCase();
+    const showArchived = tab === 'archived';
 
-    return currentItems.filter((item) => {
+    return items.filter((item) => {
+      const isArchived = item.is_archived || item.status === 'Archived';
+      if (isArchived !== showArchived) return false;
+
       const matchSearch =
         !q ||
         (item.title || '').toLowerCase().includes(q) ||
@@ -1435,20 +1437,16 @@ export default function AnnouncementsManagement() {
 
       return matchSearch && matchStatus;
     });
-  }, [currentItems, search, statusFilter]);
+  }, [items, tab, deferredSearch, statusFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / ANNOUNCEMENTS_PER_PAGE));
   const currentPage = Math.min(page, totalPages);
-  const pageStart = (currentPage - 1) * pageSize;
-  const paginatedItems = filteredItems.slice(pageStart, pageStart + pageSize);
+  const pageStart = (currentPage - 1) * ANNOUNCEMENTS_PER_PAGE;
+  const paginatedItems = filteredItems.slice(pageStart, pageStart + ANNOUNCEMENTS_PER_PAGE);
 
   useEffect(() => {
     setPage(1);
   }, [tab, search, statusFilter]);
-
-  useEffect(() => {
-    setPage((previous) => Math.min(previous, totalPages));
-  }, [totalPages]);
 
   const resetForm = () => {
     setTitle('');
@@ -1873,7 +1871,7 @@ export default function AnnouncementsManagement() {
   }
 
   return (
-    <div className="space-y-4 py-2" style={{ background: C.bg }}>
+    <div className="space-y-3 py-2" style={{ background: C.bg }}>
       <ComposeAnnouncementModal
         open={showForm}
         onRequestClose={handleRequestCloseModal}
@@ -1918,10 +1916,10 @@ export default function AnnouncementsManagement() {
 
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="inline-flex items-center rounded-lg border border-stone-200 bg-stone-50 p-1">
+        <div className="inline-flex items-center rounded-lg border border-stone-200 bg-stone-50 p-0.5">
           <button
             onClick={() => setTab('active')}
-            className={`h-9 rounded-lg px-4 text-sm font-medium transition ${tab === 'active'
+            className={`h-8 rounded-md px-3 text-sm font-medium transition ${tab === 'active'
               ? 'bg-white text-stone-900 shadow-sm'
               : 'text-stone-600 hover:text-stone-900'
               }`}
@@ -1931,7 +1929,7 @@ export default function AnnouncementsManagement() {
 
           <button
             onClick={() => setTab('archived')}
-            className={`h-9 rounded-lg px-4 text-sm font-medium transition ${tab === 'archived'
+            className={`h-8 rounded-md px-3 text-sm font-medium transition ${tab === 'archived'
               ? 'bg-white text-stone-900 shadow-sm'
               : 'text-stone-600 hover:text-stone-900'
               }`}
@@ -1944,7 +1942,7 @@ export default function AnnouncementsManagement() {
           <Button
             onClick={handleOpenModal}
             size="sm"
-            className="h-9 rounded-lg border-none px-3 text-sm font-medium text-white"
+            className="h-8 rounded-md border-none px-3 text-sm font-medium text-white"
             style={{ background: C.brownMid }}
           >
             <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -1953,20 +1951,21 @@ export default function AnnouncementsManagement() {
         )}
       </div>
 
-      <Card className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-none">
-        <div className="flex flex-col gap-3 border-b border-stone-100 px-4 py-4 sm:flex-row sm:items-center">
+      <Card className="overflow-hidden rounded-xl border-stone-200 bg-white shadow-none">
+        <div className="flex flex-col gap-2.5 border-b border-stone-100 px-3 py-3 sm:flex-row sm:items-center">
           <div className="relative flex-1 min-w-[220px]">
             <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-300" />
             <Input
               placeholder={`Search ${tab === 'archived' ? 'archived' : 'active'} announcements...`}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-9 border-stone-200 bg-white pl-9 text-sm"
+              aria-label="Search announcements"
+              className="h-8 border-stone-200 bg-white pl-9 text-sm"
             />
           </div>
 
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-9 w-[140px] border-stone-200 text-sm">
+            <SelectTrigger className="h-8 w-[140px] border-stone-200 text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -1991,14 +1990,14 @@ export default function AnnouncementsManagement() {
                 setSearch('');
                 setStatusFilter('All');
               }}
-              className="h-9 rounded-lg border-stone-200 px-3 text-sm text-stone-700"
+              className="h-8 rounded-md border-stone-200 px-2.5 text-xs text-stone-700"
             >
               Reset
             </Button>
           )}
         </div>
 
-        <div className="space-y-2.5 p-4">
+        <div className="space-y-2 p-3">
           {filteredItems.length === 0 ? (
             <EmptyList archived={tab === 'archived'} />
           ) : (
@@ -2019,14 +2018,14 @@ export default function AnnouncementsManagement() {
           )}
         </div>
         {filteredItems.length > 0 ? (
-          <nav aria-label="Announcement pagination" className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 px-4 py-3">
+          <nav aria-label="Announcement pagination" className="flex flex-wrap items-center justify-between gap-2 border-t border-stone-200 px-3 py-2.5">
             <p className="text-xs text-stone-500" aria-live="polite">
-              Showing {pageStart + 1}–{Math.min(pageStart + pageSize, filteredItems.length)} of {filteredItems.length} announcements
+              Showing {pageStart + 1}–{Math.min(pageStart + ANNOUNCEMENTS_PER_PAGE, filteredItems.length)} of {filteredItems.length}
             </p>
-            <div className="flex items-center gap-3">
-              <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</Button>
               <span className="text-xs text-stone-600">Page {currentPage} of {totalPages}</span>
-              <Button variant="outline" size="sm" disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)}>Next</Button>
+              <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)}>Next</Button>
             </div>
           </nav>
         ) : null}

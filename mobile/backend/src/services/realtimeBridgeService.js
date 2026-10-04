@@ -397,7 +397,8 @@ function buildNotificationPayload(row = {}, fallback = {}) {
   };
 }
 
-function handleNotificationChange(io, payload = {}) {
+async function handleNotificationChange(io, payload = {}) {
+  if (!(await require('../config/notificationPolicy').notificationsEnabled())) return;
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
   const old = payload.old || {};

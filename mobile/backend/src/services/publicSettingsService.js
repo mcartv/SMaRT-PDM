@@ -152,6 +152,7 @@ async function getPublicGeneralSettings() {
             landing_faqs,
             global_deadline,
             applications_open,
+            notifications_enabled,
             updated_at
         `)
         .eq('general_settings_id', 1)

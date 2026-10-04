@@ -936,6 +936,7 @@ async function notifyNextStage({ slipId, queueKey, studentName, courseId = null 
                 referenceId: slipId,
                 referenceType: 'endorsement_slip',
             });
+            if (!notification) continue;
             created.push({
                 ...notification,
                 target_user_id: target.user_id,

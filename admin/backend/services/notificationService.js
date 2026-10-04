@@ -1,5 +1,6 @@
 const supabase = require('../config/supabase');
 const db = require('../config/db');
+const { notificationsEnabled } = require('../config/notificationPolicy');
 const { resolveStaffRole } = require('../utils/staffRoles');
 
 const { relayNotificationBatch } = require('./studentRealtimeRelayService');
@@ -96,6 +97,7 @@ async function createNotificationsForAudience({
     type='Announcement',createdAt=null,programId=null,
 }) {
     if (!title || !message || !audience) throw new Error('Title, message, and audience are required');
+    if (!(await notificationsEnabled())) return [];
     const users=await getAudienceUsers(audience,{programId});
     if(!users.length)return [];
     const timestamp=createdAt||new Date().toISOString();
@@ -142,6 +144,7 @@ async function createNotificationsForAudience({
 async function syncAnnouncementNotifications({
     audience,title,message,referenceId,createdAt=null,programId=null,
 }) {
+    if (!(await notificationsEnabled())) return { inserted: 0, updated: 0, removedStale: false };
     if(!title||!message||!audience||!referenceId)
         throw new Error('Title, message, audience, and referenceId are required');
 
@@ -226,6 +229,7 @@ async function createUserNotification({
     referenceType = null,
     createdAt = null,
 }) {
+    if (!(await notificationsEnabled())) return null;
     if (!userId || !type || !title || !message) {
         throw new Error('userId, type, title, and message are required');
     }
@@ -265,6 +269,7 @@ async function createUserNotificationOnce({
     referenceType = null,
     createdAt = null,
 }) {
+    if (!(await notificationsEnabled())) return null;
     if (!userId || !type || !title || !message) {
         throw new Error('userId, type, title, and message are required');
     }
@@ -324,6 +329,7 @@ async function createUserNotificationOnce({
 exports.createUserNotificationOnce = createUserNotificationOnce;
 
 async function getStaffTargets({ roles = [], courseId = null, excludeUserIds = [] } = {}) {
+    if (!(await notificationsEnabled())) return [];
     const normalizedRoles = new Set(
         (Array.isArray(roles) ? roles : [roles])
             .map((role) => String(role || '').trim().toLowerCase())
@@ -404,6 +410,7 @@ async function createStaffNotifications({
     courseId = null,
     excludeUserIds = [],
 }) {
+    if (!(await notificationsEnabled())) return [];
     const targets = await getStaffTargets({ roles, courseId, excludeUserIds });
     const notifications = [];
 
@@ -417,6 +424,7 @@ async function createStaffNotifications({
             referenceType,
         });
 
+        if (!notification) continue;
         notifications.push({
             ...notification,
             target_user_id: target.user_id,

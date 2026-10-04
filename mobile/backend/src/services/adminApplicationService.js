@@ -1,3 +1,4 @@
+const { notificationsEnabled } = require('../config/notificationPolicy');
 const supabase = require('../config/supabase');
 
 function createHttpError(statusCode, message) {
@@ -192,7 +193,7 @@ async function approveApplication({ applicationId, adminUserId, remarks }) {
     if (updateAppError) throw updateAppError;
 
     if (application.students?.user_id) {
-        const { error: notificationError } = await supabase
+        const { error: notificationError } = (await notificationsEnabled()) ? await supabase
             .from('notifications')
             .insert([
                 {
@@ -206,7 +207,7 @@ async function approveApplication({ applicationId, adminUserId, remarks }) {
                     is_read: false,
                     push_sent: false,
                 },
-            ]);
+            ]) : { error: null };
 
         if (notificationError) {
             console.warn('QUALIFICATION NOTIFICATION INSERT WARNING:', notificationError);
@@ -277,7 +278,7 @@ async function rejectApplication({
     if (updateAppError) throw updateAppError;
 
     if (application.students?.user_id) {
-        const { error: notificationError } = await supabase
+        const { error: notificationError } = (await notificationsEnabled()) ? await supabase
             .from('notifications')
             .insert([
                 {
@@ -290,7 +291,7 @@ async function rejectApplication({
                     is_read: false,
                     push_sent: false,
                 },
-            ]);
+            ]) : { error: null };
 
         if (notificationError) {
             console.warn('REJECTION NOTIFICATION INSERT WARNING:', notificationError);

@@ -53,7 +53,6 @@ const DEFAULT_STATUS = {
         fallback_available: true,
     },
     activity: {
-        api_requests_24h: 0,
         active_sessions: 0,
         web_visitors_24h: 0,
         web_visitors_today: 0,
@@ -295,7 +294,7 @@ export default function SystemPanel({ embedded = false, editing = true }) {
                     <div>
                         <h3 className={MAINTENANCE_CARD_TITLE_CLASS}>System Monitor</h3>
                         <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
-                            Current authenticated traffic, active sessions, and public-web visitors
+                            Active sessions and public-web visitors
                         </p>
                     </div>
 
@@ -337,7 +336,8 @@ export default function SystemPanel({ embedded = false, editing = true }) {
                         <Activity className="h-5 w-5 text-emerald-600" />
                     </div>
                     <div className="min-w-0">
-                        <p className="text-base font-semibold leading-tight text-stone-900">
+                        <p className="text-xs font-medium text-stone-500">IoT OCR Requests</p>
+                        <p className="mt-1 text-base font-semibold leading-tight text-stone-900">
                             {loading ? 'Loading...' : `${jobs.completed || 0} completed`}
                         </p>
                         <p className="mt-1 break-words text-xs font-medium text-stone-500">

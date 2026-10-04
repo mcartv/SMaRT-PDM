@@ -91,6 +91,7 @@ async function updateGeneralSettings(req, res) {
         payload: {
           source: 'general_settings',
           updated_at: result.updated_at || new Date().toISOString(),
+          notifications_enabled: result.notifications_enabled,
         },
       })
       .catch((error) => {

@@ -617,6 +617,22 @@ function configureRealtimeBridge({ io, supabase }) {
     io,
     supabase,
     generation,
+    domain: 'announcements',
+    bindings: [{
+      filter: { event: '*', schema: 'public', table: 'announcements' },
+      handler: (payload) => {
+        require('./announcementService').invalidateAnnouncementReads();
+        io?.emit('announcement:refresh', {
+          announcement_id: payload.new?.announcement_id || payload.old?.announcement_id,
+        });
+      },
+    }],
+  });
+
+  createRealtimeDomainChannel({
+    io,
+    supabase,
+    generation,
     domain: 'applications',
     bindings: [
       {

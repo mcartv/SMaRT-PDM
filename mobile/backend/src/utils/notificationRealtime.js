@@ -32,6 +32,7 @@ function normalizeNotification(notification = {}) {
 }
 
 function emitNotificationCreated(req, notification) {
+    if (!require('../config/notificationPolicy').isNotificationDeliveryEnabled()) return;
     const io = req.app.get('io');
 
     if (!io || !notification) return;

@@ -69,6 +69,6 @@ test('Every authenticated Admin account can manage General maintenance', () => {
   const service = read('backend/services/generalSettingService.js');
 
   assert.match(routes, /const adminOnly = \[protect, authorizeRoles\('admin'\)\]/);
-  assert.match(routes, /router\.patch\('\/', \.\.\.adminOnly, generalSettingController\.updateGeneralSettings\)/);
+  assert.match(routes, /router\.patch\('\/', \.\.\.adminOnly, invalidateGeneralSettings, generalSettingController\.updateGeneralSettings\)/);
   assert.match(service, /String\(actor\.role \|\| ''\)\.trim\(\)\.toLowerCase\(\) === 'admin'/);
 });

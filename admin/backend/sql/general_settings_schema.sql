@@ -23,6 +23,9 @@ create table if not exists public.general_settings (
 );
 
 alter table public.general_settings
+  add column if not exists notifications_enabled boolean not null default true;
+
+alter table public.general_settings
   add column if not exists about_osfa text not null default 'The Office for Scholarship and Financial Assistance helps manage scholarship access, application review coordination, and student support monitoring for qualified PDM students. Through SMaRT-PDM, applicants and offices can follow a clearer workflow for requirements, endorsement, status tracking, and final scholar readiness.';
 
 alter table public.general_settings

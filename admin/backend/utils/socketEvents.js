@@ -186,7 +186,10 @@ const socketEvents = {
     openingRestored: (io, data) => emitEvent(io, 'opening:restored', data),
 
     /** Notifications. */
-    notificationCreated: (io, userId, data) => emitToUser(io, userId, 'notification:created', data),
+    notificationCreated: (io, userId, data) => {
+        if (!data || !require('../config/notificationPolicy').isNotificationDeliveryEnabled()) return;
+        emitToUser(io, userId, 'notification:created', data);
+    },
     notificationUpdated: (io, userId, data) => emitToUser(io, userId, 'notification:updated', data),
     notificationReadAll: (io, userId, data) => emitToUser(io, userId, 'notification:read-all', data),
     notificationArchived: (io, userId, data) => emitToUser(io, userId, 'notification:archived', data),

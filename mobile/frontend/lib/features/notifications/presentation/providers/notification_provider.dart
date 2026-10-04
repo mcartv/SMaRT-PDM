@@ -37,6 +37,8 @@ class NotificationProvider extends ChangeNotifier {
 
   bool _isLoading = false;
   bool _isInitialized = false;
+  bool _notificationsEnabled = true;
+  int _notificationPolicyRevision = 0;
   bool _hasScholarAccess = false;
   bool _isRealtimeBridgeHealthy = false;
   bool _isRealtimeRefreshing = false;
@@ -202,9 +204,13 @@ class NotificationProvider extends ChangeNotifier {
     }
 
     final notificationMutationRevisionAtStart = _notificationMutationRevision;
+    final notificationPolicyRevisionAtStart = _notificationPolicyRevision;
 
     try {
       final result = await _notificationService.fetchNotifications();
+      if (notificationPolicyRevisionAtStart == _notificationPolicyRevision) {
+        _notificationsEnabled = result.notificationsEnabled;
+      }
 
       // A realtime event can arrive while a REST refresh is in flight.
       // Never let an older HTTP response overwrite the newer socket state.
@@ -389,6 +395,15 @@ class NotificationProvider extends ChangeNotifier {
       case MobileRealtimeEvents.settingsUpdated:
       case MobileRealtimeEvents.maintenanceUpdated:
       case MobileRealtimeEvents.faqUpdated:
+        final notificationsEnabled = event.payload['notifications_enabled'];
+        if (notificationsEnabled is bool) {
+          _notificationPolicyRevision += 1;
+          final wasEnabled = _notificationsEnabled;
+          _notificationsEnabled = notificationsEnabled;
+          if (!wasEnabled && notificationsEnabled) {
+            unawaited(refresh(silent: true));
+          }
+        }
         _settingsRevision += 1;
         notifyListeners();
         return;
@@ -604,6 +619,7 @@ class NotificationProvider extends ChangeNotifier {
   }
 
   Future<void> _refreshOfficeUpdatesFromRealtime() {
+    if (!_notificationsEnabled) return Future<void>.value();
     if (_isRealtimeRefreshing) {
       _hasQueuedRealtimeRefresh = true;
       return Future<void>.value();
@@ -674,8 +690,10 @@ class NotificationProvider extends ChangeNotifier {
   }
 
   Future<void> _refreshPublishedAnnouncements() async {
+    if (!_notificationsEnabled) return;
     try {
       final announcements = await _announcementService.fetchAnnouncements();
+      if (!_notificationsEnabled) return;
       _announcementNotifications = announcements
           .map((announcement) => announcement.toNotification())
           .toList(growable: false);
@@ -687,6 +705,7 @@ class NotificationProvider extends ChangeNotifier {
   }
 
   Future<void> _refreshLatestOpeningUpdate() async {
+    if (!_notificationsEnabled) return;
     try {
       _latestPendingOpeningUpdate = await _programOpeningService
           .fetchLatestOpeningOfficeUpdate();
@@ -696,6 +715,7 @@ class NotificationProvider extends ChangeNotifier {
   }
 
   Future<void> _upsertNotificationFromEvent(MobileRealtimeEvent event) async {
+    if (!_notificationsEnabled) return;
     final payload = event.payload;
     if (payload.isEmpty) return;
 
@@ -1102,6 +1122,8 @@ class NotificationProvider extends ChangeNotifier {
 
     _isLoading = false;
     _isInitialized = false;
+    _notificationsEnabled = true;
+    _notificationPolicyRevision += 1;
     _hasScholarAccess = false;
     _isRealtimeBridgeHealthy = false;
     _isRealtimeRefreshing = false;

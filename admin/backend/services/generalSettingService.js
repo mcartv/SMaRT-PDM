@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase');
+const notificationPolicy = require('../config/notificationPolicy');
 
 const TABLE_NAME = 'general_settings';
 const LEGACY_HERO_TITLE = 'Scholarship access, tracking, and updates in one system.';
@@ -165,6 +166,7 @@ const DEFAULT_GENERAL_SETTINGS = {
   ],
   global_deadline: '2026-03-31',
   applications_open: true,
+  notifications_enabled: true,
   updated_at: null,
   updated_by_user_id: null,
   is_fallback: true,
@@ -513,6 +515,10 @@ function sanitizeSettings(payload = {}) {
       typeof payload.applications_open === 'boolean'
         ? payload.applications_open
         : DEFAULT_GENERAL_SETTINGS.applications_open,
+    notifications_enabled:
+      typeof payload.notifications_enabled === 'boolean'
+        ? payload.notifications_enabled
+        : DEFAULT_GENERAL_SETTINGS.notifications_enabled,
   };
 }
 
@@ -567,7 +573,7 @@ async function getGeneralSettings() {
   const { data, error } = await supabase
     .from(TABLE_NAME)
     .select(
-      'general_settings_id, institution_name, office_name, office_email, office_address, landline_number, office_hours, about_osfa, eligibility_summary, landing_content, policy_content, featured_notice, landing_faqs, global_deadline, applications_open, updated_at, updated_by_user_id'
+      'general_settings_id, institution_name, office_name, office_email, office_address, landline_number, office_hours, about_osfa, eligibility_summary, landing_content, policy_content, featured_notice, landing_faqs, global_deadline, applications_open, notifications_enabled, updated_at, updated_by_user_id'
     )
     .eq('general_settings_id', 1)
     .maybeSingle();
@@ -614,6 +620,11 @@ async function updateGeneralSettings(payload = {}, actor = {}) {
     throw createHttpError(403, 'Access denied for general settings.');
   }
 
+  if (Object.prototype.hasOwnProperty.call(payload, 'notifications_enabled') &&
+      typeof payload.notifications_enabled !== 'boolean') {
+    throw createHttpError(400, 'notifications_enabled must be a boolean.');
+  }
+
   if (Object.prototype.hasOwnProperty.call(payload, 'featured_notice')) {
     validateFeaturedNoticeDateRanges(payload.featured_notice);
   }
@@ -635,7 +646,7 @@ async function updateGeneralSettings(payload = {}, actor = {}) {
     .from(TABLE_NAME)
     .upsert(upsertPayload, { onConflict: 'general_settings_id' })
     .select(
-      'general_settings_id, institution_name, office_name, office_email, office_address, landline_number, office_hours, about_osfa, eligibility_summary, landing_content, policy_content, featured_notice, landing_faqs, global_deadline, applications_open, updated_at, updated_by_user_id'
+      'general_settings_id, institution_name, office_name, office_email, office_address, landline_number, office_hours, about_osfa, eligibility_summary, landing_content, policy_content, featured_notice, landing_faqs, global_deadline, applications_open, notifications_enabled, updated_at, updated_by_user_id'
     )
     .single();
 
@@ -649,6 +660,7 @@ async function updateGeneralSettings(payload = {}, actor = {}) {
     throw error;
   }
 
+  notificationPolicy.setNotificationsEnabled(data.notifications_enabled);
   return data;
 }
 

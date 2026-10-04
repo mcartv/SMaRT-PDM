@@ -7,6 +7,7 @@ const {
 const { getMessaging } = require('firebase-admin/messaging');
 
 const supabase = require('../config/supabase');
+const { notificationsEnabled } = require('../config/notificationPolicy');
 
 const MAX_FCM_BATCH_SIZE = 500;
 const INVALID_TOKEN_CODES = new Set([
@@ -150,6 +151,9 @@ async function markPushSent(notificationId) {
 }
 
 async function sendUserNotificationPush({ userId, notification = {} }) {
+  if (!(await notificationsEnabled())) {
+    return { sent: false, skipped: true, reason: 'notifications_disabled' };
+  }
   const cleanUserId = safeText(userId);
   if (!cleanUserId) {
     return { sent: false, skipped: true, reason: 'missing_user_id' };

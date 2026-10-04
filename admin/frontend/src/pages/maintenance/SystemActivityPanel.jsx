@@ -1,9 +1,8 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
-import { Activity, Globe2, UsersRound } from 'lucide-react';
+import { Globe2, UsersRound } from 'lucide-react';
 
 const DEFAULT_ACTIVITY = {
-    api_requests_24h: 0,
     active_sessions: 0,
     web_visitors_24h: 0,
     web_visitors_today: 0,
@@ -24,15 +23,6 @@ export default function SystemActivityPanel({
     available = true,
 }) {
     const metrics = [
-        {
-            key: 'traffic',
-            icon: Activity,
-            iconWrap: 'bg-blue-50',
-            iconColor: 'text-blue-600',
-            label: 'Total System Traffic',
-            value: loading ? 'Loading...' : formatMetric(activity.api_requests_24h),
-            description: 'Authenticated API requests · last 24 hours',
-        },
         {
             key: 'sessions',
             icon: UsersRound,
@@ -57,7 +47,7 @@ export default function SystemActivityPanel({
     ];
 
     return (
-        <div className="grid min-w-0 grid-cols-1 items-stretch gap-3 md:grid-cols-3">
+        <div className="grid min-w-0 grid-cols-1 items-stretch gap-3 md:grid-cols-2">
             {metrics.map((metric) => {
                 const Icon = metric.icon;
                 return (

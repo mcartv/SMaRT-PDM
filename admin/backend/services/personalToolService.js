@@ -268,6 +268,7 @@ function isReminderDue(event, philippineNow) {
 let lastDueReminderCheckAt = 0;
 
 async function processDueReminders() {
+  if (!(await require('../config/notificationPolicy').notificationsEnabled())) return [];
   const nowMs = Date.now();
   if (nowMs - lastDueReminderCheckAt < 30000) return [];
   lastDueReminderCheckAt = nowMs;

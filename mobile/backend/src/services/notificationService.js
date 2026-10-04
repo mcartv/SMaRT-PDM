@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const supabase = require('../config/supabase');
+const { notificationsEnabled } = require('../config/notificationPolicy');
 const { relayNotificationCreated } = require('./adminRealtimeRelayService');
 const pushNotificationService = require('./pushNotificationService');
 
@@ -279,6 +280,7 @@ async function createUserNotification({
   referenceType = null,
   createdAt = null,
 }) {
+  if (!(await notificationsEnabled())) return null;
   if (!userId) throw createHttpError(400, 'userId is required.');
   if (!title) throw createHttpError(400, 'title is required.');
   if (!message) throw createHttpError(400, 'message is required.');
@@ -406,6 +408,7 @@ function resolveStaffRole(profile = {}) {
 }
 
 async function getStaffTargets({ roles = [], courseId = null } = {}) {
+  if (!(await notificationsEnabled())) return [];
   const normalizedRoles = new Set(
     (Array.isArray(roles) ? roles : [roles])
       .map(normalizeText)
@@ -461,9 +464,10 @@ async function createStaffNotifications({
   referenceType = null,
   courseId = null,
 }) {
+  if (!(await notificationsEnabled())) return [];
   const targets = await getStaffTargets({ roles, courseId });
 
-  return Promise.all(
+  return (await Promise.all(
     targets.map((target) =>
       createUserNotification({
         userId: target.user_id,
@@ -474,10 +478,11 @@ async function createStaffNotifications({
         referenceType,
       })
     )
-  );
+  )).filter(Boolean);
 }
 
 async function getMyNotifications(userId, query = {}) {
+  const enabled = await notificationsEnabled();
   const limit = Math.min(safeInteger(query.limit, 50), 100);
   const offset = safeInteger(query.offset, 0);
 
@@ -499,6 +504,7 @@ async function getMyNotifications(userId, query = {}) {
 
   return {
     items,
+    notificationsEnabled: enabled,
     notifications: items,
     data: items,
     total: filtered.length,
@@ -677,8 +683,9 @@ async function createInternalUserNotification(req) {
   });
 
   return {
-    message: 'Notification created.',
-    notification: normalizeNotification(notification),
+    message: notification ? 'Notification created.' : 'Notifications are disabled.',
+    notification: notification ? normalizeNotification(notification) : null,
+    skipped: !notification,
   };
 }
 

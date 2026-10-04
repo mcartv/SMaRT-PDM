@@ -935,6 +935,10 @@ async function insertNotificationFallback({
     referenceType = null,
     createdAt = null,
 }) {
+    if (!(await require('../config/notificationPolicy').notificationsEnabled())) {
+        return { skipped: true, notification: null };
+    }
+    if (!(await require('../config/notificationPolicy').notificationsEnabled())) return null;
     const { data, error } = await supabase
         .from('notifications')
         .insert({
@@ -967,6 +971,7 @@ async function deliverVerificationOutcomeNotification({
     scholarId = null,
     reviews = [],
 }) {
+    if (!(await require('../config/notificationPolicy').notificationsEnabled())) return null;
     const notification = buildVerificationOutcomeNotification({
         outcome,
         applicationId,

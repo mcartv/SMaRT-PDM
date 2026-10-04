@@ -1,3 +1,4 @@
+const { notificationsEnabled } = require('../config/notificationPolicy');
 const supabase = require('../config/supabase');
 const { resolveAvatarUrl } = require('./avatarService');
 
@@ -278,7 +279,7 @@ async function approveProfilePhotoReview({ adminUserId, reviewId, remarks }) {
 
   if (updateError) throw updateError;
 
-  const { error: notificationError } = await supabase
+  const { error: notificationError } = (await notificationsEnabled()) ? await supabase
     .from('notifications')
     .insert([
       {
@@ -291,7 +292,7 @@ async function approveProfilePhotoReview({ adminUserId, reviewId, remarks }) {
         is_read: false,
         push_sent: false,
       },
-    ]);
+    ]) : { error: null };
 
   if (notificationError) {
     console.warn('PROFILE PHOTO APPROVAL NOTIFICATION WARNING:', notificationError);
@@ -351,7 +352,7 @@ async function rejectProfilePhotoReview({
 
   if (updateError) throw updateError;
 
-  const { error: notificationError } = await supabase
+  const { error: notificationError } = (await notificationsEnabled()) ? await supabase
     .from('notifications')
     .insert([
       {
@@ -364,7 +365,7 @@ async function rejectProfilePhotoReview({
         is_read: false,
         push_sent: false,
       },
-    ]);
+    ]) : { error: null };
 
   if (notificationError) {
     console.warn('PROFILE PHOTO REJECTION NOTIFICATION WARNING:', notificationError);

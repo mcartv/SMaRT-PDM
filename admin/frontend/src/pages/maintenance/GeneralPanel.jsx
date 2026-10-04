@@ -97,6 +97,7 @@ const DEFAULT_OFFICE = {
 const DEFAULT_APPLICATION = {
     global_deadline: '2026-03-31',
     applications_open: true,
+    notifications_enabled: true,
 };
 
 const DEFAULT_FEATURED_NOTICE = {
@@ -364,6 +365,7 @@ export default function GeneralPanel() {
     const [landingFaqs, setLandingFaqs] = useState(DEFAULT_FAQS);
     const [globalDeadline, setGlobalDeadline] = useState(DEFAULT_APPLICATION.global_deadline);
     const [appOpen, setAppOpen] = useState(DEFAULT_APPLICATION.applications_open);
+    const [notificationsEnabled, setNotificationsEnabled] = useState(DEFAULT_APPLICATION.notifications_enabled);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [activeSection, setActiveSection] = useState('office');
@@ -426,6 +428,7 @@ export default function GeneralPanel() {
             setLandingFaqs(normalizeFaqs(payload?.landing_faqs));
             setGlobalDeadline(payload?.global_deadline || DEFAULT_APPLICATION.global_deadline);
             setAppOpen(typeof payload?.applications_open === 'boolean' ? payload.applications_open : DEFAULT_APPLICATION.applications_open);
+            setNotificationsEnabled(payload?.notifications_enabled !== false);
         } catch (nextError) {
             setError(nextError.message || 'Failed to load general settings.');
         } finally {
@@ -521,6 +524,9 @@ export default function GeneralPanel() {
                 }
                 if (typeof payload?.applications_open === 'boolean') {
                     setAppOpen(payload.applications_open);
+                }
+                if (typeof payload?.notifications_enabled === 'boolean') {
+                    setNotificationsEnabled(payload.notifications_enabled);
                 }
 
                 showSuccess(successText, key);
@@ -626,6 +632,7 @@ export default function GeneralPanel() {
             {
                 global_deadline: globalDeadline,
                 applications_open: appOpen,
+                notifications_enabled: notificationsEnabled,
             },
             'application',
             'Application window settings saved successfully.'
@@ -848,6 +855,7 @@ export default function GeneralPanel() {
     const restoreApplicationDefaults = () => {
         setGlobalDeadline(DEFAULT_APPLICATION.global_deadline);
         setAppOpen(DEFAULT_APPLICATION.applications_open);
+        setNotificationsEnabled(DEFAULT_APPLICATION.notifications_enabled);
         showSuccess('Application window settings restored locally. Save to apply.');
     };
 
@@ -1953,11 +1961,25 @@ export default function GeneralPanel() {
                 {activeSection === 'application' ? (
                     <SectionFrame
                         title="Application Window"
-                        description="Control public application availability and the default deadline used by the system."
+                        description="Control application availability, the default deadline, and system notifications."
                         actions={renderSectionActions(restoreApplicationDefaults, saveApplicationSettings, 'application')}
                     >
                         <EditableRegion editing={generalEditing}>
                         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                            <GroupCard title="System Notifications" icon={Megaphone}>
+                                <div className="space-y-3">
+                                    <Toggle
+                                        value={notificationsEnabled}
+                                        onChange={setNotificationsEnabled}
+                                        labels={['Notifications On', 'Notifications Off']}
+                                    />
+                                    <p className="text-sm text-stone-600">
+                                        Turn off new in-app and push notifications across web and mobile,
+                                        including announcements, applications, reviews, RO, and reminders.
+                                        Existing notifications remain available. Save to apply.
+                                    </p>
+                                </div>
+                            </GroupCard>
                             <GroupCard title="Application Window" icon={Calendar}>
                                 <div className="space-y-3">
                                     <div className="rounded-lg border border-stone-100 bg-stone-50 px-3 py-3">

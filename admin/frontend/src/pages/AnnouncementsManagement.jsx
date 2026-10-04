@@ -59,7 +59,7 @@ const STATUS = {
 };
 
 const ANNOUNCEMENTS_PER_PAGE = 10;
-const ANNOUNCEMENT_REFRESH_INTERVAL_MS = 30000;
+const ANNOUNCEMENT_REFRESH_INTERVAL_MS = 60000;
 const ANNOUNCEMENT_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: 'numeric',
@@ -1145,6 +1145,7 @@ export default function AnnouncementsManagement() {
   const [validationErrors, setValidationErrors] = useState({});
   const [editingAnnouncementId, setEditingAnnouncementId] = useState(null);
   const operationGuards = useRef(new Set());
+  const announcementRefreshTimer = useRef(null);
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -1273,39 +1274,28 @@ export default function AnnouncementsManagement() {
     };
   }, [showForm]);
 
-  useSocketEvent('maintenance:updated', () => {
-    loadPrograms();
+  useSocketEvent('maintenance:updated', (payload) => {
+    if (payload?.module !== 'announcements') loadPrograms();
   }, [loadPrograms]);
 
-  useSocketEvent('announcement:created', () => {
-    console.log('[Socket] announcement:created received');
-    loadAnnouncements({ silent: true });
+  const queueAnnouncementRefresh = useCallback(() => {
+    window.clearTimeout(announcementRefreshTimer.current);
+    announcementRefreshTimer.current = window.setTimeout(() => {
+      announcementRefreshTimer.current = null;
+      loadAnnouncements({ silent: true });
+    }, 250);
   }, [loadAnnouncements]);
 
-  useSocketEvent('announcement:updated', () => {
-    console.log('[Socket] announcement:updated received');
-    loadAnnouncements({ silent: true });
-  }, [loadAnnouncements]);
+  useEffect(() => () => {
+    window.clearTimeout(announcementRefreshTimer.current);
+  }, []);
 
-  useSocketEvent('announcement:published', () => {
-    console.log('[Socket] announcement:published received');
-    loadAnnouncements({ silent: true });
-  }, [loadAnnouncements]);
-
-  useSocketEvent('announcement:archived', () => {
-    console.log('[Socket] announcement:archived received');
-    loadAnnouncements({ silent: true });
-  }, [loadAnnouncements]);
-
-  useSocketEvent('announcement:restored', () => {
-    console.log('[Socket] announcement:restored received');
-    loadAnnouncements({ silent: true });
-  }, [loadAnnouncements]);
-
-  useSocketEvent('announcement:refresh', () => {
-    console.log('[Socket] announcement:refresh received');
-    loadAnnouncements({ silent: true });
-  }, [loadAnnouncements]);
+  useSocketEvent('announcement:created', queueAnnouncementRefresh, [queueAnnouncementRefresh]);
+  useSocketEvent('announcement:updated', queueAnnouncementRefresh, [queueAnnouncementRefresh]);
+  useSocketEvent('announcement:published', queueAnnouncementRefresh, [queueAnnouncementRefresh]);
+  useSocketEvent('announcement:archived', queueAnnouncementRefresh, [queueAnnouncementRefresh]);
+  useSocketEvent('announcement:restored', queueAnnouncementRefresh, [queueAnnouncementRefresh]);
+  useSocketEvent('announcement:refresh', queueAnnouncementRefresh, [queueAnnouncementRefresh]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);

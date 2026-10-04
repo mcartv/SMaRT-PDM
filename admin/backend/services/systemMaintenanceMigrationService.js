@@ -11,6 +11,11 @@ const MIGRATION_PATH = path.resolve(
   __dirname,
   '../../../supabase/migrations/20260825000100_system_maintenance_controls.sql'
 );
+const NOTIFICATION_MIGRATION_KEY = '20261004155418_global_notification_switch';
+const NOTIFICATION_MIGRATION_PATH = path.resolve(
+  __dirname,
+  '../../../supabase/migrations/20261004155418_global_notification_switch.sql'
+);
 
 async function ensureSystemMaintenanceMigration() {
   if (!fs.existsSync(MIGRATION_PATH)) {
@@ -60,6 +65,18 @@ async function ensureSystemMaintenanceMigration() {
       console.log(`SYSTEM_MAINTENANCE_MIGRATION_ALREADY_APPLIED=${MIGRATION_KEY}`);
     }
 
+    const notificationMigration = await client.query(
+      'SELECT 1 FROM public.smart_pdm_runtime_migrations WHERE migration_key = $1',
+      [NOTIFICATION_MIGRATION_KEY]
+    );
+    if (!notificationMigration.rowCount) {
+      await client.query(migrationBody(fs.readFileSync(NOTIFICATION_MIGRATION_PATH, 'utf8')));
+      await client.query(
+        'INSERT INTO public.smart_pdm_runtime_migrations (migration_key) VALUES ($1)',
+        [NOTIFICATION_MIGRATION_KEY]
+      );
+    }
+
     const verification = await client.query(`
       SELECT
         EXISTS (
@@ -75,11 +92,16 @@ async function ensureSystemMaintenanceMigration() {
           WHERE table_schema = 'public'
             AND table_name = 'general_settings'
             AND column_name = 'maintenance_message'
-        ) AS has_maintenance_message
+        ) AS has_maintenance_message,
+        EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'general_settings'
+            AND column_name = 'notifications_enabled'
+        ) AS has_notifications_enabled
     `);
 
     const row = verification.rows[0] || {};
-    if (!row.has_maintenance_mode || !row.has_maintenance_message) {
+    if (!row.has_maintenance_mode || !row.has_maintenance_message || !row.has_notifications_enabled) {
       throw new Error('System maintenance migration verification failed.');
     }
 

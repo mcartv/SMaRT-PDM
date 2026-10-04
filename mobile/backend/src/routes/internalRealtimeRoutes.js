@@ -3,6 +3,7 @@ const express = require('express');
 const { resolveInternalRealtimeSecret } = require('../utils/internalRealtimeSecret');
 
 const router = express.Router();
+const notificationPolicy = require('../config/notificationPolicy');
 
 function cleanText(value) {
   return String(value || '').trim();
@@ -60,7 +61,10 @@ function normalizePayload(raw = {}) {
   };
 }
 
-router.post('/notification-batch', requireInternalSecret, (req, res) => {
+router.post('/notification-batch', requireInternalSecret, async (req, res) => {
+  if (!(await notificationPolicy.notificationsEnabled())) {
+    return res.status(200).json({ success: true, skipped: true, emitted: 0 });
+  }
   const io = req.app.get('io');
 
   if (!io) {
@@ -346,6 +350,10 @@ router.post('/module-event', requireInternalSecret, (req, res) => {
   }
 
   const eventName = cleanText(req.body?.event || req.body?.event_name);
+  if (eventName === 'settings:updated' && req.body?.payload?.source === 'general_settings') {
+    notificationPolicy.setNotificationsEnabled(req.body.payload.notifications_enabled);
+    require('../config/appCache').invalidateNamespaces(['mobile-general-settings']);
+  }
   const allowedEvents = new Set([
     'settings:updated',
     'maintenance:updated',

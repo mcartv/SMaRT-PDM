@@ -1,5 +1,28 @@
 const supabase = require('../config/supabase');
 const notificationService = require('./notificationService');
+const appCache = require('../config/appCache');
+const { createAnnouncementScheduleGate } = require('./announcementScheduleGate');
+
+const scheduleGate = createAnnouncementScheduleGate({
+    loadNextScheduledAt: async () => {
+        const { data, error } = await supabase
+            .from('announcements')
+            .select('scheduled_at')
+            .eq('status', 'Scheduled')
+            .eq('is_archived', false)
+            .order('scheduled_at', { ascending: true })
+            .limit(1);
+        if (error) throw new Error(error.message);
+        return data?.[0]?.scheduled_at || null;
+    },
+});
+
+function invalidateAnnouncementReads() {
+    scheduleGate.invalidate();
+    appCache.invalidateNamespaces(['announcements']);
+}
+
+exports.invalidateAnnouncementReads = invalidateAnnouncementReads;
 
 const AUDIENCE_LABEL = {
     all: 'All Students',
@@ -238,6 +261,7 @@ async function publishAnnouncementInternal(announcementId) {
         throw new Error(error.message);
     }
 
+    invalidateAnnouncementReads();
     const notificationsInserted = await createAnnouncementNotifications(data);
 
     return {
@@ -340,6 +364,7 @@ exports.createAnnouncement = async (payload, user) => {
         throw new Error(error.message);
     }
 
+    invalidateAnnouncementReads();
     let notificationsInserted = 0;
 
     if (data.status === 'Published') {
@@ -445,6 +470,7 @@ exports.updateAnnouncement = async (announcementId, payload) => {
         throw new Error(error.message);
     }
 
+    invalidateAnnouncementReads();
     let notificationsInserted = 0;
     let notificationsUpdated = 0;
 
@@ -469,31 +495,40 @@ exports.publishAnnouncement = async (announcementId) => {
 };
 
 exports.publishDueAnnouncements = async () => {
+    if (!(await scheduleGate.isDue())) return [];
     const nowIso = new Date().toISOString();
 
-    const { data, error } = await supabase
-        .from('announcements')
-        .select('announcement_id')
-        .eq('status', 'Scheduled')
-        .eq('is_archived', false)
-        .lte('scheduled_at', nowIso);
+    let data;
+    try {
+        const result = await supabase
+            .from('announcements')
+            .select('announcement_id')
+            .eq('status', 'Scheduled')
+            .eq('is_archived', false)
+            .lte('scheduled_at', nowIso);
 
-    if (error) {
-        console.error('SUPABASE FETCH DUE ANNOUNCEMENTS ERROR:', error);
-        throw new Error(error.message);
+        if (result.error) throw new Error(result.error.message);
+        data = result.data;
+    } catch (error) {
+        scheduleGate.publicationFailed();
+        throw error;
     }
 
     if (!data || data.length === 0) {
+        scheduleGate.publicationSucceeded();
+        scheduleGate.invalidate();
         return [];
     }
 
     const published = [];
+    let failed = false;
 
     for (const row of data) {
         try {
             const result = await publishAnnouncementInternal(row.announcement_id);
             published.push(result);
         } catch (err) {
+            failed = true;
             console.error(
                 `FAILED TO AUTO-PUBLISH ANNOUNCEMENT ${row.announcement_id}:`,
                 err.message
@@ -501,6 +536,8 @@ exports.publishDueAnnouncements = async () => {
         }
     }
 
+    if (failed) scheduleGate.publicationFailed();
+    else scheduleGate.publicationSucceeded();
     return published;
 };
 
@@ -523,6 +560,7 @@ exports.archiveAnnouncement = async (announcementId) => {
         throw new Error(error.message);
     }
 
+    invalidateAnnouncementReads();
     return mapSingleAnnouncementRow(data);
 };
 
@@ -576,6 +614,7 @@ exports.restoreAnnouncement = async (announcementId) => {
         throw new Error(error.message);
     }
 
+    invalidateAnnouncementReads();
     let notificationsInserted = 0;
     if (scheduledIsDue && data.status === 'Published') {
         notificationsInserted = await createAnnouncementNotifications(data);

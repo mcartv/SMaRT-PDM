@@ -9,12 +9,14 @@ class NotificationListResult {
   final int total;
   final int limit;
   final int offset;
+  final bool notificationsEnabled;
 
   const NotificationListResult({
     required this.items,
     required this.total,
     required this.limit,
     required this.offset,
+    this.notificationsEnabled = true,
   });
 }
 
@@ -65,6 +67,7 @@ class NotificationService {
       total: (response['total'] as num?)?.toInt() ?? items.length,
       limit: (response['limit'] as num?)?.toInt() ?? limit,
       offset: (response['offset'] as num?)?.toInt() ?? offset,
+      notificationsEnabled: response['notificationsEnabled'] != false,
     );
   }
 

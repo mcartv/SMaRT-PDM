@@ -197,7 +197,10 @@ router.post('/message-event', requireInternalSecret, (req, res) => {
     });
 });
 
-router.post('/notification-created', requireInternalSecret, (req, res) => {
+router.post('/notification-created', requireInternalSecret, async (req, res) => {
+    if (!(await require('../config/notificationPolicy').notificationsEnabled())) {
+        return res.status(200).json({ success: true, skipped: true });
+    }
     const io = req.app.get('io');
 
     if (!io) {

@@ -36,6 +36,8 @@ function createNotificationPolicy({ load, now = Date.now, ttlMs = 60000, warn = 
             await pending;
         } finally {
             pending = null;
+            // A slow failed request must still have a full retry cooldown.
+            if (revision === startedRevision) expiresAt = now() + ttlMs;
         }
         return enabled;
     }

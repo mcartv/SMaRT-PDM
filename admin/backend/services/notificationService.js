@@ -144,7 +144,6 @@ async function createNotificationsForAudience({
 async function syncAnnouncementNotifications({
     audience,title,message,referenceId,createdAt=null,programId=null,
 }) {
-    if (!(await notificationsEnabled())) return { inserted: 0, updated: 0, removedStale: false };
     if(!title||!message||!audience||!referenceId)
         throw new Error('Title, message, audience, and referenceId are required');
 
@@ -181,7 +180,7 @@ async function syncAnnouncementNotifications({
         is_read:false,push_sent:false,created_at:createdAt||new Date().toISOString()
     }));
     let inserted=0;
-    if(rows.length){
+    if(rows.length && await notificationsEnabled()){
         const {data,error}=await supabase.from('notifications').insert(rows).select('notification_id');
         if(error)throw new Error(error.message);
         inserted=data?.length||0;
@@ -248,7 +247,7 @@ async function createUserNotification({
             created_at: createdAt || new Date().toISOString(),
         })
         .select()
-        .single();
+        .maybeSingle();
 
     if (error) {
         console.error('SUPABASE SINGLE NOTIFICATION INSERT ERROR:', error);
@@ -289,7 +288,8 @@ async function createUserNotificationOnce({
             push_sent,
             created_at
         )
-        SELECT $1, $2, $3, $4, $5, $6, false, false, $7
+        SELECT $1::uuid, $2::varchar, $3::varchar, $4::text,
+               $5::text, $6::varchar, false, NULL::timestamptz, false, $7::timestamptz
         WHERE NOT EXISTS (
             SELECT 1
             FROM notifications existing

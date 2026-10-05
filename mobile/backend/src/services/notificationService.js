@@ -342,9 +342,12 @@ async function createUserNotification({
       created_at: createdAt || new Date().toISOString(),
     })
     .select(NOTIFICATION_SELECT)
-    .single();
+    .maybeSingle();
 
   if (error) throw error;
+
+  // The database may suppress creation after the cached policy read.
+  if (!data) return null;
 
   emitNotificationCreated(userId, data);
   relayNotificationCreated({ notification: normalizeNotification(data) }).catch(

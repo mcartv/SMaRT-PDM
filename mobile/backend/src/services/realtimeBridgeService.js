@@ -398,8 +398,10 @@ function buildNotificationPayload(row = {}, fallback = {}) {
 }
 
 async function handleNotificationChange(io, payload = {}) {
-  if (!(await require('../config/notificationPolicy').notificationsEnabled())) return;
   const eventType = safeText(payload.eventType).toUpperCase();
+  // The switch pauses new delivery; existing notifications must still sync.
+  if (eventType === 'INSERT' &&
+      !(await require('../config/notificationPolicy').notificationsEnabled())) return;
   const next = payload.new || {};
   const old = payload.old || {};
 

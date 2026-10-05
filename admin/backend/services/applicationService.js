@@ -938,7 +938,6 @@ async function insertNotificationFallback({
     if (!(await require('../config/notificationPolicy').notificationsEnabled())) {
         return { skipped: true, notification: null };
     }
-    if (!(await require('../config/notificationPolicy').notificationsEnabled())) return null;
     const { data, error } = await supabase
         .from('notifications')
         .insert({
@@ -955,7 +954,7 @@ async function insertNotificationFallback({
         .select(
             'notification_id, user_id, type, title, message, reference_id, reference_type, is_read, push_sent, created_at'
         )
-        .single();
+        .maybeSingle();
 
     if (error) {
         throw new Error(error.message);

@@ -62,9 +62,6 @@ function normalizePayload(raw = {}) {
 }
 
 router.post('/notification-batch', requireInternalSecret, async (req, res) => {
-  if (!(await notificationPolicy.notificationsEnabled())) {
-    return res.status(200).json({ success: true, skipped: true, emitted: 0 });
-  }
   const io = req.app.get('io');
 
   if (!io) {
@@ -86,6 +83,12 @@ router.post('/notification-batch', requireInternalSecret, async (req, res) => {
       success: false,
       message: 'Unsupported realtime notification event',
     });
+  }
+
+  // Only new delivery is paused. Existing notification state must still sync.
+  if (eventName !== 'notification:updated' &&
+      !(await notificationPolicy.notificationsEnabled())) {
+    return res.status(200).json({ success: true, skipped: true, emitted: 0 });
   }
 
   const notifications = Array.isArray(req.body?.notifications)

@@ -356,6 +356,20 @@ async function processDueReminders() {
           );
           const notification = notificationResult.rows[0];
 
+          if (!notification?.notification_id) {
+            // The database policy can turn OFF after the worker's cached read.
+            // Release our claim and leave the reminder due for a later retry.
+            await client.query(
+              `
+                DELETE FROM public.staff_reminder_deliveries
+                WHERE user_id = $1 AND event_id = $2
+                  AND notification_id IS NULL
+              `,
+              [workspace.user_id, event.id]
+            );
+            continue;
+          }
+
           await client.query(
             `
               UPDATE public.staff_reminder_deliveries

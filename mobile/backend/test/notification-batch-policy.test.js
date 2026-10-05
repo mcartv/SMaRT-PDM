@@ -75,3 +75,18 @@ test('OFF updates still enforce batch limits and recipient validation', async ()
   assert.equal(result.body.emitted, 0);
   assert.equal(route.events.length, 0);
 });
+
+for (const enabled of [false, true]) {
+  for (const event of ['notification:new', 'notification:created', 'notification:updated']) {
+    test(`invalid ${event} batch returns 400 while ${enabled ? 'ON' : 'OFF'} before policy lookup`, async () => {
+      const route = harness(enabled);
+      for (const notifications of [[], Array(501).fill({}), null, {}]) {
+        const response = await route.request(event, { notifications });
+        assert.equal(response.code, 400);
+        assert.equal(response.body.success, false);
+      }
+      assert.equal(route.policyReads, 0);
+      assert.equal(route.events.length, 0);
+    });
+  }
+}

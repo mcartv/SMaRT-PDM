@@ -85,12 +85,6 @@ router.post('/notification-batch', requireInternalSecret, async (req, res) => {
     });
   }
 
-  // Only new delivery is paused. Existing notification state must still sync.
-  if (eventName !== 'notification:updated' &&
-      !(await notificationPolicy.notificationsEnabled())) {
-    return res.status(200).json({ success: true, skipped: true, emitted: 0 });
-  }
-
   const notifications = Array.isArray(req.body?.notifications)
     ? req.body.notifications
     : [];
@@ -100,6 +94,12 @@ router.post('/notification-batch', requireInternalSecret, async (req, res) => {
       success: false,
       message: 'Notification batch must contain between 1 and 500 items',
     });
+  }
+
+  // Validate first, then pause only new delivery. Existing state still syncs.
+  if (eventName !== 'notification:updated' &&
+      !(await notificationPolicy.notificationsEnabled())) {
+    return res.status(200).json({ success: true, skipped: true, emitted: 0 });
   }
 
   let emitted = 0;

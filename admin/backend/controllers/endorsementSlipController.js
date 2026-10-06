@@ -33,7 +33,7 @@ function sanitizeEndorsementDocumentsForRole(payload, roleValue) {
 
 exports.getAllSlips = async (req, res) => {
     try {
-        const rows = await endorsementSlipService.fetchAllSlips(req.user);
+        const rows = await endorsementSlipService.fetchAllSlips(req.user, req.query);
         res.status(200).json(rows);
     } catch (error) {
         res.status(error.statusCode || 500).json({
@@ -44,7 +44,7 @@ exports.getAllSlips = async (req, res) => {
 
 exports.getPdQueue = async (req, res) => {
     try {
-        const rows = await endorsementSlipService.fetchQueue('pd', req.user);
+        const rows = await endorsementSlipService.fetchQueue('pd', req.user, req.query);
         res.status(200).json(rows);
     } catch (error) {
         res.status(error.statusCode || 500).json({
@@ -55,7 +55,7 @@ exports.getPdQueue = async (req, res) => {
 
 exports.getGuidanceQueue = async (req, res) => {
     try {
-        const rows = await endorsementSlipService.fetchQueue('guidance', req.user);
+        const rows = await endorsementSlipService.fetchQueue('guidance', req.user, req.query);
         res.status(200).json(rows);
     } catch (error) {
         res.status(error.statusCode || 500).json({
@@ -66,7 +66,7 @@ exports.getGuidanceQueue = async (req, res) => {
 
 exports.getSdoQueue = async (req, res) => {
     try {
-        const rows = await endorsementSlipService.fetchQueue('sdo', req.user);
+        const rows = await endorsementSlipService.fetchQueue('sdo', req.user, req.query);
         res.status(200).json(rows);
     } catch (error) {
         res.status(error.statusCode || 500).json({

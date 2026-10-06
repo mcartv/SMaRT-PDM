@@ -1,3 +1,4 @@
+import { useListPage } from '../hooks/useListPage';
 // SMaRT-PDM: Applications — Opening Applications (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
@@ -717,7 +718,7 @@ export default function OpeningApplications() {
     const initialView = VIEW_MODES.current;
     const [viewMode, setViewMode] = useState(initialView);
 
-    const [page, setPage] = useState(1);
+    const { page, setPage, query: listQuery, metadata: listMetadata, accept: acceptList, beginRequest } = useListPage({ search, view: viewMode }, PAGE_SIZE);
     const [disqApp, setDisqApp] = useState(null);
     const [remarksModal, setRemarksModal] = useState(null);
     const [remarksText, setRemarksText] = useState('');
@@ -725,6 +726,8 @@ export default function OpeningApplications() {
 
     // reloadApplications: handles reload applications for the Applications flow.
     const reloadApplications = async ({ soft = false } = {}) => {
+        const isCurrent = beginRequest();
+        if (!isCurrent()) return;
         try {
             if (soft) {
                 setTableLoading(true);
@@ -742,7 +745,7 @@ export default function OpeningApplications() {
                         'Content-Type': 'application/json',
                     },
                 }),
-                fetch(buildApiUrl(`/api/program-openings/${openingId}/applications`), {
+                fetch(buildApiUrl(`/api/program-openings/${openingId}/applications?${listQuery}`), {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
@@ -763,14 +766,19 @@ export default function OpeningApplications() {
             const openingData = await openingRes.json();
             const applicationData = await applicationsRes.json();
 
+            if (!isCurrent()) return;
+            acceptList(applicationData);
             setOpening(openingData || null);
-            setApps(Array.isArray(applicationData) ? applicationData : []);
+            setApps(applicationData.items || []);
         } catch (err) {
+            if (!isCurrent()) return;
             console.error('OPENING APPLICATIONS FETCH ERROR:', err);
             setError(err.message || 'Failed to load opening applications');
         } finally {
-            setLoading(false);
-            setTableLoading(false);
+            if (isCurrent()) {
+                setLoading(false);
+                setTableLoading(false);
+            }
         }
     };
 
@@ -778,37 +786,30 @@ export default function OpeningApplications() {
     reloadApplications();
     // Reload only when navigating to another opening.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openingId]);
+  }, [openingId, listQuery]);
 
     useSocketEvent('application:updated', () => {
         reloadApplications({ soft: true });
-    }, [openingId]);
+    }, [openingId, listQuery]);
 
     useSocketEvent('application:approved', () => {
         reloadApplications({ soft: true });
-    }, [openingId]);
+    }, [openingId, listQuery]);
 
     useSocketEvent('application:rejected', () => {
         reloadApplications({ soft: true });
-    }, [openingId]);
+    }, [openingId, listQuery]);
 
     useSocketEvent('application-document:reviewed', () => {
         reloadApplications({ soft: true });
-    }, [openingId]);
+    }, [openingId, listQuery]);
 
     useSocketEvent('endorsement:updated', () => {
         reloadApplications({ soft: true });
-    }, [openingId]);
+    }, [openingId, listQuery]);
 
-    const approvedCount = useMemo(
-        () => apps.filter((a) => isApprovedCandidate(a)).length,
-        [apps]
-    );
-
-    const currentCount = useMemo(
-        () => apps.filter((a) => !isApprovedCandidate(a)).length,
-        [apps]
-    );
+    const approvedCount = listMetadata.summary?.approved || 0;
+    const currentCount = listMetadata.summary?.current || 0;
 
     const fcfsSortedApplicants = useMemo(
         () =>
@@ -825,14 +826,12 @@ export default function OpeningApplications() {
     const fcfsOrder = useMemo(() => {
         const order = new Map();
         fcfsSortedApplicants.forEach((app, index) => {
-            order.set(app.id, getFcfsRank(app, index + 1));
+            order.set(app.id, getFcfsRank(app, Number(app.fcfs_rank) || index + 1));
         });
         return order;
     }, [fcfsSortedApplicants]);
 
-    const nextFcfsApplicant = fcfsSortedApplicants.find(
-        (app) => !isApprovedCandidate(app)
-    ) || null;
+    const nextFcfsApplicant = listMetadata.next_fcfs_applicant || null;
 
     // changeViewMode: handles change view mode for the Applications flow.
     const changeViewMode = (nextView) => {
@@ -847,48 +846,9 @@ export default function OpeningApplications() {
         setSearchParams(nextParams, { replace: true });
     };
 
-    const filtered = useMemo(() => {
-        const q = search.trim().toLowerCase();
-        const normalizedQ = q.replace(/[^a-z0-9]/g, '');
-
-        return apps
-            .filter((a) => {
-                const approved = isApprovedCandidate(a);
-                return viewMode === VIEW_MODES.current ? !approved : viewMode === VIEW_MODES.approved ? approved : true;
-            })
-            .filter((a) => {
-                if (!q) return true;
-
-                const fullName = String(a.name || '').toLowerCase();
-                const studentNumber = String(a.student_number || '').toLowerCase();
-                const normalizedStudentNumber = studentNumber.replace(/[^a-z0-9]/g, '');
-                const appId = String(a.id || '').toLowerCase();
-                const nameParts = fullName.replace(',', ' ').split(/\s+/).filter(Boolean);
-
-                return (
-                    fullName.includes(q) ||
-                    nameParts.some((part) => part.includes(q)) ||
-                    studentNumber.includes(q) ||
-                    (
-                        normalizedQ.length > 0 &&
-                        normalizedStudentNumber.includes(normalizedQ)
-                    ) ||
-                    appId.includes(q)
-                );
-            })
-            .sort(viewMode === VIEW_MODES.current ? compareFcfs : compareFcfs);
-    }, [apps, search, viewMode]);
-
-    useEffect(() => {
-        setPage(1);
-    }, [search, viewMode]);
-
-    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-
-    const pageData = useMemo(
-        () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-        [filtered, page]
-    );
+    const total = listMetadata.pagination?.total || 0;
+    const totalPages = listMetadata.pagination?.totalPages || 1;
+    const pageData = apps;
 
     const openingSlotCount = Number(opening?.allocated_slots ?? opening?.slot_count ?? 0);
     const openingFilledCount = Number(opening?.filled_slots ?? 0);
@@ -1078,7 +1038,7 @@ export default function OpeningApplications() {
                         <div className="rounded-xl bg-amber-50 px-3 py-2.5">
                             <p className="text-[9px] font-semibold uppercase tracking-wide text-amber-700">FCFS Queue</p>
                             <p className="mt-0.5 text-base font-semibold text-stone-900">
-                                {fcfsSortedApplicants.length}
+                                {listMetadata.summary?.fcfs || 0}
                             </p>
                         </div>
                         <div className="min-w-0 rounded-xl bg-stone-50 px-3 py-2.5">
@@ -1174,8 +1134,8 @@ export default function OpeningApplications() {
 
                 <div className="flex items-center justify-between border-t border-stone-100 bg-stone-50/70 px-5 py-3">
                     <span className="text-xs text-stone-400">
-                        Showing {filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–
-                        {Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+                        Showing {total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–
+                        {Math.min(page * PAGE_SIZE, total)} of {total}
                     </span>
 
                     <div className="flex items-center gap-1.5">
@@ -1208,4 +1168,3 @@ export default function OpeningApplications() {
         </div>
     );
 }
-

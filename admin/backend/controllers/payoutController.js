@@ -308,7 +308,7 @@ function sendError(res, err, fallbackMessage) {
 
 exports.getPayoutBatches = async (req, res) => {
     try {
-        const rows = await payoutService.fetchPayoutBatches();
+        const rows = await payoutService.fetchPayoutBatches(req.query);
         res.status(200).json(rows);
     } catch (err) {
         console.error('GET PAYOUT BATCHES ERROR:', err);

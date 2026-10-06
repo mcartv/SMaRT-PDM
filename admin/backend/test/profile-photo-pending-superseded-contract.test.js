@@ -15,12 +15,12 @@ test('Review Pending profile-photo queue', () => {
 });
 
 test('Ensure only genuinely pending submissions appear', () => {
-  assert.ok(service.includes("request = request.eq('status', status);"));
+  assert.ok(service.includes('listFilters({ ...query, status }, { status: \'status\' }'));
   assert.ok(frontend.includes("String(item?.status || '').toLowerCase() === expectedStatus"));
 });
 
 test('Fix pending count if inconsistent', () => {
-  assert.ok(service.includes('status_counts: statusCounts'));
+  assert.ok(service.includes('status_counts: result.summary'));
   assert.ok(frontend.includes('statusCounts[option] ?? 0'));
   assert.ok(frontend.includes('pending: Number(data?.status_counts?.pending) || 0'));
 });
@@ -52,7 +52,7 @@ test('Clearly identify superseded submissions', () => {
 
 test('Prevent superseded photos from appearing in Pending', () => {
   assert.ok(frontend.includes('expectedStatus'));
-  assert.ok(service.includes("request = request.eq('status', status);"));
+  assert.ok(service.includes('listFilters({ ...query, status }, { status: \'status\' }'));
 });
 
 test('Preserve superseded records for history', () => {

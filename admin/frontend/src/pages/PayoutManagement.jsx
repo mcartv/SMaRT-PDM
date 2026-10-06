@@ -1,5 +1,6 @@
+import { useListPage } from '../hooks/useListPage';
 // SMaRT-PDM: Payout — Payout Management (admin frontend page); loads data, handles page actions, and renders the admin view.
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -121,13 +122,13 @@ function getAuthHeaders(json = true) {
 }
 
 // fetchPayoutBatches: fetches and returns fetch payout batches for the Payout flow.
-async function fetchPayoutBatches() {
-  const response = await fetch(`${API_BASE}/payouts`, {
+async function fetchPayoutBatches(query) {
+  const response = await fetch(`${API_BASE}/payouts?${query}`, {
     headers: getAuthHeaders(false),
   });
   if (!response.ok) throw new Error('Failed to load payout batches');
   const data = await response.json();
-  return Array.isArray(data) ? data : [];
+  return data;
 }
 
 // normalizeId: normalizes normalize id for the Payout flow.
@@ -787,6 +788,7 @@ export default function PayoutManagement() {
   const navigate = useNavigate();
 
   const [batches, setBatches] = useState([]);
+  const [batchesLoading, setBatchesLoading] = useState(true);
   const [openings, setOpenings] = useState([]);
   const [eligiblePayload, setEligiblePayload] = useState({
     opening: null,
@@ -809,7 +811,6 @@ export default function PayoutManagement() {
   const [bulkReleaseError, setBulkReleaseError] = useState('');
   const [bulkReleaseWorking, setBulkReleaseWorking] = useState(false);
 
-  const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [activeSection, setActiveSection] = useState('batches');
   const [selectedBatch, setSelectedBatch] = useState(null);
@@ -822,14 +823,32 @@ export default function PayoutManagement() {
   const [form, setForm] = useState(EMPTY_FORM);
   const realtimeRefreshTimer = useRef(null);
 
+  const { page, setPage, query: listQuery, metadata: listMetadata, accept: acceptList, beginRequest } = useListPage({ search, tab: activeSection }, PAGE_SIZE);
+  const loadBatches = useCallback(async () => {
+    const isCurrent = beginRequest();
+    if (!isCurrent()) return;
+    try {
+      const data = await fetchPayoutBatches(listQuery);
+      if (!isCurrent()) return;
+      acceptList(data);
+      setBatches(data.items || []);
+    } catch (error) {
+      if (isCurrent()) {
+        console.error('PAYOUT BATCH REFRESH ERROR:', error);
+        toast.error('Failed to load payout batches.', { description: error.message });
+      }
+    } finally {
+      if (isCurrent()) setBatchesLoading(false);
+    }
+  }, [listQuery, acceptList, beginRequest]);
+  useEffect(() => { loadBatches(); }, [loadBatches]);
+
   // scheduleRealtimeRefresh: handles schedule realtime refresh for the Payout flow.
   const scheduleRealtimeRefresh = () => {
     if (realtimeRefreshTimer.current) clearTimeout(realtimeRefreshTimer.current);
     realtimeRefreshTimer.current = setTimeout(() => {
       realtimeRefreshTimer.current = null;
-      fetchPayoutBatches()
-        .then(setBatches)
-        .catch((error) => console.error('PAYOUT BATCH REFRESH ERROR:', error));
+      loadBatches();
     }, 200);
   };
 
@@ -837,29 +856,23 @@ export default function PayoutManagement() {
     if (realtimeRefreshTimer.current) clearTimeout(realtimeRefreshTimer.current);
   }, []);
 
-  useEffect(() => {
-    loadAll();
-  }, []);
 
   useSocketEvent('payout:created', () => {
     scheduleRealtimeRefresh();
-  }, []);
+  }, [loadBatches]);
 
   useSocketEvent('payout:updated', () => {
     scheduleRealtimeRefresh();
-  }, []);
+  }, [loadBatches]);
 
   useSocketEvent('payout:archived', () => {
     scheduleRealtimeRefresh();
-  }, []);
+  }, [loadBatches]);
 
   useSocketEvent('payout:restored', () => {
     scheduleRealtimeRefresh();
-  }, []);
+  }, [loadBatches]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [activeSection, search]);
 
   useEffect(() => {
     setSelectedReleaseIds([]);
@@ -888,12 +901,11 @@ export default function PayoutManagement() {
   }, [form.opening_id]);
 
   // loadAll: loads and returns load all for the Payout flow.
-  const loadAll = async () => {
+  const loadReferenceData = useCallback(async () => {
     try {
       setLoading(true);
 
-      const [batchData, openingRes, academicYearRes] = await Promise.all([
-        fetchPayoutBatches(),
+      const [openingRes, academicYearRes] = await Promise.all([
         fetch(`${API_BASE}/payouts/openings`, { headers: getAuthHeaders(false) }),
         fetch(`${API_BASE}/academic-years`, { headers: getAuthHeaders(false) }),
       ]);
@@ -904,7 +916,6 @@ export default function PayoutManagement() {
       const openingData = await openingRes.json();
       const academicYearData = await academicYearRes.json();
 
-      setBatches(batchData);
 
       setOpenings(
         (Array.isArray(openingData) ? openingData : []).filter(
@@ -927,7 +938,11 @@ export default function PayoutManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => { loadReferenceData(); }, [loadReferenceData]);
+
+  const loadAll = () => Promise.all([loadBatches(), loadReferenceData()]);
 
   // loadOpeningEligibility: loads and returns load opening eligibility for the Payout flow.
   const loadOpeningEligibility = async (openingId) => {
@@ -970,76 +985,13 @@ export default function PayoutManagement() {
     }
   };
 
-  const activeBatches = useMemo(
-    () => batches.filter((b) => !b.is_archived),
-    [batches]
-  );
-
-  const archivedBatches = useMemo(
-    () => batches.filter((b) => b.is_archived),
-    [batches]
-  );
-
-  const inProgressBatches = useMemo(
-    () => activeBatches.filter((b) => !isBatchFinished(b)),
-    [activeBatches]
-  );
-
-  const statusManagerBatches = useMemo(
-    () => activeBatches.filter(hasManageablePayoutEntries),
-    [activeBatches]
-  );
-
-  const completedBatches = useMemo(
-    () => activeBatches.filter(isBatchFinished),
-    [activeBatches]
-  );
-
-  const displayedBatches = useMemo(() => {
-    if (activeSection === 'batches') return inProgressBatches;
-    if (activeSection === 'status') return statusManagerBatches;
-    if (activeSection === 'completed') return completedBatches;
-    if (activeSection === 'archived') return archivedBatches;
-
-    return [];
-  }, [
-    activeSection,
-    inProgressBatches,
-    statusManagerBatches,
-    completedBatches,
-    archivedBatches,
-  ]);
-
-  const filteredDisplayedBatches = useMemo(() => {
-    const q = search.trim().toLowerCase();
-
-    if (!q) return displayedBatches;
-
-    return displayedBatches.filter((b) => {
-      return [
-        b.payout_title,
-        b.program_name,
-        b.benefactor_name,
-        b.semester,
-        b.school_year,
-        b.academic_year,
-        b.payout_date,
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(q));
-    });
-  }, [displayedBatches, search]);
-
-  const pageData = useMemo(() => {
-    return filteredDisplayedBatches.slice(
-      (page - 1) * PAGE_SIZE,
-      page * PAGE_SIZE
-    );
-  }, [filteredDisplayedBatches, page]);
-
-  const totalPages = useMemo(() => {
-    return Math.max(1, Math.ceil(filteredDisplayedBatches.length / PAGE_SIZE));
-  }, [filteredDisplayedBatches.length]);
+  const pageData = batches;
+  const total = listMetadata.pagination?.total || 0;
+  const totalPages = listMetadata.pagination?.totalPages || 1;
+  const inProgressCount = listMetadata.summary?.batches || 0;
+  const statusManagerCount = listMetadata.summary?.status || 0;
+  const completedCount = listMetadata.summary?.completed || 0;
+  const archivedCount = listMetadata.summary?.archived || 0;
 
   const selectedOpeningDetails = useMemo(() => {
     return (
@@ -1081,22 +1033,22 @@ export default function PayoutManagement() {
     const map = {
       batches: {
         title: 'Active Payout Batches',
-        subtitle: `${inProgressBatches.length} active batch${inProgressBatches.length !== 1 ? 'es' : ''} still being processed`,
+        subtitle: `${inProgressCount} active batch${inProgressCount !== 1 ? 'es' : ''} still being processed`,
         empty: 'No active payout batches found.',
       },
       status: {
         title: 'Payout Status Manager',
-        subtitle: `${statusManagerBatches.length} batch${statusManagerBatches.length !== 1 ? 'es' : ''} with Pending or On Hold scholars`,
+        subtitle: `${statusManagerCount} batch${statusManagerCount !== 1 ? 'es' : ''} with Pending or On Hold scholars`,
         empty: 'No payout batches currently need status updates.',
       },
       completed: {
         title: 'Completed Payouts',
-        subtitle: `${completedBatches.length} completed payout batch${completedBatches.length !== 1 ? 'es' : ''}`,
+        subtitle: `${completedCount} completed payout batch${completedCount !== 1 ? 'es' : ''}`,
         empty: 'No completed payout batches yet.',
       },
       archived: {
         title: 'Archived Payout Batches',
-        subtitle: `${archivedBatches.length} archived payout batch${archivedBatches.length !== 1 ? 'es' : ''}`,
+        subtitle: `${archivedCount} archived payout batch${archivedCount !== 1 ? 'es' : ''}`,
         empty: 'No archived payout batches found.',
       },
     };
@@ -1104,10 +1056,10 @@ export default function PayoutManagement() {
     return map[activeSection] || map.batches;
   }, [
     activeSection,
-    inProgressBatches.length,
-    statusManagerBatches.length,
-    completedBatches.length,
-    archivedBatches.length,
+    inProgressCount,
+    statusManagerCount,
+    completedCount,
+    archivedCount,
   ]);
 
   // toggleScholar: handles toggle scholar for the Payout flow.
@@ -1801,7 +1753,7 @@ export default function PayoutManagement() {
     );
   };
 
-  if (loading) {
+  if (loading || batchesLoading) {
     return <PageLoadingSkeleton label="Loading payout management" showStats />;
   }
 
@@ -1891,9 +1843,9 @@ export default function PayoutManagement() {
                 }`}
             >
               Status Manager
-              {statusManagerBatches.length ? (
+              {statusManagerCount ? (
                 <span className="ml-2 rounded-full bg-stone-900 px-2 py-0.5 text-[10px] font-semibold text-white">
-                  {statusManagerBatches.length}
+                  {statusManagerCount}
                 </span>
               ) : null}
             </button>
@@ -1974,7 +1926,7 @@ export default function PayoutManagement() {
       </section>
 
       <PaginationFooter
-        total={filteredDisplayedBatches.length}
+        total={total}
         page={page}
         totalPages={totalPages}
         pageSize={PAGE_SIZE}

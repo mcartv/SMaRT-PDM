@@ -235,7 +235,7 @@ function resolveUpdateAuditAction(updated) {
 
 exports.getAnnouncements = async (req, res) => {
     try {
-        const announcements = await announcementService.fetchAnnouncements();
+        const announcements = await announcementService.fetchAnnouncements(req.query);
         res.status(200).json(announcements);
     } catch (err) {
         console.error('GET ANNOUNCEMENTS CONTROLLER ERROR:', err.message);
@@ -247,7 +247,7 @@ exports.getAnnouncements = async (req, res) => {
 
 exports.getArchivedAnnouncements = async (req, res) => {
     try {
-        const announcements = await announcementService.fetchArchivedAnnouncements();
+        const announcements = await announcementService.fetchArchivedAnnouncements(req.query);
         res.status(200).json(announcements);
     } catch (err) {
         console.error('GET ARCHIVED ANNOUNCEMENTS CONTROLLER ERROR:', err.message);

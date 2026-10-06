@@ -42,6 +42,8 @@ function loadServiceHarness({ now = Date.now, queryResult } = {}) {
         Date,
         require(name) {
             if (name === '../config/supabase') return supabase;
+            if (name === '../config/db') return {};
+            if (name === '../utils/listPagination') return require('../utils/listPagination');
             if (name === './notificationService') return {};
             if (name === '../config/appCache') return { invalidateNamespaces() {} };
             if (name === './announcementScheduleGate') return {

@@ -1,3 +1,4 @@
+const { paginationRequested, listFilters, queryPage } = require('../utils/listPagination');
 // SMaRT-PDM: Scholars — scholar Service (admin backend service); contains business logic and data operations.
 const db = require('../config/db');
 const supabase = require('../config/supabase');
@@ -241,8 +242,8 @@ exports.fetchScholarStats = async () => {
   return result.rows[0];
 };
 
-exports.fetchAllScholars = async () => {
-  const result = await db.query(`
+exports.fetchAllScholars = async (query = {}) => {
+  const source = `
     SELECT
       st.student_id,
 
@@ -426,12 +427,11 @@ exports.fetchAllScholars = async () => {
         'On Hold',
         'Inactive',
         'Removed'
-      )
-
-    ORDER BY
+      )`;
+  if (paginationRequested(query)) return fetchScholarPage(source, query, false);
+  const result = await db.query(`${source} ORDER BY
       st.last_name ASC,
-      st.first_name ASC;
-  `);
+      st.first_name ASC`);
 
   return Promise.all(
     result.rows.map(async (row) => {
@@ -447,8 +447,8 @@ exports.fetchAllScholars = async () => {
   );
 };
 
-exports.fetchRemovedScholars = async () => {
-  const result = await db.query(`
+exports.fetchRemovedScholars = async (query = {}) => {
+  const source = `
     SELECT
       st.student_id,
       st.current_application_id AS application_id,
@@ -491,9 +491,9 @@ exports.fetchRemovedScholars = async () => {
     LEFT JOIN academic_period ap ON ap.period_id = st.active_period_id
     LEFT JOIN admin_profiles removed_by ON removed_by.user_id = st.scholar_removed_by
     WHERE COALESCE(st.is_archived, false) = false
-      AND COALESCE(st.scholar_is_archived, false) = true
-    ORDER BY st.scholar_archived_at DESC NULLS LAST, st.last_name ASC, st.first_name ASC;
-  `);
+      AND COALESCE(st.scholar_is_archived, false) = true`;
+  if (paginationRequested(query)) return fetchScholarPage(source, query, true);
+  const result = await db.query(`${source} ORDER BY st.scholar_archived_at DESC NULLS LAST, st.last_name ASC, st.first_name ASC`);
 
   return Promise.all(
     result.rows.map(async (row) => {
@@ -1669,3 +1669,29 @@ exports.archiveScholarAndReleaseSlot =
           payload.notes || '',
       });
   };
+
+async function fetchScholarPage(source, query, removed = false) {
+  const fields = {
+    program: "coalesce(program_name, 'N/A')", academicYear: 'academic_year', semester: 'semester',
+    status: 'status', course: 'course_code', studentNumber: 'student_number',
+    probation: "CASE sdo_status WHEN 'Minor Offense' THEN 'minor' WHEN 'Major Offense' THEN 'major' ELSE 'clear' END",
+  };
+  const search = ['student_name', 'student_number'];
+  if (query.view === 'sdo') search.push('program_name', 'academic_year', 'course_code', 'course_name');
+  const filters = listFilters(query, fields, search);
+  const sorts = {
+    'Name A-Z': 'lower(student_name) ASC', 'Name Z-A': 'lower(student_name) DESC',
+    'Year Newest': removed ? 'scholar_archived_at DESC NULLS LAST' : 'academic_year DESC NULLS LAST',
+    'Year Oldest': removed ? 'scholar_archived_at ASC NULLS FIRST' : 'academic_year ASC NULLS FIRST',
+    'Batch Newest': 'academic_year DESC NULLS LAST', 'Batch Oldest': 'academic_year ASC NULLS FIRST',
+    'Program A-Z': "lower(coalesce(program_name, 'N/A')) ASC", 'Program Z-A': "lower(coalesce(program_name, 'N/A')) DESC",
+  };
+  const result = await queryPage(db, { source, query, ...filters,
+    order: `${sorts[query.sort] || sorts['Name A-Z']}, student_id ASC`,
+    facets: { programs: "coalesce(program_name, 'N/A')", years: 'academic_year', semesters: 'semester', statuses: 'status' },
+    summary: { total: 'count(*)', clear: "count(*) FILTER (WHERE sdo_status IS NULL OR sdo_status NOT IN ('Minor Offense', 'Major Offense'))",
+      minor: "count(*) FILTER (WHERE sdo_status = 'Minor Offense')", major: "count(*) FILTER (WHERE sdo_status = 'Major Offense')" },
+  });
+  result.items = await Promise.all(result.items.map(async (row) => ({ ...normalizeScholarRow(row), avatar_url: await resolveAvatarUrl(row.profile_photo_url) })));
+  return result;
+}

@@ -1,3 +1,5 @@
+const db = require('../config/db');
+const { paginationRequested, listFilters, queryPage } = require('../utils/listPagination');
 // SMaRT-PDM: Renewal — renewal Service (admin backend service); contains business logic and data operations.
 const supabase = require('../config/supabase');
 const notificationService = require('./notificationService');
@@ -636,18 +638,45 @@ async function tryUpdateStudentScholarshipStatus(studentId, scholarshipStatus) {
     }
 }
 
-exports.fetchRenewals = async () => {
-    const { data: renewals, error } = await supabase
+exports.fetchRenewals = async (query = {}) => {
+    let pageResult = null;
+    if (paginationRequested(query)) {
+        const source = `SELECT r.*, concat_ws(' ', nullif(st.first_name, ''), nullif(st.middle_name, ''), nullif(st.last_name, '')) AS student_name,
+          st.pdm_id AS student_number, coalesce(sp.program_name, 'Scholarship Program') AS program_name,
+          ay.label AS school_year_label
+          FROM renewals r
+          LEFT JOIN students st ON st.student_id = r.student_id
+          LEFT JOIN scholarship_program sp ON sp.program_id = r.program_id
+          JOIN academic_period ap ON ap.period_id = r.period_id AND ap.is_active = true
+          LEFT JOIN academic_years ay ON ay.academic_year_id = ap.academic_year_id
+          LEFT JOIN applications a ON a.application_id = r.application_id
+          LEFT JOIN program_openings po ON po.opening_id = a.opening_id
+          WHERE (po.period_id IS NULL OR r.period_id IS NULL OR r.period_id <> po.period_id)`;
+        const filters = listFilters(query, { program: 'program_name', academicYear: 'school_year_label',
+          status: "regexp_replace(lower(trim(status)), '[[:space:]_-]+', ' ', 'g')", studentNumber: 'student_number' }, ['student_name', 'student_number']);
+        const sorts = { 'Name A-Z': 'lower(student_name) ASC', 'Name Z-A': 'lower(student_name) DESC',
+          'Year Newest': 'school_year_label DESC NULLS LAST', 'Year Oldest': 'school_year_label ASC NULLS FIRST' };
+        pageResult = await queryPage(db, { source, query, ...filters,
+          order: `${sorts[query.sort] || 'submitted_on DESC NULLS LAST, created_at DESC'}, renewal_id ASC`,
+          facets: { programs: 'program_name', years: 'school_year_label', statuses: 'status' } });
+        if (!pageResult.items.length) return pageResult;
+    }
+    const request = supabase
         .from('renewals')
         .select('*')
         .order('submitted_on', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false });
+    if (pageResult) request.in('renewal_id', pageResult.items.map((row) => row.renewal_id));
+    const { data: renewals, error } = await request;
 
     if (error) {
         throw createHttpError(500, error.message);
     }
 
-    const renewalRows = renewals || [];
+    const renewalById = new Map((renewals || []).map((row) => [row.renewal_id, row]));
+    const renewalRows = pageResult
+      ? pageResult.items.map((item) => renewalById.get(item.renewal_id)).filter(Boolean)
+      : renewals || [];
 
     if (!renewalRows.length) {
         return [];
@@ -707,7 +736,7 @@ exports.fetchRenewals = async () => {
     const sourcePeriodMap =
         await getRenewalSourcePeriodMap(renewalRows);
 
-    return renewalRows.map((renewal) => {
+    const items = renewalRows.map((renewal) => {
         const student = studentMap.get(renewal.student_id) || {};
         const program = programMap.get(renewal.program_id) || {};
         const benefactor = benefactorMap.get(program.benefactor_id) || {};
@@ -756,6 +785,7 @@ exports.fetchRenewals = async () => {
             benefactor_name: benefactor.benefactor_name || 'N/A',
         };
     });
+    return pageResult ? { ...pageResult, items } : items;
 };
 
 exports.fetchRenewalDetailsById = async (renewalId) => {

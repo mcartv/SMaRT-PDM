@@ -1,3 +1,4 @@
+const { paginationRequested, listFilters, queryPage } = require('../utils/listPagination');
 // SMaRT-PDM: Payout — payout Service (admin backend service); contains business logic and data operations.
 const pool = require('../config/db');
 const notificationService = require('./notificationService');
@@ -66,8 +67,32 @@ function validateMoney(value, field) {
 // =========================
 // FETCH PAYOUT BATCHES
 // =========================
-async function fetchPayoutBatches() {
-  const query = `
+async function fetchPayoutBatches(query = {}) {
+  let pageResult = null;
+  if (paginationRequested(query)) {
+    const source = `SELECT pb.*, sp.program_name, b.benefactor_name, ay.label AS academic_year, ap.term AS semester,
+      EXISTS (SELECT 1 FROM payout_batch_students e WHERE e.payout_batch_id = pb.payout_batch_id)
+      AND NOT EXISTS (SELECT 1 FROM payout_batch_students e WHERE e.payout_batch_id = pb.payout_batch_id
+        AND lower(trim(coalesce(e.release_status, 'Pending'))) NOT IN ('released','release','got payout','absent','still absent','cancelled','canceled')) AS finished,
+      EXISTS (SELECT 1 FROM payout_batch_students e WHERE e.payout_batch_id = pb.payout_batch_id
+        AND lower(trim(coalesce(e.release_status, 'Pending'))) NOT IN ('released','release','got payout','absent','still absent','cancelled','canceled')) AS manageable
+      FROM payout_batches pb LEFT JOIN scholarship_program sp ON sp.program_id = pb.program_id
+      LEFT JOIN benefactors b ON b.benefactor_id = sp.benefactor_id
+      LEFT JOIN academic_years ay ON ay.academic_year_id = pb.academic_year_id
+      LEFT JOIN academic_period ap ON ap.period_id = pb.period_id`;
+    const filters = listFilters(query, { program: 'program_name', academicYear: 'academic_year', semester: 'semester', status: 'batch_status' },
+      ['payout_title','program_name','benefactor_name','semester','academic_year','payout_date']);
+    const tab = query.tab || 'batches';
+    const tabWhere = tab === 'archived' ? 'coalesce(is_archived, false) = true' : `coalesce(is_archived, false) = false AND ${tab === 'completed' ? 'finished' : tab === 'status' ? 'manageable' : 'NOT finished'}`;
+    pageResult = await queryPage(pool, { source, query, ...filters, where: `(${filters.where}) AND (${tabWhere})`,
+      defaultLimit: 6, order: 'created_at DESC, payout_batch_id ASC',
+      summary: { batches: 'count(*) FILTER (WHERE NOT coalesce(is_archived, false) AND NOT finished)',
+        completed: 'count(*) FILTER (WHERE NOT coalesce(is_archived, false) AND finished)',
+        status: 'count(*) FILTER (WHERE NOT coalesce(is_archived, false) AND manageable)',
+        archived: 'count(*) FILTER (WHERE is_archived = true)' } });
+    if (!pageResult.items.length) return pageResult;
+  }
+  const batchSql = `
     SELECT
       pb.payout_batch_id,
       pb.payout_code,
@@ -141,6 +166,8 @@ async function fetchPayoutBatches() {
     LEFT JOIN academic_period sap
       ON st.active_period_id = sap.period_id
 
+    ${pageResult ? "WHERE pb.payout_batch_id = ANY($1)" : ""}
+
     GROUP BY
       pb.payout_batch_id,
       pb.payout_code,
@@ -167,12 +194,12 @@ async function fetchPayoutBatches() {
       sp.program_name,
       b.benefactor_name
 
-    ORDER BY pb.created_at DESC;
+    ORDER BY pb.created_at DESC, pb.payout_batch_id ASC;
   `;
 
-  const { rows } = await pool.query(query);
+  const { rows } = await pool.query(batchSql, pageResult ? [pageResult.items.map((row) => row.payout_batch_id)] : []);
 
-  return Promise.all(
+  const items = await Promise.all(
     rows.map(async (batch) => ({
       ...batch,
       scholars: await Promise.all(
@@ -183,6 +210,7 @@ async function fetchPayoutBatches() {
       ),
     }))
   );
+  return pageResult ? { ...pageResult, items } : items;
 }
 
 // =========================

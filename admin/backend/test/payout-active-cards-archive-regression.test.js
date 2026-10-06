@@ -13,10 +13,11 @@ test('current payout page separates active, completed, and archived batches', ()
   assert.match(page, /Active Payout Batches/);
   assert.match(page, /Completed Payouts/);
   assert.match(page, /Archived Payout Batches/);
-  assert.match(page, /const activeBatches = useMemo/);
-  assert.match(page, /batches\.filter\(\(b\) => !b\.is_archived\)/);
-  assert.match(page, /const archivedBatches = useMemo/);
-  assert.match(page, /batches\.filter\(\(b\) => b\.is_archived\)/);
+  assert.match(page, /useListPage\(\{ search, tab: activeSection \}, PAGE_SIZE\)/);
+  assert.match(service, /tab === 'archived' \? 'coalesce\(is_archived, false\) = true'/);
+  assert.match(service, /tab === 'completed' \? 'finished'/);
+  assert.match(page, /listMetadata\.summary\?\.completed/);
+
 });
 
 test('current archive action is guarded and calls the archive endpoint', () => {

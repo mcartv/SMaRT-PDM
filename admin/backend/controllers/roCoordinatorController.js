@@ -368,8 +368,8 @@ exports.createScholarRequest = async (req, res) => {
     const requestedAreaId = String(req.body?.roAreaId || req.body?.ro_area_id || '').trim();
     const assignment = requestedAreaId
       ? coordinator.assignments.find(
-          (item) => String(item.department_id) === requestedAreaId
-        )
+        (item) => String(item.department_id) === requestedAreaId
+      )
       : coordinator.assignments.length === 1
         ? coordinator.assignments[0]
         : null;
@@ -393,6 +393,21 @@ exports.createScholarRequest = async (req, res) => {
     }
     if (preferredDate && !/^\d{4}-\d{2}-\d{2}$/.test(preferredDate)) {
       return res.status(400).json({ message: 'Preferred date is invalid.' });
+    }
+
+    if (preferredDate) {
+      const now = new Date();
+
+      const today =
+        `${now.getFullYear()}-` +
+        `${String(now.getMonth() + 1).padStart(2, '0')}-` +
+        `${String(now.getDate()).padStart(2, '0')}`;
+
+      if (preferredDate < today) {
+        return res.status(400).json({
+          message: 'Preferred date cannot be in the past.',
+        });
+      }
     }
 
     const result = await db.query(
@@ -449,7 +464,7 @@ exports.createScholarRequest = async (req, res) => {
       entityId: request.request_id,
       description: `Requested ${requestedCount} scholar${requestedCount === 1 ? '' : 's'} for ${assignment.department}.`,
       metadata: { ro_area_id: assignment.department_id, purpose, preferred_date: preferredDate || null },
-    }).catch(() => {});
+    }).catch(() => { });
 
     emitUpdate(req, {
       action: 'scholar-request-created',

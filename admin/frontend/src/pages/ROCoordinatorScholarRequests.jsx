@@ -59,6 +59,17 @@ function formatDate(value, includeTime = false) {
   });
 }
 
+// getTodayDateInput: returns today's date in YYYY-MM-DD format for the Scholars flow.
+function getTodayDateInput() {
+  const now = new Date();
+
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
 // statusLabel: handles status label for the Scholars flow.
 function statusLabel(request = {}) {
   const status = request.request_status;
@@ -145,6 +156,7 @@ function RequestModal({ open, areas, loading, onClose, onSubmit, theme }) {
             </span>
             <input
               type="date"
+              min={getTodayDateInput()}
               value={preferredDate}
               onChange={(event) => setPreferredDate(event.target.value)}
               className="h-10 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none"

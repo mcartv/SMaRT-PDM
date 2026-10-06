@@ -405,7 +405,7 @@ exports.createScholarRequest = async (req, res) => {
 
       if (preferredDate < today) {
         return res.status(400).json({
-          message: 'Preferred date cannot be in the past.',
+          message: 'Preferred date shouldnot be in the past.',
         });
       }
     }

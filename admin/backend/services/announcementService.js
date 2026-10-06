@@ -1,3 +1,5 @@
+const db = require('../config/db');
+const { paginationRequested, listFilters, queryPage } = require('../utils/listPagination');
 // SMaRT-PDM: Announcements — announcement Service (admin backend service); contains business logic and data operations.
 const supabase = require('../config/supabase');
 const notificationService = require('./notificationService');
@@ -283,7 +285,8 @@ async function publishAnnouncementInternal(announcementId) {
     };
 }
 
-exports.fetchAnnouncements = async () => {
+exports.fetchAnnouncements = async (query = {}) => {
+    if (paginationRequested(query)) return fetchAnnouncementPage(query, false);
     const { data, error } = await supabase
         .from('announcements')
         .select('*')
@@ -298,7 +301,8 @@ exports.fetchAnnouncements = async () => {
     return mapAnnouncementRows(data || []);
 };
 
-exports.fetchArchivedAnnouncements = async () => {
+exports.fetchArchivedAnnouncements = async (query = {}) => {
+    if (paginationRequested(query)) return fetchAnnouncementPage(query, true);
     const { data, error } = await supabase
         .from('announcements')
         .select('*')
@@ -639,3 +643,19 @@ exports.restoreAnnouncement = async (announcementId) => {
         publishedNow: scheduledIsDue && data.status === 'Published',
     };
 };
+
+async function fetchAnnouncementPage(query, archived) {
+  const source = `SELECT a.*, CASE WHEN a.is_archived THEN 'Archived' ELSE a.status END AS effective_status,
+    CASE a.target_audience WHEN 'program' THEN coalesce(sp.program_name, 'Scholarship Program') || ' Recipients'
+      WHEN 'all' THEN 'All Students' WHEN 'scholars' THEN 'Current Scholars' WHEN 'applicants' THEN 'New Applicants'
+      WHEN 'tes' THEN 'TES Recipients' WHEN 'tdp' THEN 'TDP Recipients'
+      ELSE a.target_audience END AS audience_label
+    FROM announcements a LEFT JOIN scholarship_program sp ON sp.program_id = a.target_program_id
+    WHERE a.is_archived = ${archived ? 'true' : 'false'}`;
+  const filters = listFilters(query, { status: 'effective_status', audience: 'target_audience', program: 'target_program_id' },
+    ['subject', 'content', 'audience_label']);
+  const result = await queryPage(db, { source, query, ...filters,
+    order: `${archived ? 'updated_at' : 'created_at'} DESC, announcement_id ASC` });
+  result.items = await mapAnnouncementRows(result.items);
+  return result;
+}

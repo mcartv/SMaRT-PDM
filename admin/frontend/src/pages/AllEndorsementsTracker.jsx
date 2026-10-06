@@ -1,5 +1,7 @@
+import { useListPage } from '../hooks/useListPage';
+import ServerPagination from '../components/ServerPagination';
 // SMaRT-PDM: Endorsement — All Endorsements Tracker (admin frontend page); loads data, handles page actions, and renders the admin view.
-import { createElement, useCallback, useEffect, useMemo, useState } from 'react';
+import { createElement, useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   ArrowRight,
@@ -99,35 +101,9 @@ const STATUS_TONE = {
   guidance_rejected: 'bg-red-50 text-red-700',
 };
 
-const FINISHED_STATUSES = new Set([
-  'completed',
-  'disqualified_major',
-  'rejected',
-  'guidance_rejected',
-]);
 
-const STOPPED_STATUSES = new Set([
-  'disqualified_major',
-  'rejected',
-  'guidance_rejected',
-]);
 
-// getActiveRowsForOffice: reads and returns get active rows for office for the Endorsement flow.
-function getActiveRowsForOffice(rows, tokenStorageKey) {
-  if (tokenStorageKey === 'sdoToken') {
-    return rows.filter((row) => row.current_stage === 'pending_sdo');
-  }
 
-  if (tokenStorageKey === 'guidanceToken') {
-    return rows.filter((row) => row.current_stage === 'pending_guidance');
-  }
-
-  if (tokenStorageKey === 'pdToken') {
-    return rows.filter((row) => row.current_stage === 'pending_pd');
-  }
-
-  return rows.filter((row) => !FINISHED_STATUSES.has(row.overall_status));
-}
 
 // getOfficeConfig: reads and returns get office config for the Endorsement flow.
 function getOfficeConfig(tokenStorageKey) {
@@ -170,24 +146,7 @@ function getOfficeConfig(tokenStorageKey) {
   return null;
 }
 
-// getAdminRowsForMode: reads and returns get admin rows for mode for the Endorsement flow.
-function getAdminRowsForMode(rows, viewMode) {
-  switch (viewMode) {
-    case 'sdo':
-      return rows.filter((row) => row.current_stage === 'pending_sdo');
-    case 'guidance':
-      return rows.filter((row) => row.current_stage === 'pending_guidance');
-    case 'pd':
-      return rows.filter((row) => row.current_stage === 'pending_pd');
-    case 'completed':
-      return rows.filter((row) => row.overall_status === 'completed');
-    case 'stopped':
-      return rows.filter((row) => STOPPED_STATUSES.has(row.overall_status));
-    case 'active':
-    default:
-      return rows.filter((row) => !FINISHED_STATUSES.has(row.overall_status));
-  }
-}
+
 
 export default function AllEndorsementsTracker({
   tokenStorageKey = 'adminToken',
@@ -204,32 +163,48 @@ export default function AllEndorsementsTracker({
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [viewMode, setViewMode] = useState('active');
+  const { page, setPage, query: listQuery, metadata: listMetadata, accept: acceptList, beginRequest, isQueryCurrent } = useListPage({ search, status: statusFilter, tab: viewMode });
+  const { page: processedPage, setPage: setProcessedPage, query: processedQuery, metadata: processedMetadata, accept: acceptProcessed, beginRequest: beginProcessedRequest, isQueryCurrent: isProcessedQueryCurrent } = useListPage({ search, status: statusFilter, tab: 'processed', view: viewMode });
+  const [processedRows, setProcessedRows] = useState([]);
 
   const loadRows = useCallback(
     async ({ soft = false } = {}) => {
+      if (!isQueryCurrent() || !isProcessedQueryCurrent()) return;
+      const isProcessedCurrent = beginProcessedRequest();
+      if (!isProcessedCurrent()) return;
+      const isCurrent = beginRequest();
+      if (!isCurrent()) return;
       try {
         if (soft) setRefreshing(true);
         else setLoading(true);
         setError('');
 
-        const response = await fetch(buildApiUrl('/api/endorsement-slips?scope=all'), {
-          headers: buildHeaders(tokenStorageKey),
-        });
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.message || 'Failed to load endorsement tracker');
-        }
-
-        setRows(Array.isArray(data) ? data : []);
+        const loadPage = async (query) => {
+          const response = await fetch(buildApiUrl(`/api/endorsement-slips?scope=all&${query}`), { headers: buildHeaders(tokenStorageKey) });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.message || 'Failed to load endorsement tracker');
+          return data;
+        };
+        const [data, processed] = await Promise.all([
+          loadPage(listQuery),
+          !isAdminView && viewMode === 'active' ? loadPage(processedQuery) : Promise.resolve(null),
+        ]);
+        if (!isCurrent() || !isProcessedCurrent()) return;
+        acceptList(data);
+        setRows(data.items || []);
+        if (processed) acceptProcessed(processed);
+        setProcessedRows(processed?.items || []);
       } catch (err) {
+        if (!isCurrent() || !isProcessedCurrent()) return;
         setError(err.message || 'Failed to load endorsement tracker.');
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (isCurrent() && isProcessedCurrent()) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
-    [tokenStorageKey]
+    [tokenStorageKey, isAdminView, viewMode, listQuery, processedQuery, acceptList, acceptProcessed, beginRequest, beginProcessedRequest, isQueryCurrent, isProcessedQueryCurrent]
   );
 
   useEffect(() => {
@@ -254,89 +229,12 @@ export default function AllEndorsementsTracker({
 
   const officeConfig = getOfficeConfig(tokenStorageKey);
 
-  const sourceRows = useMemo(() => {
-    if (isAdminView) {
-      return getAdminRowsForMode(rows, viewMode);
-    }
-
-    if (viewMode === 'finished') {
-      return rows.filter((row) => FINISHED_STATUSES.has(row.overall_status));
-    }
-
-    return getActiveRowsForOffice(rows, tokenStorageKey);
-  }, [isAdminView, rows, tokenStorageKey, viewMode]);
-
-  const officeProcessedRows = useMemo(() => {
-    if (isAdminView || !officeConfig || viewMode !== 'active') return [];
-
-    return rows.filter((row) => {
-      const hasOfficeDecision = Boolean(row.office_results?.[officeConfig.resultKey]);
-      return hasOfficeDecision && row.current_stage !== officeConfig.stage;
-    });
-  }, [isAdminView, officeConfig, rows, viewMode]);
-
-  const statuses = useMemo(() => {
-    const source = [...sourceRows, ...officeProcessedRows];
-    const observed = source.map((row) => row.overall_status).filter(Boolean);
-
-    if (tokenStorageKey === 'sdoToken') {
-      return [
-        'all',
-        ...new Set([
-          'pending_sdo',
-          'pending_guidance',
-          'pending_pd',
-          'completed',
-          'disqualified_major',
-          ...observed,
-        ]),
-      ];
-    }
-
-    return ['all', ...new Set(observed)];
-  }, [officeProcessedRows, sourceRows, tokenStorageKey]);
-
-  const filterRows = useCallback(
-    (list) => {
-      const query = search.trim().toLowerCase();
-
-      return list.filter((row) => {
-        const matchesSearch =
-          !query ||
-          (row.student_name || '').toLowerCase().includes(query) ||
-          (row.pdm_id || '').toLowerCase().includes(query) ||
-          (row.program_name || '').toLowerCase().includes(query) ||
-          (row.course_display || row.course_code || row.course_name || '').toLowerCase().includes(query) ||
-          (row.section || '').toLowerCase().includes(query) ||
-          (row.opening_title || '').toLowerCase().includes(query) ||
-          (row.current_stage_label || '').toLowerCase().includes(query);
-
-        const matchesStatus = statusFilter === 'all' || row.overall_status === statusFilter;
-        return matchesSearch && matchesStatus;
-      });
-    },
-    [search, statusFilter]
-  );
-
-  const filteredRows = useMemo(() => filterRows(sourceRows), [filterRows, sourceRows]);
-
-  const filteredOfficeProcessedRows = useMemo(
-    () => filterRows(officeProcessedRows),
-    [filterRows, officeProcessedRows]
-  );
-
-  const summary = useMemo(
-    () => ({
-      active: rows.filter((row) => !FINISHED_STATUSES.has(row.overall_status)).length,
-      sdo: rows.filter((row) => row.current_stage === 'pending_sdo').length,
-      guidance: rows.filter((row) => row.current_stage === 'pending_guidance').length,
-      pd: rows.filter((row) => row.current_stage === 'pending_pd').length,
-      completed: rows.filter((row) => row.overall_status === 'completed').length,
-      stopped: rows.filter((row) => STOPPED_STATUSES.has(row.overall_status)).length,
-      processedByOffice: officeProcessedRows.length,
-    }),
-    [officeProcessedRows.length, rows]
-  );
+  const statuses = tokenStorageKey === 'sdoToken'
+    ? ['all', ...new Set(['pending_sdo','pending_guidance','pending_pd','completed','disqualified_major', ...(listMetadata.filters?.statuses || [])])]
+    : ['all', ...(listMetadata.filters?.statuses || [])];
+  const filteredRows = rows;
+  const filteredOfficeProcessedRows = processedRows;
+  const summary = listMetadata.summary || {};
 
   // handleViewModeChange: handles handle view mode change for the Endorsement flow.
   const handleViewModeChange = (mode) => {
@@ -362,7 +260,7 @@ export default function AllEndorsementsTracker({
   const officeSummaryCards = [
     {
       label: `Pending ${officeRoleLabel}`,
-      value: getActiveRowsForOffice(rows, tokenStorageKey).length,
+      value: summary[tokenStorageKey === 'sdoToken' ? 'sdo' : tokenStorageKey === 'guidanceToken' ? 'guidance' : 'pd'] || 0,
       icon: ClipboardCheck,
       tone: 'bg-violet-50 text-violet-700',
     },
@@ -680,6 +578,8 @@ export default function AllEndorsementsTracker({
             </>
           )}
 
+          <ServerPagination page={page} setPage={setPage} pagination={listMetadata.pagination} label="endorsements" />
+
           {!isAdminView && viewMode === 'active' && officeConfig ? (
             <div className="mt-4 space-y-4 border-t border-stone-100 pt-5">
               <div>
@@ -749,6 +649,7 @@ export default function AllEndorsementsTracker({
                   </div>
                 ))
               )}
+              <ServerPagination page={processedPage} setPage={setProcessedPage} pagination={processedMetadata.pagination} label="processed endorsements" />
             </div>
           ) : null}
         </CardContent>

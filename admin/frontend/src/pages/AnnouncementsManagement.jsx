@@ -1,3 +1,4 @@
+import { useListPage } from '../hooks/useListPage';
 // SMaRT-PDM: Announcements — Announcements Management (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
@@ -1171,10 +1172,10 @@ export default function AnnouncementsManagement() {
   const operationGuards = useRef(new Set());
   const announcementRefreshTimer = useRef(null);
 
-  const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const deferredSearch = useDeferredValue(search);
+  const { page, setPage, query: listQuery, metadata: listMetadata, accept: acceptList, beginRequest } = useListPage({ search: deferredSearch, status: statusFilter, tab }, ANNOUNCEMENTS_PER_PAGE);
 
   const loadPrograms = useCallback(async () => {
     try {
@@ -1203,6 +1204,8 @@ export default function AnnouncementsManagement() {
 
   const loadAnnouncements = useCallback(async (options = {}) => {
     const silent = options.silent === true;
+    const isCurrent = beginRequest();
+    if (!isCurrent()) return;
 
     try {
       if (!silent) {
@@ -1211,44 +1214,16 @@ export default function AnnouncementsManagement() {
 
       const token = sessionStorage.getItem('adminToken');
 
-      const [activeRes, archivedRes] = await Promise.all([
-        fetch(buildApiUrl('/api/announcements'), {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }),
-        fetch(buildApiUrl('/api/announcements/archived'), {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }),
-      ]);
-
-      const activeData = await activeRes.json().catch(() => []);
-      const archivedData = await archivedRes.json().catch(() => []);
-
-      if (!activeRes.ok) {
-        throw new Error(activeData.error || 'Failed to load active announcements');
-      }
-
-      if (!archivedRes.ok) {
-        throw new Error(archivedData.error || 'Failed to load archived announcements');
-      }
-
-      const activeItems = Array.isArray(activeData) ? activeData : [];
-      const archivedItems = Array.isArray(archivedData) ? archivedData : [];
-
-      setItems([
-        ...activeItems,
-        ...archivedItems.map((item) => ({
-          ...item,
-          is_archived: true,
-          status: 'Archived',
-        })),
-      ]);
+      const response = await fetch(buildApiUrl(`/api/announcements${tab === 'archived' ? '/archived' : ''}?${listQuery}`), {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || data.message || 'Failed to load announcements');
+      if (!isCurrent()) return;
+      acceptList(data);
+      setItems(data.items || []);
     } catch (err) {
+      if (!isCurrent()) return;
       console.error('LOAD ANNOUNCEMENTS ERROR:', err);
 
       if (!silent) {
@@ -1259,16 +1234,16 @@ export default function AnnouncementsManagement() {
         );
       }
     } finally {
-      if (!silent) {
+      if (isCurrent()) {
         setLoading(false);
       }
     }
-  }, []);
+  }, [tab, listQuery, acceptList, beginRequest]);
 
   useEffect(() => {
     loadAnnouncements();
-    loadPrograms();
-  }, [loadAnnouncements, loadPrograms]);
+  }, [loadAnnouncements]);
+  useEffect(() => { loadPrograms(); }, [loadPrograms]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -1431,37 +1406,11 @@ export default function AnnouncementsManagement() {
     }
   }, [schedDate, validationErrors.schedule]);
 
-  const filteredItems = useMemo(() => {
-    const q = deferredSearch.trim().toLowerCase();
-    const showArchived = tab === 'archived';
-
-    return items.filter((item) => {
-      const isArchived = item.is_archived || item.status === 'Archived';
-      if (isArchived !== showArchived) return false;
-
-      const matchSearch =
-        !q ||
-        (item.title || '').toLowerCase().includes(q) ||
-        (item.content || '').toLowerCase().includes(q) ||
-        (item.audience || '').toLowerCase().includes(q);
-
-      const effectiveStatus =
-        item.is_archived || item.status === 'Archived' ? 'Archived' : item.status;
-
-      const matchStatus = statusFilter === 'All' || effectiveStatus === statusFilter;
-
-      return matchSearch && matchStatus;
-    });
-  }, [items, tab, deferredSearch, statusFilter]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredItems.length / ANNOUNCEMENTS_PER_PAGE));
-  const currentPage = Math.min(page, totalPages);
+  const total = listMetadata.pagination?.total || 0;
+  const totalPages = listMetadata.pagination?.totalPages || 1;
+  const currentPage = page;
   const pageStart = (currentPage - 1) * ANNOUNCEMENTS_PER_PAGE;
-  const paginatedItems = filteredItems.slice(pageStart, pageStart + ANNOUNCEMENTS_PER_PAGE);
-
-  useEffect(() => {
-    setPage(1);
-  }, [tab, search, statusFilter]);
+  const paginatedItems = items;
 
   // resetForm: resets reset form for the Announcements flow.
   const resetForm = () => {
@@ -2027,7 +1976,7 @@ export default function AnnouncementsManagement() {
         </div>
 
         <div className="space-y-2 p-3">
-          {filteredItems.length === 0 ? (
+          {total === 0 ? (
             <EmptyList archived={tab === 'archived'} />
           ) : (
             paginatedItems.map((announcement) => (
@@ -2046,10 +1995,10 @@ export default function AnnouncementsManagement() {
             ))
           )}
         </div>
-        {filteredItems.length > 0 ? (
+        {total > 0 ? (
           <nav aria-label="Announcement pagination" className="flex flex-wrap items-center justify-between gap-2 border-t border-stone-200 px-3 py-2.5">
             <p className="text-xs text-stone-500" aria-live="polite">
-              Showing {pageStart + 1}–{Math.min(pageStart + ANNOUNCEMENTS_PER_PAGE, filteredItems.length)} of {filteredItems.length}
+              Showing {pageStart + 1}–{Math.min(pageStart + ANNOUNCEMENTS_PER_PAGE, total)} of {total}
             </p>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</Button>

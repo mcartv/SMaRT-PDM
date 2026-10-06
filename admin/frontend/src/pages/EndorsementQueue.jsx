@@ -1,3 +1,5 @@
+import { useListPage } from '../hooks/useListPage';
+import ServerPagination from '../components/ServerPagination';
 // SMaRT-PDM: Endorsement — Endorsement Queue (admin frontend page); loads data, handles page actions, and renders the admin view.
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -392,36 +394,26 @@ function CompactStageProgress({ tracker }) {
 }
 
 // SummaryStrip: handles summary strip for the Endorsement flow.
-function SummaryStrip({ queueKey, rows }) {
-  const pending = rows.filter((row) => getDecision(queueKey, row) === 'pending').length;
-  const today = new Date().toDateString();
-  const actedToday = rows.filter((row) => {
-    const value = queueKey === 'sdo'
-      ? row.sdo_at
-      : queueKey === 'guidance'
-        ? row.guidance_at
-        : row.pd_at;
-    return getDecision(queueKey, row) !== 'pending'
-      && value
-      && new Date(value).toDateString() === today;
-  }).length;
+function SummaryStrip({ queueKey, summary = {} }) {
+  const pending = summary.pending || 0;
+  const actedToday = summary.actedToday || 0;
 
   const cards = queueKey === 'sdo'
     ? [
         { label: 'For Endorsement', value: pending },
-        { label: 'Minor Offenses', value: rows.filter((row) => getDecision('sdo', row) === 'minor_offense').length },
-        { label: 'Major Offenses', value: rows.filter((row) => getDecision('sdo', row) === 'major_offense').length },
+        { label: 'Minor Offenses', value: summary.minor || 0 },
+        { label: 'Major Offenses', value: summary.major || 0 },
       ]
     : queueKey === 'guidance'
       ? [
           { label: 'For Endorsement', value: pending },
           { label: 'Endorsed Today', value: actedToday },
-          { label: 'Completed Endorsements', value: rows.filter((row) => getDecision('guidance', row) !== 'pending').length },
+          { label: 'Completed Endorsements', value: summary.officeCompleted || 0 },
         ]
       : [
           { label: 'For Endorsement', value: pending, icon: ClipboardCheck, tone: 'bg-violet-50 text-violet-700' },
-          { label: 'Good Scholastic Standing', value: rows.filter((row) => getDecision('pd', row) === 'good_scholastic_standing').length, icon: GraduationCap, tone: 'bg-green-50 text-green-700' },
-          { label: 'Average Scholastic Standing', value: rows.filter((row) => getDecision('pd', row) === 'average_scholastic_standing').length, icon: FileText, tone: 'bg-amber-50 text-amber-700' },
+          { label: 'Good Scholastic Standing', value: summary.good || 0, icon: GraduationCap, tone: 'bg-green-50 text-green-700' },
+          { label: 'Average Scholastic Standing', value: summary.average || 0, icon: FileText, tone: 'bg-amber-50 text-amber-700' },
         ];
 
   return (
@@ -735,26 +727,37 @@ export default function EndorsementQueue({
   const [gradePreview, setGradePreview] = useState(null);
   const [previewedGradeSlipIds, setPreviewedGradeSlipIds] = useState(() => new Set());
 
+  const { page, setPage, query: listQuery, metadata: listMetadata, accept: acceptList, beginRequest } = useListPage({
+    search, status: statusFilter, program: programFilter, course: courseFilter, year: yearFilter, result: resultFilter, sort: sortOrder,
+  });
+
   const hasAccess = meta?.allowedRoles.includes(profile.role);
 
   const loadQueue = useCallback(async ({ soft = false } = {}) => {
     if (!hasAccess) return;
+    const isCurrent = beginRequest();
+    if (!isCurrent()) return;
     try {
       soft ? setRefreshing(true) : setLoading(true);
       setError('');
-      const response = await fetch(buildApiUrl(meta.endpoint), { headers: authHeaders(tokenStorageKey) });
+      const response = await fetch(buildApiUrl(`${meta.endpoint}?${listQuery}`), { headers: authHeaders(tokenStorageKey) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Failed to load endorsement queue');
-      const nextRows = Array.isArray(data) ? data : [];
+      if (!isCurrent()) return;
+      acceptList(data);
+      const nextRows = data.items || [];
       setRows(nextRows);
       setSelectedRow((current) => current ? nextRows.find((row) => row.slip_id === current.slip_id) || null : null);
     } catch (err) {
+      if (!isCurrent()) return;
       setError(err.message || 'Failed to load endorsement queue.');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (isCurrent()) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  }, [hasAccess, meta, tokenStorageKey]);
+  }, [hasAccess, meta, tokenStorageKey, listQuery, acceptList, beginRequest]);
 
   useEffect(() => { loadQueue(); }, [loadQueue]);
   useEffect(() => {
@@ -780,32 +783,10 @@ export default function EndorsementQueue({
   useSocketEvent('endorsement:updated', () => loadQueue({ soft: true }), [loadQueue]);
   useSocketEvent('application-document:uploaded', () => loadQueue({ soft: true }), [loadQueue]);
 
-  const programs = useMemo(() => ['all', ...new Set(rows.map((row) => row.program_name).filter(Boolean))], [rows]);
-  const courses = useMemo(() => ['all', ...new Set(rows.map((row) => row.course_code).filter(Boolean))], [rows]);
-  const years = useMemo(() => ['all', ...new Set(rows.map((row) => String(row.year_level || '')).filter(Boolean))], [rows]);
-
-  const filteredRows = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    const result = rows.filter((row) => {
-      const decision = getDecision(queueKey, row);
-      const status = decision === 'pending' ? 'pending' : 'completed';
-      const searchable = [row.student_name, row.pdm_id, row.course_code, row.year_level, row.section, row.program_name, row.opening_title].filter(Boolean).join(' ').toLowerCase();
-      return (!query || searchable.includes(query))
-        && (statusFilter === 'all' || status === statusFilter)
-        && (programFilter === 'all' || row.program_name === programFilter)
-        && (courseFilter === 'all' || row.course_code === courseFilter)
-        && (yearFilter === 'all' || String(row.year_level || '') === yearFilter)
-        && (resultFilter === 'all' || decision === resultFilter);
-    });
-
-    return result.sort((a, b) => {
-      if (sortOrder === 'name_asc') return String(a.student_name || '').localeCompare(String(b.student_name || ''));
-      if (sortOrder === 'name_desc') return String(b.student_name || '').localeCompare(String(a.student_name || ''));
-      const aTime = new Date(a.submitted_at || 0).getTime();
-      const bTime = new Date(b.submitted_at || 0).getTime();
-      return sortOrder === 'newest' ? bTime - aTime : aTime - bTime;
-    });
-  }, [courseFilter, programFilter, queueKey, resultFilter, rows, search, sortOrder, statusFilter, yearFilter]);
+  const programs = ['all', ...(listMetadata.filters?.programs || [])];
+  const courses = ['all', ...(listMetadata.filters?.courses || [])];
+  const years = ['all', ...(listMetadata.filters?.years || [])];
+  const filteredRows = rows;
 
   // resetFilters: resets reset filters for the Endorsement flow.
   const resetFilters = () => {
@@ -983,7 +964,7 @@ export default function EndorsementQueue({
         </div>
       </section>
 
-      <SummaryStrip queueKey={queueKey} rows={rows} />
+      <SummaryStrip queueKey={queueKey} summary={listMetadata.summary} />
 
       <Card className="border-stone-200 shadow-none">
         <CardContent className="p-4">
@@ -1073,7 +1054,7 @@ export default function EndorsementQueue({
           </div>
 
           <p className="mt-3 text-xs text-stone-500">
-            Showing {filteredRows.length} of {rows.length} applicants
+            Showing {filteredRows.length} of {listMetadata.pagination?.total || 0} applicants
           </p>
         </CardContent>
       </Card>
@@ -1127,6 +1108,7 @@ export default function EndorsementQueue({
           })}
         </div>
       )}
+      <ServerPagination page={page} setPage={setPage} pagination={listMetadata.pagination} label="applicants" />
     </div>
   );
 }

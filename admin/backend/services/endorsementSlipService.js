@@ -1,3 +1,4 @@
+const { paginationRequested, listFilters, queryPage } = require('../utils/listPagination');
 // SMaRT-PDM: Endorsement — endorsement Slip Service (admin backend service); contains business logic and data operations.
 const path = require('path');
 const crypto = require('crypto');
@@ -534,7 +535,7 @@ async function mapQueueRowForActor(row, actorRole = '') {
 }
 
 // loadSlipRows: loads and returns load slip rows for the Endorsement flow.
-async function loadSlipRows({ stage = null, stages = null, actor = null } = {}) {
+async function loadSlipRows({ stage = null, stages = null, actor = null, query = {}, queueKey = null } = {}) {
     const params = [];
     const normalizedStages = Array.isArray(stages)
         ? stages.map((value) => safeText(value)).filter(Boolean)
@@ -585,8 +586,7 @@ async function loadSlipRows({ stage = null, stages = null, actor = null } = {}) 
     }
     const whereClause = conditions.length ? `where ${conditions.join(' and ')}` : '';
 
-    const { rows } = await pool.query(
-        `
+    const source = `
         select
             es.slip_id,
             es.application_id,
@@ -653,30 +653,24 @@ async function loadSlipRows({ stage = null, stages = null, actor = null } = {}) 
             limit 1
         ) grade_doc on true
         ${whereClause}
-        order by
-            case
-                when es.overall_status = 'completed' then 2
-                else 1
-            end,
-            a.submission_date desc nulls last,
-            es.created_at desc
-        `,
-        params
-    );
-
+`;
+    if (paginationRequested(query)) return fetchSlipPage(source, params, query, actorRole, queueKey);
+    const { rows } = await pool.query(`${source} ORDER BY
+      CASE WHEN es.overall_status = 'completed' THEN 2 ELSE 1 END,
+      a.submission_date DESC NULLS LAST, es.created_at DESC, es.slip_id ASC`, params);
     return Promise.all(rows.map((row) => mapQueueRowForActor(row, actorRole)));
 }
 
 // fetchQueue: fetches and returns fetch queue for the Endorsement flow.
-async function fetchQueue(queueKey, actor) {
+async function fetchQueue(queueKey, actor, query = {}) {
     ensureQueueAccess(queueKey, actor);
-    return loadSlipRows({ actor });
+    return loadSlipRows({ actor, query, queueKey });
 }
 
 // fetchAllSlips: fetches and returns fetch all slips for the Endorsement flow.
-async function fetchAllSlips(actor) {
+async function fetchAllSlips(actor, query = {}) {
     ensureTrackerAccess(actor);
-    return loadSlipRows({ actor });
+    return loadSlipRows({ actor, query });
 }
 
 // fetchSlipDetail: fetches and returns fetch slip detail for the Endorsement flow.
@@ -1934,3 +1928,62 @@ module.exports = {
     sendPendingDigests,
     ensureSlipForApplication,
 };
+
+function normalizedOfficeDecision(office) {
+  const field = `${office}_status`;
+  if (office === 'sdo') return `CASE lower(coalesce(${field}, ''))
+    WHEN '' THEN 'pending' WHEN 'cleared' THEN 'no_offense'
+    WHEN 'disqualified_minor' THEN 'minor_offense' WHEN 'disqualified_major' THEN 'major_offense'
+    ELSE lower(${field}) END`;
+  if (office === 'guidance') return `CASE lower(coalesce(${field}, '')) WHEN '' THEN 'pending' WHEN 'cleared' THEN 'good_moral_standing' ELSE lower(${field}) END`;
+  return `coalesce(nullif(lower(${field}), ''), 'pending')`;
+}
+
+async function fetchSlipPage(rawSource, params, query, actorRole, queueKey) {
+  const office = queueKey || (['sdo','guidance','pd'].includes(actorRole) ? actorRole : 'sdo');
+  const decision = normalizedOfficeDecision(office);
+  const source = `SELECT raw.*, ${decision} AS decision,
+    coalesce(nullif(application_payload::jsonb #>> '{academic,current_section}', ''), application_payload::jsonb #>> '{academic,section}', '') AS section,
+    CASE current_stage ${Object.entries(STAGE_LABELS).map(([stage, label]) =>
+      `WHEN '${stage}' THEN '${label.replace(/'/g, "''")}'`).join(' ')} ELSE current_stage END AS stage_label
+    FROM (${rawSource}) raw`;
+  const filters = listFilters(query, {
+    status: queueKey ? "CASE WHEN decision = 'pending' THEN 'pending' ELSE 'completed' END" : 'overall_status',
+    program: "coalesce(program_name, 'N/A')", course: 'course_code', year: 'year_level', result: 'decision',
+  }, ["concat_ws(' ', student_name, pdm_id, course_code, course_name, year_level, section, program_name, opening_title, stage_label)"], params);
+  const finished = "overall_status IN ('completed', 'disqualified_major', 'rejected', 'guidance_rejected')";
+  const processed = `${office}_status IS NOT NULL AND current_stage <> 'pending_${office}'`;
+  let tabWhere = 'true';
+  if (!queueKey) {
+    if (query.tab === 'processed') tabWhere = processed;
+    else if (query.tab === 'finished') tabWhere = finished;
+    else if (query.tab === 'completed') tabWhere = "overall_status = 'completed'";
+    else if (query.tab === 'stopped') tabWhere = "overall_status IN ('disqualified_major', 'rejected', 'guidance_rejected')";
+    else if (['sdo','guidance','pd'].includes(query.tab)) tabWhere = `current_stage = 'pending_${query.tab}'`;
+    else if (query.tab === 'active') tabWhere = actorRole === 'admin' ? `NOT (${finished})` : `current_stage = 'pending_${office}'`;
+  }
+  const sorts = { oldest: "coalesce(submission_date, 'epoch'::timestamptz) ASC", newest: "coalesce(submission_date, 'epoch'::timestamptz) DESC",
+    name_asc: 'student_name ASC', name_desc: 'student_name DESC' };
+  const order = queueKey ? sorts[query.sort] || sorts.oldest :
+    "CASE WHEN overall_status = 'completed' THEN 2 ELSE 1 END, submission_date DESC NULLS LAST, created_at DESC";
+  const summary = {
+    active: `count(*) FILTER (WHERE NOT (${finished}))`,
+    sdo: "count(*) FILTER (WHERE current_stage = 'pending_sdo')",
+    guidance: "count(*) FILTER (WHERE current_stage = 'pending_guidance')",
+    pd: "count(*) FILTER (WHERE current_stage = 'pending_pd')",
+    completed: "count(*) FILTER (WHERE overall_status = 'completed')",
+    stopped: "count(*) FILTER (WHERE overall_status IN ('disqualified_major','rejected','guidance_rejected'))",
+    processedByOffice: `count(*) FILTER (WHERE ${processed})`,
+    pending: "count(*) FILTER (WHERE decision = 'pending')",
+    officeCompleted: "count(*) FILTER (WHERE decision <> 'pending')",
+    minor: "count(*) FILTER (WHERE decision = 'minor_offense')",
+    major: "count(*) FILTER (WHERE decision = 'major_offense')",
+    good: "count(*) FILTER (WHERE decision = 'good_scholastic_standing')",
+    average: "count(*) FILTER (WHERE decision = 'average_scholastic_standing')",
+    actedToday: `count(*) FILTER (WHERE decision <> 'pending' AND (${office}_acted_at AT TIME ZONE 'Asia/Singapore')::date = (now() AT TIME ZONE 'Asia/Singapore')::date)`,
+  };
+  const result = await queryPage(pool, { source, query, ...filters, where: `(${filters.where}) AND (${tabWhere})`, order: `${order}, slip_id ASC`,
+    facets: { programs: "coalesce(program_name, 'N/A')", courses: 'course_code', years: 'year_level', statuses: 'overall_status' }, summary });
+  result.items = await Promise.all(result.items.map((row) => mapQueueRowForActor(row, actorRole)));
+  return result;
+}

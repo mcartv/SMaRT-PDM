@@ -90,7 +90,9 @@ async function writeAudit(req, action, entityId, metadata = {}) {
 
 exports.getRenewals = async (req, res) => {
     try {
-        const payload = await renewalService.fetchRenewals();
+        const payload = await renewalService.fetchRenewals(req.query);
+
+        if (payload?.pagination) return res.status(200).json(payload);
 
         // The active Renewal Queue is operational work for the current
         // academic period only. Historical semester records remain in the

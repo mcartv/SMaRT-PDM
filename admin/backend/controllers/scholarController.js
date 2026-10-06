@@ -148,7 +148,7 @@ exports.getStats = async (req, res) => {
 
 exports.getAllScholars = async (req, res) => {
     try {
-        const scholars = await scholarService.fetchAllScholars();
+        const scholars = await scholarService.fetchAllScholars(req.query);
         res.json(scholars);
     } catch (err) {
         console.error('SCHOLAR LIST CONTROLLER ERROR:', err.message);
@@ -162,7 +162,7 @@ exports.getAllScholars = async (req, res) => {
 
 exports.getRemovedScholars = async (req, res) => {
     try {
-        const scholars = await scholarService.fetchRemovedScholars();
+        const scholars = await scholarService.fetchRemovedScholars(req.query);
         res.json(scholars);
     } catch (err) {
         console.error('REMOVED SCHOLAR LIST CONTROLLER ERROR:', err.message);

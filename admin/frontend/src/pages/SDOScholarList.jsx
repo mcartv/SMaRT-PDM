@@ -1,5 +1,6 @@
+import { useListPage } from '../hooks/useListPage';
 // SMaRT-PDM: Scholars — SDOScholar List (admin frontend page); loads data, handles page actions, and renders the admin view.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 // --- SHADCN UI COMPONENTS ---
@@ -384,22 +385,27 @@ export default function SDOScholarList() {
   const [batchYear, setBatchYear] = useState('All Years');
   const [probationFilter, setProbationFilter] = useState('all');
   const [sortBy, setSortBy] = useState('Name A-Z');
-  const [page, setPage] = useState(1);
 
   const [savingId, setSavingId] = useState(null);
   const [viewScholar, setViewScholar] = useState(null);
   const [pendingStanding, setPendingStanding] = useState(null);
   const [confirmationRemarks, setConfirmationRemarks] = useState('');
 
+  const { page, setPage, query: listQuery, metadata: listMetadata, accept: acceptList, beginRequest } = useListPage({
+    search, program, academicYear: batchYear, probation: probationFilter, sort: sortBy, view: 'sdo',
+  }, PAGE_SIZE);
+
   // loadScholars: loads and returns load scholars for the Scholars flow.
-  const loadScholars = async ({ soft = false } = {}) => {
+  const loadScholars = useCallback(async ({ soft = false } = {}) => {
+    const isCurrent = beginRequest();
+    if (!isCurrent()) return;
     try {
       if (!soft) {
         setLoading(true);
         setError('');
       }
 
-      const response = await fetch(`${API_BASE}/scholars`, {
+      const response = await fetch(`${API_BASE}/scholars?${listQuery}`, {
         headers: {
           Authorization: `Bearer ${getToken()}`,
           'Content-Type': 'application/json',
@@ -412,52 +418,24 @@ export default function SDOScholarList() {
         throw new Error(data.message || 'Failed to load scholar list');
       }
 
-      const rows = Array.isArray(data) ? data : [];
-      setScholars(rows);
-
-      const nextStats = rows.reduce(
-        (acc, item) => {
-          const level = getEditableStatus(item.sdu_level);
-          acc.total += 1;
-          if (level === 'clear') acc.clear += 1;
-          if (level === 'minor') acc.minor += 1;
-          if (level === 'major') acc.major += 1;
-          return acc;
-        },
-        { total: 0, clear: 0, minor: 0, major: 0 }
-      );
-
-      setStats(nextStats);
+      if (!isCurrent()) return;
+      acceptList(data);
+      setScholars(data.items || []);
+      setStats(data.summary || { total: 0, clear: 0, minor: 0, major: 0 });
     } catch (err) {
+      if (!isCurrent()) return;
       setError(err.message || 'Failed to load scholar list.');
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  };
+  }, [listQuery, acceptList, beginRequest]);
 
-  useEffect(() => {
-    loadScholars();
-  }, []);
-
-  useSocketEvent('scholar:updated', () => {
-    loadScholars({ soft: true });
-  }, []);
-
-  useSocketEvent('scholar:created', () => {
-    loadScholars({ soft: true });
-  }, []);
-
-  useSocketEvent('renewal:approved', () => {
-    loadScholars({ soft: true });
-  }, []);
-
-  const programOptions = useMemo(() => {
-    return ['All Programs', ...new Set(scholars.map((s) => s.program_name).filter(Boolean))];
-  }, [scholars]);
-
-  const batchOptions = useMemo(() => {
-    return ['All Years', ...new Set(scholars.map((s) => s.batch_year).filter(Boolean))];
-  }, [scholars]);
+  useEffect(() => { loadScholars({ soft: true }); }, [loadScholars]);
+  useSocketEvent('scholar:updated', () => loadScholars({ soft: true }), [loadScholars]);
+  useSocketEvent('scholar:created', () => loadScholars({ soft: true }), [loadScholars]);
+  useSocketEvent('renewal:approved', () => loadScholars({ soft: true }), [loadScholars]);
+  const programOptions = ['All Programs', ...(listMetadata.filters?.programs || [])];
+  const batchOptions = ['All Years', ...(listMetadata.filters?.years || [])];
 
   const sortOptions = [
     'Name A-Z',
@@ -468,69 +446,9 @@ export default function SDOScholarList() {
     'Program Z-A',
   ];
 
-  const filteredScholars = useMemo(() => {
-    const q = search.trim().toLowerCase();
-
-    let results = scholars.filter((scholar) => {
-      const matchesSearch =
-        !q ||
-        (scholar.student_name || '').toLowerCase().includes(q) ||
-        (scholar.student_number || '').toLowerCase().includes(q) ||
-        (scholar.program_name || '').toLowerCase().includes(q) ||
-        (scholar.batch_year || '').toLowerCase().includes(q) ||
-        (scholar.course_code || '').toLowerCase().includes(q) ||
-        (scholar.course_name || '').toLowerCase().includes(q);
-
-      const matchesProgram =
-        program === 'All Programs' || scholar.program_name === program;
-
-      const matchesBatch =
-        batchYear === 'All Years' || String(scholar.batch_year || '') === String(batchYear);
-
-      const scholarStatus = getEditableStatus(scholar.sdu_level);
-      const matchesProbation =
-        probationFilter === 'all' ? true : scholarStatus === probationFilter;
-
-      return matchesSearch && matchesProgram && matchesBatch && matchesProbation;
-    });
-
-    results = [...results].sort((a, b) => {
-      const nameA = (a.student_name || '').toLowerCase();
-      const nameB = (b.student_name || '').toLowerCase();
-      const batchA = String(a.batch_year || '');
-      const batchB = String(b.batch_year || '');
-      const programA = (a.program_name || '').toLowerCase();
-      const programB = (b.program_name || '').toLowerCase();
-
-      switch (sortBy) {
-        case 'Name Z-A':
-          return nameB.localeCompare(nameA);
-        case 'Batch Newest':
-          return batchB.localeCompare(batchA);
-        case 'Batch Oldest':
-          return batchA.localeCompare(batchB);
-        case 'Program Z-A':
-          return programB.localeCompare(programA);
-        case 'Program A-Z':
-          return programA.localeCompare(programB);
-        case 'Name A-Z':
-        default:
-          return nameA.localeCompare(nameB);
-      }
-    });
-
-    return results;
-  }, [scholars, search, program, batchYear, probationFilter, sortBy]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [search, program, batchYear, probationFilter, sortBy]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredScholars.length / PAGE_SIZE));
-
-  const pageData = useMemo(() => {
-    return filteredScholars.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  }, [filteredScholars, page]);
+  const totalPages = listMetadata.pagination?.totalPages || 1;
+  const total = listMetadata.pagination?.total || 0;
+  const pageData = scholars;
 
   // requestStandingUpdate: handles request standing update for the Scholars flow.
   const requestStandingUpdate = (scholar, status) => {
@@ -869,7 +787,7 @@ export default function SDOScholarList() {
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
         <p className="text-xs text-stone-500">
           Showing {(page - 1) * PAGE_SIZE + (pageData.length ? 1 : 0)}–
-          {(page - 1) * PAGE_SIZE + pageData.length} of {filteredScholars.length} scholars
+          {(page - 1) * PAGE_SIZE + pageData.length} of {total} scholars
         </p>
 
         <div className="flex items-center gap-2">

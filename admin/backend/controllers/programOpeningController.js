@@ -308,7 +308,7 @@ const getProgramOpeningById = async (req, res) => {
 const getApplicationsByOpeningId = async (req, res) => {
     try {
         const { openingId } = req.params;
-        const rows = await programOpeningService.fetchApplicationsByOpeningId(openingId);
+        const rows = await programOpeningService.fetchApplicationsByOpeningId(openingId, req.query);
         return res.status(200).json(rows);
     } catch (err) {
         console.error('GET APPLICATIONS BY OPENING ID CONTROLLER ERROR:', err);

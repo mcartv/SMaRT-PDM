@@ -1,5 +1,7 @@
+import { useListPage } from '../hooks/useListPage';
+import ServerPagination from '../components/ServerPagination';
 // SMaRT-PDM: Profile — Profile Photo Queue (admin frontend page); loads data, handles page actions, and renders the admin view.
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -208,6 +210,7 @@ export default function ProfilePhotoQueue() {
   });
   const [status, setStatus] = useState('pending');
   const [search, setSearch] = useState('');
+  const { page, setPage, query: listQuery, metadata: listMetadata, accept: acceptList, beginRequest } = useListPage({ status, search });
   const [detail, setDetail] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -226,17 +229,23 @@ export default function ProfilePhotoQueue() {
   const closePhotoPreview = useCallback(() => setPhotoPreview(null), []);
 
   const loadQueue = useCallback(async (nextStatus = status, { quiet = false } = {}) => {
+    const isCurrent = beginRequest();
+    if (!isCurrent()) return;
     if (!quiet) setLoading(true);
     setError('');
     try {
+      const requestQuery = new URLSearchParams(listQuery);
+      requestQuery.set('status', nextStatus);
       const response = await fetch(
-        buildApiUrl(`/api/admin/profile-photos?status=${nextStatus}`),
+        buildApiUrl(`/api/admin/profile-photos?${requestQuery}`),
         { headers: authHeaders() }
       );
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(data.error || 'Failed to load profile photo reviews.');
       }
+      if (!isCurrent()) return;
+      acceptList(data);
       const expectedStatus = String(nextStatus || 'pending').toLowerCase();
       const nextItems = Array.isArray(data.items) ? data.items : [];
 
@@ -255,11 +264,12 @@ export default function ProfilePhotoQueue() {
         superseded: Number(data?.status_counts?.superseded) || 0,
       });
     } catch (err) {
+      if (!isCurrent()) return;
       setError(err.message || 'Failed to load profile photo reviews.');
     } finally {
-      if (!quiet) setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [status]);
+  }, [status, listQuery, acceptList, beginRequest]);
 
   const loadDetail = useCallback(async ({ quiet = false } = {}) => {
     if (!reviewId) return;
@@ -306,22 +316,7 @@ export default function ProfilePhotoQueue() {
   useSocketEvent('profile-photo-review:created', handleRealtimeReviewChange, [handleRealtimeReviewChange]);
   useSocketEvent('profile-photo-review:updated', handleRealtimeReviewChange, [handleRealtimeReviewChange]);
   useSocketEvent('maintenance:updated', handleRealtimeReviewChange, [handleRealtimeReviewChange]);
-  const filteredItems = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return items;
-
-    return items.filter((item) => {
-      const student = item.student || {};
-      return [
-        student.display_name,
-        student.pdm_id,
-        student.registrar_student_number,
-        student.email_address,
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query));
-    });
-  }, [items, search]);
+  const filteredItems = items;
 
   // handleStatusChange: handles handle status change for the Profile flow.
   const handleStatusChange = (nextStatus) => {
@@ -921,6 +916,8 @@ export default function ProfilePhotoQueue() {
           </div>
         </div>
       </div>
+      {!isDetail && <ServerPagination page={page} setPage={setPage} pagination={listMetadata.pagination} label="reviews" />}
+
       <ProfilePhotoPreviewDialog
         open={Boolean(photoPreview?.src)}
         onOpenChange={(open) => {

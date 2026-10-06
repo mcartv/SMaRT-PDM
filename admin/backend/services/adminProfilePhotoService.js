@@ -1,3 +1,5 @@
+const db = require('../config/db');
+const { listFilters, queryPage } = require('../utils/listPagination');
 // SMaRT-PDM: Profile — admin Profile Photo Service (admin backend service); contains business logic and data operations.
 const { notificationsEnabled } = require('../config/notificationPolicy');
 const supabase = require('../config/supabase');
@@ -259,63 +261,24 @@ async function hydrateReviews(rows = [], existingStudentsById = null) {
 // getProfilePhotoReviews: reads and returns get profile photo reviews for the Profile flow.
 async function getProfilePhotoReviews({ adminUserId, query = {} }) {
   await getAdminProfileId(adminUserId);
-
   const status = safeText(query.status || 'pending').toLowerCase();
   const allowedStatuses = new Set(['pending', 'approved', 'rejected', 'superseded']);
-
-  let request = supabase
-    .from('profile_photo_reviews')
-    .select(reviewSelect())
-    .order('submitted_at', { ascending: false });
-
-  if (status && allowedStatuses.has(status)) {
-    request = request.eq('status', status);
+  if (!allowedStatuses.has(status)) {
+    const error = new Error('Invalid profile photo review status.');
+    error.statusCode = 400;
+    throw error;
   }
-
-  const [queueResult, statusResult] = await Promise.all([
-    request,
-    supabase
-      .from('profile_photo_reviews')
-      .select('review_id, student_id, user_id, status'),
-  ]);
-
-  if (queueResult.error) throw queueResult.error;
-  if (statusResult.error) throw statusResult.error;
-
-  const allStatusRows = statusResult.data || [];
-  const studentsById = await getStudentsByIds(
-    allStatusRows.map((row) => row.student_id)
-  );
-  const visibleStatusRows = filterReviewsWithVisibleStudents(
-    allStatusRows,
-    studentsById
-  );
-  const visibleQueueRows = filterReviewsWithVisibleStudents(
-    queueResult.data || [],
-    studentsById
-  );
-
-  const statusCounts = {
-    pending: 0,
-    approved: 0,
-    rejected: 0,
-    superseded: 0,
-  };
-
-  for (const row of visibleStatusRows) {
-    const rowStatus = safeText(row.status).toLowerCase();
-    if (Object.prototype.hasOwnProperty.call(statusCounts, rowStatus)) {
-      statusCounts[rowStatus] += 1;
-    }
-  }
-
-  return {
-    items: await hydrateReviews(
-      visibleQueueRows,
-      studentsById
-    ),
-    status_counts: statusCounts,
-  };
+  const source = `SELECT r.*, concat_ws(' ', st.first_name, st.middle_name, st.last_name) AS display_name,
+    st.pdm_id, st.registrar_student_number, st.email_address
+    FROM profile_photo_reviews r JOIN students st ON st.student_id = r.student_id
+    AND st.user_id = r.user_id AND st.user_id IS NOT NULL AND r.user_id IS NOT NULL
+    WHERE coalesce(st.is_archived, false) = false`;
+  const filters = listFilters({ ...query, status }, { status: 'status' },
+    ['display_name', 'pdm_id', 'registrar_student_number', 'email_address']);
+  const result = await queryPage(db, { source, query, ...filters, order: 'submitted_at DESC, review_id ASC',
+    summary: Object.fromEntries(['pending','approved','rejected','superseded'].map((status) =>
+      [status, `count(*) FILTER (WHERE status = '${status}')`])) });
+  return { ...result, items: await hydrateReviews(result.items), status_counts: result.summary };
 }
 
 // getProfilePhotoReviewById: reads and returns get profile photo review by id for the Profile flow.

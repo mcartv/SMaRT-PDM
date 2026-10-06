@@ -1,3 +1,4 @@
+const { paginationRequested, listFilters, queryPage } = require('../utils/listPagination');
 // SMaRT-PDM: Scholarship Openings — program Opening Service (admin backend service); contains business logic and data operations.
 const supabase = require('../config/supabase');
 const pool = require('../config/db');
@@ -567,16 +568,53 @@ exports.fetchProgramOpeningById = async (openingId) => {
 
     if (!opening) return null;
 
-    const applications = await fetchApplicationsForCounts(openingId);
-    const counts = buildCounts(opening, applications);
+    const { rows } = await pool.query(`SELECT count(*) AS application_count,
+      count(*) FILTER (WHERE lower(trim(application_status)) IN ('pending', 'pending review', 'submitted')) AS pending_count,
+      count(*) FILTER (WHERE lower(trim(application_status)) IN ('review', 'under review', 'under_review', 'for review', 'interview')) AS review_count,
+      count(*) FILTER (WHERE lower(trim(application_status)) IN ('qualified', 'approved', 'accepted')) AS qualified_count,
+      count(*) FILTER (WHERE lower(trim(application_status)) IN ('waiting', 'waitlisted')) AS waiting_count,
+      count(*) FILTER (WHERE lower(trim(application_status)) IN ('disqualified', 'rejected', 'declined')) AS disqualified_count
+      FROM applications WHERE opening_id = $1 AND coalesce(is_archived, false) = false`, [openingId]);
+    const counts = rows[0] || {};
 
     return mapOpening(opening, counts);
 };
 
-exports.fetchApplicationsByOpeningId = async (openingId) => {
+exports.fetchApplicationsByOpeningId = async (openingId, query = {}) => {
     await readinessQueueService.syncOpeningFcfsQueue(openingId);
 
-    const { data, error } = await supabase
+    let pageResult = null;
+    if (paginationRequested(query)) {
+      const fcfsOrder = `CASE WHEN queue_position > 0 THEN 0 ELSE 1 END,
+        CASE WHEN queue_position > 0 THEN queue_position END ASC NULLS LAST,
+        fcfs_completed_at ASC NULLS LAST, submission_date ASC NULLS LAST, application_id ASC`;
+      const source = `WITH canonical AS (
+        SELECT a.*, concat_ws(' ', st.first_name, st.middle_name, st.last_name) AS student_name,
+          concat(st.last_name, ', ', st.first_name, CASE WHEN st.middle_name IS NOT NULL THEN ' ' || st.middle_name ELSE '' END) AS display_name,
+          st.pdm_id AS student_number,
+          (lower(trim(coalesce(a.application_status, ''))) IN ('approved', 'accepted')
+            OR lower(trim(coalesce(a.selection_status, ''))) IN ('selected','promoted')) AS approved,
+          row_number() OVER (PARTITION BY a.student_id, a.opening_id
+            ORDER BY (a.application_id = st.current_application_id) DESC NULLS LAST,
+              coalesce(a.submission_date, a.created_at, 'epoch'::timestamptz) DESC, a.application_id DESC) AS canonical_rank
+        FROM applications a JOIN students st ON st.student_id = a.student_id
+        WHERE a.opening_id = $1 AND coalesce(a.is_archived, false) = false
+          AND coalesce(st.is_archived, false) = false
+      ) SELECT *, count(*) FILTER (WHERE fcfs_completed_at IS NOT NULL OR queue_position > 0)
+          OVER (ORDER BY ${fcfsOrder} ROWS UNBOUNDED PRECEDING) AS fcfs_rank
+        FROM canonical WHERE canonical_rank = 1`;
+      const filters = listFilters(query, { status: 'application_status', selection: 'selection_status', studentNumber: 'student_number' },
+        ['display_name', 'student_name', 'student_number', 'application_id'], [openingId]);
+      const viewWhere = query.view === 'approved' ? 'approved' : query.view === 'current' ? 'NOT approved' : 'true';
+      pageResult = await queryPage(pool, { source, query, ...filters, where: `(${filters.where}) AND (${viewWhere})`, order: fcfsOrder,
+        summary: { approved: 'count(*) FILTER (WHERE approved)', current: 'count(*) FILTER (WHERE NOT approved)',
+          fcfs: 'count(*) FILTER (WHERE fcfs_completed_at IS NOT NULL OR queue_position > 0)' } });
+      const next = await pool.query(`SELECT application_id AS id, display_name AS name FROM (${source}) source
+        WHERE NOT approved AND (fcfs_completed_at IS NOT NULL OR queue_position > 0) ORDER BY ${fcfsOrder} LIMIT 1`, [openingId]);
+      pageResult.next_fcfs_applicant = next.rows[0] || null;
+      if (!pageResult.items.length) return pageResult;
+    }
+    const request = supabase
         .from('applications')
         .select(`
       application_id,
@@ -640,6 +678,8 @@ exports.fetchApplicationsByOpeningId = async (openingId) => {
     `)
         .eq('opening_id', openingId)
         .order('submission_date', { ascending: true });
+    if (pageResult) request.in('application_id', pageResult.items.map((row) => row.application_id));
+    const { data, error } = await request;
 
     if (error) {
         console.error('SUPABASE FETCH APPLICATIONS BY OPENING ID ERROR:', error);
@@ -668,8 +708,9 @@ exports.fetchApplicationsByOpeningId = async (openingId) => {
           LEFT JOIN endorsement_slips es
             ON es.application_id = a.application_id
           WHERE a.opening_id = $1
+          ${pageResult ? "AND a.application_id = ANY($2)" : ""}
         `,
-        [openingId]
+        pageResult ? [openingId, pageResult.items.map((row) => row.application_id)] : [openingId]
     );
 
     const readinessByApplication = new Map(
@@ -687,11 +728,12 @@ exports.fetchApplicationsByOpeningId = async (openingId) => {
     const canonicalApplications =
         dedupeOpeningApplications(operationalApplications);
 
-    return canonicalApplications
+    const items = canonicalApplications
         .map((app) => {
             const readiness = readinessByApplication.get(app.application_id) || {};
 
             return {
+                fcfs_rank: pageResult?.items.find((row) => row.application_id === app.application_id)?.fcfs_rank || null,
                 id: app.application_id,
                 application_id: app.application_id,
                 student_id: app.student_id,
@@ -756,6 +798,9 @@ exports.fetchApplicationsByOpeningId = async (openingId) => {
                     ['selected', 'promoted'].includes(normalizeStatus(readiness.selection_status || app.selection_status)),
             };
         });
+    if (!pageResult) return items;
+    const byId = new Map(items.map((item) => [item.application_id, item]));
+    return { ...pageResult, items: pageResult.items.map((row) => byId.get(row.application_id)).filter(Boolean) };
 };
 
 exports.createProgramOpening = async (payload = {}) => {

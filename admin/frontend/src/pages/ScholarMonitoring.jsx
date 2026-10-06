@@ -1,3 +1,4 @@
+import { useListPage } from '../hooks/useListPage';
 // SMaRT-PDM: Scholars — Scholar Monitoring (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -1513,7 +1514,6 @@ export default function ScholarMonitoring() {
   const [semester, setSemester] = useState('All Semesters');
   const [status, setStatus] = useState('All Statuses');
   const [sortBy, setSortBy] = useState('Name A-Z');
-  const [page, setPage] = useState(1);
 
   const [selectedScholarId, setSelectedScholarId] = useState(null);
   const [selectedScholar, setSelectedScholar] = useState(null);
@@ -1536,13 +1536,21 @@ export default function ScholarMonitoring() {
   const [draftStatus, setDraftStatus] = useState('All Statuses');
   const [draftSortBy, setDraftSortBy] = useState('Name A-Z');
 
+  const { page, setPage, query: listQuery, metadata: listMetadata, accept: acceptList, beginRequest } = useListPage({
+    search, program, academicYear, semester, status: sectionMode === 'renewals' ? normalizeRenewalStatus(status).replace(/_/g, ' ') : status,
+    sort: sortBy, tab: sectionMode,
+  }, PAGE_SIZE);
+
   const loadScholars = useCallback(async ({ quiet = false } = {}) => {
+    if (sectionMode !== 'registry') return;
+    const isCurrent = beginRequest();
+    if (!isCurrent()) return;
     try {
       if (!quiet) setLoading(true);
       setError('');
 
       const [scholarsRes, statsRes] = await Promise.all([
-        fetch(buildApiUrl('/api/scholars'), {
+        fetch(buildApiUrl(`/api/scholars?${listQuery}`), {
           headers: getAuthHeaders(),
         }),
         fetch(buildApiUrl('/api/scholars/stats'), {
@@ -1569,9 +1577,9 @@ export default function ScholarMonitoring() {
         );
       }
 
-      setScholars(
-        Array.isArray(scholarsPayload) ? scholarsPayload : []
-      );
+      if (!isCurrent()) return;
+      acceptList(scholarsPayload);
+      setScholars(scholarsPayload.items || []);
 
       setStats({
         total: Number(statsPayload.total) || 0,
@@ -1580,21 +1588,25 @@ export default function ScholarMonitoring() {
         avg_gwa: Number(statsPayload.avg_gwa) || 0,
       });
     } catch (err) {
+      if (!isCurrent()) return;
       console.error('SCHOLAR LOAD ERROR:', err);
       if (!quiet) {
         setError(err?.message || 'Failed to load scholar data');
       }
     } finally {
-      if (!quiet) setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, []);
+  }, [sectionMode, listQuery, acceptList, beginRequest]);
 
   const loadRenewals = useCallback(async ({ quiet = false } = {}) => {
+    if (sectionMode !== 'renewals') return;
+    const isCurrent = beginRequest();
+    if (!isCurrent()) return;
     try {
       if (!quiet) setRenewalsLoading(true);
       setRenewalsError('');
 
-      const response = await fetch(buildApiUrl('/api/renewals'), {
+      const response = await fetch(buildApiUrl(`/api/renewals?${listQuery}`), {
         headers: getAuthHeaders(),
       });
 
@@ -1608,41 +1620,47 @@ export default function ScholarMonitoring() {
         );
       }
 
-      setRenewals(Array.isArray(payload) ? payload : []);
+      if (!isCurrent()) return;
+      acceptList(payload);
+      setRenewals(payload.items || []);
     } catch (err) {
+      if (!isCurrent()) return;
       console.error('RENEWALS LOAD ERROR:', err);
       setRenewalsError(
         err?.message || 'Failed to load renewal records'
       );
     } finally {
-      if (!quiet) setRenewalsLoading(false);
+      if (isCurrent()) setRenewalsLoading(false);
     }
-  }, []);
+  }, [sectionMode, listQuery, acceptList, beginRequest]);
 
   const loadRemovedScholars = useCallback(async ({ quiet = false } = {}) => {
+    if (sectionMode !== 'removed') return;
+    const isCurrent = beginRequest();
+    if (!isCurrent()) return;
     try {
       if (!quiet) setRemovedLoading(true);
       setRemovedError('');
-      const response = await fetch(buildApiUrl('/api/scholars/removed'), {
+      const response = await fetch(buildApiUrl(`/api/scholars/removed?${listQuery}`), {
         headers: getAuthHeaders(),
       });
       const payload = await response.json().catch(() => []);
       if (!response.ok) {
         throw new Error(payload?.error || payload?.message || 'Failed to load removed scholars');
       }
-      setRemovedScholars(Array.isArray(payload) ? payload : []);
+      if (!isCurrent()) return;
+      acceptList(payload);
+      setRemovedScholars(payload.items || []);
     } catch (err) {
+      if (!isCurrent()) return;
       console.error('REMOVED SCHOLARS LOAD ERROR:', err);
       setRemovedError(err?.message || 'Failed to load removed scholars');
     } finally {
-      if (!quiet) setRemovedLoading(false);
+      if (isCurrent()) setRemovedLoading(false);
     }
-  }, []);
+  }, [sectionMode, listQuery, acceptList, beginRequest]);
 
-  const loadedSections = useRef(new Set());
   useEffect(() => {
-    if (loadedSections.current.has(sectionMode)) return;
-    loadedSections.current.add(sectionMode);
     if (sectionMode === 'registry') loadScholars();
     else if (sectionMode === 'renewals') loadRenewals();
     else if (sectionMode === 'removed') loadRemovedScholars();
@@ -1657,33 +1675,33 @@ export default function ScholarMonitoring() {
 
   useSocketEvent(
     'renewal:updated',
-    () => { if (loadedSections.current.has('renewals')) loadRenewals({ quiet: true }); },
+    () => { if (sectionMode === 'renewals') loadRenewals({ quiet: true }); },
     [loadRenewals]
   );
 
   useSocketEvent(
     'renewal:approved',
-    () => { if (loadedSections.current.has('renewals')) loadRenewals({ quiet: true }); },
+    () => { if (sectionMode === 'renewals') loadRenewals({ quiet: true }); },
     [loadRenewals]
   );
 
   useSocketEvent(
     'scholar:updated',
-    () => { if (loadedSections.current.has('registry')) loadScholars({ quiet: true }); },
+    () => { if (sectionMode === 'registry') loadScholars({ quiet: true }); },
     [loadScholars]
   );
 
   useSocketEvent(
     'scholar:created',
-    () => { if (loadedSections.current.has('registry')) loadScholars({ quiet: true }); },
+    () => { if (sectionMode === 'registry') loadScholars({ quiet: true }); },
     [loadScholars]
   );
 
   useSocketEvent(
     'scholar:archived',
     () => {
-      if (loadedSections.current.has('registry')) loadScholars({ quiet: true });
-      if (loadedSections.current.has('removed')) loadRemovedScholars({ quiet: true });
+      if (sectionMode === 'registry') loadScholars({ quiet: true });
+      if (sectionMode === 'removed') loadRemovedScholars({ quiet: true });
     },
     [loadScholars, loadRemovedScholars]
   );
@@ -1691,8 +1709,8 @@ export default function ScholarMonitoring() {
   useSocketEvent(
     'scholar:restored',
     () => {
-      if (loadedSections.current.has('registry')) loadScholars({ quiet: true });
-      if (loadedSections.current.has('removed')) loadRemovedScholars({ quiet: true });
+      if (sectionMode === 'registry') loadScholars({ quiet: true });
+      if (sectionMode === 'removed') loadRemovedScholars({ quiet: true });
     },
     [loadScholars, loadRemovedScholars]
   );
@@ -1836,173 +1854,9 @@ export default function ScholarMonitoring() {
     );
   };
 
-  const filteredScholars = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    const normalizedQuery = query.replace(/[^a-z0-9]/g, '');
-
-    const rows = scholars.filter((item) => {
-      const name = String(item.student_name || '').toLowerCase();
-      const studentNumber = String(
-        item.student_number || ''
-      ).toLowerCase();
-      const normalizedStudentNumber =
-        studentNumber.replace(/[^a-z0-9]/g, '');
-
-      const matchSearch =
-        !query ||
-        name.includes(query) ||
-        studentNumber.includes(query) ||
-        (
-          normalizedQuery.length > 0 &&
-          normalizedStudentNumber.includes(normalizedQuery)
-        );
-
-      const matchProgram =
-        program === 'All Programs' ||
-        item.program_name === program;
-
-      const matchYear =
-        academicYear === 'All Years' ||
-        String(item.academic_year || item.batch_year || '') ===
-        String(academicYear);
-
-      const matchSemester =
-        semester === 'All Semesters' ||
-        String(item.semester || '') === String(semester);
-
-      const matchStatus =
-        status === 'All Statuses' ||
-        String(item.status || '') === status;
-
-      return (
-        matchSearch &&
-        matchProgram &&
-        matchYear &&
-        matchSemester &&
-        matchStatus
-      );
-    });
-
-    return [...rows].sort((a, b) => {
-      const nameA = String(a.student_name || '').toLowerCase();
-      const nameB = String(b.student_name || '').toLowerCase();
-
-      const yearA =
-        Number(
-          String(a.academic_year || a.batch_year || '').split('-')[0]
-        ) || 0;
-
-      const yearB =
-        Number(
-          String(b.academic_year || b.batch_year || '').split('-')[0]
-        ) || 0;
-
-      switch (sortBy) {
-        case 'Name Z-A':
-          return nameB.localeCompare(nameA);
-        case 'Year Newest':
-          return yearB - yearA;
-        case 'Year Oldest':
-          return yearA - yearB;
-        case 'Name A-Z':
-        default:
-          return nameA.localeCompare(nameB);
-      }
-    });
-  }, [scholars, search, program, academicYear, semester, status, sortBy]);
-
-  const filteredRenewals = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    const normalizedQuery = query.replace(/[^a-z0-9]/g, '');
-
-    const rows = renewals.filter((item) => {
-      const name = String(item.student_name || '').toLowerCase();
-      const studentNumber = String(
-        item.student_number || ''
-      ).toLowerCase();
-      const normalizedStudentNumber =
-        studentNumber.replace(/[^a-z0-9]/g, '');
-
-      const matchSearch =
-        !query ||
-        name.includes(query) ||
-        studentNumber.includes(query) ||
-        (
-          normalizedQuery.length > 0 &&
-          normalizedStudentNumber.includes(normalizedQuery)
-        );
-
-      const matchProgram =
-        program === 'All Programs' ||
-        item.program_name === program;
-
-      const matchYear =
-        academicYear === 'All Years' ||
-        String(item.school_year_label || '') ===
-        String(academicYear);
-
-      const matchStatus =
-        status === 'All Statuses' ||
-        normalizeRenewalStatus(item.renewal_status) ===
-        normalizeRenewalStatus(status);
-
-      return (
-        matchSearch &&
-        matchProgram &&
-        matchYear &&
-        matchStatus
-      );
-    });
-
-    return [...rows].sort((a, b) => {
-      const nameA = String(a.student_name || '').toLowerCase();
-      const nameB = String(b.student_name || '').toLowerCase();
-
-      const yearA =
-        Number(
-          String(itemYear(a)).split('-')[0]
-        ) || 0;
-
-      const yearB =
-        Number(
-          String(itemYear(b)).split('-')[0]
-        ) || 0;
-
-      switch (sortBy) {
-        case 'Name Z-A':
-          return nameB.localeCompare(nameA);
-        case 'Year Newest':
-          return yearB - yearA;
-        case 'Year Oldest':
-          return yearA - yearB;
-        case 'Name A-Z':
-        default:
-          return nameA.localeCompare(nameB);
-      }
-    });
-  }, [renewals, search, program, academicYear, status, sortBy]);
-
-  const filteredRemovedScholars = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    const normalizedQuery = query.replace(/[^a-z0-9]/g, '');
-    const rows = removedScholars.filter((item) => {
-      const name = String(item.student_name || '').toLowerCase();
-      const studentNumber = String(item.student_number || '').toLowerCase();
-      const normalizedStudentNumber = studentNumber.replace(/[^a-z0-9]/g, '');
-      const matchSearch = !query || name.includes(query) || studentNumber.includes(query) ||
-        (normalizedQuery.length > 0 && normalizedStudentNumber.includes(normalizedQuery));
-      const matchProgram = program === 'All Programs' || item.program_name === program;
-      const matchYear = academicYear === 'All Years' || String(item.academic_year || item.batch_year || '') === String(academicYear);
-      const matchStatus = status === 'All Statuses' || String(item.status || '') === status;
-      return matchSearch && matchProgram && matchYear && matchStatus;
-    });
-    return [...rows].sort((a, b) => {
-      if (sortBy === 'Name Z-A') return String(b.student_name || '').localeCompare(String(a.student_name || ''));
-      if (sortBy === 'Year Newest') return new Date(b.scholar_archived_at || 0) - new Date(a.scholar_archived_at || 0);
-      if (sortBy === 'Year Oldest') return new Date(a.scholar_archived_at || 0) - new Date(b.scholar_archived_at || 0);
-      return String(a.student_name || '').localeCompare(String(b.student_name || ''));
-    });
-  }, [removedScholars, search, program, academicYear, status, sortBy]);
+  const filteredScholars = scholars;
+  const filteredRenewals = renewals;
+  const filteredRemovedScholars = removedScholars;
 
   const currentRows =
     sectionMode === 'registry'
@@ -2011,79 +1865,13 @@ export default function ScholarMonitoring() {
         ? filteredRemovedScholars
         : filteredRenewals;
 
-  useEffect(() => {
-    setPage(1);
-  }, [
-    search,
-    program,
-    academicYear,
-    semester,
-    status,
-    sortBy,
-    sectionMode,
-  ]);
-
-  const totalPages = Math.max(
-    1,
-    Math.ceil(currentRows.length / PAGE_SIZE)
-  );
-
-  const pageData = currentRows.slice(
-    (page - 1) * PAGE_SIZE,
-    page * PAGE_SIZE
-  );
-
-  const programOptions = useMemo(() => {
-    const source =
-      sectionMode === 'registry'
-        ? scholars
-        : sectionMode === 'removed'
-          ? removedScholars
-          : renewals;
-
-    return [
-      'All Programs',
-      ...new Set(
-        source.map((item) => item.program_name).filter(Boolean)
-      ),
-    ];
-  }, [scholars, removedScholars, renewals, sectionMode]);
-
-  const yearOptions = useMemo(() => {
-    const source =
-      sectionMode === 'registry'
-        ? scholars.map((item) => item.academic_year || item.batch_year)
-        : sectionMode === 'removed'
-          ? removedScholars.map((item) => item.academic_year || item.batch_year)
-          : renewals.map((item) => item.school_year_label);
-
-    return [
-      'All Years',
-      ...new Set(source.filter(Boolean)),
-    ];
-  }, [scholars, removedScholars, renewals, sectionMode]);
-
-  const semesterOptions = useMemo(
-    () => [
-      'All Semesters',
-      ...new Set(scholars.map((item) => item.semester).filter(Boolean)),
-    ],
-    [scholars]
-  );
-
-  const statusOptions = useMemo(() => {
-    const source =
-      sectionMode === 'registry'
-        ? scholars.map((item) => item.status)
-        : sectionMode === 'removed'
-          ? removedScholars.map((item) => item.status)
-          : renewals.map((item) => item.renewal_status);
-
-    return [
-      'All Statuses',
-      ...new Set(source.filter(Boolean)),
-    ];
-  }, [scholars, removedScholars, renewals, sectionMode]);
+  const totalPages = listMetadata.pagination?.totalPages || 1;
+  const total = listMetadata.pagination?.total || 0;
+  const pageData = currentRows;
+  const programOptions = ['All Programs', ...(listMetadata.filters?.programs || [])];
+  const yearOptions = ['All Years', ...(listMetadata.filters?.years || [])];
+  const semesterOptions = ['All Semesters', ...(listMetadata.filters?.semesters || [])];
+  const statusOptions = ['All Statuses', ...(listMetadata.filters?.statuses || [])];
 
   const sortOptions = [
     'Name A-Z',
@@ -2297,7 +2085,7 @@ export default function ScholarMonitoring() {
           </h2>
           {sectionMode === 'renewals' ? (
             <p className="mt-1 text-sm text-stone-500">
-              {`Canonical renewal records · ${filteredRenewals.length} result${filteredRenewals.length === 1 ? '' : 's'}`}
+              {`Canonical renewal records · ${total} result${total === 1 ? '' : 's'}`}
             </p>
           ) : null}
           {sectionMode === 'removed' ? (
@@ -2367,8 +2155,8 @@ export default function ScholarMonitoring() {
               ? 0
               : (page - 1) * PAGE_SIZE + 1}
             –
-            {Math.min(page * PAGE_SIZE, currentRows.length)} of{' '}
-            {currentRows.length}
+            {Math.min(page * PAGE_SIZE, total)} of{' '}
+            {total}
           </span>
 
           <div className="flex items-center gap-1.5">
@@ -2918,9 +2706,4 @@ function RenewalTable({ rows, navigate }) {
       </div>
     </div>
   );
-}
-
-// itemYear: handles item year for the Scholars flow.
-function itemYear(item) {
-  return item?.school_year_label || '';
 }

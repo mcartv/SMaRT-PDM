@@ -1,3 +1,4 @@
+// SMaRT-PDM: Settings — use Portal Theme (admin frontend); supports admin-side UI behavior.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
@@ -13,6 +14,7 @@ const PORTAL_TOKEN_KEYS = {
 
 const inFlightThemeRequests = new Map();
 
+// decodeTokenPayload: handles decode token payload for the Settings flow.
 function decodeTokenPayload(token) {
   try {
     const encoded = String(token || '').split('.')[1];
@@ -25,15 +27,18 @@ function decodeTokenPayload(token) {
   }
 }
 
+// getUserIdFromToken: reads and returns get user id from token for the Settings flow.
 function getUserIdFromToken(token) {
   const payload = decodeTokenPayload(token);
   return payload.user_id || payload.userId || payload.sub || payload.id || '';
 }
 
+// storageKeyForPortal: handles storage key for portal for the Settings flow.
 function storageKeyForPortal(portalKey, userId = 'public') {
   return `smartpdm-theme-${portalKey}-${userId || 'public'}`;
 }
 
+// readCachedTheme: handles read cached theme for the Settings flow.
 function readCachedTheme(cacheKey) {
   try {
     const saved = localStorage.getItem(cacheKey);
@@ -50,6 +55,7 @@ function readCachedTheme(cacheKey) {
   }
 }
 
+// writeCachedTheme: handles write cached theme for the Settings flow.
 function writeCachedTheme(cacheKey, setting) {
   try {
     if (cacheKey) localStorage.setItem(cacheKey, JSON.stringify(setting));
@@ -58,11 +64,13 @@ function writeCachedTheme(cacheKey, setting) {
   }
 }
 
+// requestCurrentTheme: handles request current theme for the Settings flow.
 async function requestCurrentTheme(normalizedPortal, token, requestKey) {
   if (inFlightThemeRequests.has(requestKey)) {
     return inFlightThemeRequests.get(requestKey);
   }
 
+  // request: handles request for the Settings flow.
   const request = (async () => {
     const response = await fetch(buildApiUrl(`/api/theme-settings/current/${normalizedPortal}`), {
       headers: { Authorization: `Bearer ${token}` },
@@ -146,6 +154,7 @@ export default function usePortalTheme(portalKey, fallbackTheme = null, options 
   }, [cacheKey, loadTheme]);
 
   useEffect(() => {
+    // handleLocalThemeUpdate: handles handle local theme update for the Settings flow.
     const handleLocalThemeUpdate = (event) => {
       if (event.detail?.portal_key !== normalizedPortal) return;
       const eventUserId = String(event.detail?.user_id || '').trim();

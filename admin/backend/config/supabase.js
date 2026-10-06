@@ -1,3 +1,4 @@
+// SMaRT-PDM: supabase — supabase (admin backend config); configures shared backend infrastructure.
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 const { installStorageSignedUrlCache } = require('./storageSignedUrlCache');

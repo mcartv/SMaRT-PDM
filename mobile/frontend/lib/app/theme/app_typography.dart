@@ -1,3 +1,4 @@
+// SMaRT-PDM: Settings — app typography (mobile frontend); supports mobile UI behavior.
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -16,6 +17,7 @@ class AppTypography {
   static TextTheme textTheme({required Color textColor}) {
     final base = GoogleFonts.interTextTheme();
 
+    // role: handles role for the Settings flow.
     TextStyle role(
       TextStyle? style, {
       required double fontSize,
@@ -73,6 +75,7 @@ class AppTypography {
     required Color textColor,
     required Color mutedTextColor,
   }) {
+    // role: handles role for the Settings flow.
     TextStyle role(
       TextStyle? style, {
       required double fontSize,

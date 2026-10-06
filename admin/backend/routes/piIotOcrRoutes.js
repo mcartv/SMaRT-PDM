@@ -1,3 +1,4 @@
+// SMaRT-PDM: OCR — pi Iot Ocr Routes (admin backend route); maps API endpoints to middleware and controllers.
 const express = require('express');
 
 const piIotOcrController = require('../controllers/piIotOcrController');

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Applications — application status summary (mobile frontend); supports mobile UI behavior.
 class ApplicationStatusSummary {
   const ApplicationStatusSummary({
     required this.hasApplication,
@@ -245,6 +246,7 @@ class WorkflowBlocker {
   }
 }
 
+// _asMap: handles as map for the Applications flow.
 Map<String, dynamic> _asMap(dynamic value) {
   if (value is Map<String, dynamic>) return value;
   if (value is Map) {
@@ -253,16 +255,19 @@ Map<String, dynamic> _asMap(dynamic value) {
   return <String, dynamic>{};
 }
 
+// _asList: handles as list for the Applications flow.
 List<dynamic> _asList(dynamic value) {
   if (value is List) return value;
   return const [];
 }
 
+// _stringValue: handles string value for the Applications flow.
 String _stringValue(dynamic value, {String fallback = ''}) {
   final text = value?.toString().trim() ?? '';
   return text.isEmpty ? fallback : text;
 }
 
+// _nullableString: handles nullable string for the Applications flow.
 String? _nullableString(dynamic value) {
   final text = value?.toString().trim() ?? '';
   return text.isEmpty ? null : text;

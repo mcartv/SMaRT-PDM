@@ -1,3 +1,4 @@
+// SMaRT-PDM: step academic — step academic (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 
@@ -13,6 +14,7 @@ class StepAcademic extends StatefulWidget {
   });
 
   @override
+  // createState: creates create state for the step academic flow.
   State<StepAcademic> createState() => _StepAcademicState();
 }
 
@@ -69,12 +71,14 @@ class _StepAcademicState extends State<StepAcademic> {
   bool disciplinaryAction = false;
   late final TextEditingController disciplinaryExplanationController;
 
+  // _dec: handles dec for the step academic flow.
   InputDecoration _dec(String placeholder) => InputDecoration(
     hintText: placeholder,
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
   );
 
+  // _field: handles field for the step academic flow.
   Widget _field(String label, Widget child) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -89,6 +93,7 @@ class _StepAcademicState extends State<StepAcademic> {
     ],
   );
 
+  // _row: handles row for the step academic flow.
   Widget _row(List<Widget> children) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -130,6 +135,7 @@ class _StepAcademicState extends State<StepAcademic> {
     );
   }
 
+  // _bind: handles bind for the step academic flow.
   void _bind(TextEditingController c, void Function(String) setter) {
     c.addListener(() {
       setter(c.text);
@@ -137,6 +143,7 @@ class _StepAcademicState extends State<StepAcademic> {
     });
   }
 
+  // _yearLevelError: handles year level error for the step academic flow.
   String? _yearLevelError() {
     if (!widget.showErrors) return null;
     final value = (selectedYearLevel ?? '').trim();
@@ -147,12 +154,14 @@ class _StepAcademicState extends State<StepAcademic> {
     return null;
   }
 
+  // _courseError: handles course error for the step academic flow.
   String? _courseError() {
     if (!widget.showErrors) return null;
     if ((selectedCourse ?? '').trim().isEmpty) return 'Course is required.';
     return null;
   }
 
+  // _sectionError: handles section error for the step academic flow.
   String? _sectionError() {
     if (!widget.showErrors) return null;
     final value = (selectedSection ?? '').trim();
@@ -162,6 +171,7 @@ class _StepAcademicState extends State<StepAcademic> {
         : 'Section must be A, B, C, or D.';
   }
 
+  // _studentNumberError: handles student number error for the step academic flow.
   String? _studentNumberError() {
     if (!widget.showErrors) return null;
     final studentNumber = studentNumberController.text.trim();
@@ -173,6 +183,7 @@ class _StepAcademicState extends State<StepAcademic> {
     return null;
   }
 
+  // _otherSupportError: handles other support error for the step academic flow.
   String? _otherSupportError() {
     if (!widget.showErrors) return null;
     if (selectedFinancialSupport != 'Other') return null;
@@ -183,6 +194,7 @@ class _StepAcademicState extends State<StepAcademic> {
   }
 
   @override
+  // initState: handles init state for the step academic flow.
   void initState() {
     super.initState();
 
@@ -348,6 +360,7 @@ class _StepAcademicState extends State<StepAcademic> {
   }
 
   @override
+  // dispose: handles dispose for the step academic flow.
   void dispose() {
     collegeSchoolController.dispose();
     collegeAddressController.dispose();
@@ -377,6 +390,7 @@ class _StepAcademicState extends State<StepAcademic> {
   }
 
   @override
+  // build: builds build for the step academic flow.
   Widget build(BuildContext context) {
     final isOtherSupport = selectedFinancialSupport == 'Other';
 
@@ -681,6 +695,7 @@ class _StepAcademicState extends State<StepAcademic> {
     );
   }
 
+  // buildBooleanRow: builds build boolean row for the step academic flow.
   Widget buildBooleanRow(
     String label,
     bool value,
@@ -718,6 +733,7 @@ class _StepAcademicState extends State<StepAcademic> {
     );
   }
 
+  // _buildCheck: handles build check for the step academic flow.
   Widget _buildCheck(String label, bool value, ValueChanged<bool> onChanged) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -728,6 +744,7 @@ class _StepAcademicState extends State<StepAcademic> {
     );
   }
 
+  // _section: handles section for the step academic flow.
   Widget _section(
     String title,
     TextEditingController school,

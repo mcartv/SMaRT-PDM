@@ -1,4 +1,5 @@
-﻿const path = require('path');
+﻿// SMaRT-PDM: Applications — application Service (admin backend service); contains business logic and data operations.
+const path = require('path');
 const https = require('https');
 const crypto = require('crypto');
 const supabase = require('../config/supabase');
@@ -15,6 +16,7 @@ const {
 const MINOR_DOCUMENT_REVIEW_STATUS = 'reupload_required';
 const MAJOR_DOCUMENT_REVIEW_STATUS = 'rejected';
 
+// normalizeDocumentReviewStatus: normalizes normalize document review status for the Applications flow.
 function normalizeDocumentReviewStatus(value = 'pending') {
     const normalized = String(value || '')
         .trim()
@@ -50,6 +52,7 @@ function normalizeDocumentReviewStatus(value = 'pending') {
     return 'pending';
 }
 
+// normalizeIssueSeverity: normalizes normalize issue severity for the Applications flow.
 function normalizeIssueSeverity(value, reviewStatus) {
     const normalized = String(value || '').trim().toLowerCase();
 
@@ -63,6 +66,7 @@ function normalizeIssueSeverity(value, reviewStatus) {
     return null;
 }
 
+// normalizeReasonCode: normalizes normalize reason code for the Applications flow.
 function normalizeReasonCode(value) {
     const normalized = String(value || '')
         .trim()
@@ -73,6 +77,7 @@ function normalizeReasonCode(value) {
     return normalized || null;
 }
 
+// deriveVerificationOutcome: derives derive verification outcome for the Applications flow.
 function deriveVerificationOutcome(reviews = []) {
     const hasMajorViolation = reviews.some(
         (review) =>
@@ -139,6 +144,7 @@ function buildReplacementNotification(applicationId, reviews = []) {
     };
 }
 
+// normalizeStorageBucketName: normalizes normalize storage bucket name for the Applications flow.
 function normalizeStorageBucketName(value, fallback = 'documents') {
     const normalized = String(value || fallback)
         .trim()
@@ -177,6 +183,7 @@ const DOCUMENT_VIEW_METADATA_CACHE_MAX_ENTRIES = Math.max(
 const documentViewMetadataCache = new Map();
 const documentViewMetadataInFlight = new Map();
 
+// pruneDocumentViewMetadataCache: handles prune document view metadata cache for the Applications flow.
 function pruneDocumentViewMetadataCache(now = Date.now()) {
     for (const [key, entry] of documentViewMetadataCache.entries()) {
         if (!entry || entry.expiresAt <= now) documentViewMetadataCache.delete(key);
@@ -188,6 +195,7 @@ function pruneDocumentViewMetadataCache(now = Date.now()) {
     }
 }
 
+// pruneSignedUrlCache: handles prune signed url cache for the Applications flow.
 function pruneSignedUrlCache(now = Date.now()) {
     for (const [key, entry] of signedUrlCache.entries()) {
         if (!entry || entry.expiresAt <= now) {
@@ -202,6 +210,7 @@ function pruneSignedUrlCache(now = Date.now()) {
     }
 }
 
+// createCachedSignedUrl: creates create cached signed url for the Applications flow.
 async function createCachedSignedUrl({
     bucket,
     filePath,
@@ -226,6 +235,7 @@ async function createCachedSignedUrl({
         return signedUrlInFlight.get(cacheKey);
     }
 
+    // request: handles request for the Applications flow.
     const request = (async () => {
         const { data, error } = await supabase.storage
             .from(bucket)
@@ -423,6 +433,7 @@ const ENDORSEMENT_STAGE_TOTAL = 3;
 
 const PSA_BIRTH_CERTIFICATE_DOCUMENT_KEY = 'birth_certificate';
 
+// getConfirmedPsaBirthCertificateOcrReview: reads and returns get confirmed psa birth certificate ocr review for the Applications flow.
 async function getConfirmedPsaBirthCertificateOcrReview(applicationId) {
     const result = await pool.query(
         `
@@ -445,6 +456,7 @@ async function getConfirmedPsaBirthCertificateOcrReview(applicationId) {
     return result.rows[0] || null;
 }
 
+// getUploadedPsaBirthCertificate: reads and returns get uploaded psa birth certificate for the Applications flow.
 async function getUploadedPsaBirthCertificate(applicationId) {
     const { data, error } = await supabase
         .from('application_documents')
@@ -464,6 +476,7 @@ async function getUploadedPsaBirthCertificate(applicationId) {
     ) || null;
 }
 
+// resolveRequirementsCompletedAt: resolves resolve requirements completed at for the Applications flow.
 async function resolveRequirementsCompletedAt(applicationId) {
     const result = await pool.query(
         `
@@ -483,12 +496,14 @@ async function resolveRequirementsCompletedAt(applicationId) {
     return result.rows[0]?.completed_at || null;
 }
 
+// buildHttpError: builds build http error for the Applications flow.
 function buildHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// isPrivateHostname: checks whether is private hostname for the Applications flow.
 function isPrivateHostname(hostname = '') {
     const normalized = String(hostname || '').trim().toLowerCase();
 
@@ -502,6 +517,7 @@ function isPrivateHostname(hostname = '') {
     );
 }
 
+// validateIotOcrEndpoint: validates validate iot ocr endpoint for the Applications flow.
 function validateIotOcrEndpoint(rawUrl) {
     if (!rawUrl) {
         throw buildHttpError(500, 'IOT_OCR_ENDPOINT_URL is not configured.');
@@ -536,6 +552,7 @@ function validateIotOcrEndpoint(rawUrl) {
     return parsedUrl.toString();
 }
 
+// extractAvatarStoragePath: handles extract avatar storage path for the Applications flow.
 function extractAvatarStoragePath(value) {
     const rawValue = String(value || '').trim();
     if (!rawValue) return null;
@@ -560,6 +577,7 @@ function extractAvatarStoragePath(value) {
     return null;
 }
 
+// resolveAvatarUrl: resolves resolve avatar url for the Applications flow.
 async function resolveAvatarUrl(value) {
     const rawValue = String(value || '').trim();
     if (!rawValue) return null;
@@ -582,6 +600,7 @@ async function resolveAvatarUrl(value) {
     }
 }
 
+// getOrdinalSuffix: reads and returns get ordinal suffix for the Applications flow.
 function getOrdinalSuffix(n) {
     const num = Number(n);
     if (num === 1) return 'st';
@@ -590,6 +609,7 @@ function getOrdinalSuffix(n) {
     return 'th';
 }
 
+// normalizeLookupValue: normalizes normalize lookup value for the Applications flow.
 function normalizeLookupValue(value) {
     return (value ?? '')
         .toString()
@@ -599,11 +619,13 @@ function normalizeLookupValue(value) {
         .trim();
 }
 
+// deriveSlipCode: derives derive slip code for the Applications flow.
 function deriveSlipCode(slipId) {
     const base = String(slipId || '').trim().split('-')[0].toUpperCase();
     return base ? `ES-${base}` : 'ES-PENDING';
 }
 
+// buildReadinessFlags: builds build readiness flags for the Applications flow.
 function buildReadinessFlags(row = {}) {
     const verificationStatus = normalizeLookupValue(row.verification_status);
     const applicationStatus = normalizeLookupValue(row.application_status);
@@ -714,6 +736,7 @@ function buildReadinessFlags(row = {}) {
     };
 }
 
+// fetchApplicationReadinessMap: fetches and returns fetch application readiness map for the Applications flow.
 async function fetchApplicationReadinessMap(applicationIds = []) {
     const normalizedIds = [...new Set((applicationIds || []).filter(Boolean))];
     if (!normalizedIds.length) {
@@ -807,11 +830,13 @@ async function fetchApplicationReadinessMap(applicationIds = []) {
     return readinessMap;
 }
 
+// fetchApplicationReadiness: fetches and returns fetch application readiness for the Applications flow.
 async function fetchApplicationReadiness(applicationId) {
     const readinessMap = await fetchApplicationReadinessMap([applicationId]);
     return readinessMap.get(applicationId) || buildReadinessFlags({});
 }
 
+// decorateApplicationRecordsWithReadiness: handles decorate application records with readiness for the Applications flow.
 async function decorateApplicationRecordsWithReadiness(records = []) {
     const readinessMap = await fetchApplicationReadinessMap(
         records.map((row) => row.application_id).filter(Boolean)
@@ -823,6 +848,7 @@ async function decorateApplicationRecordsWithReadiness(records = []) {
     }));
 }
 
+// buildVerificationOutcomeNotification: builds build verification outcome notification for the Applications flow.
 function buildVerificationOutcomeNotification({
     outcome,
     applicationId,
@@ -850,6 +876,7 @@ function buildVerificationOutcomeNotification({
     return null;
 }
 
+// relayStudentNotification: handles relay student notification for the Applications flow.
 async function relayStudentNotification({
     userId,
     type,
@@ -926,6 +953,7 @@ async function relayStudentNotification({
     return payload;
 }
 
+// insertNotificationFallback: inserts insert notification fallback for the Applications flow.
 async function insertNotificationFallback({
     userId,
     type,
@@ -963,6 +991,7 @@ async function insertNotificationFallback({
     return data;
 }
 
+// deliverVerificationOutcomeNotification: handles deliver verification outcome notification for the Applications flow.
 async function deliverVerificationOutcomeNotification({
     outcome,
     applicationId,
@@ -1213,6 +1242,7 @@ exports.requestApplicationFormReedit = async ({
     };
 };
 
+// normalizeDocumentType: normalizes normalize document type for the Applications flow.
 function normalizeDocumentType(value) {
     const normalized = String(value || '')
         .trim()
@@ -1226,6 +1256,7 @@ function normalizeDocumentType(value) {
     return DOCUMENT_TYPE_ALIASES[normalized] || normalized;
 }
 
+// getDocumentKey: reads and returns get document key for the Applications flow.
 function getDocumentKey(document = {}) {
     const raw =
         document.document_type ||
@@ -1236,6 +1267,7 @@ function getDocumentKey(document = {}) {
     return normalizeDocumentType(raw);
 }
 
+// deriveReviewStatus: derives derive review status for the Applications flow.
 function deriveReviewStatus(document = {}, review = null) {
     const preferredStatus = normalizeLookupValue(
         review?.review_status || document?.review_status
@@ -1270,6 +1302,7 @@ function deriveReviewStatus(document = {}, review = null) {
         : 'pending';
 }
 
+// deriveAggregateDocumentStatus: derives derive aggregate document status for the Applications flow.
 function deriveAggregateDocumentStatus(summary = {}) {
     const verifiedCount = Number(summary?.verified || 0);
     const uploadedCount = Number(summary?.uploaded || 0);
@@ -1284,6 +1317,7 @@ function deriveAggregateDocumentStatus(summary = {}) {
     return 'Under Review';
 }
 
+// ensureDocumentCoverage: ensures ensure document coverage for the Applications flow.
 function ensureDocumentCoverage(normalizedDocuments = []) {
     const documentMap = new Map(
         normalizedDocuments.map((document) => [document.id, document])
@@ -1321,6 +1355,7 @@ function ensureDocumentCoverage(normalizedDocuments = []) {
     return [...requiredDocuments, ...extraDocuments];
 }
 
+// resolveStorageContentType: resolves resolve storage content type for the Applications flow.
 function resolveStorageContentType(fileExt, fallbackMime = '') {
     const normalizedExt = (fileExt || '').toLowerCase();
 
@@ -1332,6 +1367,7 @@ function resolveStorageContentType(fileExt, fallbackMime = '') {
     return fallbackMime || 'application/octet-stream';
 }
 
+// normalizeOcrPayload: normalizes normalize ocr payload for the Applications flow.
 function normalizeOcrPayload(payload = {}) {
     const confidence =
         payload?.ocr_confidence ??
@@ -1374,10 +1410,12 @@ function normalizeOcrPayload(payload = {}) {
     };
 }
 
+// isRecord: checks whether is record for the Applications flow.
 function isRecord(value) {
     return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
+// sanitizeIssueCodes: handles sanitize issue codes for the Applications flow.
 function sanitizeIssueCodes(value) {
     if (!Array.isArray(value)) return [];
 
@@ -1387,6 +1425,7 @@ function sanitizeIssueCodes(value) {
         .filter(Boolean);
 }
 
+// sanitizeBirthStructuredFields: handles sanitize birth structured fields for the Applications flow.
 function sanitizeBirthStructuredFields(extractedFields = {}) {
     if (!isRecord(extractedFields)) return {};
 
@@ -1441,6 +1480,7 @@ function sanitizeBirthStructuredFields(extractedFields = {}) {
     return structured;
 }
 
+// sanitizeGenericStructuredFields: handles sanitize generic structured fields for the Applications flow.
 function sanitizeGenericStructuredFields(extractedFields = {}) {
     if (!isRecord(extractedFields)) return {};
 
@@ -1452,6 +1492,7 @@ function sanitizeGenericStructuredFields(extractedFields = {}) {
     }
 }
 
+// sanitizeStructuredOcrFields: handles sanitize structured ocr fields for the Applications flow.
 function sanitizeStructuredOcrFields(documentKey, extractedFields = {}) {
     const normalizedDocumentKey = normalizeDocumentType(documentKey);
     const documentType = normalizeDocumentType(extractedFields?.document_type);
@@ -1464,6 +1505,7 @@ function sanitizeStructuredOcrFields(documentKey, extractedFields = {}) {
         : sanitizeGenericStructuredFields(extractedFields);
 }
 
+// sanitizeOcrProcessingMetadata: handles sanitize ocr processing metadata for the Applications flow.
 function sanitizeOcrProcessingMetadata(sourcePayload = {}, structuredFields = {}) {
     if (!isRecord(sourcePayload)) return {};
 
@@ -1521,6 +1563,7 @@ function sanitizeOcrProcessingMetadata(sourcePayload = {}, structuredFields = {}
     return metadata;
 }
 
+// deriveOcrReviewRequired: derives derive ocr review required for the Applications flow.
 function deriveOcrReviewRequired({
     structuredFields = {},
     sourcePayload = {},
@@ -1536,6 +1579,7 @@ function deriveOcrReviewRequired({
     );
 }
 
+// buildStructuredOcrPersistence: builds build structured ocr persistence for the Applications flow.
 function buildStructuredOcrPersistence({
     documentKey,
     extractedFields,
@@ -1565,6 +1609,7 @@ function buildStructuredOcrPersistence({
     };
 }
 
+// buildOcrProjection: builds build ocr projection for the Applications flow.
 function buildOcrProjection(ocrRow = {}) {
     return {
         id: ocrRow.document_id || null,
@@ -1591,6 +1636,7 @@ function buildOcrProjection(ocrRow = {}) {
     };
 }
 
+// buildOcrOnlyDocument: builds build ocr only document for the Applications flow.
 function buildOcrOnlyDocument({
     documentKey,
     ocr,
@@ -1619,6 +1665,7 @@ function buildOcrOnlyDocument({
     };
 }
 
+// resolveIotExtractedName: resolves resolve iot extracted name for the Applications flow.
 function resolveIotExtractedName(extractedFields = {}) {
     if (!extractedFields || typeof extractedFields !== 'object') return null;
 
@@ -1644,6 +1691,7 @@ function resolveIotExtractedName(extractedFields = {}) {
     return null;
 }
 
+// resolveStoredExtractedName: resolves resolve stored extracted name for the Applications flow.
 function resolveStoredExtractedName({
     extractedFields = {},
     scannedViaIot = false,
@@ -1655,6 +1703,7 @@ function resolveStoredExtractedName({
     return extractedName || existingExtractedName || studentName || null;
 }
 
+// isUuid: checks whether is uuid for the Applications flow.
 function isUuid(value) {
     if (!value) return false;
 
@@ -1662,10 +1711,12 @@ function isUuid(value) {
         .test(String(value).trim());
 }
 
+// isAsyncIotOcrStart: checks whether is async iot ocr start for the Applications flow.
 function isAsyncIotOcrStart(response, payload = {}) {
     return response.status === 202 || payload?.status === 'started';
 }
 
+// getSignedFileUrl: reads and returns get signed file url for the Applications flow.
 async function getSignedFileUrl(filePath) {
     if (!filePath) return null;
 
@@ -1687,6 +1738,7 @@ async function getSignedFileUrl(filePath) {
     }
 }
 
+// getCachedApplicationDocumentForView: reads and returns get cached application document for view for the Applications flow.
 async function getCachedApplicationDocumentForView(applicationId, documentKey) {
     const key = normalizeDocumentType(documentKey);
     const cacheKey = `${applicationId}:${key}`;
@@ -1701,6 +1753,7 @@ async function getCachedApplicationDocumentForView(applicationId, documentKey) {
         return documentViewMetadataInFlight.get(cacheKey);
     }
 
+    // request: handles request for the Applications flow.
     const request = (async () => {
         const { data: rows, error } = await supabase
             .from('application_documents')
@@ -1756,6 +1809,7 @@ exports.fetchApplicationDocumentViewUrl = async ({ applicationId, documentKey, s
     };
 };
 
+// buildApplicationDetails: builds build application details for the Applications flow.
 async function buildApplicationDetails(applicationId) {
     const { data: applicationRecord, error: applicationError } = await supabase
         .from('applications')
@@ -2747,6 +2801,7 @@ async function buildApplicationDetails(applicationId) {
     };
 }
 
+// dedupeOperationalApplicationRows: handles dedupe operational application rows for the Applications flow.
 function dedupeOperationalApplicationRows(rows = []) {
     const grouped = new Map();
 

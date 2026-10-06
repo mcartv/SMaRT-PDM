@@ -1,3 +1,4 @@
+// SMaRT-PDM: Final Selection Panel — Final Selection Panel (admin frontend component); renders reusable UI and handles local interactions.
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
@@ -16,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
+// responseMessage: handles response message for the Final Selection Panel flow.
 async function responseMessage(response, fallback) {
   try {
     const payload = await response.json();
@@ -25,6 +27,7 @@ async function responseMessage(response, fallback) {
   }
 }
 
+// formatDateTime: formats format date time for the Final Selection Panel flow.
 function formatDateTime(value) {
   if (!value) return 'Not recorded';
   const date = new Date(value);
@@ -38,6 +41,7 @@ function formatDateTime(value) {
   });
 }
 
+// DecisionBadge: handles decision badge for the Final Selection Panel flow.
 function DecisionBadge({ value }) {
   const normalized = String(value || '').toLowerCase();
   const classes = normalized === 'selected'
@@ -62,6 +66,7 @@ export default function FinalSelectionPanel({ openingId, onFinalized }) {
   const [finalizing, setFinalizing] = useState(false);
   const [error, setError] = useState('');
 
+  // load: loads and returns load for the Final Selection Panel flow.
   const load = async ({ soft = false } = {}) => {
     try {
       soft ? setRefreshing(true) : setLoading(true);
@@ -93,6 +98,7 @@ export default function FinalSelectionPanel({ openingId, onFinalized }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openingId]);
 
+  // finalize: handles finalize for the Final Selection Panel flow.
   const finalize = async () => {
     const selected = Number(data?.summary?.selected_count || 0);
     const waitlisted = Number(data?.summary?.waitlisted_count || 0);

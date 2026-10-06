@@ -1,3 +1,4 @@
+// SMaRT-PDM: Renewal — Renewal Review.Backup (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
@@ -42,6 +43,7 @@ export default function RenewalReview() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('All');
 
+  // loadRenewals: loads and returns load renewals for the Renewal flow.
   const loadRenewals = async () => {
     try {
       setLoading(true);

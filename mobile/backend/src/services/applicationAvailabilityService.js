@@ -1,6 +1,8 @@
+// SMaRT-PDM: Applications — application Availability Service (mobile backend service); contains mobile-facing business logic and data operations.
 const MANILA_TIME_ZONE = 'Asia/Manila';
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+// createAvailabilityError: creates create availability error for the Applications flow.
 function createAvailabilityError(statusCode, code, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -8,6 +10,7 @@ function createAvailabilityError(statusCode, code, message) {
   return error;
 }
 
+// normalizeDateOnly: normalizes normalize date only for the Applications flow.
 function normalizeDateOnly(value) {
   if (value == null || String(value).trim() === '') return null;
 
@@ -28,6 +31,7 @@ function normalizeDateOnly(value) {
   return normalized;
 }
 
+// getManilaDateKey: reads and returns get manila date key for the Applications flow.
 function getManilaDateKey(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: MANILA_TIME_ZONE,
@@ -43,6 +47,7 @@ function getManilaDateKey(now = new Date()) {
   return `${value.year}-${value.month}-${value.day}`;
 }
 
+// loadApplicationAvailabilityPolicy: loads and returns load application availability policy for the Applications flow.
 async function loadApplicationAvailabilityPolicy({ now = new Date() } = {}) {
   const supabase = require('../config/supabase');
   const [settingsResult, periodResult] = await Promise.all([
@@ -97,6 +102,7 @@ async function loadApplicationAvailabilityPolicy({ now = new Date() } = {}) {
   };
 }
 
+// assertGlobalApplicationAvailability: handles assert global application availability for the Applications flow.
 function assertGlobalApplicationAvailability(policy) {
   if (policy?.can_apply !== false) return;
 
@@ -107,6 +113,7 @@ function assertGlobalApplicationAvailability(policy) {
   );
 }
 
+// assertOpeningInActivePeriod: handles assert opening in active period for the Applications flow.
 function assertOpeningInActivePeriod(opening, policy) {
   if (!policy?.activePeriod?.period_id) {
     throw createAvailabilityError(

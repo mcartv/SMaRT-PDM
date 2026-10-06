@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — SDOScholar List (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -83,10 +84,12 @@ const STATUS_OPTIONS = [
   { value: 'major', label: 'Major' },
 ];
 
+// getToken: reads and returns get token for the Scholars flow.
 function getToken() {
   return sessionStorage.getItem('sdoToken');
 }
 
+// getInitials: reads and returns get initials for the Scholars flow.
 function getInitials(name = '') {
   return (name || 'NA')
     .split(' ')
@@ -96,12 +99,14 @@ function getInitials(name = '') {
     .toUpperCase();
 }
 
+// normalizeStatus: normalizes normalize status for the Scholars flow.
 function normalizeStatus(status) {
   if (status === 'minor') return 'Minor';
   if (status === 'major') return 'Major';
   return 'Clear';
 }
 
+// getEditableStatus: reads and returns get editable status for the Scholars flow.
 function getEditableStatus(status) {
   const normalized = String(status || '').trim().toLowerCase();
   if (normalized === 'minor' || normalized === 'minor offense') return 'minor';
@@ -109,10 +114,12 @@ function getEditableStatus(status) {
   return 'clear';
 }
 
+// getSdoStyle: reads and returns get sdo style for the Scholars flow.
 function getSdoStyle(status) {
   return SDO_STYLE[status || 'none'] || SDO_STYLE.none;
 }
 
+// formatDate: formats format date for the Scholars flow.
 function formatDate(value) {
   if (!value) return 'N/A';
   const d = new Date(value);
@@ -124,6 +131,7 @@ function formatDate(value) {
   });
 }
 
+// ProfileDetail: handles profile detail for the Scholars flow.
 function ProfileDetail({ icon: Icon, label, children, wide = false }) {
   return (
     <div className={`rounded-xl border border-stone-200 bg-white px-4 py-3.5 ${wide ? 'sm:col-span-2' : ''}`}>
@@ -138,6 +146,7 @@ function ProfileDetail({ icon: Icon, label, children, wide = false }) {
   );
 }
 
+// ScholarViewModal: handles scholar view modal for the Scholars flow.
 function ScholarViewModal({ scholar, theme, onClose }) {
   useEffect(() => {
     if (!scholar) return undefined;
@@ -263,6 +272,7 @@ function ScholarViewModal({ scholar, theme, onClose }) {
   );
 }
 
+// DisciplinaryStandingConfirmModal: handles disciplinary standing confirm modal for the Scholars flow.
 function DisciplinaryStandingConfirmModal({
   action,
   remarks,
@@ -381,6 +391,7 @@ export default function SDOScholarList() {
   const [pendingStanding, setPendingStanding] = useState(null);
   const [confirmationRemarks, setConfirmationRemarks] = useState('');
 
+  // loadScholars: loads and returns load scholars for the Scholars flow.
   const loadScholars = async ({ soft = false } = {}) => {
     try {
       if (!soft) {
@@ -521,6 +532,7 @@ export default function SDOScholarList() {
     return filteredScholars.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   }, [filteredScholars, page]);
 
+  // requestStandingUpdate: handles request standing update for the Scholars flow.
   const requestStandingUpdate = (scholar, status) => {
     if (status === getEditableStatus(scholar.sdu_level)) return;
     setError('');
@@ -528,12 +540,14 @@ export default function SDOScholarList() {
     setConfirmationRemarks(scholar.sdo_comment || '');
   };
 
+  // closeStandingConfirmation: handles close standing confirmation for the Scholars flow.
   const closeStandingConfirmation = () => {
     setPendingStanding(null);
     setConfirmationRemarks('');
     setError('');
   };
 
+  // handleSave: handles handle save for the Scholars flow.
   const handleSave = async () => {
     if (!pendingStanding) return;
 

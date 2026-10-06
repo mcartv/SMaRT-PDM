@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — scholarship Branding Service (admin backend service); contains business logic and data operations.
 const path = require('path');
 const supabase = require('../config/supabase');
 
@@ -35,6 +36,7 @@ const SLOT_CONFIG = {
   },
 };
 
+// validateFile: validates validate file for the Scholars flow.
 function validateFile(file) {
   if (!file?.buffer?.length) {
     const error = new Error('Image file is required');
@@ -55,6 +57,7 @@ function validateFile(file) {
   }
 }
 
+// ensureBucket: ensures ensure bucket for the Scholars flow.
 async function ensureBucket() {
   const { data, error } = await supabase.storage.getBucket(BUCKET);
   if (!error && data) return;
@@ -75,6 +78,7 @@ async function ensureBucket() {
   }
 }
 
+// resolveConfig: resolves resolve config for the Scholars flow.
 function resolveConfig(entityType, slot) {
   const entity = ENTITY_CONFIG[entityType];
   const brandingSlot = SLOT_CONFIG[slot];
@@ -88,6 +92,7 @@ function resolveConfig(entityType, slot) {
   return { entity, brandingSlot };
 }
 
+// getCurrentRow: reads and returns get current row for the Scholars flow.
 async function getCurrentRow(entity, entityId, brandingSlot) {
   const { data, error } = await supabase
     .from(entity.table)
@@ -105,6 +110,7 @@ async function getCurrentRow(entity, entityId, brandingSlot) {
   return data;
 }
 
+// uploadBrandingImage: uploads upload branding image for the Scholars flow.
 async function uploadBrandingImage({ entityType, entityId, slot, file }) {
   validateFile(file);
   const { entity, brandingSlot } = resolveConfig(entityType, slot);
@@ -156,6 +162,7 @@ async function uploadBrandingImage({ entityType, entityId, slot, file }) {
   return data;
 }
 
+// removeBrandingImage: removes remove branding image for the Scholars flow.
 async function removeBrandingImage({ entityType, entityId, slot }) {
   const { entity, brandingSlot } = resolveConfig(entityType, slot);
   const current = await getCurrentRow(entity, entityId, brandingSlot);

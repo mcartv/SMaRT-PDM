@@ -1,3 +1,4 @@
+// SMaRT-PDM: Endorsement — Endorsement Slip Detail (admin frontend page); loads data, handles page actions, and renders the admin view.
 import { formatSystemLabel } from '@/utils/profileDisplay';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
@@ -23,6 +24,7 @@ import usePortalTheme from '@/hooks/usePortalTheme';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
 
+// getInitials: reads and returns get initials for the Endorsement flow.
 function getInitials(name = '') {
   return (name || 'NA')
     .split(' ')
@@ -51,6 +53,7 @@ const STAGE_META = {
   disqualified_major: 'bg-red-50 text-red-700',
 };
 
+// formatDate: formats format date for the Endorsement flow.
 function formatDate(value) {
   if (!value) return 'N/A';
   const date = new Date(value);
@@ -64,10 +67,12 @@ function formatDate(value) {
   });
 }
 
+// formatStageBadgeLabel: formats format stage badge label for the Endorsement flow.
 function formatStageBadgeLabel(value = '') {
   return formatSystemLabel(value || 'Pending');
 }
 
+// StageIcon: handles stage icon for the Endorsement flow.
 function StageIcon({ status }) {
   if (['completed', 'approved', 'cleared', 'no_offense', 'good_moral_standing', 'good_scholastic_standing'].includes(status)) {
     return <CheckCircle2 className="h-4 w-4 text-green-700" />;
@@ -78,6 +83,7 @@ function StageIcon({ status }) {
   return <Clock3 className="h-4 w-4 text-amber-700" />;
 }
 
+// portalMeta: handles portal meta for the Endorsement flow.
 function portalMeta(tokenStorageKey) {
   if (tokenStorageKey === 'adminToken') {
     return {
@@ -118,6 +124,7 @@ function portalMeta(tokenStorageKey) {
   };
 }
 
+// DetailItem: handles detail item for the Endorsement flow.
 function DetailItem({ label, value, mono = false }) {
   return (
     <div className="rounded-2xl bg-stone-50 px-4 py-3">
@@ -129,6 +136,7 @@ function DetailItem({ label, value, mono = false }) {
   );
 }
 
+// OfficeResultCard: handles office result card for the Endorsement flow.
 function OfficeResultCard({ title, result, note, detailLines = [] }) {
   return (
     <div className="rounded-[22px] border border-stone-200 bg-white p-4">
@@ -260,6 +268,7 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
     );
   }
 
+  // handleDownloadSlip: handles handle download slip for the Endorsement flow.
   const handleDownloadSlip = async () => {
     try {
       setDownloading(true);

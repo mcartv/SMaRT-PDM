@@ -1,3 +1,4 @@
+// SMaRT-PDM: step family intake — step family intake (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
@@ -19,6 +20,7 @@ class StepFamily extends StatefulWidget {
   final bool showErrors;
 
   @override
+  // createState: creates create state for the step family intake flow.
   State<StepFamily> createState() => _StepFamilyState();
 }
 
@@ -82,6 +84,7 @@ class _StepFamilyState extends State<StepFamily> {
   bool noSibling = false;
 
   @override
+  // initState: handles init state for the step family intake flow.
   void initState() {
     super.initState();
 
@@ -341,6 +344,7 @@ class _StepFamilyState extends State<StepFamily> {
     });
   }
 
+  // _syncPreviousOrigin: handles sync previous origin for the step family intake flow.
   void _syncPreviousOrigin() {
     final town = widget.data.parentPreviousTownMunicipality.trim();
     final origin = [
@@ -351,6 +355,7 @@ class _StepFamilyState extends State<StepFamily> {
     parentPreviousTownProvinceController.text = origin;
   }
 
+  // _bind: handles bind for the step family intake flow.
   void _bind(TextEditingController controller, void Function(String) setter) {
     controller.addListener(() {
       setter(controller.text);
@@ -358,6 +363,7 @@ class _StepFamilyState extends State<StepFamily> {
     });
   }
 
+  // _educationSelection: handles education selection for the step family intake flow.
   String? _educationSelection(String value) {
     final canonical = ApplicationData.normalizeEducationalAttainment(value);
     if (canonical != null && educationalOptions.contains(canonical)) {
@@ -366,6 +372,7 @@ class _StepFamilyState extends State<StepFamily> {
     return educationalOptions.contains(value.trim()) ? value.trim() : null;
   }
 
+  // _dec: handles dec for the step family intake flow.
   InputDecoration _dec(
     String hint, {
     String? errorText,
@@ -379,11 +386,13 @@ class _StepFamilyState extends State<StepFamily> {
     readOnly: readOnly,
   );
 
+  // _requiredError: handles required error for the step family intake flow.
   String? _requiredError(String value, String label) {
     if (!widget.showErrors || value.trim().isNotEmpty) return null;
     return '$label is required.';
   }
 
+  // _parentAddressError: handles parent address error for the step family intake flow.
   String? _parentAddressError() {
     if (!widget.showErrors || sameAddress) return null;
     return parentAddressController.text.trim().isEmpty
@@ -398,6 +407,7 @@ class _StepFamilyState extends State<StepFamily> {
     '11': 'More than 10 years',
   };
 
+  // _normalizeResidencyDuration: handles normalize residency duration for the step family intake flow.
   String _normalizeResidencyDuration(String value) {
     final raw = value.trim();
     if (raw.toUpperCase() == 'N/A') return 'N/A';
@@ -420,11 +430,13 @@ class _StepFamilyState extends State<StepFamily> {
     return '11';
   }
 
+  // _residencyDurationLabel: handles residency duration label for the step family intake flow.
   String _residencyDurationLabel(String value) {
     final normalized = _normalizeResidencyDuration(value);
     return _residencyDurationOptions[normalized] ?? value.trim();
   }
 
+  // _parentResidencyDurationError: handles parent residency duration error for the step family intake flow.
   String? _parentResidencyDurationError() {
     if (!widget.showErrors || selectedParentNative == 'No') return null;
     final normalized = _normalizeResidencyDuration(
@@ -438,11 +450,13 @@ class _StepFamilyState extends State<StepFamily> {
     return null;
   }
 
+  // _residencyYearOptions: handles residency year options for the step family intake flow.
   List<String> _residencyYearOptions() => [
     ..._residencyDurationOptions.keys,
     'N/A',
   ];
 
+  // _primaryCarerError: handles primary carer error for the step family intake flow.
   String? _primaryCarerError() {
     if (!widget.showErrors) return null;
     final hasFatherName =
@@ -461,6 +475,7 @@ class _StepFamilyState extends State<StepFamily> {
         : 'Enter the complete name of at least one parent or guardian.';
   }
 
+  // _field: handles field for the step family intake flow.
   Widget _field(String label, Widget child, {bool required = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -471,6 +486,7 @@ class _StepFamilyState extends State<StepFamily> {
     );
   }
 
+  // _row: handles row for the step family intake flow.
   Widget _row(List<Widget> fields) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -513,6 +529,7 @@ class _StepFamilyState extends State<StepFamily> {
     );
   }
 
+  // _buildApplicantAddress: handles build applicant address for the step family intake flow.
   String _buildApplicantAddress() {
     final parts = [
       widget.data.unitBldgNo,
@@ -528,6 +545,7 @@ class _StepFamilyState extends State<StepFamily> {
     return parts.join(', ');
   }
 
+  // _applySameAddress: handles apply same address for the step family intake flow.
   void _applySameAddress(bool value) {
     setState(() {
       sameAddress = value;
@@ -544,6 +562,7 @@ class _StepFamilyState extends State<StepFamily> {
     widget.onChanged();
   }
 
+  // _setGuardianOnly: handles set guardian only for the step family intake flow.
   void _setGuardianOnly(bool value) {
     setState(() {
       guardianOnly = value;
@@ -564,6 +583,7 @@ class _StepFamilyState extends State<StepFamily> {
     widget.onChanged();
   }
 
+  // _setHasFather: handles set has father for the step family intake flow.
   void _setHasFather(bool value) {
     setState(() {
       hasFather = value;
@@ -579,6 +599,7 @@ class _StepFamilyState extends State<StepFamily> {
     widget.onChanged();
   }
 
+  // _setHasMother: handles set has mother for the step family intake flow.
   void _setHasMother(bool value) {
     setState(() {
       hasMother = value;
@@ -594,6 +615,7 @@ class _StepFamilyState extends State<StepFamily> {
     widget.onChanged();
   }
 
+  // _siblingDataIsNotApplicable: handles sibling data is not applicable for the step family intake flow.
   bool _siblingDataIsNotApplicable() {
     return [
       widget.data.siblingLastName,
@@ -606,6 +628,7 @@ class _StepFamilyState extends State<StepFamily> {
     ].every((value) => value.trim().toUpperCase() == 'N/A');
   }
 
+  // _setNoSibling: handles set no sibling for the step family intake flow.
   void _setNoSibling(bool value) {
     setState(() {
       noSibling = value;
@@ -642,6 +665,7 @@ class _StepFamilyState extends State<StepFamily> {
 
   bool get _showGuardianFields => true;
 
+  // _copyGuardian: handles copy guardian for the step family intake flow.
   void _copyGuardian(String relation) {
     final people = {
       'Father': [
@@ -693,12 +717,14 @@ class _StepFamilyState extends State<StepFamily> {
     widget.onChanged();
   }
 
+  // _isValidFamilyMobile: handles is valid family mobile for the step family intake flow.
   bool _isValidFamilyMobile(String value) {
     return AppFieldValidators.philippineMobile(value, required: false) ==
             null &&
         value.trim().isNotEmpty;
   }
 
+  // _familyMobileError: handles family mobile error for the step family intake flow.
   String? _familyMobileError(String value, {bool required = false}) {
     if (!widget.showErrors) return null;
     final normalized = value.trim();
@@ -710,6 +736,7 @@ class _StepFamilyState extends State<StepFamily> {
     );
   }
 
+  // _familyNameError: handles family name error for the step family intake flow.
   String? _familyNameError(String value, String label, {int minLength = 2}) {
     if (!widget.showErrors) return null;
     if (value.trim().toUpperCase() == 'N/A') return null;
@@ -727,6 +754,7 @@ class _StepFamilyState extends State<StepFamily> {
     LengthLimitingTextInputFormatter(11),
   ];
 
+  // _personSection: handles person section for the step family intake flow.
   Widget _personSection({
     required String title,
     required TextEditingController lastNameController,
@@ -944,6 +972,7 @@ class _StepFamilyState extends State<StepFamily> {
   }
 
   @override
+  // dispose: handles dispose for the step family intake flow.
   void dispose() {
     parentAddressController.dispose();
     fatherLastNameController.dispose();
@@ -977,6 +1006,7 @@ class _StepFamilyState extends State<StepFamily> {
   }
 
   @override
+  // build: builds build for the step family intake flow.
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

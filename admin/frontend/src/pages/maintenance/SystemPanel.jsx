@@ -1,3 +1,4 @@
+// SMaRT-PDM: Maintenance — System Panel (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -63,10 +64,12 @@ const DEFAULT_STATUS = {
     },
 };
 
+// responseMessage: handles response message for the Maintenance flow.
 function responseMessage(payload, fallback) {
     return payload?.error || payload?.message || fallback;
 }
 
+// fileNameFromDisposition: handles file name from disposition for the Maintenance flow.
 function fileNameFromDisposition(value) {
     const header = String(value || '');
     const encodedMatch = /filename\*=UTF-8''([^;]+)/i.exec(header);
@@ -151,6 +154,7 @@ export default function SystemPanel({ embedded = false, editing = true }) {
         return () => window.clearInterval(timer);
     }, [loadStatus]);
 
+    // handleMaintenanceToggle: handles handle maintenance toggle for the Maintenance flow.
     const handleMaintenanceToggle = async (nextValue) => {
         if (!editing) {
             toast.info('Editing is locked', {
@@ -203,6 +207,7 @@ export default function SystemPanel({ embedded = false, editing = true }) {
         }
     };
 
+    // handleDatabaseBackup: handles handle database backup for the Maintenance flow.
     const handleDatabaseBackup = async () => {
         try {
             setCreatingBackup(true);

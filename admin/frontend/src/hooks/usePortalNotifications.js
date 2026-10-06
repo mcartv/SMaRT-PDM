@@ -1,3 +1,4 @@
+// SMaRT-PDM: Notifications — use Portal Notifications (admin frontend); supports admin-side UI behavior.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buildApiUrl } from '@/config/api';
 import { useSocketListener } from './useSocket';
@@ -12,6 +13,7 @@ const NOTIFICATION_TYPE_OPTIONS = Object.freeze([
   { value: 'ro', label: 'RO' },
 ]);
 
+// deriveNotificationCategory: derives derive notification category for the Notifications flow.
 function deriveNotificationCategory(notification = {}) {
   const type = String(notification.type || '').trim().toLowerCase();
   const title = String(notification.title || '').trim().toLowerCase();
@@ -44,12 +46,14 @@ function deriveNotificationCategory(notification = {}) {
   return 'other';
 }
 
+// deriveNotificationPriority: derives derive notification priority for the Notifications flow.
 function deriveNotificationPriority(category) {
   if (category === 'disqualification') return 'major';
   if (category === 'need_review' || category === 'ro') return 'normal';
   return 'minor';
 }
 
+// normalizeNotification: normalizes normalize notification for the Notifications flow.
 function normalizeNotification(raw = {}) {
   const normalized = {
     notification_id: raw.notification_id || raw.notificationId || raw.id || '',
@@ -76,6 +80,7 @@ function sortNotifications(items = []) {
   });
 }
 
+// isTodayNotification: checks whether is today notification for the Notifications flow.
 function isTodayNotification(notification, now = Date.now()) {
   if (!notification?.created_at) return false;
 
@@ -88,6 +93,7 @@ function isTodayNotification(notification, now = Date.now()) {
     createdAt.getDate() === today.getDate();
 }
 
+// formatNotificationTime: formats format notification time for the Notifications flow.
 function formatNotificationTime(value) {
   if (!value) return 'Unknown time';
 
@@ -114,6 +120,7 @@ function formatNotificationTime(value) {
   });
 }
 
+// buildNotificationTarget: builds build notification target for the Notifications flow.
 function buildNotificationTarget(portalRootPath, notification) {
   const referenceType = String(notification.reference_type || '').toLowerCase();
   const referenceId = notification.reference_id;

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — payout service (mobile service); calls APIs or shared services and returns processed results.
 import 'dart:typed_data';
 
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
@@ -75,6 +76,7 @@ class PayoutService {
 
   final ApiClient _apiClient;
 
+  // _contentTypeForFileName: handles content type for file name for the Scholars flow.
   String _contentTypeForFileName(String fileName) {
     final normalized = fileName.trim().toLowerCase();
 
@@ -88,6 +90,7 @@ class PayoutService {
     return 'application/octet-stream';
   }
 
+  // fetchMyPayouts: fetches and returns fetch my payouts for the Scholars flow.
   Future<List<MobilePayoutItem>> fetchMyPayouts() async {
     final response = await _apiClient.getObject('/api/payouts/me');
     final items = (response['items'] as List<dynamic>? ?? const [])
@@ -100,6 +103,7 @@ class PayoutService {
     return items;
   }
 
+  // uploadProof: uploads upload proof for the Scholars flow.
   Future<PayoutProof> uploadProof({
     required String payoutEntryId,
     required String fileName,

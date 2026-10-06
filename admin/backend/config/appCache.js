@@ -1,3 +1,4 @@
+// SMaRT-PDM: Caching — app Cache (admin backend config); configures shared backend infrastructure.
 'use strict';
 
 /**
@@ -63,10 +64,12 @@ const REALTIME_TABLE_NAMESPACES = {
     ro_settings: ['ro', 'ro-coordinator'],
 };
 
+// normalizeNamespace: normalizes normalize namespace for the Caching flow.
 function normalizeNamespace(value) {
     return String(value || 'default').trim().toLowerCase() || 'default';
 }
 
+// prune: handles prune for the Caching flow.
 function prune(now = Date.now()) {
     for (const [key, entry] of store.entries()) {
         if (!entry || entry.expiresAt <= now) {
@@ -81,6 +84,7 @@ function prune(now = Date.now()) {
     }
 }
 
+// buildKey: builds build key for the Caching flow.
 function buildKey({
     namespace,
     scopeKey = 'public',
@@ -95,6 +99,7 @@ function buildKey({
     ].join('|');
 }
 
+// getJson: reads and returns get json for the Caching flow.
 function getJson(key, now = Date.now()) {
     const entry = store.get(String(key || ''));
 
@@ -116,6 +121,7 @@ function getJson(key, now = Date.now()) {
     };
 }
 
+// setJson: sets set json for the Caching flow.
 function setJson(
     key,
     {
@@ -153,6 +159,7 @@ function setJson(
     return true;
 }
 
+// invalidateNamespaces: handles invalidate namespaces for the Caching flow.
 function invalidateNamespaces(namespaces = []) {
     const normalized = new Set(
         (Array.isArray(namespaces) ? namespaces : [namespaces])
@@ -174,12 +181,14 @@ function invalidateNamespaces(namespaces = []) {
     return removed;
 }
 
+// clearAll: clears clear all for the Caching flow.
 function clearAll() {
     const count = store.size;
     store.clear();
     return count;
 }
 
+// installSupabaseRealtimeInvalidation: handles install supabase realtime invalidation for the Caching flow.
 function installSupabaseRealtimeInvalidation(supabase) {
     if (!supabase?.channel || supabase.__smartPdmCacheInvalidationInstalled) {
         return supabase;
@@ -240,6 +249,7 @@ function installSupabaseRealtimeInvalidation(supabase) {
     return supabase;
 }
 
+// getStats: reads and returns get stats for the Caching flow.
 function getStats() {
     prune();
 

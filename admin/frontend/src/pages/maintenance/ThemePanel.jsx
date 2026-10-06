@@ -1,3 +1,4 @@
+// SMaRT-PDM: Maintenance — Theme Panel (admin frontend page); loads data, handles page actions, and renders the admin view.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { AlertCircle, BarChart3, CheckCircle2, Loader2, Moon, Palette, Plus, RotateCcw, Save, X } from 'lucide-react';
@@ -29,6 +30,7 @@ const PORTAL_HELPERS = {
 };
 
 
+// decodeTokenPayload: handles decode token payload for the Maintenance flow.
 function decodeTokenPayload(token) {
   try {
     const encoded = String(token || '').split('.')[1];
@@ -41,15 +43,18 @@ function decodeTokenPayload(token) {
   }
 }
 
+// getUserIdFromToken: reads and returns get user id from token for the Maintenance flow.
 function getUserIdFromToken(token) {
   const payload = decodeTokenPayload(token);
   return payload.user_id || payload.userId || payload.sub || payload.id || '';
 }
 
+// personalThemeCacheKey: handles personal theme cache key for the Maintenance flow.
 function personalThemeCacheKey(portalKey, userId) {
   return `smartpdm-theme-${portalKey}-${userId}`;
 }
 
+// readPersonalThemeCache: handles read personal theme cache for the Maintenance flow.
 function readPersonalThemeCache(portalKeys, tokenStorageKey) {
   const token = sessionStorage.getItem(tokenStorageKey) || '';
   const userId = getUserIdFromToken(token);
@@ -77,6 +82,7 @@ function readPersonalThemeCache(portalKeys, tokenStorageKey) {
   return { settings, customColors, forceDarkModes, hasAny, userId };
 }
 
+// writePersonalThemeCache: handles write personal theme cache for the Maintenance flow.
 function writePersonalThemeCache(portalKey, userId, presetKey, colors, forceDarkMode = false) {
   if (!portalKey || !userId) return;
   try {
@@ -103,6 +109,7 @@ const CUSTOM_COLOR_FIELDS = [
   { key: 'chartQuaternary', label: 'Chart color 4' },
 ];
 
+// ThemePreviewCard: handles theme preview card for the Maintenance flow.
 function ThemePreviewCard({ portalKey, presetKey, customColors = null }) {
   const theme = resolvePortalTheme(portalKey, presetKey, customColors);
 
@@ -156,6 +163,7 @@ function ThemePreviewCard({ portalKey, presetKey, customColors = null }) {
   );
 }
 
+// CustomThemeModal: handles custom theme modal for the Maintenance flow.
 function CustomThemeModal({ portalKey, colors, saving, onChange, onClose, onSave }) {
   if (!portalKey) return null;
 
@@ -358,6 +366,7 @@ export default function ThemePanel({
     return () => window.clearTimeout(timer);
   }, [feedback]);
 
+  // handleSave: handles handle save for the Maintenance flow.
   const handleSave = async (portalKey, presetKey = 'default', nextCustomColors = null) => {
     const previousPresetKey = settings[portalKey] || 'default';
     const previousCustomColors = customColors[portalKey] || null;
@@ -450,6 +459,7 @@ export default function ThemePanel({
     }
   };
 
+  // handleForceDarkToggle: handles handle force dark toggle for the Maintenance flow.
   const handleForceDarkToggle = async (portalKey, enabled) => {
     const previous = forceDarkModes[portalKey] === true;
     const userId = getUserIdFromToken(sessionStorage.getItem(tokenStorageKey) || '');
@@ -516,6 +526,7 @@ export default function ThemePanel({
     }
   };
 
+  // openCustomTheme: handles open custom theme for the Maintenance flow.
   const openCustomTheme = (portalKey) => {
     const currentTheme = resolvePortalTheme(
       portalKey,
@@ -536,6 +547,7 @@ export default function ThemePanel({
     setCustomPortal(portalKey);
   };
 
+  // saveCustomTheme: validates and saves save custom theme for the Maintenance flow.
   const saveCustomTheme = async () => {
     const palette = {
       ...customDraft,

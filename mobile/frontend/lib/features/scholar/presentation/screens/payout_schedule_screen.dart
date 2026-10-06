@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — payout schedule screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
@@ -33,6 +34,7 @@ class PayoutScheduleScreen extends StatefulWidget {
   });
 
   @override
+  // createState: creates create state for the Scholars flow.
   State<PayoutScheduleScreen> createState() => _PayoutScheduleScreenState();
 }
 
@@ -52,6 +54,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
   bool _pendingLiveRefresh = false;
 
   @override
+  // initState: handles init state for the Scholars flow.
   void initState() {
     super.initState();
     _loadPayouts();
@@ -64,6 +67,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
   }
 
   @override
+  // didChangeDependencies: handles did change dependencies for the Scholars flow.
   void didChangeDependencies() {
     super.didChangeDependencies();
 
@@ -78,6 +82,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     _notificationProvider?.addListener(_handleRealtimePayouts);
   }
 
+  // _handleRealtimePayouts: handles handle realtime payouts for the Scholars flow.
   void _handleRealtimePayouts() {
     final provider = _notificationProvider;
     if (provider == null) {
@@ -93,6 +98,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     _requestLiveRefresh();
   }
 
+  // _markPayoutNotificationsAsRead: handles mark payout notifications as read for the Scholars flow.
   Future<void> _markPayoutNotificationsAsRead() async {
     try {
       final notificationProvider = context.read<NotificationProvider>();
@@ -102,6 +108,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     }
   }
 
+  // _loadPayouts: handles load payouts for the Scholars flow.
   Future<void> _loadPayouts({bool silent = false}) async {
     if (_fetchInProgress) {
       _pendingLiveRefresh = true;
@@ -147,6 +154,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     }
   }
 
+  // _requestLiveRefresh: handles request live refresh for the Scholars flow.
   void _requestLiveRefresh() {
     if (!mounted) return;
     if (_uploadingProofs.isNotEmpty || _fetchInProgress) {
@@ -156,6 +164,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     _loadPayouts(silent: true);
   }
 
+  // _chooseProofUploadSource: handles choose proof upload source for the Scholars flow.
   Future<_ProofUploadSource?> _chooseProofUploadSource() async {
     if (kIsWeb) return _ProofUploadSource.file;
     if (!mounted) return null;
@@ -205,6 +214,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     );
   }
 
+  // _pickAndUploadProof: handles pick and upload proof for the Scholars flow.
   Future<void> _pickAndUploadProof(MobilePayoutItem payout) async {
     if (_uploadingProofs.contains(payout.payoutEntryId)) return;
 
@@ -303,6 +313,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     }
   }
 
+  // _previewProof: handles preview proof for the Scholars flow.
   Future<void> _previewProof(MobilePayoutItem payout) async {
     final proof = payout.proof;
     final fileUrl = proof?.fileUrl?.trim() ?? '';
@@ -416,6 +427,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     );
   }
 
+  // _showMessage: handles show message for the Scholars flow.
   void _showMessage(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
@@ -423,6 +435,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  // _proofStatusLabel: handles proof status label for the Scholars flow.
   String _proofStatusLabel(String status) {
     switch (status.trim().toLowerCase()) {
       case 'verified':
@@ -438,6 +451,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     }
   }
 
+  // _proofStatusTone: handles proof status tone for the Scholars flow.
   AppStatusTone _proofStatusTone(String status) {
     switch (status.trim().toLowerCase()) {
       case 'verified':
@@ -451,6 +465,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     }
   }
 
+  // _buildProofSection: handles build proof section for the Scholars flow.
   Widget _buildProofSection(
     MobilePayoutItem payout,
     Color titleColor,
@@ -572,6 +587,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     );
   }
 
+  // _statusTone: handles status tone for the Scholars flow.
   AppStatusTone _statusTone(String status) {
     switch (status.trim().toLowerCase()) {
       case 'released':
@@ -591,6 +607,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     }
   }
 
+  // _statusAccent: handles status accent for the Scholars flow.
   Color _statusAccent(BuildContext context, String status) {
     final colors = AppStatusColors.of(context);
     return switch (_statusTone(status)) {
@@ -603,6 +620,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     };
   }
 
+  // _getStatusIcon: handles get status icon for the Scholars flow.
   IconData _getStatusIcon(String status) {
     switch (status.toLowerCase()) {
       case 'released':
@@ -622,10 +640,12 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     }
   }
 
+  // _formatAmount: handles format amount for the Scholars flow.
   String _formatAmount(double value) {
     return 'PHP ${value.toStringAsFixed(0)}';
   }
 
+  // _formatPayoutDate: handles format payout date for the Scholars flow.
   String _formatPayoutDate(String value) {
     final raw = value.trim();
     if (raw.isEmpty) return 'TBA';
@@ -652,6 +672,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
   }
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     final titleColor = AppSurfacePalette.text(context);
     final subtitleColor = AppSurfacePalette.mutedText(context);
@@ -890,6 +911,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     );
   }
 
+  // _infoRow: handles info row for the Scholars flow.
   Widget _infoRow(String label, String value, Color color) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -930,6 +952,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     );
   }
 
+  // _buildPayoutHeader: handles build payout header for the Scholars flow.
   Widget _buildPayoutHeader(
     MobilePayoutItem payout,
     Color titleColor,
@@ -1168,6 +1191,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
   }
 
   @override
+  // dispose: handles dispose for the Scholars flow.
   void dispose() {
     _liveSyncTimer?.cancel();
     _notificationProvider?.removeListener(_handleRealtimePayouts);

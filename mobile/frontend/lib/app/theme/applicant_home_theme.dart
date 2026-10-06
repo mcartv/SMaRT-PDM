@@ -1,3 +1,4 @@
+// SMaRT-PDM: Settings — applicant home theme (mobile frontend); supports mobile UI behavior.
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
@@ -28,6 +29,7 @@ class ApplicantHomeThemeScope extends StatelessWidget {
   final TextScaler? platformTextScaler;
 
   @override
+  // build: builds build for the Settings flow.
   Widget build(BuildContext context) {
     final inheritedMediaQuery = MediaQuery.of(context);
     final resolvedTextScaler = _platformTextScaler(context);
@@ -42,6 +44,7 @@ class ApplicantHomeThemeScope extends StatelessWidget {
     );
   }
 
+  // _platformTextScaler: handles platform text scaler for the Settings flow.
   TextScaler _platformTextScaler(BuildContext context) {
     final injectedTextScaler = platformTextScaler;
     if (injectedTextScaler != null) {
@@ -56,6 +59,7 @@ class ApplicantHomeThemeScope extends StatelessWidget {
     return MediaQueryData.fromView(View.of(context)).textScaler;
   }
 
+  // _themeData: handles theme data for the Settings flow.
   ThemeData _themeData(ThemeData inherited) {
     final isDark = inherited.brightness == Brightness.dark;
     final background = isDark

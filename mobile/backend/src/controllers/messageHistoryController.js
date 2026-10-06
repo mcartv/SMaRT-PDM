@@ -1,17 +1,21 @@
+// SMaRT-PDM: Messaging — message History Controller (mobile backend controller); handles mobile API input/output and delegates business logic.
 'use strict';
 
 const messageHistoryService = require('../services/messageHistoryService');
 const messageService = require('../services/messageService');
 const { getSafeStatusCode } = require('../utils/httpStatus');
 
+// getCurrentUserId: reads and returns get current user id for the Messaging flow.
 function getCurrentUserId(req) {
   return req.user?.userId || req.user?.user_id || req.user?.id || null;
 }
 
+// getMessageBody: reads and returns get message body for the Messaging flow.
 function getMessageBody(req) {
   return req.body?.messageBody ?? req.body?.message_body ?? req.body?.message ?? '';
 }
 
+// readWindowOptions: handles read window options for the Messaging flow.
 function readWindowOptions(req) {
   return {
     limit: req.query?.limit,

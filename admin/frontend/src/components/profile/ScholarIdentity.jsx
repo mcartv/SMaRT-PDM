@@ -1,6 +1,8 @@
+// SMaRT-PDM: Scholars — Scholar Identity (admin frontend component); renders reusable UI and handles local interactions.
 import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
 import { cn } from '@/lib/utils';
 
+// getInitials: reads and returns get initials for the Scholars flow.
 function getInitials(name = '') {
   return String(name)
     .trim()
@@ -12,6 +14,7 @@ function getInitials(name = '') {
     .toUpperCase() || 'S';
 }
 
+// resolvePhotoUrl: resolves resolve photo url for the Scholars flow.
 function resolvePhotoUrl(scholar = {}) {
   return (
     scholar.avatar_url ||

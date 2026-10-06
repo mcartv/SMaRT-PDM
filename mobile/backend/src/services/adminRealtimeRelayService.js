@@ -1,14 +1,17 @@
+// SMaRT-PDM: admin Realtime Relay Service — admin Realtime Relay Service (mobile backend service); contains mobile-facing business logic and data operations.
 const { resolveInternalRealtimeSecret } = require('../utils/internalRealtimeSecret');
 
 const ADMIN_BACKEND_URL = String(
     process.env.ADMIN_BACKEND_URL || ''
 ).replace(/\/+$/, '');
 
+// getInternalRealtimeSecret: reads and returns get internal realtime secret for the admin Realtime Relay Service flow.
 function getInternalRealtimeSecret() {
     const explicit = String(process.env.INTERNAL_REALTIME_SECRET || '').trim();
     return explicit || resolveInternalRealtimeSecret();
 }
 
+// postToAdminBackend: handles post to admin backend for the admin Realtime Relay Service flow.
 async function postToAdminBackend(path, payload = {}) {
     if (!ADMIN_BACKEND_URL || !getInternalRealtimeSecret()) {
         console.warn(
@@ -65,6 +68,7 @@ async function postToAdminBackend(path, payload = {}) {
     }
 }
 
+// relayRoUpdated: handles relay ro updated for the admin Realtime Relay Service flow.
 async function relayRoUpdated(payload = {}) {
     return postToAdminBackend('/api/internal/realtime/ro-updated', {
         source: 'mobile-backend',
@@ -73,6 +77,7 @@ async function relayRoUpdated(payload = {}) {
     });
 }
 
+// relayMessageCreated: handles relay message created for the admin Realtime Relay Service flow.
 async function relayMessageCreated(payload = {}, targetUserIds = []) {
     return postToAdminBackend(
         '/api/internal/realtime/message-created',
@@ -80,6 +85,7 @@ async function relayMessageCreated(payload = {}, targetUserIds = []) {
     );
 }
 
+// relayMessageEvent: handles relay message event for the admin Realtime Relay Service flow.
 async function relayMessageEvent(event, payload = {}, targetUserIds = []) {
     return postToAdminBackend('/api/internal/realtime/message-event', {
         event,
@@ -88,6 +94,7 @@ async function relayMessageEvent(event, payload = {}, targetUserIds = []) {
     });
 }
 
+// relayNotificationCreated: handles relay notification created for the admin Realtime Relay Service flow.
 async function relayNotificationCreated(payload = {}) {
     return postToAdminBackend(
         '/api/internal/realtime/notification-created',
@@ -97,6 +104,7 @@ async function relayNotificationCreated(payload = {}) {
 
 
 
+// relayPayoutEvent: handles relay payout event for the admin Realtime Relay Service flow.
 async function relayPayoutEvent(event, payload = {}) {
     return postToAdminBackend('/api/internal/realtime/payout-event', {
         event,

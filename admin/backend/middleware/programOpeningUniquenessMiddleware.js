@@ -1,12 +1,15 @@
+// SMaRT-PDM: Scholarship Openings — program Opening Uniqueness Middleware (admin backend middleware); validates or transforms requests before controller handling.
 const supabase = require('../config/supabase');
 
 const ACTIVE_OPENING_STATUSES = new Set(['draft', 'open']);
 
+// normalizeStatus: normalizes normalize status for the Scholarship Openings flow.
 function normalizeStatus(value, fallback = '') {
     const normalized = String(value ?? fallback).trim().toLowerCase();
     return normalized || fallback;
 }
 
+// resolvePeriodIdFromAcademicYear: resolves resolve period id from academic year for the Scholarship Openings flow.
 async function resolvePeriodIdFromAcademicYear(academicYearId) {
     if (!academicYearId) return null;
 
@@ -25,6 +28,7 @@ async function resolvePeriodIdFromAcademicYear(academicYearId) {
     return data?.[0]?.period_id || null;
 }
 
+// fetchExistingOpening: fetches and returns fetch existing opening for the Scholarship Openings flow.
 async function fetchExistingOpening(openingId) {
     if (!openingId) return null;
 
@@ -49,6 +53,7 @@ async function fetchExistingOpening(openingId) {
     return data || null;
 }
 
+// openingWouldBeActive: handles opening would be active for the Scholarship Openings flow.
 function openingWouldBeActive({ postingStatus, isArchived }) {
     if (isArchived === true) return false;
 
@@ -56,6 +61,7 @@ function openingWouldBeActive({ postingStatus, isArchived }) {
     return ACTIVE_OPENING_STATUSES.has(normalizedStatus);
 }
 
+// findConflictingOpening: finds and returns find conflicting opening for the Scholarship Openings flow.
 async function findConflictingOpening({
     programId,
     academicYearId,
@@ -103,6 +109,7 @@ async function findConflictingOpening({
     }) || null;
 }
 
+// validateOpeningUniqueness: validates validate opening uniqueness for the Scholarship Openings flow.
 async function validateOpeningUniqueness(req, res, next) {
     try {
         const openingId = req.params?.openingId || null;

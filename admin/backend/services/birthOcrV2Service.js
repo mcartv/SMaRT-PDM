@@ -1,3 +1,4 @@
+// SMaRT-PDM: OCR — birth Ocr V2 Service (admin backend service); contains business logic and data operations.
 const crypto = require('crypto');
 const ocrComparison = require('./ocrComparison');
 
@@ -5,6 +6,7 @@ const pool = require('../config/db');
 const supabase = require('../config/supabase');
 const iotOcrRequestService = require('./iotOcrRequestService');
 
+// configuredTimeout: handles configured timeout for the OCR flow.
 function configuredTimeout(name, fallback, minimum) {
     const parsed = Number(process.env[name]);
     const value = Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -32,6 +34,7 @@ const GEMINI_FULL_PAGE_TIMEOUT_MS = configuredTimeout(
     60000,
     15000
 );
+// GEMINI_FULL_PAGE_RETRY_COUNT: handles gemini full page retry count for the OCR flow.
 const GEMINI_FULL_PAGE_RETRY_COUNT = (() => {
     const parsed = Number.parseInt(
         process.env.GEMINI_FULL_PAGE_RETRY_COUNT || '1',
@@ -115,6 +118,7 @@ const ROW_RECOVERY_SCHEMA = Object.freeze({
     additionalProperties: false,
 });
 
+// httpError: handles http error for the OCR flow.
 function httpError(statusCode, message, code = null) {
     const error = new Error(message);
     error.statusCode = statusCode;
@@ -122,18 +126,21 @@ function httpError(statusCode, message, code = null) {
     return error;
 }
 
+// normalizeHash: normalizes normalize hash for the OCR flow.
 function normalizeHash(value) {
     const hash = String(value || '').trim().toLowerCase();
     if (!/^[0-9a-f]{64}$/.test(hash)) throw httpError(400, 'Invalid artifact hash');
     return hash;
 }
 
+// normalizeMime: normalizes normalize mime for the OCR flow.
 function normalizeMime(value) {
     const mime = String(value || '').trim().toLowerCase();
     if (!['image/jpeg', 'image/png'].includes(mime)) throw httpError(400, 'Unsupported artifact MIME type');
     return mime;
 }
 
+// bytesMatchMime: handles bytes match mime for the OCR flow.
 function bytesMatchMime(bytes, mimeType) {
     if (mimeType === 'image/jpeg') {
         return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
@@ -145,6 +152,7 @@ function bytesMatchMime(bytes, mimeType) {
     return false;
 }
 
+// normalizePolygon: normalizes normalize polygon for the OCR flow.
 function normalizePolygon(value) {
     if (value == null) return null;
     if (!Array.isArray(value) || value.length !== 4) throw httpError(400, 'ROI polygon must have four points');
@@ -159,6 +167,7 @@ function normalizePolygon(value) {
     });
 }
 
+// validateManifest: validates validate manifest for the OCR flow.
 function validateManifest(artifacts) {
     if (!Array.isArray(artifacts) || ![1, 10].includes(artifacts.length)) {
         throw httpError(400, 'Birth V2 requires one original, optionally followed by exactly nine cell artifacts');
@@ -198,6 +207,7 @@ function validateManifest(artifacts) {
     return normalized;
 }
 
+// normalizeDiagnostic: normalizes normalize diagnostic for the OCR flow.
 function normalizeDiagnostic(value) {
     if (!value || typeof value !== 'object') return null;
     const code = String(value.code || '').trim().toUpperCase();
@@ -235,6 +245,7 @@ function normalizeDiagnostic(value) {
     };
 }
 
+// ensurePrivateBucket: ensures ensure private bucket for the OCR flow.
 async function ensurePrivateBucket() {
     const { data, error } = await supabase.storage.getBucket(BUCKET);
     if (error && !String(error.message || '').toLowerCase().includes('not found')) throw error;
@@ -250,6 +261,7 @@ async function ensurePrivateBucket() {
     if (data.public) throw new Error('IoT OCR capture bucket must remain private');
 }
 
+// lockV2Request: handles lock v2 request for the OCR flow.
 async function lockV2Request(client, requestId, deviceId) {
     const result = await client.query(
         'SELECT * FROM public.iot_ocr_requests WHERE request_id = $1::uuid FOR UPDATE',
@@ -319,6 +331,7 @@ exports.authorizeUploads = async ({ requestId, deviceId, artifacts }) => {
     }
 };
 
+// getCachedVerifiedArtifacts: reads and returns get cached verified artifacts for the OCR flow.
 function getCachedVerifiedArtifacts(requestId, { originalOnly = false } = {}) {
     const key = String(requestId || '');
     const cached = verifiedArtifactCache.get(key);
@@ -331,6 +344,7 @@ function getCachedVerifiedArtifacts(requestId, { originalOnly = false } = {}) {
     return cached.artifacts;
 }
 
+// rememberVerifiedArtifacts: handles remember verified artifacts for the OCR flow.
 function rememberVerifiedArtifacts(requestId, artifacts, { originalOnly = false } = {}) {
     verifiedArtifactCache.set(String(requestId || ''), {
         verifiedAt: Date.now(),
@@ -339,10 +353,12 @@ function rememberVerifiedArtifacts(requestId, artifacts, { originalOnly = false 
     });
 }
 
+// clearVerifiedArtifacts: clears clear verified artifacts for the OCR flow.
 function clearVerifiedArtifacts(requestId) {
     verifiedArtifactCache.delete(String(requestId || ''));
 }
 
+// downloadAndVerifyArtifacts: downloads download and verify artifacts for the OCR flow.
 async function downloadAndVerifyArtifacts(requestId, { originalOnly = false } = {}) {
     const result = await pool.query(`
         SELECT * FROM public.iot_ocr_capture_artifacts
@@ -356,6 +372,7 @@ async function downloadAndVerifyArtifacts(requestId, { originalOnly = false } = 
     if (originals.length !== 1 || ![0, 9].includes(cells.length)) {
         throw httpError(409, 'Birth V2 artifacts are incomplete');
     }
+    // verifyArtifact: verifies verify artifact for the OCR flow.
     const verifyArtifact = async (row) => {
         const downloaded = await supabase.storage.from(row.bucket_name).download(row.object_path);
         if (downloaded.error || !downloaded.data) throw httpError(409, 'Birth V2 artifact upload is incomplete');
@@ -389,6 +406,7 @@ async function downloadAndVerifyArtifacts(requestId, { originalOnly = false } = 
     return verified;
 }
 
+// assertRequestStillProcessing: handles assert request still processing for the OCR flow.
 async function assertRequestStillProcessing(requestId, deviceId) {
     const result = await pool.query(`
         SELECT status, claimed_by
@@ -406,6 +424,7 @@ async function assertRequestStillProcessing(requestId, deviceId) {
     }
 }
 
+// validateGeminiPayload: validates validate gemini payload for the OCR flow.
 function validateGeminiPayload(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)
         || Object.keys(value).length !== 2 || value.template_id !== 'psa_birth_v1'
@@ -420,6 +439,7 @@ function validateGeminiPayload(value) {
     return normalized;
 }
 
+// validateFullPageGeminiPayload: validates validate full page gemini payload for the OCR flow.
 function validateFullPageGeminiPayload(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)
         || Object.keys(value).length !== 3 || value.template_id !== 'psa_birth_v1'
@@ -435,6 +455,7 @@ function validateFullPageGeminiPayload(value) {
     return { raw_text: value.raw_text, fields };
 }
 
+// hasRequiredNames: checks whether has required names for the OCR flow.
 function hasRequiredNames(value) {
     return [
         value?.child_first_name,
@@ -444,6 +465,7 @@ function hasRequiredNames(value) {
     ].every((entry) => String(entry || '').trim());
 }
 
+// isGeminiTimeout: checks whether is gemini timeout for the OCR flow.
 function isGeminiTimeout(error, controller) {
     if (controller.signal.aborted) return true;
     const code = String(error?.code || '').toUpperCase();
@@ -454,6 +476,7 @@ function isGeminiTimeout(error, controller) {
         || message.includes('DEADLINE');
 }
 
+// geminiFailureCode: handles gemini failure code for the OCR flow.
 function geminiFailureCode(error, prefix) {
     const status = Number(
         error?.status || error?.statusCode || error?.code
@@ -473,6 +496,7 @@ function geminiFailureCode(error, prefix) {
     return `${prefix}_REQUEST_FAILED`;
 }
 
+// isGeminiModelUnavailable: checks whether is gemini model unavailable for the OCR flow.
 function isGeminiModelUnavailable(error) {
     const status = Number(error?.status || error?.statusCode || error?.code);
     const signal = [error?.code, error?.status, error?.name]
@@ -480,6 +504,7 @@ function isGeminiModelUnavailable(error) {
     return status === 404 || signal.includes('NOT_FOUND');
 }
 
+// isGeminiTransient: checks whether is gemini transient for the OCR flow.
 function isGeminiTransient(error) {
     const status = Number(
         error?.status || error?.statusCode || error?.code
@@ -492,6 +517,7 @@ function isGeminiTransient(error) {
         || signal.includes('UNAVAILABLE');
 }
 
+// generateGeminiContent: handles generate gemini content for the OCR flow.
 async function generateGeminiContent(
     client,
     request,
@@ -548,6 +574,7 @@ async function generateGeminiContent(
     });
 }
 
+// readRequiredNameRow: handles read required name row for the OCR flow.
 async function readRequiredNameRow(client, cells, { item, person }) {
     const parts = [{ text: [
         `Read only PSA Certificate of Live Birth Item ${item}, the ${person} name row.`,
@@ -591,6 +618,7 @@ async function readRequiredNameRow(client, cells, { item, person }) {
     }
 }
 
+// recoverRequiredNames: handles recover required names for the OCR flow.
 async function recoverRequiredNames(client, cells, existing = {}) {
     const [child, mother] = await Promise.all([
         readRequiredNameRow(client, cells, { item: '1', person: 'Child' }),
@@ -612,6 +640,7 @@ async function recoverRequiredNames(client, cells, existing = {}) {
     return hasRequiredNames(merged) ? merged : null;
 }
 
+// callGemini: handles call gemini for the OCR flow.
 async function callGemini(cells) {
     const apiKey = String(process.env.GEMINI_API_KEY || '').trim();
     if (!apiKey) return { ok: false, code: 'GEMINI_KEY_MISSING' };
@@ -682,6 +711,7 @@ async function callGemini(cells) {
     }
 }
 
+// callGeminiFullPage: handles call gemini full page for the OCR flow.
 async function callGeminiFullPage(original) {
     const apiKey = String(process.env.GEMINI_API_KEY || '').trim();
     if (!apiKey) return { ok: false, code: 'GEMINI_KEY_MISSING', attempts: 0 };
@@ -776,6 +806,7 @@ async function callGeminiFullPage(original) {
     };
 }
 
+// field: handles field for the OCR flow.
 function field(raw, first, middle, last, status = 'detected') {
     return {
         raw_text: raw,
@@ -786,6 +817,7 @@ function field(raw, first, middle, last, status = 'detected') {
     };
 }
 
+// buildCandidate: builds build candidate for the OCR flow.
 function buildCandidate(result) {
     const rows = [
         [result.child_first_name, result.child_middle_name, result.child_last_name].map((value) => String(value || '').replace(/\s+/g, ' ').trim()),
@@ -804,6 +836,7 @@ function buildCandidate(result) {
     };
 }
 
+// proposalDisagreementIssues: handles proposal disagreement issues for the OCR flow.
 function proposalDisagreementIssues(cellFields, fullPageFields) {
     if (!cellFields || !fullPageFields) return [];
     const groups = [
@@ -822,6 +855,7 @@ function proposalDisagreementIssues(cellFields, fullPageFields) {
         }));
 }
 
+// birthEvidence: handles birth evidence for the OCR flow.
 function birthEvidence(cellFields, fullPageFields, fullPageAvailable, selectedFields) {
     const fields = [
         ['child_name', 'child_first_name', 'child_middle_name', 'child_last_name'],
@@ -842,6 +876,7 @@ function birthEvidence(cellFields, fullPageFields, fullPageAvailable, selectedFi
     return { fields: evidence, overall_state: ocrComparison.overallEvidenceState(evidence) };
 }
 
+// selectBirthV2Candidate: handles select birth v2 candidate for the OCR flow.
 function selectBirthV2Candidate({ cellGemini, fullPageGemini, diagnosticResult = null }) {
     const cellFields = cellGemini?.ok && hasRequiredNames(cellGemini.value)
         ? cellGemini.value
@@ -901,6 +936,7 @@ function selectBirthV2Candidate({ cellGemini, fullPageGemini, diagnosticResult =
     };
 }
 
+// addExceptions: adds add exceptions for the OCR flow.
 async function addExceptions(request, candidate, duplicate) {
     if (duplicate) {
         await pool.query(`
@@ -927,6 +963,7 @@ async function addExceptions(request, candidate, duplicate) {
     }
 }
 
+// hasDuplicateCapture: checks whether has duplicate capture for the OCR flow.
 async function hasDuplicateCapture(request) {
     const original = await pool.query(`
         SELECT sha256 FROM public.iot_ocr_capture_artifacts

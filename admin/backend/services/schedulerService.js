@@ -1,3 +1,4 @@
+// SMaRT-PDM: scheduler Service — scheduler Service (admin backend service); contains business logic and data operations.
 const announcementService = require('./announcementService');
 const socketEvents = require('../utils/socketEvents');
 const endorsementSlipService = require('./endorsementSlipService');

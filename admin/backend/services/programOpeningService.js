@@ -1,11 +1,14 @@
+// SMaRT-PDM: Scholarship Openings — program Opening Service (admin backend service); contains business logic and data operations.
 const supabase = require('../config/supabase');
 const pool = require('../config/db');
 const readinessQueueService = require('./readinessQueueService');
 
+// normalizeStatus: normalizes normalize status for the Scholarship Openings flow.
 function normalizeStatus(value) {
     return (value || '').toString().trim().toLowerCase();
 }
 
+// applicationSortTimestamp: handles application sort timestamp for the Scholarship Openings flow.
 function applicationSortTimestamp(application = {}) {
     const candidates = [
         application.submission_date,
@@ -25,6 +28,7 @@ function applicationSortTimestamp(application = {}) {
     return 0;
 }
 
+// dedupeOpeningApplications: handles dedupe opening applications for the Scholarship Openings flow.
 function dedupeOpeningApplications(rows = []) {
     const canonicalByStudentOpening = new Map();
 
@@ -96,11 +100,13 @@ function dedupeOpeningApplications(rows = []) {
     return Array.from(canonicalByStudentOpening.values());
 }
 
+// toRequiredNumber: handles to required number for the Scholarship Openings flow.
 function toRequiredNumber(value, fallback = 0) {
     const num = Number(value ?? fallback);
     return Number.isNaN(num) ? fallback : num;
 }
 
+// calculatePerScholarAmount: handles calculate per scholar amount for the Scholarship Openings flow.
 function calculatePerScholarAmount(financialAllocation, allocatedSlots) {
     const allocation = Number(financialAllocation);
     const slots = Number(allocatedSlots);
@@ -121,6 +127,7 @@ const OPENING_STATUS_TRANSITIONS = Object.freeze({
     archived: new Set(['archived', 'draft', 'open', 'closed']),
 });
 
+// openingWorkflowError: handles opening workflow error for the Scholarship Openings flow.
 function openingWorkflowError(message) {
     const error = new Error(message);
     error.statusCode = 400;
@@ -128,6 +135,7 @@ function openingWorkflowError(message) {
     return error;
 }
 
+// hasOpeningIdentity: checks whether has opening identity for the Scholarship Openings flow.
 function hasOpeningIdentity(opening = {}) {
     return (
         !!String(opening.opening_title || '').trim() &&
@@ -136,14 +144,17 @@ function hasOpeningIdentity(opening = {}) {
     );
 }
 
+// getOpeningFilledSlots: reads and returns get opening filled slots for the Scholarship Openings flow.
 function getOpeningFilledSlots(opening = {}) {
     return Math.max(0, toRequiredNumber(opening.filled_slots, 0));
 }
 
+// getOpeningAllocatedSlots: reads and returns get opening allocated slots for the Scholarship Openings flow.
 function getOpeningAllocatedSlots(opening = {}) {
     return Math.max(0, toRequiredNumber(opening.allocated_slots, 0));
 }
 
+// canPersistOpeningAsOpen: checks whether can persist opening as open for the Scholarship Openings flow.
 function canPersistOpeningAsOpen(opening = {}) {
     const allocatedSlots = getOpeningAllocatedSlots(opening);
     const filledSlots = getOpeningFilledSlots(opening);
@@ -157,6 +168,7 @@ function canPersistOpeningAsOpen(opening = {}) {
     );
 }
 
+// resolveStoredOpeningStatus: resolves resolve stored opening status for the Scholarship Openings flow.
 function resolveStoredOpeningStatus(opening = {}) {
     if (opening.is_archived === true) return 'archived';
 
@@ -164,6 +176,7 @@ function resolveStoredOpeningStatus(opening = {}) {
     return OPENING_ALLOWED_STATUSES.has(normalized) ? normalized : 'draft';
 }
 
+// assertKnownOpeningStatus: handles assert known opening status for the Scholarship Openings flow.
 function assertKnownOpeningStatus(status) {
     if (!OPENING_ALLOWED_STATUSES.has(status)) {
         throw openingWorkflowError(
@@ -172,6 +185,7 @@ function assertKnownOpeningStatus(status) {
     }
 }
 
+// assertOpeningTransition: handles assert opening transition for the Scholarship Openings flow.
 function assertOpeningTransition(currentStatus, nextStatus, opening = {}) {
     assertKnownOpeningStatus(currentStatus);
     assertKnownOpeningStatus(nextStatus);
@@ -201,6 +215,7 @@ function assertOpeningTransition(currentStatus, nextStatus, opening = {}) {
     }
 }
 
+// derivePostingStatus: derives derive posting status for the Scholarship Openings flow.
 function derivePostingStatus(opening) {
     const existing = resolveStoredOpeningStatus(opening);
 
@@ -211,6 +226,7 @@ function derivePostingStatus(opening) {
     return canPersistOpeningAsOpen(opening) ? 'open' : 'draft';
 }
 
+// resolvePeriodIdFromAcademicYear: resolves resolve period id from academic year for the Scholarship Openings flow.
 async function resolvePeriodIdFromAcademicYear(academicYearId) {
     if (!academicYearId) return null;
 
@@ -229,6 +245,7 @@ async function resolvePeriodIdFromAcademicYear(academicYearId) {
     return data?.[0]?.period_id || null;
 }
 
+// resolveActiveAcademicPeriodId: resolves resolve active academic period id for the Scholarship Openings flow.
 async function resolveActiveAcademicPeriodId() {
     const { data, error } = await supabase
         .from('academic_period')
@@ -245,6 +262,7 @@ async function resolveActiveAcademicPeriodId() {
     return data?.period_id || null;
 }
 
+// mapOpening: maps map opening for the Scholarship Openings flow.
 function mapOpening(opening, counts = {}) {
     const allocatedSlots = toRequiredNumber(opening.allocated_slots, 0);
     const qualifiedCount = toRequiredNumber(counts.qualified_count, 0);
@@ -332,6 +350,7 @@ function mapOpening(opening, counts = {}) {
     };
 }
 
+// buildCounts: builds build counts for the Scholarship Openings flow.
 function buildCounts(opening, applications = []) {
     const related = applications.filter(
         (app) => app.opening_id === opening.opening_id && app.is_archived !== true
@@ -359,6 +378,7 @@ function buildCounts(opening, applications = []) {
     };
 }
 
+// fetchApplicationsForCounts: fetches and returns fetch applications for counts for the Scholarship Openings flow.
 async function fetchApplicationsForCounts(openingId = null) {
     let query = supabase
         .from('applications')
@@ -383,6 +403,7 @@ async function fetchApplicationsForCounts(openingId = null) {
     return data || [];
 }
 
+// syncOpeningApplicationsArchiveState: synchronizes sync opening applications archive state for the Scholarship Openings flow.
 async function syncOpeningApplicationsArchiveState(openingId, isArchived) {
     const { error } = await supabase
         .from('applications')
@@ -397,6 +418,7 @@ async function syncOpeningApplicationsArchiveState(openingId, isArchived) {
     }
 }
 
+// baseOpeningSelectQuery: handles base opening select query for the Scholarship Openings flow.
 function baseOpeningSelectQuery() {
     return supabase
         .from('program_openings')

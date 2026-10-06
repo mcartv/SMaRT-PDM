@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — Scholarship Programs Panel (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useEffect, useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -66,6 +67,7 @@ const EMPTY_PROGRAM = {
   is_archived: false,
 };
 
+// ModalShell: handles modal shell for the Scholars flow.
 function ModalShell({ open, title, onClose, children, footer, maxWidth = 'max-w-4xl' }) {
   if (!open) return null;
 
@@ -102,6 +104,7 @@ function ModalShell({ open, title, onClose, children, footer, maxWidth = 'max-w-
   );
 }
 
+// BenefactorFields: handles benefactor fields for the Scholars flow.
 function BenefactorFields({ form, setForm, includeArchive = true }) {
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -174,6 +177,7 @@ function BenefactorFields({ form, setForm, includeArchive = true }) {
   );
 }
 
+// BrandingImageField: handles branding image field for the Scholars flow.
 function BrandingImageField({
   label,
   helper,
@@ -242,6 +246,7 @@ function BrandingImageField({
   );
 }
 
+// ProgramFields: handles program fields for the Scholars flow.
 function ProgramFields({ form, setForm, includeBenefactor = false, benefactors = [] }) {
   const noGwaThreshold = form.gwa_threshold === null;
 
@@ -400,6 +405,7 @@ function ProgramFields({ form, setForm, includeBenefactor = false, benefactors =
   );
 }
 
+// statusBadge: handles status badge for the Scholars flow.
 function statusBadge(isArchived) {
   return isArchived
     ? 'border-stone-200 bg-stone-100 text-stone-600'
@@ -408,11 +414,13 @@ function statusBadge(isArchived) {
 
 const NEW_RECORD_DAYS = 30;
 
+// createdTime: creates created time for the Scholars flow.
 function createdTime(record) {
   const timestamp = Date.parse(record?.created_at || '');
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
+// isNewRecord: checks whether is new record for the Scholars flow.
 function isNewRecord(record) {
   const timestamp = createdTime(record);
   if (!timestamp) return false;
@@ -420,6 +428,7 @@ function isNewRecord(record) {
   return age >= 0 && age <= NEW_RECORD_DAYS * 24 * 60 * 60 * 1000;
 }
 
+// latestBenefactorActivity: handles latest benefactor activity for the Scholars flow.
 function latestBenefactorActivity(benefactor, programsByBenefactor) {
   const linkedPrograms = programsByBenefactor.get(String(benefactor?.benefactor_id)) || [];
   return linkedPrograms.reduce(
@@ -428,6 +437,7 @@ function latestBenefactorActivity(benefactor, programsByBenefactor) {
   );
 }
 
+// ProgramRow: handles program row for the Scholars flow.
 function ProgramRow({ program, onEdit, onArchive }) {
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-stone-50/70 p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -529,11 +539,13 @@ export default function ScholarshipProgramsPanel() {
   const [editingProgramId, setEditingProgramId] = useState(null);
   const [programForm, setProgramForm] = useState({ ...EMPTY_PROGRAM });
 
+  // authHeaders: handles auth headers for the Scholars flow.
   const authHeaders = () => ({
     Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
     'Content-Type': 'application/json',
   });
 
+  // requestJson: handles request json for the Scholars flow.
   const requestJson = async (url, options = {}) => {
     const response = await fetch(buildApiUrl(url), {
       ...options,
@@ -552,6 +564,7 @@ export default function ScholarshipProgramsPanel() {
     return data;
   };
 
+  // uploadBranding: uploads upload branding for the Scholars flow.
   const uploadBranding = async ({ entity, id, slot, file }) => {
     const busyKey = `${entity}:${id}:${slot}`;
     try {
@@ -574,6 +587,7 @@ export default function ScholarshipProgramsPanel() {
     }
   };
 
+  // removeBranding: removes remove branding for the Scholars flow.
   const removeBranding = async ({ entity, id, slot }) => {
     const busyKey = `${entity}:${id}:${slot}`;
     try {
@@ -593,6 +607,7 @@ export default function ScholarshipProgramsPanel() {
     }
   };
 
+  // loadAll: loads and returns load all for the Scholars flow.
   const loadAll = async () => {
     try {
       setLoading(true);
@@ -682,12 +697,14 @@ export default function ScholarshipProgramsPanel() {
         || String(left.benefactor_name || '').localeCompare(String(right.benefactor_name || '')));
   }, [benefactors, pageTab, programsByBenefactor, search]);
 
+  // openCombinedCreate: handles open combined create for the Scholars flow.
   const openCombinedCreate = () => {
     setCreateBenefactorForm({ ...EMPTY_BENEFACTOR });
     setCreateProgramForm({ ...EMPTY_PROGRAM });
     setCreateOpen(true);
   };
 
+  // handleCombinedCreate: handles handle combined create for the Scholars flow.
   const handleCombinedCreate = async () => {
     try {
       setSaving(true);
@@ -749,6 +766,7 @@ export default function ScholarshipProgramsPanel() {
     }
   };
 
+  // openBenefactorEdit: handles open benefactor edit for the Scholars flow.
   const openBenefactorEdit = (benefactor) => {
     setEditingBenefactorId(benefactor.benefactor_id);
     setBenefactorForm({
@@ -762,6 +780,7 @@ export default function ScholarshipProgramsPanel() {
     setBenefactorModalOpen(true);
   };
 
+  // saveBenefactor: validates and saves save benefactor for the Scholars flow.
   const saveBenefactor = async () => {
     try {
       setSaving(true);
@@ -789,6 +808,7 @@ export default function ScholarshipProgramsPanel() {
     }
   };
 
+  // toggleBenefactorArchive: handles toggle benefactor archive for the Scholars flow.
   const toggleBenefactorArchive = async (benefactor) => {
     const nextArchived = !benefactor.is_archived;
     const verb = nextArchived ? 'archive' : 'restore';
@@ -815,6 +835,7 @@ export default function ScholarshipProgramsPanel() {
     }
   };
 
+  // openAddProgram: handles open add program for the Scholars flow.
   const openAddProgram = (benefactor) => {
     setProgramMode('create');
     setEditingProgramId(null);
@@ -825,6 +846,7 @@ export default function ScholarshipProgramsPanel() {
     setProgramModalOpen(true);
   };
 
+  // openProgramEdit: handles open program edit for the Scholars flow.
   const openProgramEdit = (program) => {
     setProgramMode('edit');
     setEditingProgramId(program.program_id);
@@ -847,6 +869,7 @@ export default function ScholarshipProgramsPanel() {
     setProgramModalOpen(true);
   };
 
+  // saveProgram: validates and saves save program for the Scholars flow.
   const saveProgram = async () => {
     try {
       setSaving(true);
@@ -897,6 +920,7 @@ export default function ScholarshipProgramsPanel() {
     }
   };
 
+  // toggleProgramArchive: handles toggle program archive for the Scholars flow.
   const toggleProgramArchive = async (program) => {
     const nextArchived = !program.is_archived;
     const verb = nextArchived ? 'archive' : 'restore';

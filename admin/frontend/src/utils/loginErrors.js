@@ -1,3 +1,4 @@
+// SMaRT-PDM: login Errors — login Errors (admin frontend); supports admin-side UI behavior.
 const LOGIN_ERROR_MESSAGES = {
   INVALID_CREDENTIALS: 'The email or password is incorrect.',
   ACCOUNT_DEACTIVATED:
@@ -26,6 +27,7 @@ const LOGIN_ERROR_MESSAGES = {
     'The server could not complete the sign-in request. Please try again shortly.',
 };
 
+// getLoginErrorMessage: reads and returns get login error message for the login Errors flow.
 export function getLoginErrorMessage(error) {
   const knownMessage = LOGIN_ERROR_MESSAGES[error?.code];
   if (knownMessage) return knownMessage;

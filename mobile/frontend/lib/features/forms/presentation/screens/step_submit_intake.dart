@@ -1,3 +1,4 @@
+// SMaRT-PDM: step submit intake — step submit intake (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
@@ -22,6 +23,7 @@ class StepSubmit extends StatefulWidget {
   final bool showErrors;
 
   @override
+  // createState: creates create state for the step submit intake flow.
   State<StepSubmit> createState() => _StepSubmitState();
 }
 
@@ -37,6 +39,7 @@ class _StepSubmitState extends State<StepSubmit> {
   final Set<String> _expandedSections = <String>{'personal'};
 
   @override
+  // initState: handles init state for the step submit intake flow.
   void initState() {
     super.initState();
     certRead = widget.data.certificationRead;
@@ -58,25 +61,30 @@ class _StepSubmitState extends State<StepSubmit> {
   }
 
   @override
+  // dispose: handles dispose for the step submit intake flow.
   void dispose() {
     _termsRecognizer.dispose();
     _privacyRecognizer.dispose();
     super.dispose();
   }
 
+  // _clean: handles clean for the step submit intake flow.
   String _clean(String value) {
     final text = value.trim();
     if (text.isEmpty || text.toUpperCase() == 'N/A') return 'Not provided';
     return text;
   }
 
+  // _yesNo: handles yes no for the step submit intake flow.
   String _yesNo(bool value) => value ? 'Yes' : 'No';
 
+  // _answerLabel: handles answer label for the step submit intake flow.
   String _answerLabel(bool answered, bool value) {
     if (!answered) return 'Not answered';
     return value ? 'Yes' : 'No';
   }
 
+  // _residencyDurationLabel: handles residency duration label for the step submit intake flow.
   String _residencyDurationLabel(String value) {
     final raw = value.trim();
     final years = int.tryParse(raw);
@@ -100,6 +108,7 @@ class _StepSubmitState extends State<StepSubmit> {
     return _clean(raw);
   }
 
+  // _scholarshipLevels: handles scholarship levels for the step submit intake flow.
   String _scholarshipLevels() {
     final levels = <String>[
       if (widget.data.scholarshipElementary) 'Elementary',
@@ -114,10 +123,12 @@ class _StepSubmitState extends State<StepSubmit> {
     return levels.isEmpty ? 'Not provided' : levels.join(', ');
   }
 
+  // _reviewValidation: handles review validation for the step submit intake flow.
   ApplicationSubmissionValidationResult _reviewValidation() {
     return _validator.validateReviewReadiness(widget.data);
   }
 
+  // _warningBox: handles warning box for the step submit intake flow.
   Widget _warningBox() {
     if (!widget.showErrors) return const SizedBox.shrink();
 
@@ -168,6 +179,7 @@ class _StepSubmitState extends State<StepSubmit> {
     );
   }
 
+  // _reviewSection: handles review section for the step submit intake flow.
   Widget _reviewSection({
     required String sectionKey,
     required String title,
@@ -177,6 +189,7 @@ class _StepSubmitState extends State<StepSubmit> {
   }) {
     final expanded = _expandedSections.contains(sectionKey);
 
+    // toggle: handles toggle for the step submit intake flow.
     void toggle() {
       setState(() {
         if (expanded) {
@@ -290,6 +303,7 @@ class _StepSubmitState extends State<StepSubmit> {
     );
   }
 
+  // _personalRows: handles personal rows for the step submit intake flow.
   List<Widget> _personalRows() {
     final data = widget.data;
     return [
@@ -322,6 +336,7 @@ class _StepSubmitState extends State<StepSubmit> {
     ];
   }
 
+  // _familyRows: handles family rows for the step submit intake flow.
   List<Widget> _familyRows() {
     final data = widget.data;
     return [
@@ -418,6 +433,7 @@ class _StepSubmitState extends State<StepSubmit> {
     ];
   }
 
+  // _academicRows: handles academic rows for the step submit intake flow.
   List<Widget> _academicRows() {
     final data = widget.data;
     return [
@@ -472,6 +488,7 @@ class _StepSubmitState extends State<StepSubmit> {
     ];
   }
 
+  // _statementRows: handles statement rows for the step submit intake flow.
   List<Widget> _statementRows() {
     return [
       IntakeReviewRow(
@@ -485,6 +502,7 @@ class _StepSubmitState extends State<StepSubmit> {
     ];
   }
 
+  // _consentCard: handles consent card for the step submit intake flow.
   Widget _consentCard() {
     final consentAccepted = certRead && agreeTerms;
 
@@ -566,6 +584,7 @@ class _StepSubmitState extends State<StepSubmit> {
     );
   }
 
+  // _confirmationArea: handles confirmation area for the step submit intake flow.
   Widget _confirmationArea() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -592,6 +611,7 @@ class _StepSubmitState extends State<StepSubmit> {
   }
 
   @override
+  // build: builds build for the step submit intake flow.
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

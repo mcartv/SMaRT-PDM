@@ -1,3 +1,4 @@
+// SMaRT-PDM: Applications — application Field Limits (mobile backend); supports mobile API behavior.
 'use strict';
 
 const APPLICATION_FIELD_LIMITS = Object.freeze({
@@ -96,6 +97,7 @@ const FAMILY_MEMBER_RULES = Object.freeze([
     ['address', 'address', APPLICATION_FIELD_LIMITS.longAddress],
 ]);
 
+// readPath: handles read path for the Applications flow.
 function readPath(source, pathValue) {
     return pathValue.split('.').reduce((current, segment) => {
         if (!current || typeof current !== 'object') return undefined;
@@ -103,6 +105,7 @@ function readPath(source, pathValue) {
     }, source);
 }
 
+// validationError: handles validation error for the Applications flow.
 function validationError(label, maxLength) {
     const error = new Error(`${label} must not exceed ${maxLength} characters.`);
     error.statusCode = 400;
@@ -110,6 +113,7 @@ function validationError(label, maxLength) {
     return error;
 }
 
+// assertMaxLength: handles assert max length for the Applications flow.
 function assertMaxLength(value, maxLength, label) {
     if (value === null || value === undefined) return;
     if (typeof value !== 'string' && typeof value !== 'number') return;
@@ -118,6 +122,7 @@ function assertMaxLength(value, maxLength, label) {
     }
 }
 
+// validateFamilyMember: validates validate family member for the Applications flow.
 function validateFamilyMember(member, relationLabel) {
     if (!member || typeof member !== 'object' || Array.isArray(member)) return;
     for (const [key, label, maxLength] of FAMILY_MEMBER_RULES) {
@@ -125,6 +130,7 @@ function validateFamilyMember(member, relationLabel) {
     }
 }
 
+// validateApplicationFieldLimits: validates validate application field limits for the Applications flow.
 function validateApplicationFieldLimits(payload = {}) {
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return;
 

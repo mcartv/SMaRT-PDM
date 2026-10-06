@@ -1,3 +1,4 @@
+// SMaRT-PDM: responsive display name — responsive display name (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 
 /// Keeps the complete account name on one line and scales it down only when
@@ -9,6 +10,7 @@ class ResponsiveDisplayName extends StatelessWidget {
   final TextStyle? style;
 
   @override
+  // build: builds build for the responsive display name flow.
   Widget build(BuildContext context) {
     final fullName = name.trim();
 

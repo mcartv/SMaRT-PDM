@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — report ticket screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
@@ -13,6 +14,7 @@ class ReportTicketScreen extends StatefulWidget {
   const ReportTicketScreen({super.key});
 
   @override
+  // createState: creates create state for the Scholars flow.
   State<ReportTicketScreen> createState() => _ReportTicketScreenState();
 }
 
@@ -41,12 +43,14 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
   List<SupportTicket> _tickets = const [];
 
   @override
+  // initState: handles init state for the Scholars flow.
   void initState() {
     super.initState();
     _loadTickets();
   }
 
   @override
+  // didChangeDependencies: handles did change dependencies for the Scholars flow.
   void didChangeDependencies() {
     super.didChangeDependencies();
     final provider = context.read<NotificationProvider>();
@@ -61,12 +65,14 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
   }
 
   @override
+  // dispose: handles dispose for the Scholars flow.
   void dispose() {
     _notificationProvider?.removeListener(_handleRealtimeTickets);
     _descriptionController.dispose();
     super.dispose();
   }
 
+  // _loadTickets: handles load tickets for the Scholars flow.
   Future<void> _loadTickets() async {
     setState(() {
       _isLoadingTickets = true;
@@ -98,6 +104,7 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
     }
   }
 
+  // _handleRealtimeTickets: handles handle realtime tickets for the Scholars flow.
   void _handleRealtimeTickets() {
     final provider = _notificationProvider;
     if (provider == null) {
@@ -115,6 +122,7 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
     }
   }
 
+  // _submitTicket: handles submit ticket for the Scholars flow.
   Future<void> _submitTicket() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -165,12 +173,14 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
     }
   }
 
+  // _showErrorSnackBar: handles show error snack bar for the Scholars flow.
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  // _formatDate: handles format date for the Scholars flow.
   String _formatDate(DateTime? value) {
     if (value == null) return 'N/A';
 
@@ -193,6 +203,7 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
     return '${months[local.month - 1]} ${local.day}, ${local.year}';
   }
 
+  // _statusTone: handles status tone for the Scholars flow.
   AppStatusTone _statusTone(String status) {
     switch (status.trim().toLowerCase()) {
       case 'resolved':
@@ -208,6 +219,7 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
   }
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     final titleColor = AppSurfacePalette.text(context);
     final subtitleColor = AppSurfacePalette.mutedText(context);
@@ -489,6 +501,7 @@ class _InfoChip extends StatelessWidget {
   final String label;
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     final chipColor = AppSurfacePalette.surfaceMuted(context);
     final chipIconColor = AppSurfacePalette.mutedText(context);

@@ -1,5 +1,7 @@
+// SMaRT-PDM: Courses — course Controller (mobile backend controller); handles mobile API input/output and delegates business logic.
 const courseService = require('../services/courseService');
 
+// getCourses: reads and returns get courses for the Courses flow.
 async function getCourses(req, res) {
     try {
         const result = await courseService.getCourses();

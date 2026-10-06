@@ -1,3 +1,4 @@
+// SMaRT-PDM: main — main (admin frontend); supports admin-side UI behavior.
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
@@ -16,6 +17,7 @@ import {
 
 const PEER_SESSION_ENTRY_PATHS = new Set(['/', '/landing', '/login']);
 
+// bootstrap: handles bootstrap for the main flow.
 async function bootstrap() {
   hydrateRememberedSessions();
 

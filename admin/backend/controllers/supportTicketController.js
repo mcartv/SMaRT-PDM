@@ -1,11 +1,14 @@
+// SMaRT-PDM: support Ticket Controller — support Ticket Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const supportTicketService = require('../services/supportTicketService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 
+// getActorUserId: reads and returns get actor user id for the support Ticket Controller flow.
 function getActorUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+// writeTicketAudit: handles write ticket audit for the support Ticket Controller flow.
 async function writeTicketAudit(req, actionTaken, description, ticketId, metadata = {}) {
     try {
         if (typeof auditLogService?.logAudit !== 'function') return;

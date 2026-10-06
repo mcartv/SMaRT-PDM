@@ -1,3 +1,4 @@
+// SMaRT-PDM: intake form ui — intake form ui (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
@@ -38,29 +39,38 @@ class IntakeLayout {
   static double sectionGap(double width) => isCompact(width) ? 16 : 20;
 }
 
+// intakeIsDark: handles intake is dark for the intake form ui flow.
 bool intakeIsDark(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark;
 
+// intakePageColor: handles intake page color for the intake form ui flow.
 Color intakePageColor(BuildContext context) =>
     AppSurfacePalette.background(context);
 
+// intakeSurfaceColor: handles intake surface color for the intake form ui flow.
 Color intakeSurfaceColor(BuildContext context) =>
     AppSurfacePalette.surface(context);
 
+// intakeSurfaceTintColor: handles intake surface tint color for the intake form ui flow.
 Color intakeSurfaceTintColor(BuildContext context) =>
     AppSurfacePalette.surfaceMuted(context);
 
+// intakeBorderColor: handles intake border color for the intake form ui flow.
 Color intakeBorderColor(BuildContext context) =>
     AppSurfacePalette.outline(context);
 
+// intakeMutedBorderColor: handles intake muted border color for the intake form ui flow.
 Color intakeMutedBorderColor(BuildContext context) =>
     AppSurfacePalette.outline(context).withValues(alpha: 0.82);
 
+// intakeTextColor: handles intake text color for the intake form ui flow.
 Color intakeTextColor(BuildContext context) => AppSurfacePalette.text(context);
 
+// intakeSubtextColor: handles intake subtext color for the intake form ui flow.
 Color intakeSubtextColor(BuildContext context) =>
     AppSurfacePalette.mutedText(context);
 
+// intakeInputTextStyle: handles intake input text style for the intake form ui flow.
 TextStyle intakeInputTextStyle(BuildContext context, {bool readOnly = false}) =>
     Theme.of(context).textTheme.bodyLarge?.copyWith(
       color: readOnly
@@ -76,6 +86,7 @@ TextStyle intakeInputTextStyle(BuildContext context, {bool readOnly = false}) =>
       fontWeight: FontWeight.w400,
     );
 
+// intakeActionHint: handles intake action hint for the intake form ui flow.
 String intakeActionHint(String hint) {
   final normalized = hint.trim();
   if (normalized.startsWith('Enter ') ||
@@ -115,6 +126,7 @@ String intakeActionHint(String hint) {
   };
 }
 
+// intakeWarningColor: handles intake warning color for the intake form ui flow.
 Color intakeWarningColor(BuildContext context) => intakeIsDark(context)
     ? AppColors.applicantDarkSurfaceMuted
     : IntakePalette.warning;
@@ -132,6 +144,7 @@ class IntakeSectionHeader extends StatelessWidget {
   final double bottomSpacing;
 
   @override
+  // build: builds build for the intake form ui flow.
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(bottom: bottomSpacing),
@@ -186,6 +199,7 @@ class IntakeCard extends StatelessWidget {
   final Color? backgroundColor;
 
   @override
+  // build: builds build for the intake form ui flow.
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -226,6 +240,7 @@ class IntakeInfoCard extends StatelessWidget {
   final IconData icon;
 
   @override
+  // build: builds build for the intake form ui flow.
   Widget build(BuildContext context) {
     return IntakeCard(
       padding: const EdgeInsets.all(18),
@@ -288,6 +303,7 @@ class IntakeChoiceCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  // build: builds build for the intake form ui flow.
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
@@ -363,6 +379,7 @@ class IntakeChoiceCard extends StatelessWidget {
   }
 }
 
+// intakeInputDecoration: handles intake input decoration for the intake form ui flow.
 InputDecoration intakeInputDecoration(
   BuildContext context, {
   required String hint,
@@ -423,6 +440,7 @@ InputDecoration intakeInputDecoration(
   );
 }
 
+// intakeRequiredText: handles intake required text for the intake form ui flow.
 Widget intakeRequiredText(
   BuildContext context,
   String label, {
@@ -456,6 +474,7 @@ Widget intakeRequiredText(
   );
 }
 
+// intakeFieldLabel: handles intake field label for the intake form ui flow.
 Widget intakeFieldLabel(
   BuildContext context,
   String label, {
@@ -467,6 +486,7 @@ Widget intakeFieldLabel(
   );
 }
 
+// intakeCompletionIcon: handles intake completion icon for the intake form ui flow.
 Widget? intakeCompletionIcon(String value, {bool isValid = true}) {
   if (value.trim().isEmpty || !isValid) return null;
 
@@ -490,6 +510,7 @@ class IntakeReviewCard extends StatelessWidget {
   final VoidCallback? onEdit;
 
   @override
+  // build: builds build for the intake form ui flow.
   Widget build(BuildContext context) {
     return IntakeCard(
       margin: const EdgeInsets.only(bottom: 16),
@@ -543,6 +564,7 @@ class IntakeReviewRow extends StatelessWidget {
   final bool required;
 
   @override
+  // build: builds build for the intake form ui flow.
   Widget build(BuildContext context) {
     final missing = required && value.trim().isEmpty;
     return Container(

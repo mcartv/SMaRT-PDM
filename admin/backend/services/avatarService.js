@@ -1,3 +1,4 @@
+// SMaRT-PDM: avatar Service — avatar Service (admin backend service); contains business logic and data operations.
 const supabase = require('../config/supabase');
 
 const AVATAR_BUCKET = 'avatars';
@@ -19,10 +20,12 @@ const AVATAR_SIGNED_URL_CACHE_DEBUG =
 const avatarSignedUrlCache = new Map();
 const avatarSignedUrlInFlight = new Map();
 
+// normalizeValue: normalizes normalize value for the avatar Service flow.
 function normalizeValue(value) {
   return value == null ? '' : String(value).trim();
 }
 
+// extractAvatarStoragePath: handles extract avatar storage path for the avatar Service flow.
 function extractAvatarStoragePath(value) {
   const rawValue = normalizeValue(value);
   if (!rawValue) return null;
@@ -49,6 +52,7 @@ function extractAvatarStoragePath(value) {
   return null;
 }
 
+// pruneAvatarSignedUrlCache: handles prune avatar signed url cache for the avatar Service flow.
 function pruneAvatarSignedUrlCache(now = Date.now()) {
   for (const [key, entry] of avatarSignedUrlCache.entries()) {
     if (!entry || !entry.url || entry.expiresAt <= now) {
@@ -63,6 +67,7 @@ function pruneAvatarSignedUrlCache(now = Date.now()) {
   }
 }
 
+// debugAvatarCache: handles debug avatar cache for the avatar Service flow.
 function debugAvatarCache(kind, cacheKey) {
   if (!AVATAR_SIGNED_URL_CACHE_DEBUG) return;
 
@@ -72,6 +77,7 @@ function debugAvatarCache(kind, cacheKey) {
   });
 }
 
+// resolveAvatarUrl: resolves resolve avatar url for the avatar Service flow.
 async function resolveAvatarUrl(value) {
   const rawValue = normalizeValue(value);
   if (!rawValue) return null;
@@ -98,6 +104,7 @@ async function resolveAvatarUrl(value) {
     return inFlight;
   }
 
+  // request: handles request for the avatar Service flow.
   const request = (async () => {
     debugAvatarCache('MISS', cacheKey);
 
@@ -136,6 +143,7 @@ async function resolveAvatarUrl(value) {
   }
 }
 
+// clearAvatarSignedUrlCache: clears clear avatar signed url cache for the avatar Service flow.
 function clearAvatarSignedUrlCache(storagePath = null) {
   const normalizedPath = extractAvatarStoragePath(storagePath);
 

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — ROCoordinator Scholar Requests (admin frontend page); loads data, handles page actions, and renders the admin view.
 import { useCallback, useEffect, useState } from 'react';
 import {
   AlertTriangle,
@@ -26,6 +27,7 @@ import usePortalTheme from '@/hooks/usePortalTheme';
 import { SectionLoadingSkeleton } from '@/components/system/PageLoadingSkeleton';
 import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
 
+// getInitials: reads and returns get initials for the Scholars flow.
 function getInitials(name = '') {
   return (name || 'NA')
     .split(' ')
@@ -36,6 +38,7 @@ function getInitials(name = '') {
     .toUpperCase();
 }
 
+// headers: handles headers for the Scholars flow.
 function headers(tokenStorageKey) {
   return {
     Authorization: `Bearer ${sessionStorage.getItem(tokenStorageKey) || ''}`,
@@ -43,6 +46,7 @@ function headers(tokenStorageKey) {
   };
 }
 
+// formatDate: formats format date for the Scholars flow.
 function formatDate(value, includeTime = false) {
   if (!value) return 'No preferred date';
   const date = new Date(value);
@@ -55,12 +59,14 @@ function formatDate(value, includeTime = false) {
   });
 }
 
+// statusLabel: handles status label for the Scholars flow.
 function statusLabel(request = {}) {
   const status = request.request_status;
   if (['Fulfilled', 'Declined', 'Cancelled'].includes(status)) return status;
   return request.assignment_stage || (status === 'Acknowledged' ? 'Assigned' : status);
 }
 
+// statusStyle: handles status style for the Scholars flow.
 function statusStyle(status) {
   if (status === 'Fulfilled') return 'border-emerald-100 bg-emerald-50 text-emerald-700';
   if (status === 'Declined' || status === 'Cancelled') {
@@ -70,6 +76,7 @@ function statusStyle(status) {
   return 'border-amber-100 bg-amber-50 text-amber-700';
 }
 
+// RequestModal: handles request modal for the Scholars flow.
 function RequestModal({ open, areas, loading, onClose, onSubmit, theme }) {
   const [roAreaId, setRoAreaId] = useState(areas.length === 1 ? areas[0].ro_area_id : '');
   const [requestedCount, setRequestedCount] = useState(1);
@@ -230,6 +237,7 @@ export default function ROCoordinatorScholarRequests({
 
   useSocketEvent('ro:updated', () => loadRequests({ soft: true }), [loadRequests]);
 
+  // submitRequest: handles submit request for the Scholars flow.
   const submitRequest = async (payload) => {
     try {
       setSaving(true);
@@ -252,6 +260,7 @@ export default function ROCoordinatorScholarRequests({
     }
   };
 
+  // cancelRequest: checks whether cancel request for the Scholars flow.
   const cancelRequest = async (requestId) => {
     try {
       setCancellingId(requestId);

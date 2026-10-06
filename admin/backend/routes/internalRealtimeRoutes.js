@@ -1,12 +1,15 @@
+// SMaRT-PDM: Return of Obligations — internal Realtime Routes (admin backend route); maps API endpoints to middleware and controllers.
 const express = require('express');
 const { resolveInternalRealtimeSecret } = require('../utils/internalRealtimeSecret');
 
 const router = express.Router();
 
+// getSecret: reads and returns get secret for the Return of Obligations flow.
 function getSecret(req) {
     return String(req.headers['x-internal-realtime-secret'] || '').trim();
 }
 
+// requireInternalSecret: handles require internal secret for the Return of Obligations flow.
 function requireInternalSecret(req, res, next) {
     const expected = resolveInternalRealtimeSecret();
 
@@ -27,14 +30,17 @@ function requireInternalSecret(req, res, next) {
     return next();
 }
 
+// cleanId: handles clean id for the Return of Obligations flow.
 function cleanId(value) {
     return String(value || '').trim();
 }
 
+// uniqueIds: handles unique ids for the Return of Obligations flow.
 function uniqueIds(values = []) {
     return [...new Set(values.map(cleanId).filter(Boolean))];
 }
 
+// normalizeMessage: normalizes normalize message for the Return of Obligations flow.
 function normalizeMessage(raw = {}) {
     const messageId = raw.message_id || raw.messageId || raw.id || '';
     const senderId = raw.sender_id || raw.senderId || '';

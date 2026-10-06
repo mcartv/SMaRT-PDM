@@ -1,3 +1,4 @@
+// SMaRT-PDM: top level shell screen — top level shell screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -32,6 +33,7 @@ class TopLevelShellScreen extends StatefulWidget {
   }
 
   @override
+  // createState: creates create state for the top level shell screen flow.
   State<TopLevelShellScreen> createState() => TopLevelShellScreenState();
 }
 
@@ -68,6 +70,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen>
   ];
 
   @override
+  // initState: handles init state for the top level shell screen flow.
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
@@ -102,6 +105,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen>
     });
   }
 
+  // _loadScholarState: handles load scholar state for the top level shell screen flow.
   Future<void> _loadScholarState() async {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
@@ -111,6 +115,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen>
     });
   }
 
+  // _scheduleScholarActivationTransition: handles schedule scholar activation transition for the top level shell screen flow.
   void _scheduleScholarActivationTransition(NotificationProvider provider) {
     final revision = provider.scholarActivationRevision;
     if (revision <= _handledScholarActivationRevision ||
@@ -129,6 +134,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen>
     });
   }
 
+  // _showScholarActivationTransition: handles show scholar activation transition for the top level shell screen flow.
   Future<void> _showScholarActivationTransition(
     NotificationProvider provider,
   ) async {
@@ -152,6 +158,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen>
     await switchToIndex(0, animated: false);
   }
 
+  // _resolveScholarAccess: handles resolve scholar access for the top level shell screen flow.
   bool _resolveScholarAccess(NotificationProvider provider) {
     if (provider.scholarAccessRevision > 0) {
       return provider.hasScholarAccess;
@@ -160,6 +167,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen>
     return provider.hasScholarAccess || _isVerifiedScholar;
   }
 
+  // _routeForIndex: handles route for index for the top level shell screen flow.
   String _routeForIndex(int index) {
     switch (index) {
       case 1:
@@ -176,6 +184,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen>
     }
   }
 
+  // _redirectLockedCurrentTabIfNeeded: handles redirect locked current tab if needed for the top level shell screen flow.
   void _redirectLockedCurrentTabIfNeeded(bool hasScholarAccess) {
     if (hasScholarAccess ||
         !_scholarOnlyIndexes.contains(_currentIndex) ||
@@ -204,6 +213,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen>
   }
 
   @override
+  // didUpdateWidget: handles did update widget for the top level shell screen flow.
   void didUpdateWidget(covariant TopLevelShellScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
 
@@ -212,6 +222,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen>
     }
   }
 
+  // switchToIndex: handles switch to index for the top level shell screen flow.
   Future<void> switchToIndex(int index, {bool animated = true}) async {
     if (!mounted) return;
 
@@ -244,6 +255,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen>
     }
   }
 
+  // _handlePageChanged: handles handle page changed for the top level shell screen flow.
   Future<void> _handlePageChanged(int index, bool hasScholarAccess) async {
     if (_isRevertingLockedSwipe) return;
 
@@ -265,6 +277,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen>
   }
 
   @override
+  // didChangeAppLifecycleState: handles did change app lifecycle state for the top level shell screen flow.
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed || !mounted) return;
     if (MobileRealtimeService.instance.isRealtimeHealthy) return;
@@ -280,6 +293,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen>
   }
 
   @override
+  // dispose: handles dispose for the top level shell screen flow.
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
@@ -287,6 +301,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen>
   }
 
   @override
+  // build: builds build for the top level shell screen flow.
   Widget build(BuildContext context) {
     final notificationProvider = context.watch<NotificationProvider>();
     _scheduleScholarActivationTransition(notificationProvider);
@@ -382,6 +397,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen>
     );
   }
 
+  // _pageLabel: handles page label for the top level shell screen flow.
   String _pageLabel(int index) {
     switch (index) {
       case 1:

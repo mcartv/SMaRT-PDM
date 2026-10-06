@@ -1,3 +1,4 @@
+// SMaRT-PDM: capture Upload Relay — capture Upload Relay (admin backend service); contains business logic and data operations.
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 
@@ -9,6 +10,7 @@ function secret() {
     return value;
 }
 
+// authorize: handles authorize for the capture Upload Relay flow.
 function authorize(req, data) {
     return { ...data, artifacts: data.artifacts.map((artifact) => {
         const token = jwt.sign({ requestId: req.params.requestId, artifactId: artifact.artifact_id,
@@ -19,6 +21,7 @@ function authorize(req, data) {
     }) };
 }
 
+// verify: verifies verify for the capture Upload Relay flow.
 function verify(req, res, next) {
     try {
         const claims = jwt.verify(String(req.query.token || ''), secret(), {
@@ -32,6 +35,7 @@ function verify(req, res, next) {
     }
 }
 
+// upload: uploads upload for the capture Upload Relay flow.
 async function upload(req, res) {
     const pool = require('../config/db');
     const supabase = require('../config/supabase');

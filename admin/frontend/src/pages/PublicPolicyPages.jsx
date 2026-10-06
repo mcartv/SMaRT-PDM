@@ -1,3 +1,4 @@
+// SMaRT-PDM: Public Policy Pages — Public Policy Pages (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useEffect, useLayoutEffect, useState } from 'react';
 import {
   Database,
@@ -24,6 +25,7 @@ const policyIcons = {
   landmark: Landmark,
 };
 
+// usePublicPolicyContent: handles use public policy content for the Public Policy Pages flow.
 function usePublicPolicyContent() {
   const [content, setContent] = useState(DEFAULT_POLICY_CONTENT);
 
@@ -43,6 +45,7 @@ function usePublicPolicyContent() {
   return content;
 }
 
+// PublicPolicyLayout: handles public policy layout for the Public Policy Pages flow.
 function PublicPolicyLayout({ title, intro, sections, iconName, effectiveDate, children }) {
   const { theme } = useLandingTheme();
   const Icon = policyIcons[iconName] || ShieldCheck;
@@ -117,6 +120,7 @@ function PublicPolicyLayout({ title, intro, sections, iconName, effectiveDate, c
   );
 }
 
+// PrivacyNotice: handles privacy notice for the Public Policy Pages flow.
 export function PrivacyNotice() {
   const content = usePublicPolicyContent();
 
@@ -131,6 +135,7 @@ export function PrivacyNotice() {
   );
 }
 
+// DataProcessingConsent: handles data processing consent for the Public Policy Pages flow.
 export function DataProcessingConsent() {
   const content = usePublicPolicyContent();
 
@@ -150,6 +155,7 @@ export function DataProcessingConsent() {
   );
 }
 
+// TermsOfUse: handles terms of use for the Public Policy Pages flow.
 export function TermsOfUse() {
   const content = usePublicPolicyContent();
   return (

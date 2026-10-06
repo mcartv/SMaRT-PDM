@@ -1,3 +1,4 @@
+// SMaRT-PDM: Profile — about pdm screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/material.dart';
 
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
@@ -16,6 +17,7 @@ class AboutPdmScreen extends StatelessWidget {
       'Pambayang Dalubhasaan ng Marilao envisions becoming one of the premier higher educational institutions in the region, providing quality subsidized tertiary education and industry training programs committed to producing competent, competitive, capable, and skillful graduates who excel in their chosen fields.';
 
   @override
+  // build: builds build for the Profile flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final background = isDark
@@ -88,6 +90,7 @@ class _AboutHeroSection extends StatelessWidget {
   const _AboutHeroSection();
 
   @override
+  // build: builds build for the Profile flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -164,6 +167,7 @@ class _AboutExpandableSection extends StatelessWidget {
   final Widget? child;
 
   @override
+  // build: builds build for the Profile flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -236,6 +240,7 @@ class _MissionVisionSection extends StatelessWidget {
   final String body;
 
   @override
+  // build: builds build for the Profile flow.
   Widget build(BuildContext context) {
     return _AboutExpandableSection(
       icon: icon,
@@ -249,6 +254,7 @@ class _WhatYouCanDoRows extends StatelessWidget {
   const _WhatYouCanDoRows();
 
   @override
+  // build: builds build for the Profile flow.
   Widget build(BuildContext context) {
     return const Column(
       children: [
@@ -292,6 +298,7 @@ class _FeatureRow extends StatelessWidget {
   final String body;
 
   @override
+  // build: builds build for the Profile flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -336,6 +343,7 @@ class _FeatureDivider extends StatelessWidget {
   const _FeatureDivider();
 
   @override
+  // build: builds build for the Profile flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Divider(
@@ -352,6 +360,7 @@ class _AboutThisAppCard extends StatelessWidget {
   const _AboutThisAppCard();
 
   @override
+  // build: builds build for the Profile flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryText = isDark ? Colors.white : AppColors.darkBrown;
@@ -417,6 +426,7 @@ class _AboutIconBox extends StatelessWidget {
   final IconData icon;
 
   @override
+  // build: builds build for the Profile flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(

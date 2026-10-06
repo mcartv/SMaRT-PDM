@@ -1,3 +1,4 @@
+// SMaRT-PDM: Maintenance — maintenance Typography (admin frontend page); loads data, handles page actions, and renders the admin view.
 export const MAINTENANCE_CARD_TITLE_CLASS =
     'font-sans text-base font-semibold leading-6 tracking-normal text-stone-900';
 

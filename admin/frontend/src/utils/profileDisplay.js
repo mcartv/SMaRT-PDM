@@ -1,3 +1,4 @@
+// SMaRT-PDM: Profile — profile Display (admin frontend); supports admin-side UI behavior.
 // Presentation only: never use these labels for authorization or save payloads.
 const PROFILE_DISPLAY = {
   sdo: {
@@ -23,6 +24,7 @@ const SYSTEM_LABELS = {
   pd: 'Program Director',
 };
 
+// formatSystemLabel: formats format system label for the Profile flow.
 export function formatSystemLabel(value) {
   const text = String(value ?? '').trim();
   if (!text) return '—';
@@ -32,6 +34,7 @@ export function formatSystemLabel(value) {
       : text);
 }
 
+// getProfileDisplay: reads and returns get profile display for the Profile flow.
 export function getProfileDisplay(profile = {}, fallbackRole = '') {
   const rawRole = String(profile.role || fallbackRole).trim().toLowerCase();
   const role = {

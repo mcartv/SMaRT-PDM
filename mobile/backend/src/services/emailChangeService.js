@@ -1,3 +1,4 @@
+// SMaRT-PDM: email Change Service — email Change Service (mobile backend service); contains mobile-facing business logic and data operations.
 const crypto = require('crypto');
 const db = require('../config/db');
 const { mailFrom, transporter } = require('../config/mailer');
@@ -7,12 +8,14 @@ const OTP_EXPIRY_MINUTES = 10;
 const RESEND_COOLDOWN_SECONDS = 60;
 const MAX_ATTEMPTS = 5;
 
+// createHttpError: creates create http error for the email Change Service flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// generateOtp: handles generate otp for the email Change Service flow.
 function generateOtp() {
     let code = '';
     for (let index = 0; index < 6; index += 1) {
@@ -21,6 +24,7 @@ function generateOtp() {
     return code;
 }
 
+// hashOtp: checks whether hash otp for the email Change Service flow.
 function hashOtp(requestId, otp) {
     return crypto
         .createHash('sha256')
@@ -28,6 +32,7 @@ function hashOtp(requestId, otp) {
         .digest('hex');
 }
 
+// sendEmailChangeOtp: sends send email change otp for the email Change Service flow.
 async function sendEmailChangeOtp(email, otp, displayName) {
     if (process.env.SKIP_EMAIL === 'true') {
         console.log('DEV EMAIL CHANGE OTP:', {
@@ -57,6 +62,7 @@ async function sendEmailChangeOtp(email, otp, displayName) {
     });
 }
 
+// getUser: reads and returns get user for the email Change Service flow.
 async function getUser(userId, client = db) {
     const result = await client.query(
         `
@@ -77,6 +83,7 @@ async function getUser(userId, client = db) {
     return result.rows[0] || null;
 }
 
+// requestEmailChange: handles request email change for the email Change Service flow.
 async function requestEmailChange(userId, body = {}) {
     const newEmail = normalizeEmail(body.newEmail || body.new_email || body.email);
 
@@ -193,6 +200,7 @@ async function requestEmailChange(userId, body = {}) {
     };
 }
 
+// verifyEmailChange: verifies verify email change for the email Change Service flow.
 async function verifyEmailChange(userId, body = {}) {
     const requestId = String(body.requestId || body.request_id || '').trim();
     const otp = String(body.otp || '').trim();

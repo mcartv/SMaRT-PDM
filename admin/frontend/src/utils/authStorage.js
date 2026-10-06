@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — auth Storage (admin frontend); supports admin-side UI behavior.
 const DEVICE_ID_KEY = 'smartpdmAdminDeviceId';
 const SESSION_FEEDBACK_KEY = 'smartpdmPortalSessionFeedback';
 const SESSION_FEEDBACK_MAX_AGE_MS = 10 * 60_000;
@@ -51,25 +52,30 @@ const AUTH_STORAGE_KEYS = Object.values(PORTAL_CONFIG).flatMap((portal) => [
     portal.profileKey,
 ]);
 
+// isKnownPortalName: checks whether is known portal name for the Authentication flow.
 function isKnownPortalName(portalName) {
     return Boolean(portalName && PORTAL_CONFIG[portalName]);
 }
 
+// getPortalSessionMetaKey: reads and returns get portal session meta key for the Authentication flow.
 function getPortalSessionMetaKey(portalName) {
     return `${PORTAL_SESSION_META_PREFIX}:${portalName}`;
 }
 
+// setActivePortalHint: sets set active portal hint for the Authentication flow.
 function setActivePortalHint(portalName) {
     if (!isKnownPortalName(portalName)) return;
     localStorage.setItem(ACTIVE_PORTAL_HINT_KEY, portalName);
 }
 
+// clearActivePortalHint: clears clear active portal hint for the Authentication flow.
 function clearActivePortalHint(portalName = null) {
     if (!portalName || localStorage.getItem(ACTIVE_PORTAL_HINT_KEY) === portalName) {
         localStorage.removeItem(ACTIVE_PORTAL_HINT_KEY);
     }
 }
 
+// makeRandomId: handles make random id for the Authentication flow.
 function makeRandomId() {
     if (globalThis.crypto?.randomUUID) {
         return globalThis.crypto.randomUUID();
@@ -80,12 +86,14 @@ function makeRandomId() {
         .slice(2)}`;
 }
 
+// tokenMarker: handles token marker for the Authentication flow.
 function tokenMarker(token) {
     const value = String(token || '').trim();
     if (!value) return '';
     return value.slice(-32);
 }
 
+// decodeJwtPayload: handles decode jwt payload for the Authentication flow.
 function decodeJwtPayload(token) {
     try {
         const value = String(token || '').trim();
@@ -101,12 +109,14 @@ function decodeJwtPayload(token) {
     }
 }
 
+// deriveServerSessionId: derives derive server session id for the Authentication flow.
 function deriveServerSessionId(token) {
     const payload = decodeJwtPayload(token);
     const value = payload?.sid || payload?.session_id || null;
     return value ? String(value) : null;
 }
 
+// readPortalSessionMeta: handles read portal session meta for the Authentication flow.
 function readPortalSessionMeta(storage, portalName, token) {
     if (!storage || !isKnownPortalName(portalName) || !token) return null;
 
@@ -129,6 +139,7 @@ function readPortalSessionMeta(storage, portalName, token) {
     }
 }
 
+// createPortalSessionMeta: creates create portal session meta for the Authentication flow.
 function createPortalSessionMeta(token, {
     browserSessionId = '',
     serverSessionId = null,
@@ -145,11 +156,13 @@ function createPortalSessionMeta(token, {
     };
 }
 
+// writePortalSessionMeta: handles write portal session meta for the Authentication flow.
 function writePortalSessionMeta(storage, portalName, meta) {
     if (!storage || !isKnownPortalName(portalName) || !meta?.browserSessionId) return;
     storage.setItem(getPortalSessionMetaKey(portalName), JSON.stringify(meta));
 }
 
+// getOrCreatePortalSessionMeta: reads and returns get or create portal session meta for the Authentication flow.
 function getOrCreatePortalSessionMeta(portalName, token) {
     if (!isKnownPortalName(portalName) || !token) return null;
 
@@ -178,6 +191,7 @@ function getOrCreatePortalSessionMeta(portalName, token) {
     return meta;
 }
 
+// clearTabAuthStorage: clears clear tab auth storage for the Authentication flow.
 function clearTabAuthStorage() {
     AUTH_STORAGE_KEYS.forEach((key) => sessionStorage.removeItem(key));
     Object.keys(PORTAL_CONFIG).forEach((portalName) => {
@@ -185,6 +199,7 @@ function clearTabAuthStorage() {
     });
 }
 
+// writePortalSessionToTab: handles write portal session to tab for the Authentication flow.
 function writePortalSessionToTab({
     portalName,
     token,
@@ -226,6 +241,7 @@ function writePortalSessionToTab({
     };
 }
 
+// getPortalNameFromPath: reads and returns get portal name from path for the Authentication flow.
 export function getPortalNameFromPath(pathname = '') {
     const normalized = String(pathname || '').trim().toLowerCase();
 
@@ -261,6 +277,7 @@ const SESSION_INVALIDATION_CODES = new Set([
     'NOT_ADMIN_ACCOUNT',
 ]);
 
+// isSessionInvalidationError: checks whether is session invalidation error for the Authentication flow.
 export function isSessionInvalidationError(error = {}) {
     const code = String(error?.code || '').trim().toUpperCase();
     return SESSION_INVALIDATION_CODES.has(code);
@@ -268,6 +285,7 @@ export function isSessionInvalidationError(error = {}) {
 
 export const PAGE_INSTANCE_ID = makeRandomId();
 
+// getAdminDeviceId: reads and returns get admin device id for the Authentication flow.
 export function getAdminDeviceId() {
     let deviceId = localStorage.getItem(DEVICE_ID_KEY);
 
@@ -279,10 +297,12 @@ export function getAdminDeviceId() {
     return deviceId;
 }
 
+// getStoredItem: reads and returns get stored item for the Authentication flow.
 export function getStoredItem(key) {
     return sessionStorage.getItem(key) || localStorage.getItem(key);
 }
 
+// hydrateRememberedSessions: handles hydrate remembered sessions for the Authentication flow.
 export function hydrateRememberedSessions() {
     AUTH_STORAGE_KEYS.forEach((key) => {
         const rememberedValue = localStorage.getItem(key);
@@ -318,6 +338,7 @@ export function hydrateRememberedSessions() {
     });
 }
 
+// clearAuthStorage: clears clear auth storage for the Authentication flow.
 export function clearAuthStorage() {
     AUTH_STORAGE_KEYS.forEach((key) => {
         sessionStorage.removeItem(key);
@@ -333,6 +354,7 @@ export function clearAuthStorage() {
     clearActivePortalHint();
 }
 
+// clearPortalSession: clears clear portal session for the Authentication flow.
 export function clearPortalSession(
     portalName,
     { expectedToken = '', expectedBrowserSessionId = '' } = {}
@@ -344,6 +366,7 @@ export function clearPortalSession(
     const normalizedExpectedBrowserSessionId = String(expectedBrowserSessionId || '').trim();
     const metaKey = getPortalSessionMetaKey(portalName);
 
+    // clearMatchingStorage: clears clear matching storage for the Authentication flow.
     const clearMatchingStorage = (storage) => {
         const storedToken = storage.getItem(portal.tokenKey);
         const storedProfile = storage.getItem(portal.profileKey);
@@ -394,6 +417,7 @@ export function clearPortalSession(
     return cleared;
 }
 
+// redirectPortalToLogin: handles redirect portal to login for the Authentication flow.
 export function redirectPortalToLogin(portalName) {
     if (typeof window === 'undefined') return;
     if (!PORTAL_CONFIG[portalName]) return;
@@ -404,6 +428,7 @@ export function redirectPortalToLogin(portalName) {
     window.location.replace('/login');
 }
 
+// buildSessionFeedback: builds build session feedback for the Authentication flow.
 function buildSessionFeedback(code, message = '') {
     const normalizedCode = String(code || '').trim().toUpperCase();
     const normalizedMessage = String(message || '').trim().toLowerCase();
@@ -453,6 +478,7 @@ function buildSessionFeedback(code, message = '') {
     };
 }
 
+// savePortalSessionFeedback: validates and saves save portal session feedback for the Authentication flow.
 export function savePortalSessionFeedback({ portalName, code, message }) {
     if (!PORTAL_CONFIG[portalName]) return null;
 
@@ -467,6 +493,7 @@ export function savePortalSessionFeedback({ portalName, code, message }) {
     return feedback;
 }
 
+// consumePortalSessionFeedback: handles consume portal session feedback for the Authentication flow.
 export function consumePortalSessionFeedback(portalName) {
     const raw = sessionStorage.getItem(SESSION_FEEDBACK_KEY);
     if (!raw) return null;
@@ -496,6 +523,7 @@ export function consumePortalSessionFeedback(portalName) {
     return feedback;
 }
 
+// clearPortalSessionFeedback: clears clear portal session feedback for the Authentication flow.
 export function clearPortalSessionFeedback(portalName = null) {
     if (!portalName) {
         sessionStorage.removeItem(SESSION_FEEDBACK_KEY);
@@ -515,6 +543,7 @@ export function clearPortalSessionFeedback(portalName = null) {
     }
 }
 
+// invalidateStoredPortalSession: handles invalidate stored portal session for the Authentication flow.
 export function invalidateStoredPortalSession({
     portalName,
     code,
@@ -615,6 +644,7 @@ export function invalidateStoredPortalSession({
     };
 }
 
+// readAuthorizationHeader: handles read authorization header for the Authentication flow.
 function readAuthorizationHeader(headers) {
     if (!headers) return '';
 
@@ -643,6 +673,7 @@ function readAuthorizationHeader(headers) {
     return '';
 }
 
+// getFetchRequestToken: reads and returns get fetch request token for the Authentication flow.
 function getFetchRequestToken(input, init = {}) {
     let authorization = readAuthorizationHeader(init?.headers);
 
@@ -660,6 +691,7 @@ function getFetchRequestToken(input, init = {}) {
 
 let fetchSessionGuardInstalled = false;
 
+// installSessionInvalidationFetchGuard: handles install session invalidation fetch guard for the Authentication flow.
 export function installSessionInvalidationFetchGuard() {
     if (
         fetchSessionGuardInstalled ||
@@ -714,6 +746,7 @@ export function installSessionInvalidationFetchGuard() {
     };
 }
 
+// savePortalSession: validates and saves save portal session for the Authentication flow.
 export function savePortalSession({ portalName, token, user, stayLoggedIn }) {
     const portal = PORTAL_CONFIG[portalName];
 
@@ -747,11 +780,13 @@ export function savePortalSession({ portalName, token, user, stayLoggedIn }) {
     return session;
 }
 
+// getPortalNameFromRole: reads and returns get portal name from role for the Authentication flow.
 export function getPortalNameFromRole(role) {
     const normalized = String(role || '').trim().toLowerCase();
     return PORTAL_CONFIG[normalized] ? normalized : 'admin';
 }
 
+// getPortalNameFromTokenKey: reads and returns get portal name from token key for the Authentication flow.
 export function getPortalNameFromTokenKey(tokenKey) {
     return (
         Object.entries(PORTAL_CONFIG).find(
@@ -760,6 +795,7 @@ export function getPortalNameFromTokenKey(tokenKey) {
     );
 }
 
+// getStoredPortalSession: reads and returns get stored portal session for the Authentication flow.
 export function getStoredPortalSession(portalName = null) {
     const entries = portalName
         ? [[portalName, PORTAL_CONFIG[portalName]]]
@@ -801,6 +837,7 @@ export function getStoredPortalSession(portalName = null) {
     return null;
 }
 
+// getTabPortalSession: reads and returns get tab portal session for the Authentication flow.
 function getTabPortalSession(portalName = null) {
     const entries = portalName
         ? [[portalName, PORTAL_CONFIG[portalName]]]
@@ -840,6 +877,7 @@ let portalSessionSyncChannel = null;
 let portalSessionSyncInstalled = false;
 const processedSyncEventIds = new Set();
 
+// createPortalSessionChannel: creates create portal session channel for the Authentication flow.
 function createPortalSessionChannel() {
     if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') {
         return null;
@@ -852,6 +890,7 @@ function createPortalSessionChannel() {
     }
 }
 
+// normalizeSyncPayload: normalizes normalize sync payload for the Authentication flow.
 function normalizeSyncPayload(payload = {}) {
     return {
         ...payload,
@@ -860,6 +899,7 @@ function normalizeSyncPayload(payload = {}) {
     };
 }
 
+// publishPortalSessionStorageEvent: handles publish portal session storage event for the Authentication flow.
 function publishPortalSessionStorageEvent(payload) {
     if (typeof window === 'undefined') return false;
 
@@ -875,6 +915,7 @@ function publishPortalSessionStorageEvent(payload) {
     }
 }
 
+// publishPortalSessionMessage: handles publish portal session message for the Authentication flow.
 function publishPortalSessionMessage(payload, channel = portalSessionSyncChannel) {
     const normalized = normalizeSyncPayload(payload);
     let sentViaChannel = false;
@@ -897,6 +938,7 @@ function publishPortalSessionMessage(payload, channel = portalSessionSyncChannel
     return normalized;
 }
 
+// shouldHandleSyncPayload: handles should handle sync payload for the Authentication flow.
 function shouldHandleSyncPayload(payload = {}) {
     if (payload.sourceId && payload.sourceId === PAGE_INSTANCE_ID) {
         return false;
@@ -922,6 +964,7 @@ function shouldHandleSyncPayload(payload = {}) {
     return true;
 }
 
+// hydratePortalSessionFromPeerTabs: handles hydrate portal session from peer tabs for the Authentication flow.
 export async function hydratePortalSessionFromPeerTabs({
     portalName = null,
     timeoutMs = PORTAL_SESSION_REQUEST_TIMEOUT_MS,
@@ -951,6 +994,7 @@ export async function hydratePortalSessionFromPeerTabs({
     return new Promise((resolve) => {
         let settled = false;
 
+        // finish: handles finish for the Authentication flow.
         const finish = (session = null) => {
             if (settled) return;
             settled = true;
@@ -960,6 +1004,7 @@ export async function hydratePortalSessionFromPeerTabs({
             resolve(session);
         };
 
+        // handlePayload: handles handle payload for the Authentication flow.
         const handlePayload = (payload = {}) => {
             if (payload.type !== 'SESSION_RESPONSE' || payload.requestId !== requestId) return;
             if (!isKnownPortalName(payload.portalName) || !payload.token) return;
@@ -977,6 +1022,7 @@ export async function hydratePortalSessionFromPeerTabs({
             finish(session);
         };
 
+        // handleStorageResponse: handles handle storage response for the Authentication flow.
         const handleStorageResponse = (event) => {
             if (event.key !== PORTAL_SESSION_STORAGE_EVENT_KEY || !event.newValue) return;
 
@@ -1015,6 +1061,7 @@ export async function hydratePortalSessionFromPeerTabs({
     });
 }
 
+// installPortalSessionSync: handles install portal session sync for the Authentication flow.
 export function installPortalSessionSync() {
     if (portalSessionSyncInstalled || typeof window === 'undefined') return;
 
@@ -1026,6 +1073,7 @@ export function installPortalSessionSync() {
         setActivePortalHint(current.portalName);
     }
 
+    // handleSyncPayload: handles handle sync payload for the Authentication flow.
     const handleSyncPayload = (payload = {}) => {
         if (!shouldHandleSyncPayload(payload)) return;
 
@@ -1139,6 +1187,7 @@ export function installPortalSessionSync() {
     });
 }
 
+// broadcastPortalSessionEstablished: handles broadcast portal session established for the Authentication flow.
 export function broadcastPortalSessionEstablished(session = {}) {
     const {
         portalName,
@@ -1173,6 +1222,7 @@ export function broadcastPortalSessionEstablished(session = {}) {
     return message;
 }
 
+// broadcastPortalSessionCleared: handles broadcast portal session cleared for the Authentication flow.
 export function broadcastPortalSessionCleared(portalName, session = null) {
     if (!isKnownPortalName(portalName)) return null;
 

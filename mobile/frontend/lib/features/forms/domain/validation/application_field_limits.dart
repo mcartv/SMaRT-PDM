@@ -1,3 +1,4 @@
+// SMaRT-PDM: Applications — application field limits (mobile frontend); supports mobile UI behavior.
 abstract final class ApplicationFieldLimits {
   const ApplicationFieldLimits._();
 

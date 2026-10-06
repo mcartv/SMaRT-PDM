@@ -1,3 +1,4 @@
+// SMaRT-PDM: Maintenance — maintenance mode gate (mobile frontend); supports mobile UI behavior.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -14,6 +15,7 @@ class MaintenanceModeGate extends StatefulWidget {
   final Widget child;
 
   @override
+  // createState: creates create state for the Maintenance flow.
   State<MaintenanceModeGate> createState() => _MaintenanceModeGateState();
 }
 
@@ -29,6 +31,7 @@ class _MaintenanceModeGateState extends State<MaintenanceModeGate>
       'SMaRT-PDM is temporarily unavailable while system maintenance is in progress. Please try again later.';
 
   @override
+  // initState: handles init state for the Maintenance flow.
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
@@ -51,6 +54,7 @@ class _MaintenanceModeGateState extends State<MaintenanceModeGate>
   }
 
   @override
+  // dispose: handles dispose for the Maintenance flow.
   void dispose() {
     _pollTimer?.cancel();
     _stopRealtimeListener?.call();
@@ -60,12 +64,14 @@ class _MaintenanceModeGateState extends State<MaintenanceModeGate>
   }
 
   @override
+  // didChangeAppLifecycleState: handles did change app lifecycle state for the Maintenance flow.
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _refresh(silent: true);
     }
   }
 
+  // _refresh: handles refresh for the Maintenance flow.
   Future<void> _refresh({bool silent = false}) async {
     if (_checking) {
       _refreshQueued = true;
@@ -114,6 +120,7 @@ class _MaintenanceModeGateState extends State<MaintenanceModeGate>
   }
 
   @override
+  // build: builds build for the Maintenance flow.
   Widget build(BuildContext context) {
     return Stack(
       fit: StackFit.expand,

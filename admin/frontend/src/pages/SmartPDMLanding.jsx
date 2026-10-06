@@ -1,3 +1,4 @@
+// SMaRT-PDM: Smart PDMLanding — Smart PDMLanding (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { io } from 'socket.io-client';
@@ -41,6 +42,7 @@ const APP_DOWNLOAD_URL =
 const PDM_FACEBOOK_URL = 'https://www.facebook.com/PDM2010Official';
 
 
+// normalizePublicFaqItems: normalizes normalize public faq items for the Smart PDMLanding flow.
 function normalizePublicFaqItems(items = []) {
   return (Array.isArray(items) ? items : [])
     .filter((item) => item?.is_archived !== true)
@@ -52,6 +54,7 @@ function normalizePublicFaqItems(items = []) {
 }
 
 
+// normalizePublicFeaturedNotices: normalizes normalize public featured notices for the Smart PDMLanding flow.
 function normalizePublicFeaturedNotices(value) {
   const source = Array.isArray(value)
     ? value
@@ -107,10 +110,12 @@ const defaultFaqItems = [
   },
 ];
 
+// isExternalUrl: checks whether is external url for the Smart PDMLanding flow.
 function isExternalUrl(href) {
   return /^https?:\/\//i.test(href);
 }
 
+// isSafePublicLink: checks whether is safe public link for the Smart PDMLanding flow.
 function isSafePublicLink(href) {
   const value = String(href || '').trim();
   if (value.startsWith('/') && !value.startsWith('//')) return true;
@@ -121,6 +126,7 @@ function isSafePublicLink(href) {
   }
 }
 
+// Button: handles button for the Smart PDMLanding flow.
 function Button({
   href,
   children,
@@ -187,6 +193,7 @@ function Button({
   );
 }
 
+// StepCard: handles step card for the Smart PDMLanding flow.
 function StepCard({ step, title, description, theme }) {
   return (
     <div className="flex h-full flex-col rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-sm">
@@ -203,6 +210,7 @@ function StepCard({ step, title, description, theme }) {
   );
 }
 
+// NavDropdown: handles nav dropdown for the Smart PDMLanding flow.
 function NavDropdown({ label, href, active, children, align = 'left' }) {
   return (
     <div className="group relative shrink-0">
@@ -226,6 +234,7 @@ function NavDropdown({ label, href, active, children, align = 'left' }) {
   );
 }
 
+// NavDropdownLink: handles nav dropdown link for the Smart PDMLanding flow.
 function NavDropdownLink({ href, title, onClick }) {
   return (
     <a href={href} onClick={onClick} className="flex min-h-10 items-center rounded-lg border-l-2 border-transparent px-3 py-2.5 text-sm font-semibold text-white transition hover:border-[var(--nav-accent)] hover:bg-white/10 focus-visible:border-[var(--nav-accent)] focus-visible:bg-white/10 focus-visible:outline-none">
@@ -234,6 +243,7 @@ function NavDropdownLink({ href, title, onClick }) {
   );
 }
 
+// BenefactorCard: handles benefactor card for the Smart PDMLanding flow.
 function BenefactorCard({ benefactor, theme }) {
   const landingImage = benefactor.landing_image_url || null;
 
@@ -281,6 +291,7 @@ function BenefactorCard({ benefactor, theme }) {
   );
 }
 
+// FaqCard: handles faq card for the Smart PDMLanding flow.
 function FaqCard({ item, theme, isOpen, onToggle, panelId }) {
   return (
     <div
@@ -325,6 +336,7 @@ function FaqCard({ item, theme, isOpen, onToggle, panelId }) {
   );
 }
 
+// formatFeaturedNoticeDate: formats format featured notice date for the Smart PDMLanding flow.
 function formatFeaturedNoticeDate(value) {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -341,9 +353,11 @@ function formatFeaturedNoticeDate(value) {
   }).format(date);
 }
 
+// FeaturedNoticeModal: handles featured notice modal for the Smart PDMLanding flow.
 function FeaturedNoticeModal({ notices, theme, fallbackPublishedAt, onClose }) {
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
+    // handleKeyDown: handles handle key down for the Smart PDMLanding flow.
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') onClose();
     };
@@ -448,9 +462,11 @@ function FeaturedNoticeModal({ notices, theme, fallbackPublishedAt, onClose }) {
   );
 }
 
+// RequirementsModal: handles requirements modal for the Smart PDMLanding flow.
 function RequirementsModal({ content, theme, onClose }) {
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
+    // handleKeyDown: handles handle key down for the Smart PDMLanding flow.
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') onClose();
     };
@@ -545,9 +561,11 @@ function RequirementsModal({ content, theme, onClose }) {
   );
 }
 
+// ScholarshipProcessModal: handles scholarship process modal for the Smart PDMLanding flow.
 function ScholarshipProcessModal({ steps, theme, onClose, obligationsOnly = false }) {
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
+    // handleKeyDown: handles handle key down for the Smart PDMLanding flow.
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') onClose();
     };
@@ -631,9 +649,11 @@ function ScholarshipProcessModal({ steps, theme, onClose, obligationsOnly = fals
   );
 }
 
+// AboutInfoModal: handles about info modal for the Smart PDMLanding flow.
 function AboutInfoModal({ type, theme, onClose }) {
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
+    // handleKeyDown: handles handle key down for the Smart PDMLanding flow.
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') onClose();
     };
@@ -744,6 +764,7 @@ function AboutInfoModal({ type, theme, onClose }) {
 
 const FEATURED_NOTICE_SESSION_KEY = 'smartpdm:featured-notice:shown-signature';
 
+// readFeaturedNoticeSessionSignature: handles read featured notice session signature for the Smart PDMLanding flow.
 function readFeaturedNoticeSessionSignature() {
   if (typeof window === 'undefined') return '';
 
@@ -754,6 +775,7 @@ function readFeaturedNoticeSessionSignature() {
   }
 }
 
+// rememberFeaturedNoticeSessionSignature: handles remember featured notice session signature for the Smart PDMLanding flow.
 function rememberFeaturedNoticeSessionSignature(signature) {
   if (!signature || typeof window === 'undefined') return;
 
@@ -820,6 +842,7 @@ export default function SmartPDMLanding() {
   useEffect(() => {
     let active = true;
 
+    // loadBenefactors: loads and returns load benefactors for the Smart PDMLanding flow.
     const loadBenefactors = async () => {
       try {
         const response = await fetch(buildApiUrl('/api/benefactors/public'));
@@ -851,6 +874,7 @@ export default function SmartPDMLanding() {
   }, []);
 
   useEffect(() => {
+    // handleScroll: handles handle scroll for the Smart PDMLanding flow.
     const handleScroll = () => setShowBackToTop(window.scrollY > 640);
 
     handleScroll();
@@ -862,6 +886,7 @@ export default function SmartPDMLanding() {
     const sectionIds = ['home', 'benefactors', 'guide', 'about', 'faq', 'contact'];
     let frameId;
 
+    // updateActiveSection: updates update active section for the Smart PDMLanding flow.
     const updateActiveSection = () => {
       frameId = undefined;
       const activationLine = 120;
@@ -879,6 +904,7 @@ export default function SmartPDMLanding() {
       setActiveSection(reachedPageEnd ? 'contact' : currentSection);
     };
 
+    // handleScroll: handles handle scroll for the Smart PDMLanding flow.
     const handleScroll = () => {
       if (frameId !== undefined) return;
       frameId = window.requestAnimationFrame(updateActiveSection);
@@ -943,6 +969,7 @@ export default function SmartPDMLanding() {
   useEffect(() => {
     let active = true;
 
+    // loadGeneralSettings: loads and returns load general settings for the Smart PDMLanding flow.
     const loadGeneralSettings = async () => {
       try {
         const response = await fetch(buildApiUrl('/api/general-settings/public'));
@@ -993,6 +1020,7 @@ export default function SmartPDMLanding() {
       reconnectionAttempts: Infinity,
       transports: ['websocket', 'polling'],
     });
+    // handleGeneralSettingsUpdated: handles handle general settings updated for the Smart PDMLanding flow.
     const handleGeneralSettingsUpdated = (payload = {}) => {
       if (payload?.source !== 'general_settings') return;
       const settings = payload?.settings || {};
@@ -1036,6 +1064,7 @@ export default function SmartPDMLanding() {
     let cancelled = false;
     const maxTimeout = 2147483000;
 
+    // scheduleBoundaryRefresh: handles schedule boundary refresh for the Smart PDMLanding flow.
     const scheduleBoundaryRefresh = () => {
       const remaining = Math.max(0, boundary - Date.now()) + 500;
       timeoutId = window.setTimeout(async () => {

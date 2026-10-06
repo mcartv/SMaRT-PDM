@@ -1,3 +1,4 @@
+// SMaRT-PDM: Dashboard — applicant home mapper (mobile frontend); supports mobile UI behavior.
 import 'package:intl/intl.dart';
 
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
@@ -25,6 +26,7 @@ class ApplicantHomeMapper {
   );
   static final DateFormat _dateFormat = DateFormat('d MMM y');
 
+  // mapIdentity: maps map identity for the Dashboard flow.
   ApplicantHomeIdentityPresentation mapIdentity(SessionUser user) {
     final fullName = <String>[
       _displayContent(user.firstName),
@@ -42,6 +44,7 @@ class ApplicantHomeMapper {
     );
   }
 
+  // mapOpenings: maps map openings for the Dashboard flow.
   ApplicantHomeOpeningsPresentation mapOpenings(ProgramOpeningsResult result) {
     final items = result.items.take(3).map(_mapOpening).toList(growable: false);
 
@@ -57,6 +60,7 @@ class ApplicantHomeMapper {
     );
   }
 
+  // mapDocuments: maps map documents for the Dashboard flow.
   ApplicantHomeDocumentsPresentation mapDocuments(
     ApplicantDocumentsPackage package,
   ) {
@@ -70,6 +74,7 @@ class ApplicantHomeMapper {
     );
   }
 
+  // mapLatestUpdate: maps map latest update for the Dashboard flow.
   ApplicantHomeUpdatePresentation? mapLatestUpdate(
     AppNotification? notification,
   ) {
@@ -104,6 +109,7 @@ class ApplicantHomeMapper {
     );
   }
 
+  // mapApplicationStatus: maps map application status for the Dashboard flow.
   ApplicantHomeApplicationPresentation mapApplicationStatus(
     ApplicationStatusSummary summary, {
     ProgramOpeningsResult? openings,
@@ -353,6 +359,7 @@ class ApplicantHomeMapper {
     );
   }
 
+  // mapProgress: maps map progress for the Dashboard flow.
   List<ApplicantHomeProgressPresentation> mapProgress(
     ApplicationStatusSummary summary,
   ) {
@@ -369,6 +376,7 @@ class ApplicantHomeMapper {
     ]);
   }
 
+  // _mapOpening: handles map opening for the Dashboard flow.
   ApplicantHomeOpeningPresentation _mapOpening(ProgramOpening opening) {
     final title = _displayContent(
       opening.openingTitle,
@@ -414,6 +422,7 @@ class ApplicantHomeMapper {
     );
   }
 
+  // _requirementsProgress: handles requirements progress for the Dashboard flow.
   ApplicantHomeProgressPresentation _requirementsProgress(String? rawStatus) {
     return switch (_knownRequirementsStatus(rawStatus)) {
       'missing' => const ApplicantHomeProgressPresentation(
@@ -475,6 +484,7 @@ class ApplicantHomeMapper {
     };
   }
 
+  // _endorsementProgress: handles endorsement progress for the Dashboard flow.
   ApplicantHomeProgressPresentation _endorsementProgress(String? rawStatus) {
     return switch (_knownEndorsementStatus(rawStatus)) {
       'pending_sdo' => const ApplicantHomeProgressPresentation(
@@ -543,6 +553,7 @@ class ApplicantHomeMapper {
     };
   }
 
+  // _activationProgress: handles activation progress for the Dashboard flow.
   ApplicantHomeProgressPresentation _activationProgress(
     String? rawStatus, {
     String? workflowStage,
@@ -583,6 +594,7 @@ class ApplicantHomeMapper {
     );
   }
 
+  // _applicationPeriod: handles application period for the Dashboard flow.
   String? _applicationPeriod(ProgramOpening opening) {
     // Opening periods are calendar dates, not user-local event instants. Keep
     // the API date component stable instead of shifting a late UTC end time
@@ -597,6 +609,7 @@ class ApplicantHomeMapper {
     return null;
   }
 
+  // _isEndorsementInProgress: handles is endorsement in progress for the Dashboard flow.
   bool _isEndorsementInProgress(String stage, String endorsementStatus) {
     return stage == 'endorsement_review' ||
         endorsementStatus == 'pending_sdo' ||
@@ -604,6 +617,7 @@ class ApplicantHomeMapper {
         endorsementStatus == 'pending_pd';
   }
 
+  // _knownStage: handles known stage for the Dashboard flow.
   String _knownStage(String? raw) =>
       const {
         'application_submitted',
@@ -615,6 +629,7 @@ class ApplicantHomeMapper {
       ? raw!
       : '';
 
+  // _knownRequirementsStatus: handles known requirements status for the Dashboard flow.
   String _knownRequirementsStatus(String? raw) =>
       const {
         'verified',
@@ -626,6 +641,7 @@ class ApplicantHomeMapper {
       ? raw!
       : '';
 
+  // _knownEndorsementStatus: handles known endorsement status for the Dashboard flow.
   String _knownEndorsementStatus(String? raw) =>
       const {
         'pending_sdo',
@@ -639,11 +655,13 @@ class ApplicantHomeMapper {
       ? raw!
       : '';
 
+  // _knownActivationStatus: handles known activation status for the Dashboard flow.
   String _knownActivationStatus(String? raw) {
     if (raw == 'ready_for_activation') return 'ready';
     return const {'not_ready', 'ready', 'activated'}.contains(raw) ? raw! : '';
   }
 
+  // _knownBlocker: handles known blocker for the Dashboard flow.
   String _knownBlocker(String? raw) =>
       const {
         'requirements.missing',
@@ -658,11 +676,13 @@ class ApplicantHomeMapper {
       ? raw!
       : '';
 
+  // _opaqueIdentifier: handles opaque identifier for the Dashboard flow.
   String? _opaqueIdentifier(String? value) {
     final text = value?.trim() ?? '';
     return text.isEmpty ? null : text;
   }
 
+  // _displayContent: handles display content for the Dashboard flow.
   String _displayContent(
     String? value, {
     Set<String> disallowed = const {},

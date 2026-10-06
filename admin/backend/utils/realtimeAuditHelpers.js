@@ -1,3 +1,4 @@
+// SMaRT-PDM: realtime Audit Helpers — realtime Audit Helpers (admin backend); supports backend application behavior.
 /**
  * Small helpers for controllers that need audit + realtime support.
  */
@@ -6,10 +7,12 @@ function getActorUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+// getActorEmail: reads and returns get actor email for the realtime Audit Helpers flow.
 function getActorEmail(req) {
     return req.user?.email || req.user?.username || null;
 }
 
+// writeAudit: handles write audit for the realtime Audit Helpers flow.
 async function writeAudit(auditLogService, req, payload = {}) {
     try {
         if (typeof auditLogService?.logAudit !== 'function') return;
@@ -43,6 +46,7 @@ async function writeAudit(auditLogService, req, payload = {}) {
     }
 }
 
+// emitMaintenance: handles emit maintenance for the realtime Audit Helpers flow.
 function emitMaintenance(socketEvents, req, payload = {}) {
     const io = req.app?.get?.('io');
     if (!io) return;
@@ -59,6 +63,7 @@ function emitMaintenance(socketEvents, req, payload = {}) {
     }
 }
 
+// emitReport: handles emit report for the realtime Audit Helpers flow.
 function emitReport(socketEvents, req, payload = {}) {
     const io = req.app?.get?.('io');
     if (!io) return;

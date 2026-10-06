@@ -1,3 +1,4 @@
+// SMaRT-PDM: supabase — supabase (admin frontend); supports admin-side UI behavior.
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -10,6 +11,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // Singleton pattern - ensure only one instance exists
 let supabaseInstance = null;
 
+// getSupabase: reads and returns get supabase for the supabase flow.
 export const getSupabase = () => {
     if (!supabaseInstance) {
         supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {

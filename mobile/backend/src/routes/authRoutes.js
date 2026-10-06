@@ -1,3 +1,4 @@
+// SMaRT-PDM: Return of Obligations — auth Routes (mobile backend route); maps mobile API endpoints to middleware and controllers.
 const express = require('express');
 const multer = require('multer');
 
@@ -15,6 +16,7 @@ const upload = multer({
     },
 });
 
+// uploadAvatarImage: uploads upload avatar image for the Return of Obligations flow.
 function uploadAvatarImage(req, res, next) {
     upload.single('image')(req, res, (error) => {
         if (!error) {

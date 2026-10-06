@@ -1,3 +1,4 @@
+// SMaRT-PDM: Endorsement — Endorsement Queue (admin frontend page); loads data, handles page actions, and renders the admin view.
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
@@ -116,6 +117,7 @@ const SORT_OPTIONS = [
   ['name_desc', 'Name Z–A'],
 ];
 
+// authHeaders: handles auth headers for the Endorsement flow.
 function authHeaders(tokenStorageKey) {
   return {
     Authorization: `Bearer ${sessionStorage.getItem(tokenStorageKey)}`,
@@ -123,6 +125,7 @@ function authHeaders(tokenStorageKey) {
   };
 }
 
+// formatDate: formats format date for the Endorsement flow.
 function formatDate(value) {
   if (!value) return 'N/A';
   const date = new Date(value);
@@ -132,6 +135,7 @@ function formatDate(value) {
   });
 }
 
+// formatCourse: formats format course for the Endorsement flow.
 function formatCourse(row) {
   const code = String(row?.course_code || '').trim();
   const name = String(row?.course_name || '').trim();
@@ -147,6 +151,7 @@ function formatCourse(row) {
   return display || code || name || 'Course N/A';
 }
 
+// formatYearLevel: formats format year level for the Endorsement flow.
 function formatYearLevel(value) {
   const raw = String(value ?? '').trim();
   if (!raw) return '';
@@ -171,6 +176,7 @@ function formatYearLevel(value) {
   return `${year}${suffix} Year`;
 }
 
+// normalizeDecision: normalizes normalize decision for the Endorsement flow.
 function normalizeDecision(queueKey, value) {
   const raw = String(value || '').toLowerCase();
   if (!raw) return 'pending';
@@ -184,18 +190,21 @@ function normalizeDecision(queueKey, value) {
   return raw;
 }
 
+// getDecision: reads and returns get decision for the Endorsement flow.
 function getDecision(queueKey, row) {
   if (queueKey === 'sdo') return normalizeDecision(queueKey, row.sdo_decision);
   if (queueKey === 'guidance') return normalizeDecision(queueKey, row.guidance_decision);
   return normalizeDecision(queueKey, row.pd_decision);
 }
 
+// decisionLabel: handles decision label for the Endorsement flow.
 function decisionLabel(queueKey, row) {
   if (queueKey === 'sdo') return row.office_results?.sdo || 'Awaiting Review';
   if (queueKey === 'guidance') return row.office_results?.guidance || 'Awaiting Review';
   return row.office_results?.pd || 'Awaiting Review';
 }
 
+// decisionTone: handles decision tone for the Endorsement flow.
 function decisionTone(value) {
   if (['no_offense', 'good_moral_standing', 'good_scholastic_standing'].includes(value)) return 'border-emerald-200 bg-emerald-50 text-emerald-700';
   if (['minor_offense', 'average_scholastic_standing', 'pending'].includes(value)) return 'border-amber-200 bg-amber-50 text-amber-700';
@@ -203,10 +212,12 @@ function decisionTone(value) {
   return 'border-stone-200 bg-stone-50 text-stone-700';
 }
 
+// hasUploadedGrade: checks whether has uploaded grade for the Endorsement flow.
 function hasUploadedGrade(row) {
   return canPdEndorse({ gradeUploaded: row?.grade_document?.is_uploaded === true });
 }
 
+// ProfileAvatar: handles profile avatar for the Endorsement flow.
 function ProfileAvatar({ row, size = 'md', onPreview }) {
   const [failed, setFailed] = useState(false);
   const src = failed ? null : row?.avatar_url;
@@ -243,26 +254,32 @@ function ProfileAvatar({ row, size = 'md', onPreview }) {
   );
 }
 
+// clampPreviewZoom: handles clamp preview zoom for the Endorsement flow.
 const clampPreviewZoom = (value) => Math.min(4, Math.max(0.5, value));
 
+// ZoomableGradeImage: handles zoomable grade image for the Endorsement flow.
 function ZoomableGradeImage({ url }) {
   const [zoom, setZoom] = useState(1);
   const pinchRef = useRef(null);
 
+  // changeZoom: handles change zoom for the Endorsement flow.
   const changeZoom = (amount) => {
     setZoom((current) => clampPreviewZoom(Number((current + amount).toFixed(2))));
   };
 
+  // getTouchDistance: reads and returns get touch distance for the Endorsement flow.
   const getTouchDistance = (touches) => {
     const [first, second] = touches;
     return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
   };
 
+  // handleTouchStart: handles handle touch start for the Endorsement flow.
   const handleTouchStart = (event) => {
     if (event.touches.length !== 2) return;
     pinchRef.current = { distance: getTouchDistance(event.touches), zoom };
   };
 
+  // handleTouchMove: handles handle touch move for the Endorsement flow.
   const handleTouchMove = (event) => {
     if (event.touches.length !== 2 || !pinchRef.current) return;
     event.preventDefault();
@@ -307,6 +324,7 @@ function ZoomableGradeImage({ url }) {
   );
 }
 
+// GradeReportPreview: handles grade report preview for the Endorsement flow.
 function GradeReportPreview({ preview, onClose }) {
   const url = String(preview?.url || '').trim();
   const fileName = String(preview?.fileName || '').toLowerCase();
@@ -342,6 +360,7 @@ function GradeReportPreview({ preview, onClose }) {
   );
 }
 
+// CompactStageProgress: handles compact stage progress for the Endorsement flow.
 function CompactStageProgress({ tracker }) {
   if (!tracker?.steps?.length) return null;
   return (
@@ -372,6 +391,7 @@ function CompactStageProgress({ tracker }) {
   );
 }
 
+// SummaryStrip: handles summary strip for the Endorsement flow.
 function SummaryStrip({ queueKey, rows }) {
   const pending = rows.filter((row) => getDecision(queueKey, row) === 'pending').length;
   const today = new Date().toDateString();
@@ -424,6 +444,7 @@ function SummaryStrip({ queueKey, rows }) {
 }
 
 
+// endorsementButtonClass: handles endorsement button class for the Endorsement flow.
 function endorsementButtonClass(queueKey, value) {
   if (queueKey === 'sdo') {
     if (value === 'major_offense') {
@@ -441,6 +462,7 @@ function endorsementButtonClass(queueKey, value) {
   return 'w-full bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-emerald-300 disabled:text-white';
 }
 
+// legacySdoPayload: handles legacy sdo payload for the Endorsement flow.
 function legacySdoPayload(action, remarks) {
   const legacyAction = {
     no_offense: 'clear',
@@ -469,6 +491,7 @@ function legacySdoPayload(action, remarks) {
 }
 
 
+// legacyGuidancePayload: handles legacy guidance payload for the Endorsement flow.
 function legacyGuidancePayload(action, remarks) {
   if (action !== 'good_moral_standing') return null;
   return {
@@ -478,6 +501,7 @@ function legacyGuidancePayload(action, remarks) {
 }
 
 
+// legacyPdPayload: handles legacy pd payload for the Endorsement flow.
 function legacyPdPayload(action, remarks) {
   if (!['good_scholastic_standing', 'average_scholastic_standing'].includes(action)) {
     return null;
@@ -495,6 +519,7 @@ function legacyPdPayload(action, remarks) {
   };
 }
 
+// ActionPanel: handles action panel for the Endorsement flow.
 function ActionPanel({ queueKey, row, state, onChange, onSubmit, saving, gradePreviewed = false }) {
   if (queueKey === 'sdo') {
     const selected = state.sdoResult || '';
@@ -566,6 +591,7 @@ function ActionPanel({ queueKey, row, state, onChange, onSubmit, saving, gradePr
   );
 }
 
+// confirmationMeta: handles confirmation meta for the Endorsement flow.
 function confirmationMeta(queueKey, action, studentName) {
   if (queueKey === 'sdo') {
     if (action === 'major_offense') return { tone: 'red', title: 'Confirm Major Offense', description: `Record With Major Offense/s for ${studentName}? This will stop the endorsement at SDO.` };
@@ -576,6 +602,7 @@ function confirmationMeta(queueKey, action, studentName) {
   return { tone: action === 'average_scholastic_standing' ? 'amber' : 'green', title: 'Confirm Scholastic Standing', description: `Record ${action === 'average_scholastic_standing' ? 'Average' : 'Good'} Scholastic Standing for ${studentName} and complete the endorsement?` };
 }
 
+// ReviewDrawer: handles review drawer for the Endorsement flow.
 function ReviewDrawer({ queueKey, row, state, onChange, onSubmit, saving, onClose, onViewFull, detailBasePath, onPreviewProfile, onPreviewGrade, gradePreviewed }) {
   if (!row) return null;
   const decision = getDecision(queueKey, row);
@@ -737,6 +764,7 @@ export default function EndorsementQueue({
     // only repairs a temporarily missed event while the tab is visible.
     const FALLBACK_REFRESH_INTERVAL_MS = 2 * 60 * 1000;
 
+    // refreshIfVisible: refreshes refresh if visible for the Endorsement flow.
     const refreshIfVisible = () => {
       if (document.visibilityState !== 'visible') return;
       loadQueue({ soft: true });
@@ -779,6 +807,7 @@ export default function EndorsementQueue({
     });
   }, [courseFilter, programFilter, queueKey, resultFilter, rows, search, sortOrder, statusFilter, yearFilter]);
 
+  // resetFilters: resets reset filters for the Endorsement flow.
   const resetFilters = () => {
     setSearch('');
     setStatusFilter('pending');
@@ -789,8 +818,10 @@ export default function EndorsementQueue({
     setSortOrder('oldest');
   };
 
+  // updateActionState: updates update action state for the Endorsement flow.
   const updateActionState = (slipId, patch) => setActionState((current) => ({ ...current, [slipId]: { ...(current[slipId] || {}), ...patch } }));
 
+  // executeAction: handles execute action for the Endorsement flow.
   const executeAction = async () => {
     if (!confirmAction) return;
     const { row, action } = confirmAction;

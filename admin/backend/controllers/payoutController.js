@@ -1,12 +1,15 @@
+// SMaRT-PDM: Payout — payout Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const payoutService = require('../services/payoutService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 
+// getActorUserId: reads and returns get actor user id for the Payout flow.
 function getActorUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+// getActorLabel: reads and returns get actor label for the Payout flow.
 function getActorLabel(req) {
     return (
         req.user?.email ||
@@ -17,6 +20,7 @@ function getActorLabel(req) {
     );
 }
 
+// getBatchId: reads and returns get batch id for the Payout flow.
 function getBatchId(batch) {
     return (
         batch?.payout_batch_id ||
@@ -27,6 +31,7 @@ function getBatchId(batch) {
     );
 }
 
+// normalizeBatchPayload: normalizes normalize batch payload for the Payout flow.
 function normalizeBatchPayload(row = {}, action = 'updated') {
     const batch = row?.batch || row?.data || row || {};
 
@@ -53,6 +58,7 @@ function normalizeBatchPayload(row = {}, action = 'updated') {
     };
 }
 
+// normalizeEntryPayload: normalizes normalize entry payload for the Payout flow.
 function normalizeEntryPayload(row = {}, action = 'entry_updated') {
     const entry = row?.entry || row?.data || row || {};
 
@@ -74,6 +80,7 @@ function normalizeEntryPayload(row = {}, action = 'entry_updated') {
     };
 }
 
+// emitFallback: handles emit fallback for the Payout flow.
 function emitFallback(io, eventName, data) {
     if (!io) return;
     io.emit(eventName, {
@@ -82,6 +89,7 @@ function emitFallback(io, eventName, data) {
     });
 }
 
+// relayPayoutToStudentBackend: handles relay payout to student backend for the Payout flow.
 function relayPayoutToStudentBackend(event, payload = {}) {
     studentRealtimeRelayService
         .relayModuleEvent({
@@ -103,6 +111,7 @@ function relayPayoutToStudentBackend(event, payload = {}) {
         });
 }
 
+// emitPayoutBatchRealtime: handles emit payout batch realtime for the Payout flow.
 function emitPayoutBatchRealtime(req, row, action = 'updated') {
     if (!row) return;
 
@@ -180,6 +189,7 @@ function emitPayoutBatchRealtime(req, row, action = 'updated') {
     }
 }
 
+// emitPayoutEntryRealtime: handles emit payout entry realtime for the Payout flow.
 function emitPayoutEntryRealtime(req, row, action = 'entry_updated') {
     if (!row) return;
 
@@ -229,6 +239,7 @@ function emitPayoutEntryRealtime(req, row, action = 'entry_updated') {
     }
 }
 
+// writePayoutAudit: handles write payout audit for the Payout flow.
 async function writePayoutAudit(req, actionTaken, description, entity = null, metadata = {}) {
     try {
         if (typeof auditLogService?.logAudit !== 'function') {
@@ -285,6 +296,7 @@ async function writePayoutAudit(req, actionTaken, description, entity = null, me
     }
 }
 
+// sendError: sends send error for the Payout flow.
 function sendError(res, err, fallbackMessage) {
     const statusCode = err?.statusCode || err?.status || 500;
 

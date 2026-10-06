@@ -1,3 +1,4 @@
+// SMaRT-PDM: messaging provider — messaging provider (mobile state provider); owns state and coordinates updates for the UI.
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -86,6 +87,7 @@ class MessagingProvider extends ChangeNotifier {
   bool get isActiveGroupReadOnly => activeGroupRoom?.readOnly == true;
   DateTime? get activeGroupCutoffAt => activeGroupRoom?.cutoffAt;
 
+  // groupUnreadCount: handles group unread count for the messaging provider flow.
   int groupUnreadCount(String roomId) {
     final normalizedRoomId = roomId.trim();
 
@@ -102,6 +104,7 @@ class MessagingProvider extends ChangeNotifier {
     return 0;
   }
 
+  // reloadOpenThread: handles reload open thread for the messaging provider flow.
   Future<void> reloadOpenThread({bool markAsRead = false}) async {
     if (!_isViewingThread) {
       return;
@@ -110,6 +113,7 @@ class MessagingProvider extends ChangeNotifier {
     await _queueActiveThreadRefresh(markAsRead: markAsRead);
   }
 
+  // _queueActiveThreadRefresh: handles queue active thread refresh for the messaging provider flow.
   Future<void> _queueActiveThreadRefresh({bool markAsRead = false}) async {
     if (_isDisposed || !_isViewingThread) return;
 
@@ -141,6 +145,7 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  // initializeChat: handles initialize chat for the messaging provider flow.
   Future<void> initializeChat() async {
     final session = await _sessionService.getCurrentUser();
 
@@ -194,6 +199,7 @@ class MessagingProvider extends ChangeNotifier {
     _notify();
   }
 
+  // enterThread: handles enter thread for the messaging provider flow.
   Future<void> enterThread() async {
     // Initialize first because the first initialization resets the current
     // conversation state for a newly authenticated user.
@@ -211,6 +217,7 @@ class MessagingProvider extends ChangeNotifier {
     await markThreadRead();
   }
 
+  // enterRoom: handles enter room for the messaging provider flow.
   Future<void> enterRoom(String roomId) async {
     final normalizedRoomId = roomId.trim();
 
@@ -238,6 +245,7 @@ class MessagingProvider extends ChangeNotifier {
     await markThreadRead();
   }
 
+  // leaveThread: handles leave thread for the messaging provider flow.
   void leaveThread({bool notify = true}) {
     _threadRevision += 1;
     _isLoading = false;
@@ -252,6 +260,7 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  // refresh: refreshes refresh for the messaging provider flow.
   Future<void> refresh() async {
     await initializeChat();
     await _refreshThread();
@@ -260,6 +269,7 @@ class MessagingProvider extends ChangeNotifier {
     await refreshUnreadCount();
   }
 
+  // fetchArchivedThreads: fetches and returns fetch archived threads for the messaging provider flow.
   Future<void> fetchArchivedThreads({bool notify = true}) async {
     try {
       _archivedThreads = await _messageService.fetchArchivedThreads();
@@ -272,6 +282,7 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  // archivePrivateThread: archives archive private thread for the messaging provider flow.
   Future<void> archivePrivateThread() async {
     await _messageService.archivePrivateThread();
     await fetchArchivedThreads(notify: false);
@@ -279,6 +290,7 @@ class MessagingProvider extends ChangeNotifier {
     _notify();
   }
 
+  // archiveRoom: archives archive room for the messaging provider flow.
   Future<void> archiveRoom(String roomId) async {
     final readOnly = _rooms.any(
       (item) => item.roomId == roomId && item.readOnly,
@@ -298,6 +310,7 @@ class MessagingProvider extends ChangeNotifier {
     _notify();
   }
 
+  // restoreArchivedThread: restores restore archived thread for the messaging provider flow.
   Future<void> restoreArchivedThread(ArchivedMessageThread thread) async {
     if (thread.isGroup) {
       final roomId = (thread.roomId ?? '').trim();
@@ -312,6 +325,7 @@ class MessagingProvider extends ChangeNotifier {
     _notify();
   }
 
+  // fetchRoomMembers: fetches and returns fetch room members for the messaging provider flow.
   Future<List<GroupMember>> fetchRoomMembers(String roomId) async {
     final normalizedRoomId = roomId.trim();
 
@@ -331,6 +345,7 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  // leaveGroup: handles leave group for the messaging provider flow.
   Future<void> leaveGroup(String roomId) async {
     final normalizedRoomId = roomId.trim();
 
@@ -361,6 +376,7 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  // fetchGroups: fetches and returns fetch groups for the messaging provider flow.
   Future<void> fetchGroups({bool notify = true}) async {
     if (notify) {
       _isLoading = true;
@@ -382,6 +398,7 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  // refreshUnreadCount: refreshes refresh unread count for the messaging provider flow.
   Future<void> refreshUnreadCount({bool notify = true}) async {
     try {
       final totalUnread = await _messageService.fetchUnreadCount();
@@ -407,6 +424,7 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  // sendMessage: sends send message for the messaging provider flow.
   Future<void> sendMessage(String text, {ChatMessage? replyTo}) async {
     if (_activeGroupId != null && isActiveGroupReadOnly) {
       throw Exception(
@@ -452,6 +470,7 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  // unsendMessage: handles unsend message for the messaging provider flow.
   Future<void> unsendMessage(ChatMessage message) async {
     if (message.messageId.trim().isEmpty || message.isUnsent) return;
     try {
@@ -471,6 +490,7 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  // markThreadRead: marks mark thread read for the messaging provider flow.
   Future<void> markThreadRead() async {
     final revision = _threadRevision;
     final targetGroupId = _activeGroupId;
@@ -523,6 +543,7 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  // _refreshThread: handles refresh thread for the messaging provider flow.
   Future<void> _refreshThread({bool notify = true}) async {
     final revision = _threadRevision;
     final targetGroupId = _activeGroupId;
@@ -585,6 +606,7 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  // _ensureRealtimeListener: handles ensure realtime listener for the messaging provider flow.
   void _ensureRealtimeListener() {
     _stopRealtimeListener ??= MobileRealtimeService.instance.listenTo(<String>{
       ...MobileRealtimeEvents.messageEvents,
@@ -596,6 +618,7 @@ class MessagingProvider extends ChangeNotifier {
     }, _handleRealtimeEvent);
   }
 
+  // _handleRealtimeEvent: handles handle realtime event for the messaging provider flow.
   Future<void> _handleRealtimeEvent(MobileRealtimeEvent event) async {
     debugPrint('[MessagingProvider] realtime event: ${event.name}');
 
@@ -696,6 +719,7 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  // _handleMessageRealtimeFast: handles handle message realtime fast for the messaging provider flow.
   bool _handleMessageRealtimeFast(MobileRealtimeEvent event) {
     final payload = event.payload;
 
@@ -809,6 +833,7 @@ class MessagingProvider extends ChangeNotifier {
     return false;
   }
 
+  // _rememberRealtimeMessage: handles remember realtime message for the messaging provider flow.
   bool _rememberRealtimeMessage(String messageId) {
     final normalizedMessageId = messageId.trim();
     if (normalizedMessageId.isEmpty) return true;
@@ -822,6 +847,7 @@ class MessagingProvider extends ChangeNotifier {
     return true;
   }
 
+  // _handleMessageReadRealtime: handles handle message read realtime for the messaging provider flow.
   void _handleMessageReadRealtime(MobileRealtimeEvent event) {
     final messageIds = _extractMessageIds(event.payload);
 
@@ -834,6 +860,7 @@ class MessagingProvider extends ChangeNotifier {
     _notify();
   }
 
+  // _handleMessageUnreadRealtime: handles handle message unread realtime for the messaging provider flow.
   void _handleMessageUnreadRealtime(MobileRealtimeEvent event) {
     final messageIds = _extractMessageIds(event.payload);
 
@@ -855,6 +882,7 @@ class MessagingProvider extends ChangeNotifier {
     _notify();
   }
 
+  // _scheduleUnreadRefresh: handles schedule unread refresh for the messaging provider flow.
   void _scheduleUnreadRefresh() {
     _unreadDebounce?.cancel();
 
@@ -863,6 +891,7 @@ class MessagingProvider extends ChangeNotifier {
     });
   }
 
+  // _scheduleRealtimeMessageReconcile: handles schedule realtime message reconcile for the messaging provider flow.
   void _scheduleRealtimeMessageReconcile() {
     _messageReconcileDebounce?.cancel();
 
@@ -908,6 +937,7 @@ class MessagingProvider extends ChangeNotifier {
     );
   }
 
+  // _upsertMessage: handles upsert message for the messaging provider flow.
   void _upsertMessage(ChatMessage message) {
     if (message.messageId.trim().isEmpty) {
       debugPrint('[MessagingProvider] upsert skipped: empty messageId');
@@ -937,6 +967,7 @@ class MessagingProvider extends ChangeNotifier {
     );
   }
 
+  // _sortMessagesNewestFirst: handles sort messages newest first for the messaging provider flow.
   void _sortMessagesNewestFirst() {
     _messages.sort((left, right) {
       final timeComparison = right.sentAt.compareTo(left.sentAt);
@@ -945,6 +976,7 @@ class MessagingProvider extends ChangeNotifier {
     });
   }
 
+  // _markMessagesRead: handles mark messages read for the messaging provider flow.
   void _markMessagesRead(List<String> messageIds) {
     final ids = messageIds.toSet();
 
@@ -957,6 +989,7 @@ class MessagingProvider extends ChangeNotifier {
     }).toList();
   }
 
+  // _recalculatePrivateUnreadCount: handles recalculate private unread count for the messaging provider flow.
   void _recalculatePrivateUnreadCount() {
     _privateUnreadCount = _messages
         .where(
@@ -967,6 +1000,7 @@ class MessagingProvider extends ChangeNotifier {
     _syncTotalUnreadCount();
   }
 
+  // _incrementGroupUnreadCount: handles increment group unread count for the messaging provider flow.
   bool _incrementGroupUnreadCount(String roomId) {
     final normalizedRoomId = roomId.trim();
 
@@ -1001,6 +1035,7 @@ class MessagingProvider extends ChangeNotifier {
     return true;
   }
 
+  // _setGroupUnreadCount: handles set group unread count for the messaging provider flow.
   void _setGroupUnreadCount(String roomId, int count) {
     final normalizedRoomId = roomId.trim();
 
@@ -1034,6 +1069,7 @@ class MessagingProvider extends ChangeNotifier {
     _syncTotalUnreadCount();
   }
 
+  // _updateGroupPreview: handles update group preview for the messaging provider flow.
   void _updateGroupPreview(String roomId, ChatMessage message) {
     final normalizedRoomId = roomId.trim();
     if (normalizedRoomId.isEmpty) return;
@@ -1071,6 +1107,7 @@ class MessagingProvider extends ChangeNotifier {
     });
   }
 
+  // _syncTotalUnreadCount: handles sync total unread count for the messaging provider flow.
   void _syncTotalUnreadCount() {
     final groupUnread = _rooms.fold<int>(
       0,
@@ -1080,6 +1117,7 @@ class MessagingProvider extends ChangeNotifier {
     _unreadCount = _privateUnreadCount + groupUnread;
   }
 
+  // _extractMessageIds: handles extract message ids for the messaging provider flow.
   List<String> _extractMessageIds(Map<String, dynamic> payload) {
     final rawItems =
         (payload['messageIds'] as List<dynamic>?) ??
@@ -1092,6 +1130,7 @@ class MessagingProvider extends ChangeNotifier {
         .toList();
   }
 
+  // _readableError: handles readable error for the messaging provider flow.
   String _readableError(Object error) {
     final text = error
         .toString()
@@ -1123,6 +1162,7 @@ class MessagingProvider extends ChangeNotifier {
     return 'We could not complete that messaging action. Try again.';
   }
 
+  // _notify: handles notify for the messaging provider flow.
   void _notify() {
     if (_isDisposed) {
       return;
@@ -1151,6 +1191,7 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   @override
+  // dispose: handles dispose for the messaging provider flow.
   void dispose() {
     _isDisposed = true;
 

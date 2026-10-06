@@ -1,3 +1,4 @@
+// SMaRT-PDM: Messaging — chat list screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -15,11 +16,13 @@ import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/mes
 import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
+// _messagePreview: handles message preview for the Messaging flow.
 String _messagePreview(String? value, String fallback) {
   final normalized = (value ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
   return normalized.isEmpty ? fallback : normalized;
 }
 
+// _groupMessagePreview: handles group message preview for the Messaging flow.
 String _groupMessagePreview(ChatRoom room, String currentUserId) {
   final message = _messagePreview(
     room.lastMessage,
@@ -60,6 +63,7 @@ class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
 
   @override
+  // createState: creates create state for the Messaging flow.
   State<ChatListScreen> createState() => _ChatListScreenState();
 }
 
@@ -78,6 +82,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   List<SupportConversation> _supportConversations = const [];
 
   @override
+  // initState: handles init state for the Messaging flow.
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -88,6 +93,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   @override
+  // didChangeDependencies: handles did change dependencies for the Messaging flow.
   void didChangeDependencies() {
     super.didChangeDependencies();
     final provider = context.read<MessagingProvider>();
@@ -98,6 +104,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     _provider?.addListener(_handleMessagingChanged);
   }
 
+  // _handleMessagingChanged: handles handle messaging changed for the Messaging flow.
   void _handleMessagingChanged() {
     _supportRefreshDebounce?.cancel();
     _supportRefreshDebounce = Timer(const Duration(milliseconds: 250), () {
@@ -106,6 +113,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     });
   }
 
+  // _startLiveSyncWatchdog: handles start live sync watchdog for the Messaging flow.
   void _startLiveSyncWatchdog() {
     _liveSyncTimer?.cancel();
     _liveSyncTimer = Timer.periodic(const Duration(seconds: 20), (_) {
@@ -118,6 +126,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     });
   }
 
+  // _refreshSupportConversations: handles refresh support conversations for the Messaging flow.
   Future<void> _refreshSupportConversations() async {
     if (_supportRefreshing) return;
     _supportRefreshing = true;
@@ -138,6 +147,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     }
   }
 
+  // _refreshMessaging: handles refresh messaging for the Messaging flow.
   Future<void> _refreshMessaging() async {
     if (_refreshing) return;
     _refreshing = true;
@@ -154,6 +164,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   @override
+  // dispose: handles dispose for the Messaging flow.
   void dispose() {
     _provider?.removeListener(_handleMessagingChanged);
     _supportRefreshDebounce?.cancel();
@@ -162,6 +173,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     super.dispose();
   }
 
+  // _openSupportThread: handles open support thread for the Messaging flow.
   Future<void> _openSupportThread(SupportConversation conversation) async {
     MessageService.selectSupportConversation(conversation);
     await AppNavigator.pushDetail(
@@ -179,6 +191,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     await _refreshSupportConversations();
   }
 
+  // _openGroupThread: handles open group thread for the Messaging flow.
   Future<void> _openGroupThread(String roomId, String roomName) async {
     MessageService.selectSupportConversation(null);
     await AppNavigator.pushDetail(
@@ -192,6 +205,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     await provider.refreshUnreadCount(notify: false);
   }
 
+  // _confirmArchive: handles confirm archive for the Messaging flow.
   Future<bool> _confirmArchive(String title) async {
     return await showDialog<bool>(
           context: context,
@@ -217,6 +231,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         false;
   }
 
+  // _archiveSupport: handles archive support for the Messaging flow.
   Future<void> _archiveSupport(SupportConversation conversation) async {
     if (!await _confirmArchive(conversation.title) || !mounted) return;
     try {
@@ -232,6 +247,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     }
   }
 
+  // _archiveGroup: handles archive group for the Messaging flow.
   Future<void> _archiveGroup(ChatRoom room) async {
     if (room.readOnly) return;
     if (!await _confirmArchive(room.roomName) || !mounted) return;
@@ -247,6 +263,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     }
   }
 
+  // _showArchivedThreads: handles show archived threads for the Messaging flow.
   Future<void> _showArchivedThreads() async {
     final provider = _provider ?? context.read<MessagingProvider>();
     List<SupportConversation> supportItems = const [];
@@ -280,6 +297,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     );
   }
 
+  // _conversationTime: handles conversation time for the Messaging flow.
   String _conversationTime(DateTime? value) {
     if (value == null) return '';
     final local = value.toLocal();
@@ -310,6 +328,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     return '${months[local.month - 1]} ${local.day}';
   }
 
+  // _matchesSearch: handles matches search for the Messaging flow.
   bool _matchesSearch(String title, String preview) {
     final query = _searchQuery.trim().toLowerCase();
     if (query.isEmpty) return true;
@@ -317,6 +336,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         preview.toLowerCase().contains(query);
   }
 
+  // _supportIcon: handles support icon for the Messaging flow.
   IconData _supportIcon(SupportConversation conversation) {
     switch (conversation.role.toLowerCase()) {
       case 'sdo':
@@ -332,6 +352,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     }
   }
 
+  // _supportAccent: handles support accent for the Messaging flow.
   Color _supportAccent(BuildContext context, SupportConversation conversation) {
     switch (conversation.role.toLowerCase()) {
       case 'sdo':
@@ -348,6 +369,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   @override
+  // build: builds build for the Messaging flow.
   Widget build(BuildContext context) {
     final provider = context.watch<MessagingProvider>();
     final mutedColor = AppSurfacePalette.mutedText(context);
@@ -629,6 +651,7 @@ class _MessageFilterChip extends StatelessWidget {
   final int count;
 
   @override
+  // build: builds build for the Messaging flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
@@ -712,6 +735,7 @@ class _ConversationTile extends StatelessWidget {
   final bool schoolLogo;
 
   @override
+  // build: builds build for the Messaging flow.
   Widget build(BuildContext context) {
     final hasUnread = unreadCount > 0;
     final status = Theme.of(context).extension<AppStatusColors>()!;
@@ -890,6 +914,7 @@ class _EmptyConversationState extends StatelessWidget {
   final Future<void> Function() onRetry;
 
   @override
+  // build: builds build for the Messaging flow.
   Widget build(BuildContext context) {
     final title = errorMessage != null
         ? 'Unable to load messages'
@@ -964,6 +989,7 @@ class _ArchivedThreadsSheet extends StatefulWidget {
   final Future<void> Function(ArchivedMessageThread item) onRestoreGroup;
 
   @override
+  // createState: creates create state for the Messaging flow.
   State<_ArchivedThreadsSheet> createState() => _ArchivedThreadsSheetState();
 }
 
@@ -974,6 +1000,7 @@ class _ArchivedThreadsSheetState extends State<_ArchivedThreadsSheet> {
   late final List<ArchivedMessageThread> _groupItems = [...widget.groupItems];
   final Set<String> _restoring = <String>{};
 
+  // _restoreSupport: handles restore support for the Messaging flow.
   Future<void> _restoreSupport(SupportConversation item) async {
     final key = 'private:${item.counterpartyId}';
     if (_restoring.contains(key)) return;
@@ -995,6 +1022,7 @@ class _ArchivedThreadsSheetState extends State<_ArchivedThreadsSheet> {
     }
   }
 
+  // _restoreGroup: handles restore group for the Messaging flow.
   Future<void> _restoreGroup(ArchivedMessageThread item) async {
     final key = 'group:${item.roomId ?? item.archiveId}';
     if (_restoring.contains(key)) return;
@@ -1017,6 +1045,7 @@ class _ArchivedThreadsSheetState extends State<_ArchivedThreadsSheet> {
   }
 
   @override
+  // build: builds build for the Messaging flow.
   Widget build(BuildContext context) {
     final total = _supportItems.length + _groupItems.length;
     return SafeArea(

@@ -1,6 +1,8 @@
+// SMaRT-PDM: public Settings Controller — public Settings Controller (mobile backend controller); handles mobile API input/output and delegates business logic.
 const publicSettingsService = require('../services/publicSettingsService');
 const { getSafeStatusCode } = require('../utils/httpStatus');
 
+// getPublicGeneralSettings: reads and returns get public general settings for the public Settings Controller flow.
 async function getPublicGeneralSettings(_req, res) {
     try {
         const result = await publicSettingsService.getPublicGeneralSettings();
@@ -13,6 +15,7 @@ async function getPublicGeneralSettings(_req, res) {
     }
 }
 
+// getPublicMaintenanceState: reads and returns get public maintenance state for the public Settings Controller flow.
 async function getPublicMaintenanceState(_req, res) {
     try {
         const result = await publicSettingsService.getMaintenanceState();
@@ -25,6 +28,7 @@ async function getPublicMaintenanceState(_req, res) {
     }
 }
 
+// getScholarshipPrograms: reads and returns get scholarship programs for the public Settings Controller flow.
 async function getScholarshipPrograms(_req, res) {
     try {
         const result = await publicSettingsService.getPublishedScholarshipPrograms();

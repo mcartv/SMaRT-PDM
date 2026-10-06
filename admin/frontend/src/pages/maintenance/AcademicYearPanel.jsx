@@ -1,3 +1,4 @@
+// SMaRT-PDM: Academic Periods — Academic Year Panel (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     Archive,
@@ -27,6 +28,7 @@ const C = {
     brown: 'var(--portal-base)',
 };
 
+// authHeaders: handles auth headers for the Academic Periods flow.
 function authHeaders() {
     return {
         Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
@@ -35,6 +37,7 @@ function authHeaders() {
 }
 
 
+// ActionModal: handles action modal for the Academic Periods flow.
 function ActionModal({
     open,
     tone = 'info',
@@ -180,6 +183,7 @@ function ActionModal({
     );
 }
 
+// AcademicYearModal: handles academic year modal for the Academic Periods flow.
 function AcademicYearModal({
     open,
     mode,
@@ -376,6 +380,7 @@ export default function AcademicYearPanel() {
     const [view, setView] = useState('current');
     const [actionModal, setActionModal] = useState(null);
 
+    // closeActionModal: handles close action modal for the Academic Periods flow.
     const closeActionModal = () => setActionModal(null);
     const showMessage = ({
         tone = 'info',
@@ -576,6 +581,7 @@ export default function AcademicYearPanel() {
             );
     }, [years, search, view]);
 
+    // resetModal: resets reset modal for the Academic Periods flow.
     const resetModal = () => {
         setModalOpen(false);
         setModalMode('create');
@@ -587,6 +593,7 @@ export default function AcademicYearPanel() {
         });
     };
 
+    // openCreate: handles open create for the Academic Periods flow.
     const openCreate = () => {
         const startYear = Number(
             currentAcademicWindow?.start_year
@@ -608,6 +615,7 @@ export default function AcademicYearPanel() {
         setModalOpen(true);
     };
 
+    // openEdit: handles open edit for the Academic Periods flow.
     const openEdit = (row) => {
         setModalMode('edit');
         setEditingId(row.academic_year_id);
@@ -623,6 +631,7 @@ export default function AcademicYearPanel() {
         setModalOpen(true);
     };
 
+    // saveYear: validates and saves save year for the Academic Periods flow.
     const saveYear = async () => {
         try {
             setSaving(true);
@@ -689,6 +698,7 @@ export default function AcademicYearPanel() {
         }
     };
 
+    // activateYear: handles activate year for the Academic Periods flow.
     const activateYear = async (row) => {
         try {
             setActionId(
@@ -729,6 +739,7 @@ export default function AcademicYearPanel() {
         }
     };
 
+    // executeSetCurrentPeriod: handles execute set current period for the Academic Periods flow.
     const executeSetCurrentPeriod = async (period) => {
         const label = `${period.term} · AY ${period.academic_year_label}`;
 
@@ -785,6 +796,7 @@ export default function AcademicYearPanel() {
         }
     };
 
+    // setCurrentPeriod: sets set current period for the Academic Periods flow.
     const setCurrentPeriod = (period) => {
         const label = `${period.term} · AY ${period.academic_year_label}`;
 
@@ -805,6 +817,7 @@ export default function AcademicYearPanel() {
         });
     };
 
+    // executeResetPeriodForTesting: handles execute reset period for testing for the Academic Periods flow.
     const executeResetPeriodForTesting = async (period) => {
         const label = `${period.term} · AY ${period.academic_year_label}`;
 
@@ -859,6 +872,7 @@ export default function AcademicYearPanel() {
         }
     };
 
+    // resetPeriodForTesting: resets reset period for testing for the Academic Periods flow.
     const resetPeriodForTesting = (period) => {
         const label = `${period.term} · AY ${period.academic_year_label}`;
 
@@ -881,6 +895,7 @@ export default function AcademicYearPanel() {
         });
     };
 
+    // archiveYear: archives archive year for the Academic Periods flow.
     const archiveYear = async (row) => {
         const yearName = row.academic_year || row.year_name || row.label || 'this academic year';
         if (!(await confirmArchive({ itemName: yearName }))) return;
@@ -924,6 +939,7 @@ export default function AcademicYearPanel() {
         }
     };
 
+    // restoreYear: restores restore year for the Academic Periods flow.
     const restoreYear = async (row) => {
         try {
             setActionId(
@@ -965,6 +981,7 @@ export default function AcademicYearPanel() {
         }
     };
 
+    // periodsForYear: handles periods for year for the Academic Periods flow.
     const periodsForYear = (yearId) =>
         periods.filter(
             (period) =>

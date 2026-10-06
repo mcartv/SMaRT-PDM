@@ -1,10 +1,13 @@
+// SMaRT-PDM: Payout — payout Controller (mobile backend controller); handles mobile API input/output and delegates business logic.
 const payoutService = require('../services/payoutService');
 const adminRealtimeRelayService = require('../services/adminRealtimeRelayService');
 
+// getRequestUserId: reads and returns get request user id for the Payout flow.
 function getRequestUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+// getSafeStatusCode: reads and returns get safe status code for the Payout flow.
 function getSafeStatusCode(error) {
     const parsed = Number.parseInt(error?.statusCode, 10);
     return Number.isInteger(parsed) && parsed >= 400 && parsed <= 599
@@ -12,6 +15,7 @@ function getSafeStatusCode(error) {
         : 500;
 }
 
+// createPayoutBatch: creates create payout batch for the Payout flow.
 async function createPayoutBatch(req, res) {
     try {
         const adminUserId = getRequestUserId(req);
@@ -30,6 +34,7 @@ async function createPayoutBatch(req, res) {
     }
 }
 
+// schedulePayoutBatch: handles schedule payout batch for the Payout flow.
 async function schedulePayoutBatch(req, res) {
     try {
         const adminUserId = getRequestUserId(req);
@@ -49,6 +54,7 @@ async function schedulePayoutBatch(req, res) {
     }
 }
 
+// getMyPayouts: reads and returns get my payouts for the Payout flow.
 async function getMyPayouts(req, res) {
     try {
         const userId = getRequestUserId(req);
@@ -68,6 +74,7 @@ async function getMyPayouts(req, res) {
     }
 }
 
+// updatePayoutEntryStatus: updates update payout entry status for the Payout flow.
 async function updatePayoutEntryStatus(req, res) {
     try {
         const adminUserId = getRequestUserId(req);
@@ -89,6 +96,7 @@ async function updatePayoutEntryStatus(req, res) {
 }
 
 
+// uploadMyPayoutProof: uploads upload my payout proof for the Payout flow.
 async function uploadMyPayoutProof(req, res) {
     try {
         const userId = getRequestUserId(req);

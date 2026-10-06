@@ -1,3 +1,4 @@
+// SMaRT-PDM: group Removal Controller — group Removal Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 'use strict';
 
 const db = require('../config/db');
@@ -5,18 +6,22 @@ const socketEvents = require('../utils/socketEvents');
 const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 const auditLogService = require('../services/auditLogService');
 
+// text: handles text for the group Removal Controller flow.
 function text(value) {
   return String(value || '').trim();
 }
 
+// currentUserId: handles current user id for the group Removal Controller flow.
 function currentUserId(req) {
   return req.user?.userId || req.user?.user_id || req.user?.id || null;
 }
 
+// uniqueIds: handles unique ids for the group Removal Controller flow.
 function uniqueIds(values = []) {
   return [...new Set(values.map(text).filter(Boolean))];
 }
 
+// displayName: handles display name for the group Removal Controller flow.
 async function displayName(client, userId) {
   const result = await client.query(`
     SELECT COALESCE(
@@ -35,12 +40,14 @@ async function displayName(client, userId) {
   return result.rows[0]?.display_name || 'Unknown User';
 }
 
+// emitToUsers: handles emit to users for the group Removal Controller flow.
 function emitToUsers(io, eventName, payload, ids) {
   for (const userId of uniqueIds(ids)) {
     io?.to(`user:${userId}`).emit(eventName, payload);
   }
 }
 
+// relay: handles relay for the group Removal Controller flow.
 function relay(eventName, payload, ids) {
   studentRealtimeRelayService.relayMessageEvent({
     event: eventName,
@@ -51,6 +58,7 @@ function relay(eventName, payload, ids) {
   });
 }
 
+// removeMember: removes remove member for the group Removal Controller flow.
 async function removeMember(req, res, next) {
   const action = text(req.body?.action || '').toLowerCase();
   const routeMemberId = text(req.params?.memberId);

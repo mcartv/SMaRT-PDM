@@ -1,3 +1,4 @@
+// SMaRT-PDM: Payout — Payout Management (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
@@ -36,6 +37,7 @@ const BULLET = '\u2022';
 const EM_DASH = '\u2014';
 const MANILA_TIME_ZONE = 'Asia/Manila';
 
+// getManilaDateInputValue: reads and returns get manila date input value for the Payout flow.
 function getManilaDateInputValue(value = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: MANILA_TIME_ZONE,
@@ -48,6 +50,7 @@ function getManilaDateInputValue(value = new Date()) {
   return `${byType.year}-${byType.month}-${byType.day}`;
 }
 
+// formatPayoutDate: formats format payout date for the Payout flow.
 function formatPayoutDate(value) {
   if (!value) return EM_DASH;
 
@@ -107,6 +110,7 @@ const EMPTY_FORM = {
   scholar_ids: [],
 };
 
+// getAuthHeaders: reads and returns get auth headers for the Payout flow.
 function getAuthHeaders(json = true) {
   const token = sessionStorage.getItem('adminToken');
 
@@ -116,6 +120,7 @@ function getAuthHeaders(json = true) {
   };
 }
 
+// fetchPayoutBatches: fetches and returns fetch payout batches for the Payout flow.
 async function fetchPayoutBatches() {
   const response = await fetch(`${API_BASE}/payouts`, {
     headers: getAuthHeaders(false),
@@ -125,16 +130,19 @@ async function fetchPayoutBatches() {
   return Array.isArray(data) ? data : [];
 }
 
+// normalizeId: normalizes normalize id for the Payout flow.
 function normalizeId(value) {
   return value == null ? '' : String(value).trim();
 }
 
+// formatPaymentMode: formats format payment mode for the Payout flow.
 function formatPaymentMode(paymentMode, otherPaymentMode = '') {
   const mode = String(paymentMode || '').trim();
   const other = String(otherPaymentMode || '').trim();
   return mode === 'Other' && other ? `Other - ${other}` : mode;
 }
 
+// formatProgramBenefactor: formats format program benefactor for the Payout flow.
 function formatProgramBenefactor(programName, benefactorName) {
   const program = String(programName || '').trim();
   const benefactor = String(benefactorName || '').trim();
@@ -148,6 +156,7 @@ function formatProgramBenefactor(programName, benefactorName) {
   return `${program} ${BULLET} ${benefactor}`;
 }
 
+// formatOpeningStatus: formats format opening status for the Payout flow.
 function formatOpeningStatus(value) {
   const raw = String(value || '').trim();
   if (!raw) return EM_DASH;
@@ -157,11 +166,13 @@ function formatOpeningStatus(value) {
   return raw;
 }
 
+// isBulkReleaseEligible: checks whether is bulk release eligible for the Payout flow.
 function isBulkReleaseEligible(status) {
   const normalized = normalizeReleaseStatus(status);
   return normalized === 'Pending' || normalized === 'On Hold';
 }
 
+// normalizeReleaseStatus: normalizes normalize release status for the Payout flow.
 function normalizeReleaseStatus(value) {
   const raw = String(value || 'Pending').trim().toLowerCase();
 
@@ -173,6 +184,7 @@ function normalizeReleaseStatus(value) {
   return 'Pending';
 }
 
+// belongsToOpening: handles belongs to opening for the Payout flow.
 function belongsToOpening(item, openingId) {
   const target = normalizeId(openingId);
   if (!target) return true;
@@ -189,6 +201,7 @@ function belongsToOpening(item, openingId) {
   return candidates.includes(target);
 }
 
+// filterScholarsByOpening: handles filter scholars by opening for the Payout flow.
 function filterScholarsByOpening(scholars = [], openingId) {
   const target = normalizeId(openingId);
   if (!target) return Array.isArray(scholars) ? scholars : [];
@@ -198,6 +211,7 @@ function filterScholarsByOpening(scholars = [], openingId) {
   );
 }
 
+// getBatchScholars: reads and returns get batch scholars for the Payout flow.
 function getBatchScholars(batch) {
   const scholars = Array.isArray(batch?.scholars) ? batch.scholars : [];
   const openingId = normalizeId(batch?.opening_id);
@@ -220,11 +234,13 @@ function getBatchScholars(batch) {
     : scholars;
 }
 
+// isTerminalPayoutStatus: checks whether is terminal payout status for the Payout flow.
 function isTerminalPayoutStatus(status) {
   const normalized = normalizeReleaseStatus(status);
   return ['Released', 'Absent', 'Cancelled'].includes(normalized);
 }
 
+// isBatchFinished: checks whether is batch finished for the Payout flow.
 function isBatchFinished(batch) {
   const scholars = getBatchScholars(batch);
   if (!scholars.length) return false;
@@ -232,6 +248,7 @@ function isBatchFinished(batch) {
   return scholars.every((s) => isTerminalPayoutStatus(s.release_status));
 }
 
+// hasManageablePayoutEntries: checks whether has manageable payout entries for the Payout flow.
 function hasManageablePayoutEntries(batch) {
   const scholars = getBatchScholars(batch);
 
@@ -241,10 +258,12 @@ function hasManageablePayoutEntries(batch) {
   });
 }
 
+// formatMoney: formats format money for the Payout flow.
 function formatMoney(value) {
   return `\u20B1${Number(value || 0).toLocaleString()}`;
 }
 
+// getEntryId: reads and returns get entry id for the Payout flow.
 function getEntryId(entry) {
   return (
     entry?.payout_entry_id ||
@@ -255,6 +274,7 @@ function getEntryId(entry) {
   );
 }
 
+// getPayoutCounts: reads and returns get payout counts for the Payout flow.
 function getPayoutCounts(batch) {
   const scholars = getBatchScholars(batch);
 
@@ -268,6 +288,7 @@ function getPayoutCounts(batch) {
   };
 }
 
+// SmallMetric: handles small metric for the Payout flow.
 function SmallMetric({ label, value }) {
   return (
     <div className="rounded-lg bg-stone-50 px-3 py-2">
@@ -279,6 +300,7 @@ function SmallMetric({ label, value }) {
   );
 }
 
+// ReadOnlyField: handles read only field for the Payout flow.
 function ReadOnlyField({ label, value }) {
   return (
     <div className="rounded-xl border bg-stone-50 p-3">
@@ -288,6 +310,7 @@ function ReadOnlyField({ label, value }) {
   );
 }
 
+// PaginationFooter: handles pagination footer for the Payout flow.
 function PaginationFooter({
   total,
   page,
@@ -337,6 +360,7 @@ function PaginationFooter({
   );
 }
 
+// PostPayoutCreatePrompt: handles post payout create prompt for the Payout flow.
 function PostPayoutCreatePrompt({
   open,
   payout,
@@ -412,6 +436,7 @@ function PostPayoutCreatePrompt({
   );
 }
 
+// ArchiveBatchModal: archives archive batch modal for the Payout flow.
 function ArchiveBatchModal({
   batch,
   open,
@@ -487,6 +512,7 @@ function ArchiveBatchModal({
   );
 }
 
+// PayoutStatusModal: handles payout status modal for the Payout flow.
 function PayoutStatusModal({
   candidate,
   remarks,
@@ -622,6 +648,7 @@ function PayoutStatusModal({
   );
 }
 
+// BulkReleaseModal: handles bulk release modal for the Payout flow.
 function BulkReleaseModal({
   open,
   entries,
@@ -795,6 +822,7 @@ export default function PayoutManagement() {
   const [form, setForm] = useState(EMPTY_FORM);
   const realtimeRefreshTimer = useRef(null);
 
+  // scheduleRealtimeRefresh: handles schedule realtime refresh for the Payout flow.
   const scheduleRealtimeRefresh = () => {
     if (realtimeRefreshTimer.current) clearTimeout(realtimeRefreshTimer.current);
     realtimeRefreshTimer.current = setTimeout(() => {
@@ -859,6 +887,7 @@ export default function PayoutManagement() {
     loadOpeningEligibility(form.opening_id);
   }, [form.opening_id]);
 
+  // loadAll: loads and returns load all for the Payout flow.
   const loadAll = async () => {
     try {
       setLoading(true);
@@ -900,6 +929,7 @@ export default function PayoutManagement() {
     }
   };
 
+  // loadOpeningEligibility: loads and returns load opening eligibility for the Payout flow.
   const loadOpeningEligibility = async (openingId) => {
     try {
       const res = await fetch(
@@ -1080,6 +1110,7 @@ export default function PayoutManagement() {
     archivedBatches.length,
   ]);
 
+  // toggleScholar: handles toggle scholar for the Payout flow.
   const toggleScholar = (scholarId) => {
     setForm((prev) => {
       const exists = prev.scholar_ids.includes(scholarId);
@@ -1093,6 +1124,7 @@ export default function PayoutManagement() {
     });
   };
 
+  // resetCreateForm: resets reset create form for the Payout flow.
   const resetCreateForm = () => {
     setForm({
       ...EMPTY_FORM,
@@ -1101,6 +1133,7 @@ export default function PayoutManagement() {
     setEligiblePayload({ opening: null, scholars: [] });
   };
 
+  // handleCreatePayoutAnnouncementRedirect: handles handle create payout announcement redirect for the Payout flow.
   const handleCreatePayoutAnnouncementRedirect = () => {
     if (!newPayoutForPrompt) return;
 
@@ -1156,6 +1189,7 @@ export default function PayoutManagement() {
     navigate(`/admin/announcements?${params.toString()}`);
   };
 
+  // handleCreateBatch: handles handle create batch for the Payout flow.
   const handleCreateBatch = async () => {
     try {
       if (!form.opening_id) {
@@ -1257,6 +1291,7 @@ export default function PayoutManagement() {
     }
   };
 
+  // openStatusUpdate: handles open status update for the Payout flow.
   const openStatusUpdate = (entry, nextStatus) => {
     if (!getEntryId(entry)) {
       alert('Missing payout entry ID.');
@@ -1277,6 +1312,7 @@ export default function PayoutManagement() {
     setStatusError('');
   };
 
+  // closeStatusUpdate: handles close status update for the Payout flow.
   const closeStatusUpdate = () => {
     if (workingEntryId) return;
     setStatusCandidate(null);
@@ -1284,6 +1320,7 @@ export default function PayoutManagement() {
     setStatusError('');
   };
 
+  // requestStatusUpdate: handles request status update for the Payout flow.
   const requestStatusUpdate = async (entry, finalStatus, remarks = '') => {
     const entryId = getEntryId(entry);
     if (!entryId) throw new Error('Missing payout entry ID.');
@@ -1308,6 +1345,7 @@ export default function PayoutManagement() {
     return { entryId, data };
   };
 
+  // submitStatusUpdate: handles submit status update for the Payout flow.
   const submitStatusUpdate = async () => {
     const entry = statusCandidate?.entry;
     const entryId = getEntryId(entry);
@@ -1366,6 +1404,7 @@ export default function PayoutManagement() {
     }
   };
 
+  // openBulkRelease: handles open bulk release for the Payout flow.
   const openBulkRelease = () => {
     if (!selectedBulkReleaseEntries.length) return;
     setBulkReleaseRemarks('');
@@ -1374,6 +1413,7 @@ export default function PayoutManagement() {
     setBulkReleaseOpen(true);
   };
 
+  // closeBulkRelease: handles close bulk release for the Payout flow.
   const closeBulkRelease = () => {
     if (bulkReleaseWorking) return;
     setBulkReleaseOpen(false);
@@ -1382,6 +1422,7 @@ export default function PayoutManagement() {
     setBulkReleaseError('');
   };
 
+  // submitBulkRelease: handles submit bulk release for the Payout flow.
   const submitBulkRelease = async () => {
     const entries = selectedBulkReleaseEntries;
     if (!entries.length) {
@@ -1484,6 +1525,7 @@ export default function PayoutManagement() {
     }
   };
 
+  // handleArchiveBatch: handles handle archive batch for the Payout flow.
   const handleArchiveBatch = async (batch) => {
     try {
       if (!batch?.payout_batch_id) return;
@@ -1530,6 +1572,7 @@ export default function PayoutManagement() {
     }
   };
 
+  // handleRestoreBatch: handles handle restore batch for the Payout flow.
   const handleRestoreBatch = async (batch) => {
     try {
       if (!batch?.payout_batch_id) return;
@@ -1563,6 +1606,7 @@ export default function PayoutManagement() {
     }
   };
 
+  // renderStatusBadge: handles render status badge for the Payout flow.
   const renderStatusBadge = (status) => {
     const value = normalizeReleaseStatus(status);
 
@@ -1607,6 +1651,7 @@ export default function PayoutManagement() {
     );
   };
 
+  // getStatusActions: reads and returns get status actions for the Payout flow.
   const getStatusActions = (status) => {
     const value = normalizeReleaseStatus(status);
 
@@ -1639,6 +1684,7 @@ export default function PayoutManagement() {
     ];
   };
 
+  // getActionButtonClass: reads and returns get action button class for the Payout flow.
   const getActionButtonClass = (tone) => {
     const map = {
       green: 'border-green-200 text-green-700 hover:bg-green-50',
@@ -1651,6 +1697,7 @@ export default function PayoutManagement() {
     return map[tone] || 'border-stone-200 text-stone-700 hover:bg-stone-50';
   };
 
+  // renderBatchCard: handles render batch card for the Payout flow.
   const renderBatchCard = (b) => {
     const counts = getPayoutCounts(b);
     const finished = isBatchFinished(b);

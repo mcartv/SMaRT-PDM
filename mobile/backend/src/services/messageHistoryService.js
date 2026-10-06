@@ -1,3 +1,4 @@
+// SMaRT-PDM: Messaging — message History Service (mobile backend service); contains mobile-facing business logic and data operations.
 'use strict';
 
 const db = require('../config/db');
@@ -9,28 +10,33 @@ const { resolveAvatarUrl } = require('./avatarService');
 const DEFAULT_BATCH_SIZE = 30;
 const MAX_BATCH_SIZE = 50;
 
+// safeText: handles safe text for the Messaging flow.
 function safeText(value) {
   return String(value || '').trim();
 }
 
+// normalizeLimit: normalizes normalize limit for the Messaging flow.
 function normalizeLimit(value) {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_BATCH_SIZE;
   return Math.min(parsed, MAX_BATCH_SIZE);
 }
 
+// isUuid: checks whether is uuid for the Messaging flow.
 function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     safeText(value)
   );
 }
 
+// createHttpError: creates create http error for the Messaging flow.
 function createHttpError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
 }
 
+// normalizeCursor: normalizes normalize cursor for the Messaging flow.
 function normalizeCursor({ beforeSentAt, beforeMessageId } = {}) {
   const sentAt = safeText(beforeSentAt);
   const messageId = safeText(beforeMessageId);
@@ -50,6 +56,7 @@ function normalizeCursor({ beforeSentAt, beforeMessageId } = {}) {
   return { sentAt, messageId };
 }
 
+// resolveUsableAvatar: resolves resolve usable avatar for the Messaging flow.
 async function resolveUsableAvatar(value) {
   const raw = safeText(value);
   if (!raw) return null;
@@ -62,6 +69,7 @@ async function resolveUsableAvatar(value) {
   }
 }
 
+// fetchAdminPhotoMap: fetches and returns fetch admin photo map for the Messaging flow.
 async function fetchAdminPhotoMap(userIds = []) {
   const ids = [...new Set(userIds.map(safeText).filter(Boolean))];
   if (!ids.length) return new Map();
@@ -88,6 +96,7 @@ async function fetchAdminPhotoMap(userIds = []) {
   }
 }
 
+// fetchProfileMap: fetches and returns fetch profile map for the Messaging flow.
 async function fetchProfileMap(userIds = []) {
   const ids = [...new Set(userIds.map(safeText).filter(Boolean))];
   if (!ids.length) return new Map();
@@ -142,6 +151,7 @@ async function fetchProfileMap(userIds = []) {
   return map;
 }
 
+// mapMessageRow: maps map message row for the Messaging flow.
 function mapMessageRow(row, profileMap) {
   const profile = profileMap.get(row.sender_id) || null;
   return {
@@ -175,6 +185,7 @@ function mapMessageRow(row, profileMap) {
   };
 }
 
+// finishWindow: handles finish window for the Messaging flow.
 function finishWindow(rows, limit) {
   const hasMore = rows.length > limit;
   const page = hasMore ? rows.slice(0, limit) : rows;
@@ -194,6 +205,7 @@ function finishWindow(rows, limit) {
   };
 }
 
+// resolveSupportCounterpartyId: resolves resolve support counterparty id for the Messaging flow.
 async function resolveSupportCounterpartyId(
   currentUserId,
   requestedCounterpartyId = null
@@ -208,6 +220,7 @@ async function resolveSupportCounterpartyId(
 // existing authorized-office conversations instead of forcing every thread to OSFA.
 const resolveFixedOsfaCounterpartyId = resolveSupportCounterpartyId;
 
+// fetchPrivateWindow: fetches and returns fetch private window for the Messaging flow.
 async function fetchPrivateWindow(currentUserId, options = {}) {
   const counterpartyId = await resolveSupportCounterpartyId(
     currentUserId,
@@ -274,6 +287,7 @@ async function fetchPrivateWindow(currentUserId, options = {}) {
   };
 }
 
+// ensureRoomMembership: ensures ensure room membership for the Messaging flow.
 async function ensureRoomMembership(currentUserId, roomId) {
   const normalizedUserId = safeText(currentUserId);
   const normalizedRoomId = safeText(roomId);
@@ -297,6 +311,7 @@ async function ensureRoomMembership(currentUserId, roomId) {
   }
 }
 
+// fetchRoomWindow: fetches and returns fetch room window for the Messaging flow.
 async function fetchRoomWindow(currentUserId, roomId, options = {}) {
   await ensureRoomMembership(currentUserId, roomId);
 
@@ -358,6 +373,7 @@ async function fetchRoomWindow(currentUserId, roomId, options = {}) {
   };
 }
 
+// syncPrivateReadState: synchronizes sync private read state for the Messaging flow.
 async function syncPrivateReadState(currentUserId, counterpartyId) {
   const userId = safeText(currentUserId);
   const supportUserId = safeText(counterpartyId);
@@ -420,6 +436,7 @@ async function syncPrivateReadState(currentUserId, counterpartyId) {
   };
 }
 
+// getMobileUnreadCount: reads and returns get mobile unread count for the Messaging flow.
 async function getMobileUnreadCount(currentUserId) {
   const userId = safeText(currentUserId);
   if (!isUuid(userId)) {

@@ -1,3 +1,4 @@
+// SMaRT-PDM: OCR — ocr Routes (admin backend route); maps API endpoints to middleware and controllers.
 const express = require('express');
 
 const ocrController = require('../controllers/ocrController');

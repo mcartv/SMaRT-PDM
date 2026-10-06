@@ -1,3 +1,4 @@
+// SMaRT-PDM: Reports — report Service (admin backend service); contains business logic and data operations.
 const path = require('path');
 const ExcelJS = require('exceljs');
 const pool = require('../config/db');
@@ -7,16 +8,19 @@ const EXCEL_HEADER_IMAGE_PATH = path.resolve(
     '../assets/report-templates/pdm-excel-header.png'
 );
 
+// createHttpError: creates create http error for the Reports flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// safeText: handles safe text for the Reports flow.
 function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
 }
 
+// humanizeLabel: handles humanize label for the Reports flow.
 function humanizeLabel(value) {
     const text = safeText(value);
     if (!text) return '';
@@ -31,6 +35,7 @@ function humanizeLabel(value) {
         .replace(/\bGwa\b/g, 'GWA');
 }
 
+// buildMetadataOptions: builds build metadata options for the Reports flow.
 function buildMetadataOptions(rows, key, allLabel) {
     return [
         { value: 'all', label: allLabel },
@@ -41,6 +46,7 @@ function buildMetadataOptions(rows, key, allLabel) {
     ];
 }
 
+// appendDateRange: handles append date range for the Reports flow.
 function appendDateRange(where, params, fieldExpression, dateFrom, dateTo) {
     if (dateFrom) {
         params.push(dateFrom);
@@ -53,6 +59,7 @@ function appendDateRange(where, params, fieldExpression, dateFrom, dateTo) {
     }
 }
 
+// normalizeReportType: normalizes normalize report type for the Reports flow.
 function normalizeReportType(value) {
     const type = safeText(value).toLowerCase();
     const allowed = [
@@ -81,6 +88,7 @@ function normalizeReportType(value) {
     return type;
 }
 
+// normalizeDate: normalizes normalize date for the Reports flow.
 function normalizeDate(value, fieldName) {
     const normalized = safeText(value);
     if (!normalized) return '';
@@ -97,6 +105,7 @@ function normalizeDate(value, fieldName) {
     return normalized;
 }
 
+// getReportMetadata: reads and returns get report metadata for the Reports flow.
 async function getReportMetadata() {
     const [
         programsResult,
@@ -324,6 +333,7 @@ async function getReportMetadata() {
     };
 }
 
+// appendScholarDetailFilters: handles append scholar detail filters for the Reports flow.
 function appendScholarDetailFilters(
     where,
     params,
@@ -346,6 +356,7 @@ function appendScholarDetailFilters(
     }
 }
 
+// appendTextEqualityFilter: handles append text equality filter for the Reports flow.
 function appendTextEqualityFilter(where, params, expression, value) {
     if (!value || value === 'all') return;
     params.push(value);
@@ -442,10 +453,12 @@ const INSTITUTIONAL_EXCEL_COLUMN_MAX_WIDTHS = {
     remarks: 26,
 };
 
+// normalizeExcelCellValue: normalizes normalize excel cell value for the Reports flow.
 function normalizeExcelCellValue(value) {
     return typeof value === 'string' ? value.trim() : value;
 }
 
+// normalizeReportDisplayValue: normalizes normalize report display value for the Reports flow.
 function normalizeReportDisplayValue(key, value) {
     const normalized = normalizeExcelCellValue(value);
     if (typeof normalized !== 'string') return normalized;
@@ -457,6 +470,7 @@ function normalizeReportDisplayValue(key, value) {
     return normalized;
 }
 
+// stripInternalReportFields: handles strip internal report fields for the Reports flow.
 function stripInternalReportFields(row = {}) {
     return Object.fromEntries(
         Object.entries(row)
@@ -465,6 +479,7 @@ function stripInternalReportFields(row = {}) {
     );
 }
 
+// getExcelPeriodLabel: reads and returns get excel period label for the Reports flow.
 function getExcelPeriodLabel(normalized, rows = []) {
     const resolvedAcademicYear =
         rows.find((row) => safeText(row.applicable_academic_year))?.applicable_academic_year ||
@@ -482,6 +497,7 @@ function getExcelPeriodLabel(normalized, rows = []) {
     return { academicYear, semester };
 }
 
+// formatExcelPeriodSubtitle: formats format excel period subtitle for the Reports flow.
 function formatExcelPeriodSubtitle(normalized, rows = []) {
     const { academicYear, semester } = getExcelPeriodLabel(normalized, rows);
     const hasAcademicYear = normalized.academicYearId !== 'all';
@@ -499,6 +515,7 @@ function formatExcelPeriodSubtitle(normalized, rows = []) {
     return 'ALL ACADEMIC YEARS • ALL SEMESTERS';
 }
 
+// getInstitutionalReportTitle: reads and returns get institutional report title for the Reports flow.
 function getInstitutionalReportTitle(reportType) {
     const titles = {
         applications: 'APPLICATION REGISTRY REPORT',
@@ -521,6 +538,7 @@ function getInstitutionalReportTitle(reportType) {
     return titles[reportType] || 'SMaRT-PDM REPORT';
 }
 
+// excelCellText: handles excel cell text for the Reports flow.
 function excelCellText(cell) {
     if (!cell) return '';
     if (cell.text !== undefined && cell.text !== null && String(cell.text) !== '') {
@@ -537,6 +555,7 @@ function excelCellText(cell) {
     return String(value).replace(/\r\n/g, '\n').trim();
 }
 
+// visualTextWidth: handles visual text width for the Reports flow.
 function visualTextWidth(text) {
     const lines = String(text || '').split('\n');
     return Math.max(0, ...lines.map((line) => {
@@ -552,6 +571,7 @@ function visualTextWidth(text) {
     }));
 }
 
+// resolveExcelWidthBounds: resolves resolve excel width bounds for the Reports flow.
 function resolveExcelWidthBounds(key, headerText, { institutional = false } = {}) {
     const normalizedKey = String(key || '');
     const institutionalMax = institutional ? INSTITUTIONAL_EXCEL_COLUMN_MAX_WIDTHS[normalizedKey] : null;
@@ -565,6 +585,7 @@ function resolveExcelWidthBounds(key, headerText, { institutional = false } = {}
     return { minWidth, maxWidth };
 }
 
+// estimateWrappedLines: handles estimate wrapped lines for the Reports flow.
 function estimateWrappedLines(text, columnWidth) {
     const available = Math.max(4, Number(columnWidth || 10) - 1.5);
     const rawLines = String(text || '').split('\n');
@@ -574,6 +595,7 @@ function estimateWrappedLines(text, columnWidth) {
     }, 0));
 }
 
+// applyAdaptiveWorksheetLayout: handles apply adaptive worksheet layout for the Reports flow.
 function applyAdaptiveWorksheetLayout(sheet, {
     headerRow = 1,
     dataStartRow = headerRow + 1,
@@ -730,6 +752,7 @@ function applyAdaptiveWorksheetLayout(sheet, {
     return { totalColumnWidth, orientation, lastRow, lastColumn };
 }
 
+// addInstitutionalWorksheetHeader: adds add institutional worksheet header for the Reports flow.
 function addInstitutionalWorksheetHeader(workbook, sheet, {
     title,
     subtitle,
@@ -783,6 +806,7 @@ function addInstitutionalWorksheetHeader(workbook, sheet, {
     }
 }
 
+// styleSheet: handles style sheet for the Reports flow.
 function styleSheet(sheet, {
     headerRow = 1,
     dataStartRow = headerRow + 1,
@@ -799,6 +823,7 @@ function styleSheet(sheet, {
     });
 }
 
+// getApplicationsRows: reads and returns get applications rows for the Reports flow.
 async function getApplicationsRows({
     academicYearId,
     semester,
@@ -878,6 +903,7 @@ async function getApplicationsRows({
     return rows;
 }
 
+// getScholarsRows: reads and returns get scholars rows for the Reports flow.
 async function getScholarsRows({
     academicYearId,
     semester,
@@ -950,6 +976,7 @@ async function getScholarsRows({
 }
 
 
+// resolveAcademicYearHistoryRange: resolves resolve academic year history range for the Reports flow.
 async function resolveAcademicYearHistoryRange(
     academicYearFromId = 'all',
     academicYearToId = 'all'
@@ -1025,6 +1052,7 @@ async function resolveAcademicYearHistoryRange(
     };
 }
 
+// getScholarshipHistoryRows: reads and returns get scholarship history rows for the Reports flow.
 async function getScholarshipHistoryRows({
     academicYearFromId,
     academicYearToId,
@@ -1277,6 +1305,7 @@ async function getScholarshipHistoryRows({
     return rows;
 }
 
+// normalizeSdoOffenseClassification: normalizes normalize sdo offense classification for the Reports flow.
 function normalizeSdoOffenseClassification(value) {
     const status = safeText(value).toLowerCase();
     if (['no_offense', 'cleared'].includes(status)) return 'No Offense';
@@ -1285,6 +1314,7 @@ function normalizeSdoOffenseClassification(value) {
     return 'Unclassified';
 }
 
+// getSdoOffenseRows: reads and returns get sdo offense rows for the Reports flow.
 async function getSdoOffenseRows(filters) {
     const rows = await getSdoRows({ ...filters, classifiedOnly: true });
     return rows.map((row) => ({
@@ -1376,6 +1406,7 @@ async function getScholarCountRows({
     return rows;
 }
 
+// getPayoutRows: reads and returns get payout rows for the Reports flow.
 async function getPayoutRows({
     academicYearId,
     semester,
@@ -1547,6 +1578,7 @@ async function getPayoutProofRows({
     return rows;
 }
 
+// getRenewalRows: reads and returns get renewal rows for the Reports flow.
 async function getRenewalRows({
     academicYearId,
     semester,
@@ -1644,6 +1676,7 @@ async function getRenewalRows({
     return rows;
 }
 
+// getSlotUtilizationRows: reads and returns get slot utilization rows for the Reports flow.
 async function getSlotUtilizationRows({
     academicYearId,
     semester,
@@ -1764,6 +1797,7 @@ async function getSlotUtilizationRows({
     return rows;
 }
 
+// getSdoRows: reads and returns get sdo rows for the Reports flow.
 async function getSdoRows({
     academicYearId,
     semester,
@@ -1868,6 +1902,7 @@ async function getSdoRows({
     return rows;
 }
 
+// getGuidanceRows: reads and returns get guidance rows for the Reports flow.
 async function getGuidanceRows({
     academicYearId,
     semester,
@@ -1966,6 +2001,7 @@ async function getGuidanceRows({
     return rows;
 }
 
+// getPdRows: reads and returns get pd rows for the Reports flow.
 async function getPdRows({
     academicYearId,
     semester,
@@ -2092,6 +2128,7 @@ async function getPdRows({
 }
 
 
+// getRoRows: reads and returns get ro rows for the Reports flow.
 async function getRoRows({
     academicYearId,
     semester,
@@ -2221,6 +2258,7 @@ async function getRoRows({
     return rows;
 }
 
+// getRoComplianceRows: reads and returns get ro compliance rows for the Reports flow.
 async function getRoComplianceRows({
     academicYearId,
     semester,
@@ -2391,6 +2429,7 @@ async function getRoComplianceRows({
     return rows;
 }
 
+// addRows: adds add rows for the Reports flow.
 function addRows(sheet, rows, columns = sheet.columns || []) {
     const keys = columns.map((column) => String(column.key || '')).filter(Boolean);
 
@@ -2404,6 +2443,7 @@ function addRows(sheet, rows, columns = sheet.columns || []) {
     });
 }
 
+// styleInstitutionalTable: handles style institutional table for the Reports flow.
 function styleInstitutionalTable(sheet, { headerRow, dataStartRow }) {
     const lastRow = sheet.lastRow?.number || headerRow;
     const lastColumn = Math.max(1, sheet.columnCount);
@@ -2439,6 +2479,7 @@ function styleInstitutionalTable(sheet, { headerRow, dataStartRow }) {
     }
 }
 
+// buildOfficeSummary: builds build office summary for the Reports flow.
 function buildOfficeSummary(reportType, rows = []) {
     const summary = {
         total: rows.length,
@@ -2531,6 +2572,7 @@ function buildOfficeSummary(reportType, rows = []) {
     return summary;
 }
 
+// escapeCsvValue: handles escape csv value for the Reports flow.
 function escapeCsvValue(value) {
     if (value === null || value === undefined) return '';
 
@@ -2539,6 +2581,7 @@ function escapeCsvValue(value) {
     return /[",\n]/.test(normalized) ? `"${normalized}"` : normalized;
 }
 
+// getRowsByReportType: reads and returns get rows by report type for the Reports flow.
 async function getRowsByReportType({
     reportType,
     academicYearId,
@@ -2653,6 +2696,7 @@ async function getRowsByReportType({
     throw createHttpError(400, 'Invalid report type.');
 }
 
+// normalizeReportQuery: normalizes normalize report query for the Reports flow.
 function normalizeReportQuery(query = {}) {
     const normalized = {
         reportType: normalizeReportType(query.reportType || query.type),
@@ -2694,6 +2738,7 @@ function normalizeReportQuery(query = {}) {
     return normalized;
 }
 
+// previewReport: handles preview report for the Reports flow.
 async function previewReport(query = {}) {
     const normalized = normalizeReportQuery(query);
     const rows = await getRowsByReportType(normalized);
@@ -2741,6 +2786,7 @@ async function previewReport(query = {}) {
     return previewResult;
 }
 
+// buildExportDefinition: builds build export definition for the Reports flow.
 async function buildExportDefinition(normalized) {
     let rows = [];
     let columns = [];
@@ -3121,6 +3167,7 @@ async function buildExportDefinition(normalized) {
     return { rows, columns, sheetName, filename, institutional };
 }
 
+// generateExcelReport: handles generate excel report for the Reports flow.
 async function generateExcelReport(query = {}) {
     const normalized = normalizeReportQuery(query);
     const definition = await buildExportDefinition(normalized);
@@ -3173,6 +3220,7 @@ async function generateExcelReport(query = {}) {
     };
 }
 
+// generateCsvReport: handles generate csv report for the Reports flow.
 async function generateCsvReport(query = {}) {
     const normalized = normalizeReportQuery(query);
     const definition = await buildExportDefinition(normalized);

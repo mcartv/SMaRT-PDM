@@ -1,7 +1,9 @@
+// SMaRT-PDM: support Ticket Service — support Ticket Service (admin backend service); contains business logic and data operations.
 const pool = require('../config/db');
 
 const ALLOWED_STATUSES = ['Open', 'In Progress', 'Resolved', 'Closed'];
 
+// normalizeStatus: normalizes normalize status for the support Ticket Service flow.
 function normalizeStatus(status) {
     if (!status) return null;
 
@@ -15,6 +17,7 @@ function normalizeStatus(status) {
     return null;
 }
 
+// fetchSupportTickets: fetches and returns fetch support tickets for the support Ticket Service flow.
 async function fetchSupportTickets() {
     const query = `
     SELECT
@@ -61,6 +64,7 @@ async function fetchSupportTickets() {
     return rows;
 }
 
+// getSupportTicketById: reads and returns get support ticket by id for the support Ticket Service flow.
 async function getSupportTicketById(ticketId) {
     const query = `
     SELECT
@@ -94,6 +98,7 @@ async function getSupportTicketById(ticketId) {
     return rows[0] || null;
 }
 
+// updateSupportTicket: updates update support ticket for the support Ticket Service flow.
 async function updateSupportTicket(ticketId, { status, assignToSelf, currentUser }) {
     const existing = await getSupportTicketById(ticketId);
 

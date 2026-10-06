@@ -1,3 +1,4 @@
+// SMaRT-PDM: Return of Obligations — auth Routes (admin backend route); maps API endpoints to middleware and controllers.
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const router = express.Router();

@@ -1,15 +1,19 @@
+// SMaRT-PDM: Announcements — announcement Service (mobile backend service); contains mobile-facing business logic and data operations.
 const supabase = require('../config/supabase');
 
+// createHttpError: creates create http error for the Announcements flow.
 function createHttpError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
 }
 
+// normalizeText: normalizes normalize text for the Announcements flow.
 function normalizeText(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+// parseDate: parses parse date for the Announcements flow.
 function parseDate(value) {
   if (!value) return null;
 
@@ -17,6 +21,7 @@ function parseDate(value) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+// publicationDate: handles publication date for the Announcements flow.
 function publicationDate(row = {}) {
   return (
     parseDate(row.published_at) ||
@@ -26,6 +31,7 @@ function publicationDate(row = {}) {
   );
 }
 
+// isPublishedNow: checks whether is published now for the Announcements flow.
 function isPublishedNow(row = {}, now = new Date()) {
   if (row.is_archived === true) return false;
   if (normalizeText(row.status) !== 'published') return false;
@@ -34,6 +40,7 @@ function isPublishedNow(row = {}, now = new Date()) {
   return published === null || published.getTime() <= now.getTime();
 }
 
+// getAudienceContext: reads and returns get audience context for the Announcements flow.
 async function getAudienceContext(userId) {
   if (!userId) {
     throw createHttpError(401, 'Authentication required.');
@@ -111,6 +118,7 @@ async function getAudienceContext(userId) {
   return context;
 }
 
+// matchesLegacyProgramAudience: handles matches legacy program audience for the Announcements flow.
 function matchesLegacyProgramAudience(context, audience) {
   if (!context.isActiveScholar) return false;
 
@@ -136,6 +144,7 @@ function matchesLegacyProgramAudience(context, audience) {
   return false;
 }
 
+// canViewAudience: checks whether can view audience for the Announcements flow.
 function canViewAudience(context, row = {}) {
   const audience = normalizeText(row.target_audience || 'all');
 
@@ -166,6 +175,7 @@ function canViewAudience(context, row = {}) {
   return false;
 }
 
+// mapAnnouncementRow: maps map announcement row for the Announcements flow.
 function mapAnnouncementRow(row = {}) {
   const date = publicationDate(row);
 
@@ -179,6 +189,7 @@ function mapAnnouncementRow(row = {}) {
   };
 }
 
+// getVisibleAnnouncementForUser: reads and returns get visible announcement for user for the Announcements flow.
 async function getVisibleAnnouncementForUser(userId, announcementId) {
   const normalizedId = String(announcementId || '').trim();
   if (!normalizedId) {
@@ -212,6 +223,7 @@ async function getVisibleAnnouncementForUser(userId, announcementId) {
   return row;
 }
 
+// markAnnouncementViewed: marks mark announcement viewed for the Announcements flow.
 async function markAnnouncementViewed(userId, announcementId) {
   if (!userId) {
     throw createHttpError(401, 'Authentication required.');
@@ -255,6 +267,7 @@ async function markAnnouncementViewed(userId, announcementId) {
   };
 }
 
+// listPublishedAnnouncements: loads a list of list published announcements for the Announcements flow.
 async function listPublishedAnnouncements(userId) {
   const context = await getAudienceContext(userId);
   const now = new Date();

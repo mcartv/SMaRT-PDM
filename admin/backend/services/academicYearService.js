@@ -1,3 +1,4 @@
+// SMaRT-PDM: Academic Periods — academic Year Service (admin backend service); contains business logic and data operations.
 const pool = require('../config/db');
 
 const DEFAULT_TERMS = ['First Semester', 'Second Semester'];
@@ -7,6 +8,7 @@ const REQUIRED_RENEWAL_DOCUMENTS = [
     'Certificate of Enrollment / Registration',
 ];
 
+// createHttpError: creates create http error for the Academic Periods flow.
 function createHttpError(statusCode, message, code = null) {
     const error = new Error(message);
     error.statusCode = statusCode;
@@ -16,6 +18,7 @@ function createHttpError(statusCode, message, code = null) {
     return error;
 }
 
+// calculateAcademicYearWindow: handles calculate academic year window for the Academic Periods flow.
 function calculateAcademicYearWindow({ calendarYear, month }) {
     const startYear = month >= 6 ? calendarYear : calendarYear - 1;
 
@@ -26,6 +29,7 @@ function calculateAcademicYearWindow({ calendarYear, month }) {
     };
 }
 
+// getCurrentAcademicYearWindow: reads and returns get current academic year window for the Academic Periods flow.
 async function getCurrentAcademicYearWindow(client) {
     const result = await client.query(`
         SELECT
@@ -39,6 +43,7 @@ async function getCurrentAcademicYearWindow(client) {
     });
 }
 
+// assertCurrentAcademicYear: handles assert current academic year for the Academic Periods flow.
 async function assertCurrentAcademicYear(client, startYear, endYear) {
     const current = await getCurrentAcademicYearWindow(client);
 
@@ -61,6 +66,7 @@ async function assertCurrentAcademicYear(client, startYear, endYear) {
     );
 }
 
+// toRequiredYear: handles to required year for the Academic Periods flow.
 function toRequiredYear(value, fieldName) {
     if (value === undefined || value === null || value === '') {
         throw createHttpError(400, `${fieldName} is required`);
@@ -75,6 +81,7 @@ function toRequiredYear(value, fieldName) {
     return num;
 }
 
+// mapAcademicYear: maps map academic year for the Academic Periods flow.
 function mapAcademicYear(row = {}) {
     return {
         academic_year_id: row.academic_year_id,
@@ -86,6 +93,7 @@ function mapAcademicYear(row = {}) {
     };
 }
 
+// mapAcademicPeriod: maps map academic period for the Academic Periods flow.
 function mapAcademicPeriod(row = {}) {
     return {
         period_id: row.period_id,
@@ -105,6 +113,7 @@ function mapAcademicPeriod(row = {}) {
     };
 }
 
+// validateYearRange: validates validate year range for the Academic Periods flow.
 function validateYearRange(startYear, endYear) {
     if (endYear !== startYear + 1) {
         throw createHttpError(
@@ -114,6 +123,7 @@ function validateYearRange(startYear, endYear) {
     }
 }
 
+// ensureUniqueRange: ensures ensure unique range for the Academic Periods flow.
 async function ensureUniqueRange(client, startYear, endYear, excludeId = null) {
     const result = await client.query(
         `
@@ -132,6 +142,7 @@ async function ensureUniqueRange(client, startYear, endYear, excludeId = null) {
     }
 }
 
+// ensureDefaultPeriods: ensures ensure default periods for the Academic Periods flow.
 async function ensureDefaultPeriods(client, academicYearId) {
     for (const term of DEFAULT_TERMS) {
         await client.query(
@@ -151,6 +162,7 @@ async function ensureDefaultPeriods(client, academicYearId) {
     }
 }
 
+// closeOpeningsOutsideActiveCycle: handles close openings outside active cycle for the Academic Periods flow.
 async function closeOpeningsOutsideActiveCycle(
     client,
     { academicYearId = null, periodId = null } = {}
@@ -188,6 +200,7 @@ async function closeOpeningsOutsideActiveCycle(
     return result.rowCount || 0;
 }
 
+// releasePreviousPeriodIncompleteApplications: handles release previous period incomplete applications for the Academic Periods flow.
 async function releasePreviousPeriodIncompleteApplications(client, activePeriodId) {
     const releasedApplications = await client.query(
         `
@@ -240,6 +253,7 @@ async function releasePreviousPeriodIncompleteApplications(client, activePeriodI
 }
 
 
+// getPeriodForUpdate: reads and returns get period for update for the Academic Periods flow.
 async function getPeriodForUpdate(client, periodId) {
     const result = await client.query(
         `
@@ -268,6 +282,7 @@ async function getPeriodForUpdate(client, periodId) {
     return result.rows[0] || null;
 }
 
+// getPeriodCycleSetting: reads and returns get period cycle setting for the Academic Periods flow.
 async function getPeriodCycleSetting(client, period) {
     const result = await client.query(
         `
@@ -309,6 +324,7 @@ async function getPeriodCycleSetting(client, period) {
     );
 }
 
+// ensurePeriodCycles: ensures ensure period cycles for the Academic Periods flow.
 async function ensurePeriodCycles(client, period) {
     const eligibleResult = await client.query(
         `

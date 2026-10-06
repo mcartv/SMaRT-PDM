@@ -1,9 +1,11 @@
+// SMaRT-PDM: Authentication — auth Middleware (admin backend middleware); validates or transforms requests before controller handling.
 const jwt = require('jsonwebtoken');
 const adminSessionService = require('../services/adminSessionService');
 const staffSessionService = require('../services/staffSessionService');
 const systemActivityService = require('../services/systemActivityService');
 const { attachSystemAuditCoverage } = require('./systemAuditCoverageMiddleware');
 
+// protect: handles protect for the Authentication flow.
 const protect = async (req, res, next) => {
     const authHeader = req.headers.authorization;
 
@@ -101,6 +103,7 @@ const protect = async (req, res, next) => {
     }
 };
 
+// authorizeRoles: handles authorize roles for the Authentication flow.
 const authorizeRoles = (...roles) => (req, res, next) => {
     const userRole = String(req.user?.role || '').trim().toLowerCase();
 

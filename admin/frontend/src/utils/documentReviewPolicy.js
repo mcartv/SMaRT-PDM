@@ -1,3 +1,4 @@
+// SMaRT-PDM: Document Verification — document Review Policy (admin frontend); supports admin-side UI behavior.
 export const MINOR_REUPLOAD_OPTIONS = [
   { code: 'BLURRY_UNREADABLE', label: 'Blurred or unreadable image' },
   { code: 'INCOMPLETE_DOCUMENT', label: 'Incomplete document or missing page' },
@@ -31,6 +32,7 @@ export const MAJOR_REJECTION_OPTIONS = [
   },
 ];
 
+// deriveRequirementsOutcome: derives derive requirements outcome for the Document Verification flow.
 export function deriveRequirementsOutcome(documents = []) {
   const required = documents || [];
 

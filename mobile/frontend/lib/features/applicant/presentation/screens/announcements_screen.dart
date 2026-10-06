@@ -1,3 +1,4 @@
+// SMaRT-PDM: Announcements — announcements screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -16,6 +17,7 @@ class AnnouncementsScreen extends StatefulWidget {
   const AnnouncementsScreen({super.key});
 
   @override
+  // createState: creates create state for the Announcements flow.
   State<AnnouncementsScreen> createState() => _AnnouncementsScreenState();
 }
 
@@ -33,6 +35,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   bool _pendingLiveRefresh = false;
 
   @override
+  // initState: handles init state for the Announcements flow.
   void initState() {
     super.initState();
     _loadAnnouncements();
@@ -44,6 +47,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   }
 
   @override
+  // didChangeDependencies: handles did change dependencies for the Announcements flow.
   void didChangeDependencies() {
     super.didChangeDependencies();
 
@@ -56,6 +60,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     _notificationProvider?.addListener(_handleRealtimeAnnouncements);
   }
 
+  // _loadAnnouncements: handles load announcements for the Announcements flow.
   Future<void> _loadAnnouncements({bool silent = false}) async {
     if (_fetchInProgress) {
       _pendingLiveRefresh = true;
@@ -96,6 +101,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     }
   }
 
+  // _requestLiveRefresh: handles request live refresh for the Announcements flow.
   void _requestLiveRefresh() {
     if (!mounted) return;
     if (_fetchInProgress) {
@@ -105,6 +111,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     _loadAnnouncements(silent: true);
   }
 
+  // _handleRealtimeAnnouncements: handles handle realtime announcements for the Announcements flow.
   void _handleRealtimeAnnouncements() {
     final provider = _notificationProvider;
     if (provider == null ||
@@ -116,12 +123,14 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   }
 
   @override
+  // dispose: handles dispose for the Announcements flow.
   void dispose() {
     _liveSyncTimer?.cancel();
     _notificationProvider?.removeListener(_handleRealtimeAnnouncements);
     super.dispose();
   }
 
+  // _getFilteredAnnouncements: handles get filtered announcements for the Announcements flow.
   List<MobileAnnouncement> _getFilteredAnnouncements() {
     if (_selectedFilter == 'All') return _announcements;
     return _announcements
@@ -129,6 +138,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
         .toList();
   }
 
+  // _labelForAudience: handles label for audience for the Announcements flow.
   String _labelForAudience(String audienceKey) {
     switch (audienceKey.toLowerCase()) {
       case 'applicants':
@@ -144,6 +154,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     }
   }
 
+  // _toneForAudience: handles tone for audience for the Announcements flow.
   AppStatusTone _toneForAudience(String category) {
     switch (category) {
       case 'Applicants':
@@ -157,10 +168,12 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     }
   }
 
+  // _formatDate: handles format date for the Announcements flow.
   String _formatDate(DateTime value) =>
       DateFormat('MMMM d, yyyy').format(value.toLocal());
 
   @override
+  // build: builds build for the Announcements flow.
   Widget build(BuildContext context) {
     final args =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
@@ -249,6 +262,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     );
   }
 
+  // _buildFilterChip: handles build filter chip for the Announcements flow.
   Widget _buildFilterChip(String label) {
     final isSelected = _selectedFilter == label;
     return Padding(
@@ -262,6 +276,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     );
   }
 
+  // _buildErrorState: handles build error state for the Announcements flow.
   Widget _buildErrorState() {
     return AppSurfaceCard(
       child: Column(
@@ -293,6 +308,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     );
   }
 
+  // _openAnnouncement: handles open announcement for the Announcements flow.
   Future<void> _openAnnouncement(MobileAnnouncement announcement) async {
     _announcementService
         .markViewed(announcement.announcementId)
@@ -308,6 +324,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     );
   }
 
+  // _buildAnnouncementDetail: handles build announcement detail for the Announcements flow.
   Widget _buildAnnouncementDetail(MobileAnnouncement announcement) {
     final category = _labelForAudience(announcement.audienceKey);
     return DraggableScrollableSheet(
@@ -385,6 +402,7 @@ class _AnnouncementListCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  // build: builds build for the Announcements flow.
   Widget build(BuildContext context) {
     return AppSurfaceCard(
       onTap: onTap,

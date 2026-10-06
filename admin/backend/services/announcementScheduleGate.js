@@ -1,3 +1,4 @@
+// SMaRT-PDM: Announcements — announcement Schedule Gate (admin backend service); contains business logic and data operations.
 'use strict';
 
 // The five-second scheduler can check this clock without making an HTTP request.
@@ -11,21 +12,25 @@ function createAnnouncementScheduleGate({ loadNextScheduledAt, now = Date.now, r
     let retryAt = 0;
     let retryDelayMs = retryBaseMs;
 
+    // publicationFailed: handles publication failed for the Announcements flow.
     function publicationFailed() {
         retryAt = now() + retryDelayMs;
         retryDelayMs = Math.min(retryDelayMs * 2, retryMaxMs);
     }
 
+    // publicationSucceeded: handles publication succeeded for the Announcements flow.
     function publicationSucceeded() {
         retryAt = 0;
         retryDelayMs = retryBaseMs;
     }
 
+    // invalidate: handles invalidate for the Announcements flow.
     function invalidate() {
         generation += 1;
         refreshAt = 0;
     }
 
+    // isDue: checks whether is due for the Announcements flow.
     async function isDue() {
         // Realtime cache invalidation must not bypass an outage cooldown.
         if (now() < retryAt) return false;

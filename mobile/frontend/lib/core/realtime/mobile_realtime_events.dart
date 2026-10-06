@@ -1,3 +1,4 @@
+// SMaRT-PDM: mobile realtime events — mobile realtime events (mobile frontend); supports mobile UI behavior.
 class MobileRealtimeEvents {
   const MobileRealtimeEvents._();
 

@@ -1,3 +1,4 @@
+// SMaRT-PDM: mobile menu screen — mobile menu screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -23,6 +24,7 @@ class MobileMenuScreen extends StatefulWidget {
   const MobileMenuScreen({super.key});
 
   @override
+  // createState: creates create state for the mobile menu screen flow.
   State<MobileMenuScreen> createState() => _MobileMenuScreenState();
 }
 
@@ -56,11 +58,13 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
   ];
 
   @override
+  // initState: handles init state for the mobile menu screen flow.
   void initState() {
     super.initState();
     _loadSessionSummary(refreshRemote: true);
   }
 
+  // _loadSessionSummary: handles load session summary for the mobile menu screen flow.
   Future<void> _loadSessionSummary({bool refreshRemote = false}) async {
     if (mounted) {
       setState(() => _isRefreshing = true);
@@ -96,6 +100,7 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
     });
   }
 
+  // _confirmLogout: handles confirm logout for the mobile menu screen flow.
   Future<void> _confirmLogout() async {
     final shouldLogout = await showDialog<bool>(
       context: context,
@@ -132,10 +137,12 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
     ).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
   }
 
+  // _openRoute: handles open route for the mobile menu screen flow.
   void _openRoute(String route) {
     Navigator.of(context).pushNamed(route);
   }
 
+  // _openScholarResponsibilities: handles open scholar responsibilities for the mobile menu screen flow.
   void _openScholarResponsibilities() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -146,6 +153,7 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
     );
   }
 
+  // _buildAvatar: handles build avatar for the mobile menu screen flow.
   Widget _buildAvatar() {
     final avatar = _avatarUrl;
 
@@ -174,6 +182,7 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
   }
 
   @override
+  // build: builds build for the mobile menu screen flow.
   Widget build(BuildContext context) {
     final notificationProvider = context.watch<NotificationProvider>();
     final providerScholarAccess = notificationProvider.scholarAccessRevision > 0
@@ -335,6 +344,7 @@ class _ProfileSummaryCard extends StatelessWidget {
   final Widget avatar;
 
   @override
+  // build: builds build for the mobile menu screen flow.
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 18, 14, 18),
@@ -444,6 +454,7 @@ class _ScholarResponsibilitiesScreen extends StatelessWidget {
   final List<String> responsibilities;
 
   @override
+  // build: builds build for the mobile menu screen flow.
   Widget build(BuildContext context) {
     final background = AppSurfacePalette.background(context);
     final titleColor = AppSurfacePalette.text(context);
@@ -566,6 +577,7 @@ class _MenuListTile extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  // build: builds build for the mobile menu screen flow.
   Widget build(BuildContext context) {
     return ListTile(
       onTap: () {

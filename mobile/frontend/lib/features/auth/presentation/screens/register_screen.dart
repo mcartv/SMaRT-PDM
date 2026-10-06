@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — register screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -15,6 +16,7 @@ class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
   @override
+  // createState: creates create state for the Authentication flow.
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
@@ -38,6 +40,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Map<String, dynamic>? _studentData;
 
   @override
+  // didChangeDependencies: handles did change dependencies for the Authentication flow.
   void didChangeDependencies() {
     super.didChangeDependencies();
 
@@ -78,6 +81,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   @override
+  // dispose: handles dispose for the Authentication flow.
   void dispose() {
     _identifierController.dispose();
     _emailController.dispose();
@@ -86,6 +90,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
+  // _handleRegister: handles handle register for the Authentication flow.
   Future<void> _handleRegister() async {
     if (!_acceptedPolicies) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -153,6 +158,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  // _buildRegistrySummary: handles build registry summary for the Authentication flow.
   Widget _buildRegistrySummary() {
     if (_studentData == null) return const SizedBox.shrink();
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -222,6 +228,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  // _policyTextLink: handles policy text link for the Authentication flow.
   Widget _policyTextLink({
     required String label,
     required VoidCallback onTap,
@@ -244,6 +251,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  // _buildPolicyAgreement: handles build policy agreement for the Authentication flow.
   Widget _buildPolicyAgreement() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark
@@ -343,11 +351,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  // _validateStudentId: handles validate student id for the Authentication flow.
   String? _validateStudentId(String? value) {
     return AppFieldValidators.studentId(value);
   }
 
   @override
+  // build: builds build for the Authentication flow.
   Widget build(BuildContext context) {
     final hasRegistryRecord = _studentData != null;
     final isDark = Theme.of(context).brightness == Brightness.dark;

@@ -1,11 +1,14 @@
+// SMaRT-PDM: support Service — support Service (mobile backend service); contains mobile-facing business logic and data operations.
 const supabase = require('../config/supabase');
 
+// createHttpError: creates create http error for the support Service flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// mapSupportTicketRow: maps map support ticket row for the support Service flow.
 function mapSupportTicketRow(row = {}) {
     return {
         ticket_id: row.ticket_id,
@@ -19,6 +22,7 @@ function mapSupportTicketRow(row = {}) {
     };
 }
 
+// resolveStudentByUserId: resolves resolve student by user id for the support Service flow.
 async function resolveStudentByUserId(userId) {
     if (!userId) {
         throw createHttpError(401, 'Authentication required.');
@@ -39,6 +43,7 @@ async function resolveStudentByUserId(userId) {
     return data;
 }
 
+// listSupportTicketsForAdmin: loads a list of list support tickets for admin for the support Service flow.
 async function listSupportTicketsForAdmin() {
     const { data, error } = await supabase
         .from('support_tickets')
@@ -59,6 +64,7 @@ async function listSupportTicketsForAdmin() {
     return (data || []).map(mapSupportTicketRow);
 }
 
+// createSupportTicket: creates create support ticket for the support Service flow.
 async function createSupportTicket({ userId, issueCategory, description }) {
     const studentRecord = await resolveStudentByUserId(userId);
 

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — scholar access service (mobile service); calls APIs or shared services and returns processed results.
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';

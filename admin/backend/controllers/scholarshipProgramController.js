@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — scholarship Program Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const scholarshipProgramService = require('../services/scholarshipProgramService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
@@ -158,10 +159,12 @@ exports.removeProgramBranding = async (req, res) => {
 
     const readOnlyPrefixes = ['get', 'fetch', 'list', 'download', 'export'];
 
+    // isReadOnlyAction: checks whether is read only action for the Scholars flow.
     function isReadOnlyAction(name) {
         return readOnlyPrefixes.some((prefix) => String(name).startsWith(prefix));
     }
 
+    // resolveActionName: resolves resolve action name for the Scholars flow.
     function resolveActionName(name) {
         const raw = String(name || '').toLowerCase();
 
@@ -174,10 +177,12 @@ exports.removeProgramBranding = async (req, res) => {
         return 'updated';
     }
 
+    // getActorUserId: reads and returns get actor user id for the Scholars flow.
     function getActorUserId(req) {
         return req.user?.user_id || req.user?.userId || req.user?.id || null;
     }
 
+    // getEntityId: reads and returns get entity id for the Scholars flow.
     function getEntityId(req, body) {
         return (
             req.params?.id ||
@@ -197,6 +202,7 @@ exports.removeProgramBranding = async (req, res) => {
         );
     }
 
+    // safeAudit: handles safe audit for the Scholars flow.
     function safeAudit(req, functionName, responseBody) {
         try {
             const action = resolveActionName(functionName);

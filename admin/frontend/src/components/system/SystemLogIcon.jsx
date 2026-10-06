@@ -1,3 +1,4 @@
+// SMaRT-PDM: System Log Icon — System Log Icon (admin frontend component); renders reusable UI and handles local interactions.
 import React from 'react';
 import {
     Activity,
@@ -145,6 +146,7 @@ const VISUAL_RULES = [
     },
 ];
 
+// buildSearchText: builds build search text for the System Log Icon flow.
 function buildSearchText(item = {}) {
     return [
         item.action_taken,
@@ -156,6 +158,7 @@ function buildSearchText(item = {}) {
         .join(' ');
 }
 
+// resolveVisual: resolves resolve visual for the System Log Icon flow.
 function resolveVisual(item = {}) {
     const text = buildSearchText(item);
 

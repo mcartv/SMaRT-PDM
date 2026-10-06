@@ -1,9 +1,11 @@
+// SMaRT-PDM: Unified Login — Unified Login (admin frontend page); loads data, handles page actions, and renders the admin view.
 import { Link } from 'react-router-dom';
 import useLandingTheme from '@/hooks/useLandingTheme';
 import UnifiedUserLoginCard from '@/components/auth/UnifiedUserLoginCard';
 import LandingInstitutionHeader from '@/components/landing/LandingInstitutionHeader';
 import pdmFacade from '../assets/PDM-Facade-optimized.jpg';
 
+// HexCluster: handles hex cluster for the Unified Login flow.
 function HexCluster({ className = '', color = '#d29a00', mirrored = false }) {
   return (
     <svg

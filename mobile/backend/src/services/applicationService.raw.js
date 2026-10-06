@@ -1,3 +1,4 @@
+// SMaRT-PDM: Applications — application Service.raw (mobile backend service); contains mobile-facing business logic and data operations.
 // Extracted application submission/details helpers
 async function buildApplicantDocumentPackage({
   applicationId,
@@ -25,6 +26,7 @@ async function buildApplicantDocumentPackage({
   };
 }
 
+// buildApplicantStatusSummaryForUser: builds build applicant status summary for user for the Applications flow.
 async function buildApplicantStatusSummaryForUser(userId) {
   const latestApplication = await resolveLatestOpeningApplicationForUser(userId);
 
@@ -51,6 +53,7 @@ async function buildApplicantStatusSummaryForUser(userId) {
   };
 }
 
+// uploadApplicationDocumentFile: uploads upload application document file for the Applications flow.
 async function uploadApplicationDocumentFile({
   applicationId,
   uploadedBy,
@@ -117,18 +120,21 @@ async function uploadApplicationDocumentFile({
   return buildApplicantDocumentPackage({ applicationId });
 }
 
+// parseResidentYears: parses parse resident years for the Applications flow.
 function parseResidentYears(value) {
   if (value === null || value === undefined) return null;
   const match = value.toString().match(/\d+/);
   return match ? Number(match[0]) : null;
 }
 
+// normalizeNullableText: normalizes normalize nullable text for the Applications flow.
 function normalizeNullableText(value) {
   if (value === null || value === undefined) return null;
   const trimmed = value.toString().trim();
   return trimmed.length === 0 ? null : trimmed;
 }
 
+// normalizeStudentProfileSex: normalizes normalize student profile sex for the Applications flow.
 function normalizeStudentProfileSex(value) {
   const normalized = normalizeLookupValue(value);
   if (!normalized) {
@@ -147,6 +153,7 @@ function normalizeStudentProfileSex(value) {
   return lookup[normalized] || normalizeNullableText(value);
 }
 
+// normalizeBoolean: normalizes normalize boolean for the Applications flow.
 function normalizeBoolean(value) {
   if (value === true || value === false) {
     return value;
@@ -168,6 +175,7 @@ function normalizeBoolean(value) {
   return null;
 }
 
+// normalizeEducationalAttainment: normalizes normalize educational attainment for the Applications flow.
 function normalizeEducationalAttainment(value) {
   const normalized = normalizeNullableText(value);
   if (!normalized) return null;
@@ -187,6 +195,7 @@ function normalizeEducationalAttainment(value) {
   return lookup[normalizeLookupValue(normalized)] ?? null;
 }
 
+// buildFamilyResidencyByRelation: builds build family residency by relation for the Applications flow.
 function buildFamilyResidencyByRelation(parentNativeStatus, yearsValue, originProvince) {
   const years = parseResidentYears(yearsValue);
   const origin = originProvince ?? null;
@@ -259,6 +268,7 @@ function buildFamilyResidencyByRelation(parentNativeStatus, yearsValue, originPr
   return template;
 }
 
+// buildApplicationDetails: builds build application details for the Applications flow.
 async function buildApplicationDetails(applicationId) {
   const { data: applicationRecord, error: applicationError } = await supabase
     .from('applications')
@@ -438,6 +448,7 @@ async function buildApplicationDetails(applicationId) {
   };
 }
 
+// resolveUserAccountRecord: resolves resolve user account record for the Applications flow.
 async function resolveUserAccountRecord(userId) {
   if (!userId) {
     return null;
@@ -456,6 +467,7 @@ async function resolveUserAccountRecord(userId) {
   return data || null;
 }
 
+// resolveCourseIdByCode: resolves resolve course id by code for the Applications flow.
 async function resolveCourseIdByCode(courseCode) {
   if (!courseCode) {
     return null;
@@ -496,6 +508,7 @@ async function resolveCourseIdByCode(courseCode) {
   return matchingCourse.course_id;
 }
 
+// resolveCourseById: resolves resolve course by id for the Applications flow.
 async function resolveCourseById(courseId) {
   if (!courseId) {
     return null;
@@ -523,10 +536,12 @@ async function resolveCourseById(courseId) {
   return data;
 }
 
+// normalizeStudentNumber: normalizes normalize student number for the Applications flow.
 function normalizeStudentNumber(value = '') {
   return String(value || '').trim().toUpperCase();
 }
 
+// normalizeYearLevel: normalizes normalize year level for the Applications flow.
 function normalizeYearLevel(value) {
   const text = String(value || '').trim();
   if (!text) {
@@ -546,6 +561,7 @@ function normalizeYearLevel(value) {
   return parsed;
 }
 
+// buildRegistrarStudentRecord: builds build registrar student record for the Applications flow.
 function buildRegistrarStudentRecord(row = {}) {
   return {
     pdm_id: normalizeStudentNumber(row.pdm_id || row.student_number),
@@ -569,6 +585,7 @@ function buildRegistrarStudentRecord(row = {}) {
   };
 }
 
+// resolveRegistrarStudentByStudentNumber: resolves resolve registrar student by student number for the Applications flow.
 async function resolveRegistrarStudentByStudentNumber(studentNumber) {
   const normalizedStudentNumber = normalizeStudentNumber(studentNumber);
   if (!normalizedStudentNumber) {
@@ -607,6 +624,7 @@ async function resolveRegistrarStudentByStudentNumber(studentNumber) {
   return data || null;
 }
 
+// resolveStudentEligibilityByStudentNumber: resolves resolve student eligibility by student number for the Applications flow.
 async function resolveStudentEligibilityByStudentNumber(studentNumber) {
   const registryStudent = await resolveRegistrarStudentByStudentNumber(studentNumber);
 
@@ -630,6 +648,7 @@ async function resolveStudentEligibilityByStudentNumber(studentNumber) {
       : 'eligible student';
 }
 
+// persistApplicantProfileSubmission: handles persist applicant profile submission for the Applications flow.
 async function persistApplicantProfileSubmission(payload = {}) {
   const {
     account = {},
@@ -1039,6 +1058,7 @@ async function persistApplicantProfileSubmission(payload = {}) {
   };
 }
 
+// buildApplicationSubmissionResponse: builds build application submission response for the Applications flow.
 async function buildApplicationSubmissionResponse({
   applicationId,
   studentRecord,
@@ -1067,6 +1087,7 @@ async function buildApplicationSubmissionResponse({
   };
 }
 
+// submitApplicantOpeningApplication: handles submit applicant opening application for the Applications flow.
 async function submitApplicantOpeningApplication({
   userId,
   openingId,

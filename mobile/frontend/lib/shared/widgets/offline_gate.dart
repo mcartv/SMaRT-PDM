@@ -1,3 +1,4 @@
+// SMaRT-PDM: offline gate — offline gate (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/core/networking/connectivity_controller.dart';
 
@@ -8,17 +9,20 @@ class OfflineGate extends StatefulWidget {
   final Widget child;
 
   @override
+  // createState: creates create state for the offline gate flow.
   State<OfflineGate> createState() => _OfflineGateState();
 }
 
 class _OfflineGateState extends State<OfflineGate> {
   @override
+  // initState: handles init state for the offline gate flow.
   void initState() {
     super.initState();
     widget.controller.addListener(_handleNetworkChange);
   }
 
   @override
+  // didUpdateWidget: handles did update widget for the offline gate flow.
   void didUpdateWidget(covariant OfflineGate oldWidget) {
     super.didUpdateWidget(oldWidget);
 
@@ -28,6 +32,7 @@ class _OfflineGateState extends State<OfflineGate> {
     }
   }
 
+  // _handleNetworkChange: handles handle network change for the offline gate flow.
   void _handleNetworkChange() {
     if (!widget.controller.isOnline) {
       FocusManager.instance.primaryFocus?.unfocus();
@@ -39,12 +44,14 @@ class _OfflineGateState extends State<OfflineGate> {
   }
 
   @override
+  // dispose: handles dispose for the offline gate flow.
   void dispose() {
     widget.controller.removeListener(_handleNetworkChange);
     super.dispose();
   }
 
   @override
+  // build: builds build for the offline gate flow.
   Widget build(BuildContext context) {
     final bool blocked = !widget.controller.isOnline;
 
@@ -85,6 +92,7 @@ class _OfflineScreen extends StatelessWidget {
   final ConnectivityController controller;
 
   @override
+  // build: builds build for the offline gate flow.
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;

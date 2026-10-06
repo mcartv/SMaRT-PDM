@@ -1,3 +1,4 @@
+// SMaRT-PDM: Announcements — announcement Service (admin backend service); contains business logic and data operations.
 const supabase = require('../config/supabase');
 const notificationService = require('./notificationService');
 const appCache = require('../config/appCache');
@@ -17,6 +18,7 @@ const scheduleGate = createAnnouncementScheduleGate({
     },
 });
 
+// invalidateAnnouncementReads: handles invalidate announcement reads for the Announcements flow.
 function invalidateAnnouncementReads() {
     scheduleGate.invalidate();
     appCache.invalidateNamespaces(['announcements']);
@@ -42,10 +44,12 @@ const ALLOWED_AUDIENCES = new Set([
     'tdp',
 ]);
 
+// normalizeAudience: normalizes normalize audience for the Announcements flow.
 function normalizeAudience(value) {
     return String(value || '').trim().toLowerCase();
 }
 
+// normalizeProgramId: normalizes normalize program id for the Announcements flow.
 function normalizeProgramId(value) {
     const programId = String(value || '').trim();
     if (!programId) return null;
@@ -57,6 +61,7 @@ function normalizeProgramId(value) {
     return programId;
 }
 
+// validateAudienceTarget: validates validate audience target for the Announcements flow.
 async function validateAudienceTarget(audience, programId) {
     const normalizedAudience = normalizeAudience(audience);
 
@@ -102,6 +107,7 @@ async function validateAudienceTarget(audience, programId) {
     };
 }
 
+// getProgramNameMap: reads and returns get program name map for the Announcements flow.
 async function getProgramNameMap(rows = []) {
     const programIds = [
         ...new Set(
@@ -129,6 +135,7 @@ async function getProgramNameMap(rows = []) {
     );
 }
 
+// mapAnnouncementRow: maps map announcement row for the Announcements flow.
 function mapAnnouncementRow(row, programName = null, viewCount = 0) {
     const audienceKey = normalizeAudience(row.target_audience) || 'all';
     const resolvedProgramName = programName || null;
@@ -157,6 +164,7 @@ function mapAnnouncementRow(row, programName = null, viewCount = 0) {
     };
 }
 
+// getAnnouncementViewCountMap: reads and returns get announcement view count map for the Announcements flow.
 async function getAnnouncementViewCountMap(rows = []) {
     const announcementIds = [
         ...new Set(
@@ -191,6 +199,7 @@ async function getAnnouncementViewCountMap(rows = []) {
     return counts;
 }
 
+// mapAnnouncementRows: maps map announcement rows for the Announcements flow.
 async function mapAnnouncementRows(rows = []) {
     const [programNames, viewCounts] = await Promise.all([
         getProgramNameMap(rows),
@@ -208,11 +217,13 @@ async function mapAnnouncementRows(rows = []) {
     );
 }
 
+// mapSingleAnnouncementRow: maps map single announcement row for the Announcements flow.
 async function mapSingleAnnouncementRow(row) {
     const [mapped] = await mapAnnouncementRows(row ? [row] : []);
     return mapped || null;
 }
 
+// createAnnouncementNotifications: creates create announcement notifications for the Announcements flow.
 async function createAnnouncementNotifications(announcementRow) {
     const rows = await notificationService.createNotificationsForAudience({
         audience: announcementRow.target_audience,
@@ -227,6 +238,7 @@ async function createAnnouncementNotifications(announcementRow) {
     return Array.isArray(rows) ? rows.length : 0;
 }
 
+// syncPublishedAnnouncementNotifications: synchronizes sync published announcement notifications for the Announcements flow.
 async function syncPublishedAnnouncementNotifications(announcementRow) {
     return notificationService.syncAnnouncementNotifications({
         audience: announcementRow.target_audience,
@@ -238,6 +250,7 @@ async function syncPublishedAnnouncementNotifications(announcementRow) {
     });
 }
 
+// publishAnnouncementInternal: handles publish announcement internal for the Announcements flow.
 async function publishAnnouncementInternal(announcementId) {
     const nowIso = new Date().toISOString();
 

@@ -1,12 +1,15 @@
+// SMaRT-PDM: Maintenance — general Setting Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const socketEvents = require('../utils/socketEvents');
 const auditLogService = require('../services/auditLogService');
 const generalSettingService = require('../services/generalSettingService');
 const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 
+// getActorUserId: reads and returns get actor user id for the Maintenance flow.
 function getActorUserId(req) {
   return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+// writeGeneralSettingAudit: handles write general setting audit for the Maintenance flow.
 async function writeGeneralSettingAudit(req, result) {
   try {
     if (typeof auditLogService?.logAudit !== 'function') return;
@@ -29,11 +32,13 @@ async function writeGeneralSettingAudit(req, result) {
   }
 }
 
+// getSafeStatusCode: reads and returns get safe status code for the Maintenance flow.
 function getSafeStatusCode(error) {
   const parsed = Number.parseInt(error?.statusCode, 10);
   return Number.isInteger(parsed) && parsed >= 400 && parsed <= 599 ? parsed : 500;
 }
 
+// getPublicGeneralSettings: reads and returns get public general settings for the Maintenance flow.
 async function getPublicGeneralSettings(req, res) {
   try {
     const result = await generalSettingService.getPublicGeneralSettings();
@@ -46,6 +51,7 @@ async function getPublicGeneralSettings(req, res) {
   }
 }
 
+// getGeneralSettings: reads and returns get general settings for the Maintenance flow.
 async function getGeneralSettings(req, res) {
   try {
     const result = await generalSettingService.getGeneralSettings();
@@ -58,6 +64,7 @@ async function getGeneralSettings(req, res) {
   }
 }
 
+// updateGeneralSettings: updates update general settings for the Maintenance flow.
 async function updateGeneralSettings(req, res) {
   try {
     const result = await generalSettingService.updateGeneralSettings(req.body || {}, req.user || {});

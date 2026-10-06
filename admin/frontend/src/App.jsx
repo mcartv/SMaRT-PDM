@@ -1,3 +1,4 @@
+// SMaRT-PDM: App — App (admin frontend); supports admin-side UI behavior.
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Toaster } from './components/ui/sonner';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -60,16 +61,19 @@ import SDOScholarList from './pages/SDOScholarList';
 import SDOProfile from './pages/SDOProfile';
 import SDOMaintenance from './pages/SDOMaintenance';
 
+// PortalEntryRedirect: handles portal entry redirect for the App flow.
 const PortalEntryRedirect = () => {
   const activeSession = getStoredPortalSession();
   return <Navigate to={activeSession?.redirectPath || '/landing'} replace />;
 };
 
+// RoleHome: handles role home for the App flow.
 const RoleHome = () => {
   return <Navigate to="/admin/dashboard" replace />;
 };
 
 
+// LegacyRenewalDetailRedirect: handles legacy renewal detail redirect for the App flow.
 const LegacyRenewalDetailRedirect = () => {
   const { id } = useParams();
   return <Navigate to={`/admin/scholars/renewals/${id}`} replace />;

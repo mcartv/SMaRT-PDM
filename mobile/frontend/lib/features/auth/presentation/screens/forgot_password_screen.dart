@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — forgot password screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -18,6 +19,7 @@ class ForgotPasswordScreen extends StatefulWidget {
   final PasswordResetService? _passwordResetService;
 
   @override
+  // createState: creates create state for the Authentication flow.
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
 }
 
@@ -35,11 +37,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   String? _error;
 
   @override
+  // initState: handles init state for the Authentication flow.
   void initState() {
     super.initState();
     _loadSession();
   }
 
+  // _loadSession: handles load session for the Authentication flow.
   Future<void> _loadSession() async {
     final session = await _sessionService.getCurrentUser();
     final isSignedIn = await _sessionService.isSessionValid();
@@ -55,6 +59,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   @override
+  // dispose: handles dispose for the Authentication flow.
   void dispose() {
     _studentIdController.dispose();
     super.dispose();
@@ -63,6 +68,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   String get _fullStudentId =>
       StudentIdInputFormatter.toFullStudentId(_studentIdController.text);
 
+  // _submit: handles submit for the Authentication flow.
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
 
@@ -101,6 +107,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     }
   }
 
+  // _goBack: handles go back for the Authentication flow.
   void _goBack() {
     if (Navigator.of(context).canPop()) {
       Navigator.pop(context);
@@ -115,6 +122,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   @override
+  // build: builds build for the Authentication flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final background = isDark

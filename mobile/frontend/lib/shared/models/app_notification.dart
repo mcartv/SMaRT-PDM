@@ -1,3 +1,4 @@
+// SMaRT-PDM: Notifications — app notification (mobile frontend); supports mobile UI behavior.
 import 'package:flutter/material.dart';
 
 class AppNotification {
@@ -114,6 +115,7 @@ class AppNotification {
     );
   }
 
+  // copyWith: handles copy with for the Notifications flow.
   AppNotification copyWith({
     String? notificationId,
     String? userId,

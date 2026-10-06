@@ -1,3 +1,4 @@
+// SMaRT-PDM: Dashboard — Admin Dashboard (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSocketEvent } from '@/hooks/useSocket';
@@ -94,11 +95,13 @@ const CHART_COLORS = [
   C.red,
 ];
 
+// formatNumber: formats format number for the Dashboard flow.
 function formatNumber(value) {
   const number = Number(value || 0);
   return Number.isFinite(number) ? number.toLocaleString() : '0';
 }
 
+// formatDate: formats format date for the Dashboard flow.
 function formatDate(value) {
   if (!value) return 'N/A';
 
@@ -112,6 +115,7 @@ function formatDate(value) {
   });
 }
 
+// formatDateTime: formats format date time for the Dashboard flow.
 function formatDateTime(value) {
   if (!value) return 'Just now';
 
@@ -126,6 +130,7 @@ function formatDateTime(value) {
   });
 }
 
+// getStatusMeta: reads and returns get status meta for the Dashboard flow.
 function getStatusMeta(status) {
   const normalized = String(status || '').trim().toLowerCase();
 
@@ -163,6 +168,7 @@ function getStatusMeta(status) {
   return { bg: C.sand, color: C.muted };
 }
 
+// EmptyChart: handles empty chart for the Dashboard flow.
 function EmptyChart({ label }) {
   return (
     <div className="flex h-full min-h-[200px] flex-col items-center justify-center rounded-xl border border-dashed border-stone-200 bg-stone-50/70 px-4 text-center">
@@ -172,6 +178,7 @@ function EmptyChart({ label }) {
   );
 }
 
+// ActionRow: handles action row for the Dashboard flow.
 function ActionRow({ item, onOpen }) {
   const count = Number(item.value || 0);
   const needsAttention = count > 0;
@@ -200,6 +207,7 @@ function ActionRow({ item, onOpen }) {
   );
 }
 
+// StudentHistoryModal: handles student history modal for the Dashboard flow.
 function StudentHistoryModal({
   open,
   rows,
@@ -254,6 +262,7 @@ function StudentHistoryModal({
     if (!open) return undefined;
 
     const previousOverflow = document.body.style.overflow;
+    // handleKeyDown: handles handle key down for the Dashboard flow.
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') onClose();
     };

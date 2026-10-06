@@ -1,3 +1,4 @@
+// SMaRT-PDM: Accounts — account Recovery Controller (mobile backend controller); handles mobile API input/output and delegates business logic.
 const supabase = require('../config/supabase');
 const { transporter, mailFrom } = require('../config/mailer');
 const { resolveStudentByUserId } = require('../services/studentAccountService');
@@ -5,6 +6,7 @@ const { resolveAvatarUrl } = require('../services/avatarService');
 const { createAccountRecoveryService } = require('../services/accountRecoveryService');
 const { getSafeStatusCode } = require('../utils/httpStatus');
 
+// createHttpError: creates create http error for the Accounts flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
@@ -20,6 +22,7 @@ const recoveryService = createAccountRecoveryService({
     mailFrom,
 });
 
+// handle: handles handle for the Accounts flow.
 async function handle(res, action, fallbackMessage) {
     try {
         const result = await action();
@@ -32,6 +35,7 @@ async function handle(res, action, fallbackMessage) {
     }
 }
 
+// lookup: handles lookup for the Accounts flow.
 async function lookup(req, res) {
     return handle(
         res,
@@ -42,6 +46,7 @@ async function lookup(req, res) {
     );
 }
 
+// start: handles start for the Accounts flow.
 async function start(req, res) {
     return handle(
         res,
@@ -50,6 +55,7 @@ async function start(req, res) {
     );
 }
 
+// resendCode: handles resend code for the Accounts flow.
 async function resendCode(req, res) {
     return handle(
         res,
@@ -58,6 +64,7 @@ async function resendCode(req, res) {
     );
 }
 
+// verifyCode: verifies verify code for the Accounts flow.
 async function verifyCode(req, res) {
     return handle(
         res,
@@ -70,6 +77,7 @@ async function verifyCode(req, res) {
     );
 }
 
+// resetPassword: resets reset password for the Accounts flow.
 async function resetPassword(req, res) {
     return handle(
         res,

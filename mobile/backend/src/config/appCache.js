@@ -1,5 +1,7 @@
+// SMaRT-PDM: Caching — app Cache (mobile backend config); configures shared mobile backend infrastructure.
 'use strict';
 
+// boundedNumber: handles bounded number for the Caching flow.
 function boundedNumber(value, fallback, min, max) {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return fallback;
@@ -31,10 +33,12 @@ const REALTIME_TABLE_NAMESPACES = {
     general_settings: ['mobile-general-settings', 'mobile-faqs'],
 };
 
+// namespaceOf: handles namespace of for the Caching flow.
 function namespaceOf(value) {
     return String(value || 'default').trim().toLowerCase() || 'default';
 }
 
+// prune: handles prune for the Caching flow.
 function prune(now = Date.now()) {
     for (const [key, entry] of store.entries()) {
         if (!entry || entry.expiresAt <= now) store.delete(key);
@@ -47,6 +51,7 @@ function prune(now = Date.now()) {
     }
 }
 
+// buildKey: builds build key for the Caching flow.
 function buildKey({ namespace, scopeKey, pathname, queryKey }) {
     return [
         namespaceOf(namespace),
@@ -56,6 +61,7 @@ function buildKey({ namespace, scopeKey, pathname, queryKey }) {
     ].join('|');
 }
 
+// getJson: reads and returns get json for the Caching flow.
 function getJson(key, now = Date.now()) {
     const entry = store.get(String(key || ''));
 
@@ -70,6 +76,7 @@ function getJson(key, now = Date.now()) {
     return entry;
 }
 
+// setJson: sets set json for the Caching flow.
 function setJson(key, { namespace, statusCode = 200, body }, ttlMs, now = Date.now()) {
     let bodyText;
     try {
@@ -97,6 +104,7 @@ function setJson(key, { namespace, statusCode = 200, body }, ttlMs, now = Date.n
     return true;
 }
 
+// invalidateNamespaces: handles invalidate namespaces for the Caching flow.
 function invalidateNamespaces(namespaces = []) {
     const selected = new Set(
         (Array.isArray(namespaces) ? namespaces : [namespaces])
@@ -113,6 +121,7 @@ function invalidateNamespaces(namespaces = []) {
     return removed;
 }
 
+// installSupabaseRealtimeInvalidation: handles install supabase realtime invalidation for the Caching flow.
 function installSupabaseRealtimeInvalidation(supabase) {
     if (!supabase?.channel || supabase.__smartPdmCacheInvalidationInstalled) {
         return supabase;
@@ -173,6 +182,7 @@ function installSupabaseRealtimeInvalidation(supabase) {
     return supabase;
 }
 
+// clearAll: clears clear all for the Caching flow.
 function clearAll() {
     const count = store.size;
     store.clear();

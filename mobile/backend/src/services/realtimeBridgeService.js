@@ -1,14 +1,17 @@
+// SMaRT-PDM: realtime Bridge Service — realtime Bridge Service (mobile backend service); contains mobile-facing business logic and data operations.
 let realtimeChannel = null;
 let realtimeChannelGeneration = 0;
 let realtimeRetryTimer = null;
 const REALTIME_BRIDGE_RETRY_MS = 3000;
 
+// clearRealtimeRetry: clears clear realtime retry for the realtime Bridge Service flow.
 function clearRealtimeRetry() {
   if (!realtimeRetryTimer) return;
   clearTimeout(realtimeRetryTimer);
   realtimeRetryTimer = null;
 }
 
+// scheduleRealtimeBridgeRestart: handles schedule realtime bridge restart for the realtime Bridge Service flow.
 function scheduleRealtimeBridgeRestart({ io, supabase, reason }) {
   if (realtimeRetryTimer) return;
 
@@ -48,6 +51,7 @@ const REALTIME_EVENT_DEDUPE_TTL_MS = 1500;
 const REALTIME_EVENT_DEDUPE_MAX = 1000;
 const recentRealtimeEvents = new Map();
 
+// buildRealtimeEventKey: builds build realtime event key for the realtime Bridge Service flow.
 function buildRealtimeEventKey(eventName, payload = {}) {
   const entityId =
     payload.application_id ||
@@ -73,6 +77,7 @@ function buildRealtimeEventKey(eventName, payload = {}) {
   return `${eventName}:${entityId}:${version}`;
 }
 
+// shouldSuppressRealtimeDuplicate: handles should suppress realtime duplicate for the realtime Bridge Service flow.
 function shouldSuppressRealtimeDuplicate(eventName, payload = {}) {
   const key = buildRealtimeEventKey(eventName, payload);
   if (!key) return false;
@@ -97,14 +102,17 @@ function shouldSuppressRealtimeDuplicate(eventName, payload = {}) {
 
   return false;
 }
+// safeText: handles safe text for the realtime Bridge Service flow.
 function safeText(value) {
   return value === null || value === undefined ? '' : String(value).trim();
 }
 
+// normalizeText: normalizes normalize text for the realtime Bridge Service flow.
 function normalizeText(value) {
   return safeText(value).toLowerCase();
 }
 
+// getRecordId: reads and returns get record id for the realtime Bridge Service flow.
 function getRecordId(next = {}, old = {}, keys = []) {
   for (const key of keys) {
     const value = next?.[key] || old?.[key];
@@ -114,6 +122,7 @@ function getRecordId(next = {}, old = {}, keys = []) {
   return null;
 }
 
+// emitGlobal: handles emit global for the realtime Bridge Service flow.
 function emitGlobal(io, eventName, payload) {
   if (!io || !eventName) return;
   if (shouldSuppressRealtimeDuplicate(eventName, payload)) return;
@@ -121,6 +130,7 @@ console.log('[Socket Emit]', eventName, payload);
   io.emit(eventName, payload);
 }
 
+// emitToUser: handles emit to user for the realtime Bridge Service flow.
 function emitToUser(io, userId, eventName, payload) {
   if (!io || !userId || !eventName) return;
   if (shouldSuppressRealtimeDuplicate(eventName, payload)) return;
@@ -133,6 +143,7 @@ const REALTIME_LOOKUP_TTL_MS = 10 * 60 * 1000;
 const REALTIME_LOOKUP_MAX = 2000;
 const realtimeLookupCache = new Map();
 
+// getCachedRealtimeLookup: reads and returns get cached realtime lookup for the realtime Bridge Service flow.
 function getCachedRealtimeLookup(key) {
   const cached = realtimeLookupCache.get(key);
   if (!cached) return null;
@@ -143,6 +154,7 @@ function getCachedRealtimeLookup(key) {
   return cached.value || null;
 }
 
+// setCachedRealtimeLookup: sets set cached realtime lookup for the realtime Bridge Service flow.
 function setCachedRealtimeLookup(key, value) {
   if (!key || !value) return;
   realtimeLookupCache.set(key, {
@@ -159,6 +171,7 @@ function setCachedRealtimeLookup(key, value) {
   }
 }
 
+// resolveStudentUserId: resolves resolve student user id for the realtime Bridge Service flow.
 async function resolveStudentUserId(supabase, studentId) {
   const normalizedStudentId = safeText(studentId);
   if (!normalizedStudentId || !supabase) return null;
@@ -186,6 +199,7 @@ async function resolveStudentUserId(supabase, studentId) {
   return userId || null;
 }
 
+// resolveApplicationStudentId: resolves resolve application student id for the realtime Bridge Service flow.
 async function resolveApplicationStudentId(supabase, applicationId) {
   const normalizedId = safeText(applicationId);
   if (!normalizedId || !supabase) return null;
@@ -206,6 +220,7 @@ async function resolveApplicationStudentId(supabase, applicationId) {
   return studentId || null;
 }
 
+// resolveRenewalStudentId: resolves resolve renewal student id for the realtime Bridge Service flow.
 async function resolveRenewalStudentId(supabase, renewalId) {
   const normalizedId = safeText(renewalId);
   if (!normalizedId || !supabase) return null;
@@ -226,6 +241,7 @@ async function resolveRenewalStudentId(supabase, renewalId) {
   return studentId || null;
 }
 
+// resolveRoStudentId: resolves resolve ro student id for the realtime Bridge Service flow.
 async function resolveRoStudentId(supabase, roId) {
   const normalizedId = safeText(roId);
   if (!normalizedId || !supabase) return null;
@@ -246,6 +262,7 @@ async function resolveRoStudentId(supabase, roId) {
   return studentId || null;
 }
 
+// emitToStudent: handles emit to student for the realtime Bridge Service flow.
 async function emitToStudent(
   io,
   supabase,
@@ -273,11 +290,13 @@ async function emitToStudent(
   return false;
 }
 
+// rowChanged: handles row changed for the realtime Bridge Service flow.
 function rowChanged(next = {}, old = {}, keys = [], eventType = '') {
   if (safeText(eventType).toUpperCase() !== 'UPDATE') return true;
   return keys.some((key) => next?.[key] !== old?.[key]);
 }
 
+// buildAnnouncementPayload: builds build announcement payload for the realtime Bridge Service flow.
 function buildAnnouncementPayload(row = {}, fallback = {}) {
   const announcementId =
     row.announcement_id ||
@@ -304,6 +323,7 @@ function buildAnnouncementPayload(row = {}, fallback = {}) {
   };
 }
 
+// handleAnnouncementChange: handles handle announcement change for the realtime Bridge Service flow.
 function handleAnnouncementChange(io, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -363,6 +383,7 @@ function handleAnnouncementChange(io, payload = {}) {
   emitGlobal(io, eventName, eventPayload);
 }
 
+// buildNotificationPayload: builds build notification payload for the realtime Bridge Service flow.
 function buildNotificationPayload(row = {}, fallback = {}) {
   const notificationId =
     row.notification_id ||
@@ -397,6 +418,7 @@ function buildNotificationPayload(row = {}, fallback = {}) {
   };
 }
 
+// handleNotificationChange: handles handle notification change for the realtime Bridge Service flow.
 async function handleNotificationChange(io, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   // The switch pauses new delivery; existing notifications must still sync.
@@ -442,6 +464,7 @@ async function handleNotificationChange(io, payload = {}) {
   }
 }
 
+// buildOpeningPayload: builds build opening payload for the realtime Bridge Service flow.
 function buildOpeningPayload(row = {}, fallback = {}) {
   const openingId =
     row.opening_id ||
@@ -470,6 +493,7 @@ function buildOpeningPayload(row = {}, fallback = {}) {
   };
 }
 
+// handleOpeningChange: handles handle opening change for the realtime Bridge Service flow.
 function handleOpeningChange(io, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -535,6 +559,7 @@ function handleOpeningChange(io, payload = {}) {
   });
 }
 
+// handleApplicationChange: handles handle application change for the realtime Bridge Service flow.
 async function handleApplicationChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -597,6 +622,7 @@ async function handleApplicationChange(io, supabase, payload = {}) {
   }
 }
 
+// handleApplicationDocumentChange: handles handle application document change for the realtime Bridge Service flow.
 async function handleApplicationDocumentChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -638,6 +664,7 @@ async function handleApplicationDocumentChange(io, supabase, payload = {}) {
   );
 }
 
+// handleApplicationDocumentReviewChange: handles handle application document review change for the realtime Bridge Service flow.
 async function handleApplicationDocumentReviewChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -671,6 +698,7 @@ async function handleApplicationDocumentReviewChange(io, supabase, payload = {})
   );
 }
 
+// handleRenewalChange: handles handle renewal change for the realtime Bridge Service flow.
 async function handleRenewalChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -702,6 +730,7 @@ async function handleRenewalChange(io, supabase, payload = {}) {
   });
 }
 
+// handleRenewalDocumentChange: handles handle renewal document change for the realtime Bridge Service flow.
 async function handleRenewalDocumentChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -729,6 +758,7 @@ async function handleRenewalDocumentChange(io, supabase, payload = {}) {
   });
 }
 
+// handlePayoutChange: handles handle payout change for the realtime Bridge Service flow.
 async function handlePayoutChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -751,6 +781,7 @@ async function handlePayoutChange(io, supabase, payload = {}) {
   });
 }
 
+// handlePayoutProofChange: handles handle payout proof change for the realtime Bridge Service flow.
 async function handlePayoutProofChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -806,6 +837,7 @@ async function handlePayoutProofChange(io, supabase, payload = {}) {
   }
 }
 
+// handleEndorsementChange: handles handle endorsement change for the realtime Bridge Service flow.
 async function handleEndorsementChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -838,6 +870,7 @@ async function handleEndorsementChange(io, supabase, payload = {}) {
   );
 }
 
+// handleProfileChange: handles handle profile change for the realtime Bridge Service flow.
 function handleProfileChange(io, payload = {}, source = 'profile') {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -856,6 +889,7 @@ function handleProfileChange(io, payload = {}, source = 'profile') {
   else emitGlobal(io, 'profile:updated', eventPayload);
 }
 
+// handleRoAssignmentChange: handles handle ro assignment change for the realtime Bridge Service flow.
 async function handleRoAssignmentChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -903,6 +937,7 @@ async function handleRoAssignmentChange(io, supabase, payload = {}) {
   );
 }
 
+// handleRoLogChange: handles handle ro log change for the realtime Bridge Service flow.
 async function handleRoLogChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -942,6 +977,7 @@ async function handleRoLogChange(io, supabase, payload = {}) {
   );
 }
 
+// handleRoPlacementChange: handles handle ro placement change for the realtime Bridge Service flow.
 async function handleRoPlacementChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -979,6 +1015,7 @@ async function handleRoPlacementChange(io, supabase, payload = {}) {
   );
 }
 
+// handleRoScholarRequestChange: handles handle ro scholar request change for the realtime Bridge Service flow.
 function handleRoScholarRequestChange(io, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -999,6 +1036,7 @@ function handleRoScholarRequestChange(io, payload = {}) {
   emitGlobal(io, 'ro:progress-updated', eventPayload);
 }
 
+// handleRoAreaCoordinatorChange: handles handle ro area coordinator change for the realtime Bridge Service flow.
 function handleRoAreaCoordinatorChange(io, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -1016,6 +1054,7 @@ function handleRoAreaCoordinatorChange(io, payload = {}) {
   });
 }
 
+// handleChatRoomChange: handles handle chat room change for the realtime Bridge Service flow.
 function handleChatRoomChange(io, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -1046,6 +1085,7 @@ function handleChatRoomChange(io, payload = {}) {
   emitGlobal(io, 'conversation:updated', eventPayload);
 }
 
+// handleChatRoomMemberChange: handles handle chat room member change for the realtime Bridge Service flow.
 function handleChatRoomMemberChange(io, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -1072,6 +1112,7 @@ function handleChatRoomMemberChange(io, payload = {}) {
   emitGlobal(io, 'conversation:updated', eventPayload);
 }
 
+// handleMessageReadStateChange: handles handle message read state change for the realtime Bridge Service flow.
 function handleMessageReadStateChange(io, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -1098,6 +1139,7 @@ function handleMessageReadStateChange(io, payload = {}) {
   emitToUser(io, userId, isRead ? 'message:read' : 'message:unread', eventPayload);
 }
 
+// handleMessageChange: handles handle message change for the realtime Bridge Service flow.
 async function handleMessageChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -1155,6 +1197,7 @@ async function handleMessageChange(io, supabase, payload = {}) {
   }
 }
 
+// handleStudentChange: handles handle student change for the realtime Bridge Service flow.
 async function handleStudentChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -1247,6 +1290,7 @@ async function handleStudentChange(io, supabase, payload = {}) {
   }
 }
 
+// handleStudentProfileChange: handles handle student profile change for the realtime Bridge Service flow.
 async function handleStudentProfileChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -1268,6 +1312,7 @@ async function handleStudentProfileChange(io, supabase, payload = {}) {
   );
 }
 
+// handlePayoutBatchChange: handles handle payout batch change for the realtime Bridge Service flow.
 function handlePayoutBatchChange(io, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -1288,6 +1333,7 @@ function handlePayoutBatchChange(io, payload = {}) {
   });
 }
 
+// handleAcademicReferenceChange: handles handle academic reference change for the realtime Bridge Service flow.
 function handleAcademicReferenceChange(io, payload = {}, source = 'academic') {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -1305,6 +1351,7 @@ function handleAcademicReferenceChange(io, payload = {}, source = 'academic') {
   });
 }
 
+// handleProgramReferenceChange: handles handle program reference change for the realtime Bridge Service flow.
 function handleProgramReferenceChange(io, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -1321,6 +1368,7 @@ function handleProgramReferenceChange(io, payload = {}) {
   });
 }
 
+// handleRoSettingsChange: handles handle ro settings change for the realtime Bridge Service flow.
 function handleRoSettingsChange(io, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -1339,6 +1387,7 @@ function handleRoSettingsChange(io, payload = {}) {
   });
 }
 
+// publishRealtimeBridgeStatus: handles publish realtime bridge status for the realtime Bridge Service flow.
 function publishRealtimeBridgeStatus(io, status, error = null) {
   if (!io) return;
 
@@ -1354,6 +1403,7 @@ function publishRealtimeBridgeStatus(io, status, error = null) {
   io.emit('realtime:bridge-status', payload);
 }
 
+// configureRealtimeBridge: handles configure realtime bridge for the realtime Bridge Service flow.
 function configureRealtimeBridge({ io, supabase }) {
   if (!io) {
     console.warn('[Realtime Bridge] not configured: missing io');

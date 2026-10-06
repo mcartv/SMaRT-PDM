@@ -1,3 +1,4 @@
+// SMaRT-PDM: Maintenance — system Maintenance Migration Service (admin backend service); contains business logic and data operations.
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
@@ -17,6 +18,7 @@ const NOTIFICATION_MIGRATION_PATH = path.resolve(
   '../../../supabase/migrations/20261004155418_global_notification_switch.sql'
 );
 
+// ensureSystemMaintenanceMigration: ensures ensure system maintenance migration for the Maintenance flow.
 async function ensureSystemMaintenanceMigration() {
   if (!fs.existsSync(MIGRATION_PATH)) {
     throw new Error(`System maintenance migration file missing: ${MIGRATION_PATH}`);

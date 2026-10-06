@@ -1,8 +1,10 @@
+// SMaRT-PDM: Endorsement — endorsement Slip Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const endorsementSlipService = require('../services/endorsementSlipService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 
 
+// sanitizeEndorsementDocumentsForRole: handles sanitize endorsement documents for role for the Endorsement flow.
 function sanitizeEndorsementDocumentsForRole(payload, roleValue) {
     const role = String(roleValue || '').trim().toLowerCase();
     const documents = Array.isArray(payload?.documents) ? payload.documents : [];
@@ -207,10 +209,12 @@ exports.verifySlip = async (req, res) => {
 
     const readOnlyPrefixes = ['get', 'fetch', 'list', 'download', 'export'];
 
+    // isReadOnlyAction: checks whether is read only action for the Endorsement flow.
     function isReadOnlyAction(name) {
         return readOnlyPrefixes.some((prefix) => String(name).startsWith(prefix));
     }
 
+    // resolveActionName: resolves resolve action name for the Endorsement flow.
     function resolveActionName(name) {
         const raw = String(name || '').toLowerCase();
 
@@ -223,10 +227,12 @@ exports.verifySlip = async (req, res) => {
         return 'updated';
     }
 
+    // getActorUserId: reads and returns get actor user id for the Endorsement flow.
     function getActorUserId(req) {
         return req.user?.user_id || req.user?.userId || req.user?.id || null;
     }
 
+    // getEntityId: reads and returns get entity id for the Endorsement flow.
     function getEntityId(req, body) {
         return (
             req.params?.id ||
@@ -246,6 +252,7 @@ exports.verifySlip = async (req, res) => {
         );
     }
 
+    // safeAudit: handles safe audit for the Endorsement flow.
     function safeAudit(req, functionName, responseBody) {
         try {
             const action = resolveActionName(functionName);

@@ -1,3 +1,4 @@
+// SMaRT-PDM: interaction settings provider — interaction settings provider (mobile frontend); supports mobile UI behavior.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -23,6 +24,7 @@ class InteractionSettingsProvider extends ChangeNotifier {
     );
   }
 
+  // setHapticsEnabled: sets set haptics enabled for the interaction settings provider flow.
   Future<void> setHapticsEnabled(bool value) async {
     if (_hapticsEnabled == value) return;
 

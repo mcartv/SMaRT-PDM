@@ -1,3 +1,4 @@
+// SMaRT-PDM: Document Verification — applicant documents package (mobile frontend); supports mobile UI behavior.
 class ApplicantRequirementDocument {
   final String id;
   final String documentType;

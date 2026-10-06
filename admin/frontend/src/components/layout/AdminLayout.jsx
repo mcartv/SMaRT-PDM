@@ -1,3 +1,4 @@
+// SMaRT-PDM: Admin Layout — Admin Layout (admin frontend component); renders reusable UI and handles local interactions.
 import { useState, useEffect, useRef } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -29,6 +30,7 @@ import { authService } from '../../services/authService';
 import { clearPortalSession } from '../../utils/authStorage';
 import ProfilePhotoPreviewDialog from '../profile/ProfilePhotoPreviewDialog';
 
+// resolveProfileImage: resolves resolve profile image for the Admin Layout flow.
 function resolveProfileImage(profile) {
   const candidates = [
     profile?.avatar_url,
@@ -63,6 +65,7 @@ const ADMIN_SIDEBAR_DEFAULT_WIDTH = 248;
 const ADMIN_SIDEBAR_MIN_WIDTH = 190;
 const ADMIN_SIDEBAR_MAX_WIDTH = 360;
 
+// clampAdminSidebarWidth: handles clamp admin sidebar width for the Admin Layout flow.
 function clampAdminSidebarWidth(value) {
   return Math.min(
     ADMIN_SIDEBAR_MAX_WIDTH,
@@ -70,6 +73,7 @@ function clampAdminSidebarWidth(value) {
   );
 }
 
+// getStoredAdminSidebarWidth: reads and returns get stored admin sidebar width for the Admin Layout flow.
 function getStoredAdminSidebarWidth() {
   if (typeof window === 'undefined') return ADMIN_SIDEBAR_DEFAULT_WIDTH;
   return clampAdminSidebarWidth(localStorage.getItem(ADMIN_SIDEBAR_WIDTH_KEY));
@@ -135,6 +139,7 @@ export default function AdminLayout() {
       '[data-slot="drawer-overlay"]',
     ].join(',');
 
+    // syncModalState: synchronizes sync modal state for the Admin Layout flow.
     const syncModalState = () => {
       const hasOpenOverlay = Array.from(document.querySelectorAll(overlaySelector)).some((element) => {
         if (element.getAttribute('data-state') === 'closed') return false;
@@ -167,6 +172,7 @@ export default function AdminLayout() {
     const incoming = payload?.profile || payload?.account || null;
     if (!incoming) return;
 
+    // current: handles current for the Admin Layout flow.
     const current = (() => {
       try {
         return JSON.parse(sessionStorage.getItem('adminProfile') || '{}');
@@ -185,6 +191,7 @@ export default function AdminLayout() {
   });
 
   useEffect(() => {
+    // handleProfileUpdated: handles handle profile updated for the Admin Layout flow.
     const handleProfileUpdated = (event) => {
       if (event.detail?.profileStorageKey !== 'adminProfile') return;
       setAdminData(event.detail?.profile || null);
@@ -195,6 +202,7 @@ export default function AdminLayout() {
   }, []);
 
   useEffect(() => {
+    // handleSessionInvalidated: handles handle session invalidated for the Admin Layout flow.
     const handleSessionInvalidated = (event) => {
       if (event.detail?.portalName && event.detail.portalName !== 'admin') return;
       clearPortalSession('admin');
@@ -206,6 +214,7 @@ export default function AdminLayout() {
   }, [navigate]);
 
   useEffect(() => {
+    // handleMessageUnread: handles handle message unread for the Admin Layout flow.
     const handleMessageUnread = (event) => {
       if (event.detail?.portalKey === 'admin') {
         setMessageUnreadCount(Number(event.detail?.count || 0));
@@ -217,6 +226,7 @@ export default function AdminLayout() {
   }, []);
 
   useEffect(() => {
+    // initializeLayout: handles initialize layout for the Admin Layout flow.
     const initializeLayout = () => {
       const token = sessionStorage.getItem('adminToken');
       if (!token) {
@@ -238,14 +248,17 @@ export default function AdminLayout() {
     initializeLayout();
   }, [navigate]);
 
+  // handleLogout: handles handle logout for the Admin Layout flow.
   const handleLogout = async () => {
     await authService.logout();
   };
 
+  // persistSidebarWidth: handles persist sidebar width for the Admin Layout flow.
   const persistSidebarWidth = (width) => {
     localStorage.setItem(ADMIN_SIDEBAR_WIDTH_KEY, String(clampAdminSidebarWidth(width)));
   };
 
+  // stopSidebarResize: handles stop sidebar resize for the Admin Layout flow.
   const stopSidebarResize = (event) => {
     const resize = sidebarResizeRef.current;
     if (!resize || (event && event.pointerId !== resize.pointerId)) return;
@@ -261,6 +274,7 @@ export default function AdminLayout() {
     setSidebarResizing(false);
   };
 
+  // handleSidebarResizeStart: handles handle sidebar resize start for the Admin Layout flow.
   const handleSidebarResizeStart = (event) => {
     if (collapsed || event.button !== 0 || window.innerWidth <= 900) return;
 
@@ -280,6 +294,7 @@ export default function AdminLayout() {
     setSidebarResizing(true);
   };
 
+  // handleSidebarResizeMove: handles handle sidebar resize move for the Admin Layout flow.
   const handleSidebarResizeMove = (event) => {
     const resize = sidebarResizeRef.current;
     if (!resize || event.pointerId !== resize.pointerId) return;
@@ -291,6 +306,7 @@ export default function AdminLayout() {
     setSidebarWidth(nextWidth);
   };
 
+  // handleSidebarResizeKeyDown: handles handle sidebar resize key down for the Admin Layout flow.
   const handleSidebarResizeKeyDown = (event) => {
     if (collapsed) return;
 
@@ -307,6 +323,7 @@ export default function AdminLayout() {
     persistSidebarWidth(clampedWidth);
   };
 
+  // resetSidebarWidth: resets reset sidebar width for the Admin Layout flow.
   const resetSidebarWidth = () => {
     setSidebarWidth(ADMIN_SIDEBAR_DEFAULT_WIDTH);
     persistSidebarWidth(ADMIN_SIDEBAR_DEFAULT_WIDTH);
@@ -320,6 +337,7 @@ export default function AdminLayout() {
   }, []);
 
   useEffect(() => {
+    // handleClick: handles handle click for the Admin Layout flow.
     function handleClick(e) {
       if (notifRef.current && !notifRef.current.contains(e.target)) {
         setNotifOpen(false);
@@ -330,6 +348,7 @@ export default function AdminLayout() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [notifOpen]);
 
+  // getInitials: reads and returns get initials for the Admin Layout flow.
   const getInitials = () => {
     if (!adminData?.name) return 'AD';
     const names = adminData.name.split(' ').filter(Boolean);
@@ -339,6 +358,7 @@ export default function AdminLayout() {
 
   const profileImage = resolveProfileImage(adminData);
 
+  // handleProfileClick: handles handle profile click for the Admin Layout flow.
   const handleProfileClick = (event) => {
     if (profileImage && event?.target?.closest?.('[data-profile-preview-target="true"]')) {
       setProfilePhotoPreviewOpen(true);
@@ -348,6 +368,7 @@ export default function AdminLayout() {
     navigate('/admin/adminprofile');
   };
 
+  // handleNavRefresh: handles handle nav refresh for the Admin Layout flow.
   const handleNavRefresh = (event, path) => {
     if (location.pathname !== path) return;
 

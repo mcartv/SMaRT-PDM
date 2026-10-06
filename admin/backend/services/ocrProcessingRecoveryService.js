@@ -1,13 +1,17 @@
+// SMaRT-PDM: OCR — ocr Processing Recovery Service (admin backend service); contains business logic and data operations.
 const crypto = require('crypto');
 const requests = require('./iotOcrRequestService');
 const socketEvents = require('../utils/socketEvents');
 
+// owner: handles owner for the OCR flow.
 const owner = () => `recovery:${process.pid}:${crypto.randomUUID()}`;
 
+// staleSeconds: handles stale seconds for the OCR flow.
 function staleSeconds() {
     return Math.min(3600, Math.max(30, Number.parseInt(process.env.OCR_PROCESSING_STALE_SECONDS || '180', 10) || 180));
 }
 
+// processOne: processes process one for the OCR flow.
 async function processOne(request) {
     const services = {
         birth_certificate: require('./birthOcrV2Service'),
@@ -40,6 +44,7 @@ async function processOne(request) {
     }
 }
 
+// reconcileOnce: handles reconcile once for the OCR flow.
 async function reconcileOnce() {
     const request = await requests.claimDueOrStaleProcessing({ owner: owner(), staleSeconds: staleSeconds() });
     if (!request) return false;
@@ -48,10 +53,12 @@ async function reconcileOnce() {
     return true;
 }
 
+// recoveryIntervalMs: handles recovery interval ms for the OCR flow.
 function recoveryIntervalMs() {
     return Math.min(10000, Math.max(1000, Number.parseInt(process.env.OCR_RECOVERY_INTERVAL_MS || '2000', 10) || 2000));
 }
 
+// start: handles start for the OCR flow.
 function start() {
     const interval = setInterval(() => reconcileOnce().catch((error) => console.error('OCR_RECONCILIATION_ERROR', { code: error.code || null })), recoveryIntervalMs());
     interval.unref?.();

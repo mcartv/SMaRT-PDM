@@ -1,3 +1,4 @@
+// SMaRT-PDM: Profile — Admin Profile (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useMemo, useState } from 'react';
 import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
 import { getProfileDisplay } from '@/utils/profileDisplay';
@@ -19,6 +20,7 @@ import {
 
 
 
+// _parseDevice: handles parse device for the Profile flow.
 function _parseDevice(userAgent = '') {
     const ua = String(userAgent || '').toLowerCase();
 
@@ -55,6 +57,7 @@ function _parseDevice(userAgent = '') {
     };
 }
 
+// SectionCard: handles section card for the Profile flow.
 function SectionCard({ title, subtitle, icon, children, action }) {
     return (
         <Card className="overflow-hidden rounded-2xl border-[var(--portal-border)] bg-white shadow-none">
@@ -80,6 +83,7 @@ function SectionCard({ title, subtitle, icon, children, action }) {
     );
 }
 
+// InfoRow: handles info row for the Profile flow.
 function InfoRow({ icon, label, value }) {
     return (
         <div className="rounded-xl border border-stone-200 bg-white px-4 py-3 shadow-sm">

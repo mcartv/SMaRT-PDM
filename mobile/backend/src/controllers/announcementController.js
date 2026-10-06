@@ -1,10 +1,13 @@
+// SMaRT-PDM: Announcements — announcement Controller (mobile backend controller); handles mobile API input/output and delegates business logic.
 const announcementService = require('../services/announcementService');
 const { getSafeStatusCode } = require('../utils/httpStatus');
 
+// getRequestUserId: reads and returns get request user id for the Announcements flow.
 function getRequestUserId(req) {
   return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+// getAnnouncements: reads and returns get announcements for the Announcements flow.
 async function getAnnouncements(req, res) {
   try {
     const userId = getRequestUserId(req);
@@ -19,6 +22,7 @@ async function getAnnouncements(req, res) {
   }
 }
 
+// markAnnouncementViewed: marks mark announcement viewed for the Announcements flow.
 async function markAnnouncementViewed(req, res) {
   try {
     const userId = getRequestUserId(req);

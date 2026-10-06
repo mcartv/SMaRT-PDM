@@ -1,3 +1,4 @@
+// SMaRT-PDM: system Activity Migration Service — system Activity Migration Service (admin backend service); contains business logic and data operations.
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
@@ -26,6 +27,7 @@ const MIGRATIONS = Object.freeze([
   },
 ]);
 
+// ensureSystemActivityMigration: ensures ensure system activity migration for the system Activity Migration Service flow.
 async function ensureSystemActivityMigration() {
   for (const migration of MIGRATIONS) {
     if (!fs.existsSync(migration.path)) {

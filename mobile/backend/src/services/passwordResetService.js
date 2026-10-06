@@ -1,3 +1,4 @@
+// SMaRT-PDM: password Reset Service — password Reset Service (mobile backend service); contains mobile-facing business logic and data operations.
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const supabase = require('../config/supabase');
@@ -31,24 +32,29 @@ const COMMON_PASSWORDS = new Set([
     'p@ssw0rd',
 ]);
 
+// createHttpError: creates create http error for the password Reset Service flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// normalizeStudentNumber: normalizes normalize student number for the password Reset Service flow.
 function normalizeStudentNumber(value = '') {
     return String(value || '').trim().toUpperCase();
 }
 
+// isValidStudentId: checks whether is valid student id for the password Reset Service flow.
 function isValidStudentId(value = '') {
     return STUDENT_ID_REGEX.test(normalizeStudentNumber(value));
 }
 
+// isValidOtp: checks whether is valid otp for the password Reset Service flow.
 function isValidOtp(value = '') {
     return /^\d{6}$/.test(String(value || '').trim());
 }
 
+// generateOtp: handles generate otp for the password Reset Service flow.
 function generateOtp() {
     let code = '';
     for (let index = 0; index < OTP_LENGTH; index += 1) {
@@ -57,6 +63,7 @@ function generateOtp() {
     return code;
 }
 
+// hashOtp: checks whether hash otp for the password Reset Service flow.
 function hashOtp(resetOtpId, otp) {
     return crypto
         .createHash('sha256')
@@ -64,6 +71,7 @@ function hashOtp(resetOtpId, otp) {
         .digest('hex');
 }
 
+// extractRequestMeta: handles extract request meta for the password Reset Service flow.
 function extractRequestMeta(req = {}) {
     const forwarded = req.headers?.['x-forwarded-for'];
     const ipAddress = forwarded
@@ -76,6 +84,7 @@ function extractRequestMeta(req = {}) {
     };
 }
 
+// logActivity: handles log activity for the password Reset Service flow.
 async function logActivity({
     userId = null,
     studentId = null,
@@ -98,6 +107,7 @@ async function logActivity({
     }
 }
 
+// sendPasswordResetEmail: sends send password reset email for the password Reset Service flow.
 async function sendPasswordResetEmail(email, otp, displayName) {
     if (process.env.SKIP_EMAIL === 'true') {
         console.log('DEV PASSWORD RESET OTP:', {
@@ -126,6 +136,7 @@ async function sendPasswordResetEmail(email, otp, displayName) {
     });
 }
 
+// ensureResetPasswordPolicy: ensures ensure reset password policy for the password Reset Service flow.
 function ensureResetPasswordPolicy(password = '') {
     const safePassword = String(password || '');
 
@@ -157,6 +168,7 @@ function ensureResetPasswordPolicy(password = '') {
     }
 }
 
+// findVerifiedUserByStudentId: finds and returns find verified user by student id for the password Reset Service flow.
 async function findVerifiedUserByStudentId(studentId) {
     const { data, error } = await supabase
         .from('users')
@@ -172,6 +184,7 @@ async function findVerifiedUserByStudentId(studentId) {
     return data || null;
 }
 
+// resolveDisplayName: resolves resolve display name for the password Reset Service flow.
 async function resolveDisplayName(userId) {
     const { data, error } = await supabase
         .from('students')
@@ -191,6 +204,7 @@ async function resolveDisplayName(userId) {
     return name || null;
 }
 
+// countRecentRequests: handles count recent requests for the password Reset Service flow.
 async function countRecentRequests(userId) {
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
@@ -207,6 +221,7 @@ async function countRecentRequests(userId) {
     return count || 0;
 }
 
+// invalidateOpenOtps: handles invalidate open otps for the password Reset Service flow.
 async function invalidateOpenOtps(userId) {
     const now = new Date().toISOString();
 
@@ -221,6 +236,7 @@ async function invalidateOpenOtps(userId) {
     }
 }
 
+// fetchLatestOpenOtp: fetches and returns fetch latest open otp for the password Reset Service flow.
 async function fetchLatestOpenOtp(userId) {
     const { data, error } = await supabase
         .from(OTP_TABLE)
@@ -238,6 +254,7 @@ async function fetchLatestOpenOtp(userId) {
     return data || null;
 }
 
+// markOtpUsed: marks mark otp used for the password Reset Service flow.
 async function markOtpUsed(resetOtpId) {
     const now = new Date().toISOString();
 
@@ -251,6 +268,7 @@ async function markOtpUsed(resetOtpId) {
     }
 }
 
+// forgotPassword: handles forgot password for the password Reset Service flow.
 async function forgotPassword(body = {}, req = {}) {
     const rawStudentId = body.studentId || body.student_id || '';
     const studentId = normalizeStudentNumber(rawStudentId);
@@ -344,6 +362,7 @@ async function forgotPassword(body = {}, req = {}) {
     return { message: GENERIC_SUCCESS_MESSAGE };
 }
 
+// verifyResetOtp: verifies verify reset otp for the password Reset Service flow.
 async function verifyResetOtp(body = {}, req = {}) {
     const rawStudentId = body.studentId || body.student_id || '';
     const studentId = normalizeStudentNumber(rawStudentId);
@@ -457,6 +476,7 @@ async function verifyResetOtp(body = {}, req = {}) {
     return { message: 'Verification successful.' };
 }
 
+// resetPassword: resets reset password for the password Reset Service flow.
 async function resetPassword(body = {}, req = {}) {
     const rawStudentId = body.studentId || body.student_id || '';
     const studentId = normalizeStudentNumber(rawStudentId);

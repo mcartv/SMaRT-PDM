@@ -1,3 +1,4 @@
+// SMaRT-PDM: Maintenance — PDMaintenance (admin frontend page); loads data, handles page actions, and renders the admin view.
 import DepartmentSettingsPage from '@/components/department/DepartmentSettingsPage';
 
 

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Forgot Password — Forgot Password (admin frontend page); loads data, handles page actions, and renders the admin view.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -25,6 +26,7 @@ const FINALIZE_RESET_URL = buildApiUrl('/api/auth/admin/forgot-password/reset');
 const RESET_REQUEST_STORAGE_KEY_PREFIX = 'smartpdm_admin_reset_last_request_at';
 const RESEND_SECONDS = 60;
 
+// requestJson: handles request json for the Forgot Password flow.
 async function requestJson(url, body, fallbackMessage) {
   const response = await fetch(url, {
     method: 'POST',
@@ -43,6 +45,7 @@ async function requestJson(url, body, fallbackMessage) {
   return data;
 }
 
+// getPasswordAssessment: reads and returns get password assessment for the Forgot Password flow.
 function getPasswordAssessment(password) {
   const value = String(password || '');
   const meetsLength = value.length >= 8;
@@ -58,14 +61,17 @@ function getPasswordAssessment(password) {
   return { valid: true, label: 'Good password', percent: 75, tone: 'text-amber-700' };
 }
 
+// normalizeEmail: normalizes normalize email for the Forgot Password flow.
 function normalizeEmail(value) {
   return String(value || '').replace(/\s+/g, '').trim().toLowerCase();
 }
 
+// getCooldownStorageKey: reads and returns get cooldown storage key for the Forgot Password flow.
 function getCooldownStorageKey(email) {
   return `${RESET_REQUEST_STORAGE_KEY_PREFIX}:${normalizeEmail(email)}`;
 }
 
+// getRemainingCooldown: reads and returns get remaining cooldown for the Forgot Password flow.
 function getRemainingCooldown(email) {
   const normalizedEmail = normalizeEmail(email);
   if (!normalizedEmail) return 0;
@@ -80,6 +86,7 @@ function getRemainingCooldown(email) {
   return Math.max(RESEND_SECONDS - elapsedSeconds, 0);
 }
 
+// HexCluster: handles hex cluster for the Forgot Password flow.
 function HexCluster({ className = '', color = '#d29a00', mirrored = false }) {
   return (
     <svg
@@ -152,21 +159,25 @@ export default function ForgotPassword() {
     return () => window.clearTimeout(timeout);
   }, [resendTimer]);
 
+  // clearFeedback: clears clear feedback for the Forgot Password flow.
   const clearFeedback = () => {
     setError('');
     setNotice('');
   };
 
+  // focusFirstOtp: handles focus first otp for the Forgot Password flow.
   const focusFirstOtp = () => {
     window.setTimeout(() => {
       otpRefs.current[0]?.focus();
     }, 100);
   };
 
+  // startResendTimer: handles start resend timer for the Forgot Password flow.
   const startResendTimer = (seconds = RESEND_SECONDS) => {
     setResendTimer(seconds);
   };
 
+  // sendOtpRequest: sends send otp request for the Forgot Password flow.
   const sendOtpRequest = async ({ isResend = false } = {}) => {
     clearFeedback();
 
@@ -211,11 +222,13 @@ export default function ForgotPassword() {
     }
   };
 
+  // handleEmailSubmit: handles handle email submit for the Forgot Password flow.
   const handleEmailSubmit = async (event) => {
     event.preventDefault();
     await sendOtpRequest();
   };
 
+  // handleVerifyOtp: handles handle verify otp for the Forgot Password flow.
   const handleVerifyOtp = async (event) => {
     event.preventDefault();
     clearFeedback();
@@ -242,6 +255,7 @@ export default function ForgotPassword() {
     }
   };
 
+  // handleReset: handles handle reset for the Forgot Password flow.
   const handleReset = async (event) => {
     event.preventDefault();
     clearFeedback();
@@ -290,11 +304,13 @@ export default function ForgotPassword() {
     }
   };
 
+  // handleResend: handles handle resend for the Forgot Password flow.
   const handleResend = async () => {
     if (loading || resendTimer > 0) return;
     await sendOtpRequest({ isResend: true });
   };
 
+  // handleOtpChange: handles handle otp change for the Forgot Password flow.
   const handleOtpChange = (value, index) => {
     clearFeedback();
 
@@ -308,6 +324,7 @@ export default function ForgotPassword() {
     }
   };
 
+  // handleOtpPaste: handles handle otp paste for the Forgot Password flow.
   const handleOtpPaste = (event) => {
     event.preventDefault();
 
@@ -327,16 +344,19 @@ export default function ForgotPassword() {
     }, 0);
   };
 
+  // handleOtpKeyDown: handles handle otp key down for the Forgot Password flow.
   const handleOtpKeyDown = (event, index) => {
     if (event.key === 'Backspace' && !otp[index] && index > 0) {
       otpRefs.current[index - 1]?.focus();
     }
   };
 
+  // goBackToLogin: handles go back to login for the Forgot Password flow.
   const goBackToLogin = () => {
     navigate(LOGIN_PATH, { replace: true });
   };
 
+  // fieldStyle: handles field style for the Forgot Password flow.
   const fieldStyle = (hasValue = false) => ({
     '--tw-ring-color': `${theme.base}1c`,
     borderColor: hasValue ? `${theme.base}38` : undefined,
@@ -348,6 +368,7 @@ export default function ForgotPassword() {
   const inputClass =
     'h-[52px] w-full rounded-xl border border-stone-200 bg-white text-sm font-medium text-stone-900 outline-none transition placeholder:font-normal placeholder:text-stone-400 focus:ring-2 disabled:cursor-wait disabled:opacity-60';
 
+  // renderFeedback: handles render feedback for the Forgot Password flow.
   const renderFeedback = () => (
     <>
       {error ? (
@@ -372,6 +393,7 @@ export default function ForgotPassword() {
     </>
   );
 
+  // renderEmailStep: handles render email step for the Forgot Password flow.
   const renderEmailStep = () => (
     <div className="space-y-5">
       {renderFeedback()}
@@ -423,6 +445,7 @@ export default function ForgotPassword() {
     </div>
   );
 
+  // renderOtpStep: handles render otp step for the Forgot Password flow.
   const renderOtpStep = () => (
     <div className="space-y-5">
       <p className="text-sm leading-6 text-stone-500">
@@ -516,6 +539,7 @@ export default function ForgotPassword() {
     </div>
   );
 
+  // renderResetStep: handles render reset step for the Forgot Password flow.
   const renderResetStep = () => (
     <div className="space-y-4">
       {renderFeedback()}
@@ -639,6 +663,7 @@ export default function ForgotPassword() {
     </div>
   );
 
+  // renderDoneStep: handles render done step for the Forgot Password flow.
   const renderDoneStep = () => (
     <div className="py-1 text-center">
       <div
@@ -664,6 +689,7 @@ export default function ForgotPassword() {
     </div>
   );
 
+  // renderStep: handles render step for the Forgot Password flow.
   const renderStep = () => {
     switch (step) {
       case 'email':

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Maintenance — Settings Maintenance (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import {
@@ -75,6 +76,7 @@ const TAB_CONFIG = [
     },
 ];
 
+// MobileTabBar: handles mobile tab bar for the Maintenance flow.
 function MobileTabBar({ tabs, activeTab, onChange }) {
     return (
         <div className="flex gap-2 overflow-x-auto pb-1 md:hidden">
@@ -103,6 +105,7 @@ function MobileTabBar({ tabs, activeTab, onChange }) {
     );
 }
 
+// DesktopSidebar: handles desktop sidebar for the Maintenance flow.
 function DesktopSidebar({ tabs, activeTab, onChange }) {
     return (
         <aside className="hidden md:block md:w-[260px] lg:w-[280px] shrink-0">

@@ -1,9 +1,11 @@
+// SMaRT-PDM: Realtime — socket (mobile backend config); configures shared mobile backend infrastructure.
 const { Server } = require('socket.io');
 const { authenticateSocket } = require('../middleware/authMiddleware');
 const {
     isAllowedSocketOrigin,
 } = require('./socketOriginPolicy');
 
+// configureSocket: handles configure socket for the Realtime flow.
 function configureSocket(server) {
     const io = new Server(server, {
         cors: {

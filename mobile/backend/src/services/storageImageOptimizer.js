@@ -1,3 +1,4 @@
+// SMaRT-PDM: Storage — storage Image Optimizer (mobile backend service); contains mobile-facing business logic and data operations.
 const sharp = require('sharp');
 
 const COMPRESSIBLE_IMAGE_MIME_TYPES = new Set([
@@ -9,10 +10,12 @@ const COMPRESSIBLE_IMAGE_MIME_TYPES = new Set([
   'image/heif',
 ]);
 
+// safeText: handles safe text for the Storage flow.
 function safeText(value) {
   return value == null ? '' : String(value).trim();
 }
 
+// isCompressibleImage: checks whether is compressible image for the Storage flow.
 function isCompressibleImage({ mimeType, fileName } = {}) {
   const mime = safeText(mimeType).toLowerCase();
   const name = safeText(fileName).toLowerCase();
@@ -23,6 +26,7 @@ function isCompressibleImage({ mimeType, fileName } = {}) {
   );
 }
 
+// replaceFileExtension: handles replace file extension for the Storage flow.
 function replaceFileExtension(fileName, extension = 'webp') {
   const safeName = safeText(fileName) || 'image';
   const normalizedExtension = safeText(extension).replace(/^\./, '') || 'webp';
@@ -34,6 +38,7 @@ function replaceFileExtension(fileName, extension = 'webp') {
   return `${safeName}.${normalizedExtension}`;
 }
 
+// buildQualitySteps: builds build quality steps for the Storage flow.
 function buildQualitySteps(initialQuality, minQuality) {
   const start = Math.max(45, Math.min(90, Number(initialQuality || 76)));
   const floor = Math.max(45, Math.min(start, Number(minQuality || 60)));
@@ -47,6 +52,7 @@ function buildQualitySteps(initialQuality, minQuality) {
   return values;
 }
 
+// optimizeImageForStorage: handles optimize image for storage for the Storage flow.
 async function optimizeImageForStorage({
   buffer,
   mimeType,

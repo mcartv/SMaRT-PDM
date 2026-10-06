@@ -1,9 +1,11 @@
+// SMaRT-PDM: philippine mobile input formatter — philippine mobile input formatter (mobile frontend); supports mobile UI behavior.
 import 'package:flutter/services.dart';
 
 class PhilippineMobileInputFormatter extends TextInputFormatter {
   const PhilippineMobileInputFormatter();
 
   @override
+  // formatEditUpdate: formats format edit update for the philippine mobile input formatter flow.
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
     TextEditingValue newValue,

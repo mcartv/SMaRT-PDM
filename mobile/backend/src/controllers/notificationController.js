@@ -1,15 +1,19 @@
+// SMaRT-PDM: Notifications — notification Controller (mobile backend controller); handles mobile API input/output and delegates business logic.
 const notificationService = require('../services/notificationService');
 
+// getUserId: reads and returns get user id for the Notifications flow.
 function getUserId(req) {
     return req.user?.userId || req.user?.user_id || req.user?.id || null;
 }
 
+// createHttpError: creates create http error for the Notifications flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// getSafeStatusCode: reads and returns get safe status code for the Notifications flow.
 function getSafeStatusCode(error) {
     const statusCode = Number(error?.statusCode || error?.status || 500);
 

@@ -1,7 +1,9 @@
+// SMaRT-PDM: selection Controller — selection Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const selectionService = require('../services/selectionService');
 const socketEvents = require('../utils/socketEvents');
 const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 
+// emit: handles emit for the selection Controller flow.
 function emit(req, eventName, payload) {
   const io = req.app.get('io');
   if (!io) return;

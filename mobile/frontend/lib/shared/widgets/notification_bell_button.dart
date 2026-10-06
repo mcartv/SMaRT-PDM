@@ -1,3 +1,4 @@
+// SMaRT-PDM: Notifications — notification bell button (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -19,11 +20,13 @@ class NotificationBellButton extends StatefulWidget {
   final double iconSize;
 
   @override
+  // createState: creates create state for the Notifications flow.
   State<NotificationBellButton> createState() => _NotificationBellButtonState();
 }
 
 class _NotificationBellButtonState extends State<NotificationBellButton> {
   @override
+  // initState: handles init state for the Notifications flow.
   void initState() {
     super.initState();
 
@@ -33,6 +36,7 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
     });
   }
 
+  // _openNotifications: handles open notifications for the Notifications flow.
   Future<void> _openNotifications() async {
     await Navigator.pushNamed(context, AppRoutes.notifications);
 
@@ -46,6 +50,7 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
   }
 
   @override
+  // build: builds build for the Notifications flow.
   Widget build(BuildContext context) {
     return Consumer<NotificationProvider>(
       builder: (context, provider, _) {

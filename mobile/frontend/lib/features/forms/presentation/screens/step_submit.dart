@@ -1,3 +1,4 @@
+// SMaRT-PDM: step submit — step submit (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
@@ -16,6 +17,7 @@ class StepSubmit extends StatefulWidget {
   });
 
   @override
+  // createState: creates create state for the step submit flow.
   State<StepSubmit> createState() => _StepSubmitState();
 }
 
@@ -29,12 +31,14 @@ class _StepSubmitState extends State<StepSubmit> {
   late bool agreeTerms;
 
   @override
+  // initState: handles init state for the step submit flow.
   void initState() {
     super.initState();
     certRead = widget.data.certificationRead;
     agreeTerms = widget.data.agree;
   }
 
+  // _openLink: handles open link for the step submit flow.
   Future<void> _openLink(Uri uri) async {
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (!mounted) return;
@@ -44,13 +48,16 @@ class _StepSubmitState extends State<StepSubmit> {
     }
   }
 
+  // _empty: handles empty for the step submit flow.
   bool _empty(String value) => value.trim().isEmpty;
 
+  // _clean: handles clean for the step submit flow.
   String _clean(String value) {
     final text = value.trim();
     return text.isEmpty ? '-' : text;
   }
 
+  // _name: handles name for the step submit flow.
   String _name(String first, String middle, String last) {
     final parts = [
       first,
@@ -61,6 +68,7 @@ class _StepSubmitState extends State<StepSubmit> {
     return parts.isEmpty ? '-' : parts.join(' ');
   }
 
+  // _address: handles address for the step submit flow.
   String _address() {
     final parts = [
       widget.data.unitBldgNo,
@@ -76,6 +84,7 @@ class _StepSubmitState extends State<StepSubmit> {
     return parts.isEmpty ? '-' : parts.join(', ');
   }
 
+  // _missingFields: handles missing fields for the step submit flow.
   List<String> _missingFields() {
     final missing = <String>[];
 
@@ -118,6 +127,7 @@ class _StepSubmitState extends State<StepSubmit> {
     return missing;
   }
 
+  // _warningBox: handles warning box for the step submit flow.
   Widget _warningBox() {
     final missing = _missingFields();
 
@@ -174,6 +184,7 @@ class _StepSubmitState extends State<StepSubmit> {
     );
   }
 
+  // _previewSection: handles preview section for the step submit flow.
   Widget _previewSection(String title, List<Widget> children) {
     return Container(
       width: double.infinity,
@@ -203,6 +214,7 @@ class _StepSubmitState extends State<StepSubmit> {
     );
   }
 
+  // _previewRow: handles preview row for the step submit flow.
   Widget _previewRow(String label, String value, {bool required = false}) {
     final isMissing = required && value.trim().isEmpty;
 
@@ -236,6 +248,7 @@ class _StepSubmitState extends State<StepSubmit> {
     );
   }
 
+  // _previewArea: handles preview area for the step submit flow.
   Widget _previewArea() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -369,6 +382,7 @@ class _StepSubmitState extends State<StepSubmit> {
     );
   }
 
+  // _certificationArea: handles certification area for the step submit flow.
   Widget _certificationArea() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -559,6 +573,7 @@ class _StepSubmitState extends State<StepSubmit> {
   }
 
   @override
+  // build: builds build for the step submit flow.
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),

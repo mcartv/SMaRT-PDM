@@ -1,3 +1,4 @@
+// SMaRT-PDM: step academic intake — step academic intake (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
@@ -20,6 +21,7 @@ class StepAcademic extends StatefulWidget {
   final bool showErrors;
 
   @override
+  // createState: creates create state for the step academic intake flow.
   State<StepAcademic> createState() => _StepAcademicState();
 }
 
@@ -78,6 +80,7 @@ class _StepAcademicState extends State<StepAcademic> {
   String? selectedCollegeStatus;
 
   @override
+  // initState: handles init state for the step academic intake flow.
   void initState() {
     super.initState();
 
@@ -329,6 +332,7 @@ class _StepAcademicState extends State<StepAcademic> {
     );
   }
 
+  // _bind: handles bind for the step academic intake flow.
   void _bind(TextEditingController controller, void Function(String) setter) {
     controller.addListener(() {
       setter(controller.text);
@@ -337,12 +341,14 @@ class _StepAcademicState extends State<StepAcademic> {
   }
 
   @override
+  // didUpdateWidget: handles did update widget for the step academic intake flow.
   void didUpdateWidget(covariant StepAcademic oldWidget) {
     super.didUpdateWidget(oldWidget);
     final normalizedCourse = widget.data.currentCourse.trim();
     selectedCourse = normalizedCourse.isEmpty ? null : normalizedCourse;
   }
 
+  // _dec: handles dec for the step academic intake flow.
   InputDecoration _dec(
     String hint, {
     String? errorText,
@@ -358,6 +364,7 @@ class _StepAcademicState extends State<StepAcademic> {
     );
   }
 
+  // _field: handles field for the step academic intake flow.
   Widget _field(String label, Widget child) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -365,6 +372,7 @@ class _StepAcademicState extends State<StepAcademic> {
     );
   }
 
+  // _flexRow: handles flex row for the step academic intake flow.
   Widget _flexRow(List<Widget> children, {required List<int> flexes}) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -405,16 +413,19 @@ class _StepAcademicState extends State<StepAcademic> {
     );
   }
 
+  // _courseError: handles course error for the step academic intake flow.
   String? _courseError() {
     if (!widget.showErrors) return null;
     return (selectedCourse ?? '').trim().isEmpty ? 'Course is required.' : null;
   }
 
+  // _academicTextError: handles academic text error for the step academic intake flow.
   String? _academicTextError(TextEditingController controller, String label) {
     if (!widget.showErrors || controller.text.trim().isNotEmpty) return null;
     return '$label is required.';
   }
 
+  // _academicYearOptions: handles academic year options for the step academic intake flow.
   List<String> _academicYearOptions(String title) {
     if (title == 'College') {
       return [
@@ -435,6 +446,7 @@ class _StepAcademicState extends State<StepAcademic> {
     ];
   }
 
+  // _isValidAcademicYear: handles is valid academic year for the step academic intake flow.
   bool _isValidAcademicYear(String title, String value) {
     final normalized = value.trim();
     if (normalized.isEmpty) return false;
@@ -445,6 +457,7 @@ class _StepAcademicState extends State<StepAcademic> {
     return _academicYearOptions('College').contains(normalized);
   }
 
+  // _collegeStatusError: handles college status error for the step academic intake flow.
   String? _collegeStatusError() {
     if (!widget.showErrors || (selectedCollegeStatus ?? '').isNotEmpty) {
       return null;
@@ -452,6 +465,7 @@ class _StepAcademicState extends State<StepAcademic> {
     return 'College status is required.';
   }
 
+  // _collegeYearError: handles college year error for the step academic intake flow.
   String? _collegeYearError(TextEditingController controller) {
     if (!widget.showErrors || selectedCollegeStatus != 'Graduated') return null;
     final value = controller.text.trim();
@@ -462,6 +476,7 @@ class _StepAcademicState extends State<StepAcademic> {
     return null;
   }
 
+  // _academicYearError: handles academic year error for the step academic intake flow.
   String? _academicYearError(String title, TextEditingController controller) {
     if (title == 'College') return _collegeYearError(controller);
     if (!widget.showErrors) return null;
@@ -472,6 +487,7 @@ class _StepAcademicState extends State<StepAcademic> {
         : 'Select a valid graduation year.';
   }
 
+  // _sectionError: handles section error for the step academic intake flow.
   String? _sectionError() {
     if (!widget.showErrors) return null;
     final value = (selectedSection ?? '').trim();
@@ -481,6 +497,7 @@ class _StepAcademicState extends State<StepAcademic> {
         : 'Section must be A, B, C, or D.';
   }
 
+  // _yearLevelError: handles year level error for the step academic intake flow.
   String? _yearLevelError() {
     if (!widget.showErrors) return null;
     final value = (selectedYearLevel ?? '').trim();
@@ -490,6 +507,7 @@ class _StepAcademicState extends State<StepAcademic> {
         : 'Year level must be 1, 2, 3, or 4.';
   }
 
+  // _studentNumberError: handles student number error for the step academic intake flow.
   String? _studentNumberError() {
     if (!widget.showErrors) return null;
     final studentNumber = studentNumberController.text.trim();
@@ -501,6 +519,7 @@ class _StepAcademicState extends State<StepAcademic> {
     return null;
   }
 
+  // _lrnError: handles lrn error for the step academic intake flow.
   String? _lrnError() {
     if (!widget.showErrors) return null;
     final lrn = widget.data.learnersReferenceNumber.trim();
@@ -510,6 +529,7 @@ class _StepAcademicState extends State<StepAcademic> {
         : 'Learner Reference Number must contain exactly 12 digits.';
   }
 
+  // _otherSupportError: handles other support error for the step academic intake flow.
   String? _otherSupportError() {
     if (!widget.showErrors || !selectedFinancialSupports.contains('Other')) {
       return null;
@@ -519,6 +539,7 @@ class _StepAcademicState extends State<StepAcademic> {
         : null;
   }
 
+  // _scholarshipOtherError: handles scholarship other error for the step academic intake flow.
   String? _scholarshipOtherError() {
     if (!widget.showErrors || !scholarshipHistory || !scholarshipOthers) {
       return null;
@@ -528,6 +549,7 @@ class _StepAcademicState extends State<StepAcademic> {
         : null;
   }
 
+  // _scholarshipHistoryError: handles scholarship history error for the step academic intake flow.
   String? _scholarshipHistoryError() {
     if (!widget.showErrors || !scholarshipHistory) return null;
     final hasSelection =
@@ -540,6 +562,7 @@ class _StepAcademicState extends State<StepAcademic> {
         : 'Select at least one scholarship history option.';
   }
 
+  // _educationCard: handles education card for the step academic intake flow.
   Widget _educationCard({
     required String title,
     required TextEditingController school,
@@ -798,6 +821,7 @@ class _StepAcademicState extends State<StepAcademic> {
     );
   }
 
+  // _supportChoice: handles support choice for the step academic intake flow.
   Widget _supportChoice(String option) {
     final selected = selectedFinancialSupports.contains(option);
     return CheckboxListTile(
@@ -829,6 +853,7 @@ class _StepAcademicState extends State<StepAcademic> {
     );
   }
 
+  // _binaryQuestion: handles binary question for the step academic intake flow.
   Widget _binaryQuestion({
     required String title,
     required bool value,
@@ -862,6 +887,7 @@ class _StepAcademicState extends State<StepAcademic> {
   }
 
   @override
+  // dispose: handles dispose for the step academic intake flow.
   void dispose() {
     collegeSchoolController.dispose();
     collegeAddressController.dispose();
@@ -892,6 +918,7 @@ class _StepAcademicState extends State<StepAcademic> {
   }
 
   @override
+  // build: builds build for the step academic intake flow.
   Widget build(BuildContext context) {
     final isOtherSupport = selectedFinancialSupports.contains('Other');
 

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Settings — app colors (mobile frontend); supports mobile UI behavior.
 import 'package:flutter/material.dart';
 
 class AppColors {

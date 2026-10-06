@@ -1,3 +1,4 @@
+// SMaRT-PDM: Accounts — Accounts Panel (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
@@ -162,10 +163,12 @@ const COMMON_GMAIL_TYPO_DOMAINS = new Set([
     'gnail.com',
 ]);
 
+// sanitizePhoneNumberInput: handles sanitize phone number input for the Accounts flow.
 function sanitizePhoneNumberInput(value) {
     return String(value || '').replace(/\D/g, '').slice(0, 11);
 }
 
+// validateOptionalPhoneNumber: validates validate optional phone number for the Accounts flow.
 function validateOptionalPhoneNumber(value) {
     const phoneNumber = String(value || '').trim();
     if (!phoneNumber) return '';
@@ -174,6 +177,7 @@ function validateOptionalPhoneNumber(value) {
     return '';
 }
 
+// validateAccountIdentity: validates validate account identity for the Accounts flow.
 function validateAccountIdentity(form, accounts = [], excludedUserId = null) {
     const email = String(form.email || '').trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
@@ -239,6 +243,7 @@ const DEFAULT_ADMIN_FORM = {
     confirm_password: '',
 };
 
+// inferPdDepartment: handles infer pd department for the Accounts flow.
 function inferPdDepartment(assignedCourses = []) {
     const departmentByCode = new Map([
         ['HM', DEPARTMENT_OPTIONS.pd[0].value],
@@ -265,6 +270,7 @@ function inferPdDepartment(assignedCourses = []) {
     return matches.size === 1 ? [...matches][0] : '';
 }
 
+// normalizeDepartment: normalizes normalize department for the Accounts flow.
 function normalizeDepartment(role, department, assignedCourses = []) {
     const options = DEPARTMENT_OPTIONS[role] || [];
     const current = String(department || '').trim();
@@ -275,6 +281,7 @@ function normalizeDepartment(role, department, assignedCourses = []) {
     return options[0]?.value || '';
 }
 
+// DepartmentField: handles department field for the Accounts flow.
 function DepartmentField({
     role,
     value,
@@ -334,16 +341,19 @@ function DepartmentField({
     );
 }
 
+// CourseAssignmentField: handles course assignment field for the Accounts flow.
 function CourseAssignmentField({ form, setField, courses, currentUserId = null, disabled = false }) {
     const [open, setOpen] = useState(false);
     if (form.role !== 'pd') return null;
     const selected = new Set((form.course_ids || []).map(String));
     const selectedCourses = courses.filter((course) => selected.has(String(course.course_id)));
+    // isOwnedByAnother: checks whether is owned by another for the Accounts flow.
     const isOwnedByAnother = (course) => course.assigned_pd?.user_id
         && String(course.assigned_pd.user_id) !== String(currentUserId || '');
     const availableCourses = courses.filter((course) => !isOwnedByAnother(course));
     const unavailableCourses = courses.filter(isOwnedByAnother);
 
+    // toggleCourse: handles toggle course for the Accounts flow.
     const toggleCourse = (courseId) => {
         const normalizedCourseId = String(courseId);
         setField('course_ids', selected.has(normalizedCourseId)
@@ -461,6 +471,7 @@ function CourseAssignmentField({ form, setField, courses, currentUserId = null, 
     );
 }
 
+// deduplicateAccounts: handles deduplicate accounts for the Accounts flow.
 function deduplicateAccounts(accounts = []) {
     const seen = new Set();
 
@@ -472,6 +483,7 @@ function deduplicateAccounts(accounts = []) {
     });
 }
 
+// getAuthHeaders: reads and returns get auth headers for the Accounts flow.
 function getAuthHeaders() {
     return {
         Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
@@ -479,6 +491,7 @@ function getAuthHeaders() {
     };
 }
 
+// roleTone: handles role tone for the Accounts flow.
 function roleTone(role) {
     if (role === 'admin') return 'bg-amber-50 text-amber-700 border-amber-100';
     if (role === 'pd') return 'bg-purple-50 text-purple-700 border-purple-100';
@@ -489,18 +502,21 @@ function roleTone(role) {
     return 'bg-stone-50 text-stone-700 border-stone-100';
 }
 
+// accountPositionLabel: handles account position label for the Accounts flow.
 function accountPositionLabel(account = {}) {
     return ROLE_OPTIONS.find((option) => option.value === account.role)?.label
         || account.position
         || 'Not provided';
 }
 
+// accountDepartmentLabel: handles account department label for the Accounts flow.
 function accountDepartmentLabel(account = {}) {
     if (account.role === 'sdo') return 'Student Welfare and Development Office';
     if (account.role === 'guidance') return 'Guidance and Counseling Office';
     return account.department || 'Not provided';
 }
 
+// formatAccountCreatedDate: formats format account created date for the Accounts flow.
 function formatAccountCreatedDate(value) {
     if (!value) return 'Not available';
 
@@ -514,11 +530,13 @@ function formatAccountCreatedDate(value) {
     }).format(date);
 }
 
+// accountCreatedTimestamp: handles account created timestamp for the Accounts flow.
 function accountCreatedTimestamp(value) {
     const timestamp = new Date(value).getTime();
     return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
+// accountMatchesRoleGroup: handles account matches role group for the Accounts flow.
 function accountMatchesRoleGroup(account, roleFilter) {
     if (roleFilter === 'grouped' || roleFilter === 'all') return true;
     if (ACCOUNT_ROLE_GROUP_ORDER.includes(roleFilter)) return account.role === roleFilter;
@@ -526,6 +544,7 @@ function accountMatchesRoleGroup(account, roleFilter) {
     return true;
 }
 
+// validatePasswordFields: validates validate password fields for the Accounts flow.
 function validatePasswordFields(password, confirmPassword, required = true) {
     if (!required && !password && !confirmPassword) return '';
 
@@ -544,6 +563,7 @@ function validatePasswordFields(password, confirmPassword, required = true) {
     return '';
 }
 
+// validateCreateForm: validates validate create form for the Accounts flow.
 function validateCreateForm(form, roAreas = [], accounts = []) {
     if (!form.first_name.trim() || !form.last_name.trim() || !form.username.trim() || !form.email.trim()) {
         return 'First name, last name, username, and email are required.';
@@ -573,6 +593,7 @@ function validateCreateForm(form, roAreas = [], accounts = []) {
     return validatePasswordFields(form.password, form.confirm_password, true);
 }
 
+// validateAdminCreateForm: validates validate admin create form for the Accounts flow.
 function validateAdminCreateForm(form, accounts = []) {
     if (!form.first_name.trim() || !form.last_name.trim() || !form.email.trim()) {
         return 'First name, last name, and email are required.';
@@ -584,6 +605,7 @@ function validateAdminCreateForm(form, accounts = []) {
     return validatePasswordFields(form.password, form.confirm_password, true);
 }
 
+// validateEditForm: validates validate edit form for the Accounts flow.
 function validateEditForm(form, roAreas = [], accounts = [], excludedUserId = null) {
     if (!form.first_name.trim() || !form.last_name.trim() || (form.role !== 'admin' && !form.username.trim()) || !form.email.trim()) {
         return form.role === 'admin'
@@ -611,6 +633,7 @@ function validateEditForm(form, roAreas = [], accounts = [], excludedUserId = nu
     return validatePasswordFields(form.password, form.confirm_password, false);
 }
 
+// PasswordInput: handles password input for the Accounts flow.
 function PasswordInput({ label, value, onChange, placeholder = '', disabled = false, optional = false }) {
     const [visible, setVisible] = useState(false);
 
@@ -654,6 +677,7 @@ function PasswordInput({ label, value, onChange, placeholder = '', disabled = fa
     );
 }
 
+// AccountModalPortal: handles account modal portal for the Accounts flow.
 function AccountModalPortal({ children }) {
     if (typeof document === 'undefined') return null;
 
@@ -689,6 +713,7 @@ function AccountModalPortal({ children }) {
     );
 }
 
+// AccountCreateModal: handles account create modal for the Accounts flow.
 function AccountCreateModal({
     open,
     form,
@@ -907,6 +932,7 @@ function AccountCreateModal({
     );
 }
 
+// AdminCreateModal: handles admin create modal for the Accounts flow.
 function AdminCreateModal({
     open,
     form,
@@ -1046,6 +1072,7 @@ function AdminCreateModal({
     );
 }
 
+// AccountEditModal: handles account edit modal for the Accounts flow.
 function AccountEditModal({
     open,
     form,
@@ -1066,6 +1093,7 @@ function AccountEditModal({
         : OPERATIONAL_ROLE_OPTIONS;
     const usernameTooShort = form.role !== 'admin' && form.username.trim().length < 5;
 
+    // setField: sets set field for the Accounts flow.
     const setField = (field, value) => {
         setForm((current) => ({
             ...current,
@@ -1074,6 +1102,7 @@ function AccountEditModal({
         onClearError();
     };
 
+    // handleRoleChange: handles handle role change for the Accounts flow.
     const handleRoleChange = (role) => {
         const defaults = ROLE_OPTIONS.find((option) => option.value === role);
 
@@ -1255,6 +1284,7 @@ function AccountEditModal({
     );
 }
 
+// AccountProfileModal: handles account profile modal for the Accounts flow.
 function AccountProfileModal({ account, onClose, onEdit }) {
     if (!account) return null;
 
@@ -1546,6 +1576,7 @@ export default function AccountsPanel() {
         [loadAccounts]
     );
 
+    // setField: sets set field for the Accounts flow.
     const setField = (field, value) => {
         setForm((current) => ({
             ...current,
@@ -1554,6 +1585,7 @@ export default function AccountsPanel() {
         setError('');
     };
 
+    // setAdminField: sets set admin field for the Accounts flow.
     const setAdminField = (field, value) => {
         setAdminForm((current) => ({
             ...current,
@@ -1562,6 +1594,7 @@ export default function AccountsPanel() {
         setAdminError('');
     };
 
+    // handleRoleChange: handles handle role change for the Accounts flow.
     const handleRoleChange = (role) => {
         const defaults = ROLE_OPTIONS.find((option) => option.value === role);
 
@@ -1577,6 +1610,7 @@ export default function AccountsPanel() {
         setError('');
     };
 
+    // openCreateModal: handles open create modal for the Accounts flow.
     const openCreateModal = () => {
         const defaults = DEFAULT_OPERATIONAL_ROLE;
 
@@ -1590,6 +1624,7 @@ export default function AccountsPanel() {
         setCreateOpen(true);
     };
 
+    // closeCreateModal: handles close create modal for the Accounts flow.
     const closeCreateModal = () => {
         if (saving) return;
 
@@ -1597,12 +1632,14 @@ export default function AccountsPanel() {
         setError('');
     };
 
+    // openAdminCreateModal: handles open admin create modal for the Accounts flow.
     const openAdminCreateModal = () => {
         setAdminForm(DEFAULT_ADMIN_FORM);
         setAdminError('');
         setAdminCreateOpen(true);
     };
 
+    // closeAdminCreateModal: handles close admin create modal for the Accounts flow.
     const closeAdminCreateModal = () => {
         if (savingAdmin) return;
 
@@ -1610,6 +1647,7 @@ export default function AccountsPanel() {
         setAdminError('');
     };
 
+    // openEditModal: handles open edit modal for the Accounts flow.
     const openEditModal = (account) => {
         setEditError('');
         setEditingAccountId(account.user_id);
@@ -1634,6 +1672,7 @@ export default function AccountsPanel() {
         setEditOpen(true);
     };
 
+    // closeEditModal: handles close edit modal for the Accounts flow.
     const closeEditModal = () => {
         if (updating) return;
 
@@ -1643,6 +1682,7 @@ export default function AccountsPanel() {
         setEditForm(DEFAULT_FORM);
     };
 
+    // handleSubmit: handles handle submit for the Accounts flow.
     const handleSubmit = async (event) => {
         event.preventDefault();
 
@@ -1699,6 +1739,7 @@ export default function AccountsPanel() {
         }
     };
 
+    // handleAdminSubmit: handles handle admin submit for the Accounts flow.
     const handleAdminSubmit = async (event) => {
         event.preventDefault();
 
@@ -1746,6 +1787,7 @@ export default function AccountsPanel() {
         }
     };
 
+    // handleUpdate: handles handle update for the Accounts flow.
     const handleUpdate = async () => {
         const validationError = validateEditForm(editForm, roAreas, accounts, editingAccountId);
 
@@ -1799,6 +1841,7 @@ export default function AccountsPanel() {
         }
     };
 
+    // handleArchiveRestore: handles handle archive restore for the Accounts flow.
     const handleArchiveRestore = async (account) => {
         const isRestore = account.is_archived === true;
         const accountName =

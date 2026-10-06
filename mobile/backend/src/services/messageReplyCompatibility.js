@@ -1,23 +1,28 @@
+// SMaRT-PDM: Messaging — message Reply Compatibility (mobile backend service); contains mobile-facing business logic and data operations.
 const supabase = require('../config/supabase');
 const messageService = require('./messageService');
 const adminRealtimeRelayService = require('./adminRealtimeRelayService');
 
 let installed = false;
 
+// safeText: handles safe text for the Messaging flow.
 function safeText(value) {
   return value === null || value === undefined ? '' : String(value).trim();
 }
 
+// httpError: handles http error for the Messaging flow.
 function httpError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
 }
 
+// messageIdOf: handles message id of for the Messaging flow.
 function messageIdOf(message = {}) {
   return safeText(message.messageId || message.message_id);
 }
 
+// loadDisplayNames: loads and returns load display names for the Messaging flow.
 async function loadDisplayNames(userIds) {
   const ids = Array.from(new Set(userIds.map(safeText).filter(Boolean)));
   const names = new Map();
@@ -56,6 +61,7 @@ async function loadDisplayNames(userIds) {
   return names;
 }
 
+// enrichReplyContexts: handles enrich reply contexts for the Messaging flow.
 async function enrichReplyContexts(items) {
   if (!Array.isArray(items) || !items.length) return items || [];
 
@@ -129,6 +135,7 @@ async function enrichReplyContexts(items) {
   });
 }
 
+// loadReplyTarget: loads and returns load reply target for the Messaging flow.
 async function loadReplyTarget(replyToMessageId) {
   const replyId = safeText(replyToMessageId);
   if (!replyId) throw httpError(400, 'Reply target is required.');
@@ -150,6 +157,7 @@ async function loadReplyTarget(replyToMessageId) {
   return data;
 }
 
+// sendPrivateReply: sends send private reply for the Messaging flow.
 async function sendPrivateReply({
   userId,
   messageBody,
@@ -194,6 +202,7 @@ async function sendPrivateReply({
   return enriched;
 }
 
+// sendRoomReply: sends send room reply for the Messaging flow.
 async function sendRoomReply({ userId, roomId, messageBody, replyToMessageId }) {
   const currentUserId = safeText(userId);
   const normalizedRoomId = safeText(roomId);
@@ -235,10 +244,12 @@ async function sendRoomReply({ userId, roomId, messageBody, replyToMessageId }) 
   return enriched;
 }
 
+// installMessageReplyCompatibility: handles install message reply compatibility for the Messaging flow.
 function installMessageReplyCompatibility() {
   if (installed) return;
   installed = true;
 
+  // wrapList: handles wrap list for the Messaging flow.
   const wrapList = (name) => {
     const original = messageService[name];
     if (typeof original !== 'function') return;
@@ -248,6 +259,7 @@ function installMessageReplyCompatibility() {
     };
   };
 
+  // wrapResultItems: handles wrap result items for the Messaging flow.
   const wrapResultItems = (name) => {
     const original = messageService[name];
     if (typeof original !== 'function') return;

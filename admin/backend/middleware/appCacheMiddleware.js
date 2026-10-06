@@ -1,7 +1,9 @@
+// SMaRT-PDM: Caching — app Cache Middleware (admin backend middleware); validates or transforms requests before controller handling.
 'use strict';
 
 const appCache = require('../config/appCache');
 
+// normalizeQuery: normalizes normalize query for the Caching flow.
 function normalizeQuery(query = {}) {
     return Object.keys(query || {})
         .filter((key) => !['refresh', 'fresh', '_', 'cacheBust'].includes(key))
@@ -16,6 +18,7 @@ function normalizeQuery(query = {}) {
         .join('&');
 }
 
+// getUserId: reads and returns get user id for the Caching flow.
 function getUserId(req) {
     return String(
         req.user?.user_id ||
@@ -25,10 +28,12 @@ function getUserId(req) {
     ).trim();
 }
 
+// getRole: reads and returns get role for the Caching flow.
 function getRole(req) {
     return String(req.user?.role || '').trim().toLowerCase();
 }
 
+// resolveScopeKey: resolves resolve scope key for the Caching flow.
 function resolveScopeKey(req, scope) {
     if (scope === 'public') return 'public';
     if (scope === 'role') return `role:${getRole(req) || 'unknown'}`;
@@ -39,6 +44,7 @@ function resolveScopeKey(req, scope) {
     return `user:${userId || 'unknown'}:${role || 'unknown'}`;
 }
 
+// shouldRefresh: handles should refresh for the Caching flow.
 function shouldRefresh(req) {
     const queryRefresh = ['1', 'true', 'yes', 'on'].includes(
         String(req.query?.refresh || req.query?.fresh || '')
@@ -67,12 +73,14 @@ function shouldRefresh(req) {
     );
 }
 
+// addPrivateCacheHeaders: adds add private cache headers for the Caching flow.
 function addPrivateCacheHeaders(res, status) {
     res.setHeader('Cache-Control', 'private, no-store, max-age=0');
     res.setHeader('X-SMaRT-Cache', status);
     res.vary('Authorization');
 }
 
+// cacheJsonResponse: handles cache json response for the Caching flow.
 function cacheJsonResponse({
     namespace,
     ttlMs = 5000,
@@ -143,6 +151,7 @@ function cacheJsonResponse({
     };
 }
 
+// invalidateCacheOnSuccess: handles invalidate cache on success for the Caching flow.
 function invalidateCacheOnSuccess(namespaces = []) {
     const normalized = Array.isArray(namespaces)
         ? namespaces

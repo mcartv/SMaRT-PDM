@@ -1,3 +1,4 @@
+// SMaRT-PDM: server — server (mobile backend); supports mobile API behavior.
 require('dotenv').config();
 
 const http = require('http');

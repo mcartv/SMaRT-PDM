@@ -1,3 +1,4 @@
+// SMaRT-PDM: About Page — About Page (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useEffect, useRef, useState } from 'react';
 import {
   FileText,
@@ -101,6 +102,7 @@ export default function AboutPage() {
   );
 }
 
+// PdmContent: handles pdm content for the About Page flow.
 function PdmContent({ theme }) {
   return (
     <div className="grid gap-5 md:gap-6">
@@ -157,6 +159,7 @@ function PdmContent({ theme }) {
   );
 }
 
+// InstitutionStatementCard: handles institution statement card for the About Page flow.
 function InstitutionStatementCard({
   theme,
   eyebrow,
@@ -215,6 +218,7 @@ function InstitutionStatementCard({
   );
 }
 
+// SmartContent: handles smart content for the About Page flow.
 function SmartContent({ theme }) {
   return (
     <PublicContentCard theme={theme}>
@@ -443,6 +447,7 @@ const developmentApproach = [
   },
 ];
 
+// colorWithAlpha: handles color with alpha for the About Page flow.
 function colorWithAlpha(color, alpha) {
   const value = String(color || '').trim();
   if (/^#[0-9a-fA-F]{6}$/.test(value)) {
@@ -454,6 +459,7 @@ function colorWithAlpha(color, alpha) {
   return value;
 }
 
+// DevelopersContent: handles developers content for the About Page flow.
 function DevelopersContent({ theme }) {
   const [selectedDeveloper, setSelectedDeveloper] = useState(null);
   const lastTriggerRef = useRef(null);
@@ -476,11 +482,13 @@ function DevelopersContent({ theme }) {
     };
   }, [selectedDeveloper]);
 
+  // openDeveloper: handles open developer for the About Page flow.
   const openDeveloper = (developer, trigger) => {
     lastTriggerRef.current = trigger || document.activeElement;
     setSelectedDeveloper(developer);
   };
 
+  // closeDeveloper: handles close developer for the About Page flow.
   const closeDeveloper = () => {
     setSelectedDeveloper(null);
     requestAnimationFrame(() => lastTriggerRef.current?.focus?.());
@@ -506,6 +514,7 @@ function DevelopersContent({ theme }) {
   );
 }
 
+// DeveloperTeamSection: handles developer team section for the About Page flow.
 function DeveloperTeamSection({ theme, onOpenDeveloper }) {
   return (
     <section
@@ -570,6 +579,7 @@ function DeveloperTeamSection({ theme, onOpenDeveloper }) {
 }
 
 
+// DeveloperPortrait: handles developer portrait for the About Page flow.
 function DeveloperPortrait({ developer, theme, onOpen }) {
   return (
     <button
@@ -595,6 +605,7 @@ function DeveloperPortrait({ developer, theme, onOpen }) {
 }
 
 
+// DeveloperArtwork: handles developer artwork for the About Page flow.
 function DeveloperArtwork({ developer, theme, compact = false, floating = false }) {
   return (
     <div
@@ -612,6 +623,7 @@ function DeveloperArtwork({ developer, theme, compact = false, floating = false 
 }
 
 
+// AboutSystemSection: handles about system section for the About Page flow.
 function AboutSystemSection({ theme }) {
   const systemOverview = [
     {
@@ -715,6 +727,7 @@ function AboutSystemSection({ theme }) {
 
 
 
+// WhatWeBuiltSection: handles what we built section for the About Page flow.
 function WhatWeBuiltSection({ theme }) {
   return (
     <PublicContentCard theme={theme}>
@@ -781,6 +794,7 @@ function WhatWeBuiltSection({ theme }) {
 }
 
 
+// ProjectTechnologySection: handles project technology section for the About Page flow.
 function ProjectTechnologySection({ theme }) {
   return (
     <PublicContentCard theme={theme}>
@@ -834,6 +848,7 @@ function ProjectTechnologySection({ theme }) {
   );
 }
 
+// DevelopmentApproachSection: handles development approach section for the About Page flow.
 function DevelopmentApproachSection({ theme }) {
   return (
     <PublicContentCard theme={theme}>
@@ -861,6 +876,7 @@ function DevelopmentApproachSection({ theme }) {
   );
 }
 
+// GitHubMark: handles git hub mark for the About Page flow.
 function GitHubMark({ size = 18 }) {
   return (
     <svg
@@ -876,6 +892,7 @@ function GitHubMark({ size = 18 }) {
 }
 
 
+// CopyMark: handles copy mark for the About Page flow.
 function CopyMark({ size = 16 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -885,6 +902,7 @@ function CopyMark({ size = 16 }) {
   );
 }
 
+// DeveloperProfileModal: handles developer profile modal for the About Page flow.
 function DeveloperProfileModal({
   developer,
   theme,
@@ -907,8 +925,10 @@ function DeveloperProfileModal({
     if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
   }, []);
 
+  // requestClose: handles request close for the About Page flow.
   const requestClose = () => onClose();
 
+  // handleKeyDown: handles handle key down for the About Page flow.
   const handleKeyDown = (event) => {
     if (event.key === 'Escape') {
       event.preventDefault();
@@ -933,6 +953,7 @@ function DeveloperProfileModal({
     }
   };
 
+  // copyEmail: handles copy email for the About Page flow.
   const copyEmail = async () => {
     try {
       if (navigator.clipboard?.writeText) {

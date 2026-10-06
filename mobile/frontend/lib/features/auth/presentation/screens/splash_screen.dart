@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — splash screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
@@ -9,6 +10,7 @@ class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
   @override
+  // createState: creates create state for the Authentication flow.
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
@@ -21,11 +23,13 @@ class _SplashScreenState extends State<SplashScreen> {
   String? _error;
 
   @override
+  // initState: handles init state for the Authentication flow.
   void initState() {
     super.initState();
     _bootstrap();
   }
 
+  // _bootstrap: handles bootstrap for the Authentication flow.
   Future<void> _bootstrap() async {
     final isValid = await _sessionService.isSessionValid();
 
@@ -40,6 +44,7 @@ class _SplashScreenState extends State<SplashScreen> {
     if (mounted) setState(() => _isCheckingSession = false);
   }
 
+  // _lookupStudent: handles lookup student for the Authentication flow.
   Future<Map<String, dynamic>?> _lookupStudent() async {
     final studentId = StudentIdInputFormatter.toFullStudentId(
       _studentIdController.text,
@@ -78,6 +83,7 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
+  // _goToLogin: handles go to login for the Authentication flow.
   Future<void> _goToLogin() async {
     final result = await _lookupStudent();
     if (result == null || !mounted) return;
@@ -110,6 +116,7 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 
+  // _goToRegistration: handles go to registration for the Authentication flow.
   Future<void> _goToRegistration() async {
     final result = await _lookupStudent();
     if (result == null || !mounted) return;
@@ -140,6 +147,7 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 
+  // _registrationArguments: handles registration arguments for the Authentication flow.
   Map<String, dynamic> _registrationArguments(
     String studentId,
     Map<String, dynamic> student,
@@ -152,6 +160,7 @@ class _SplashScreenState extends State<SplashScreen> {
     };
   }
 
+  // _showMessage: handles show message for the Authentication flow.
   void _showMessage(String message) {
     ScaffoldMessenger.of(
       context,
@@ -159,12 +168,14 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   @override
+  // dispose: handles dispose for the Authentication flow.
   void dispose() {
     _studentIdController.dispose();
     super.dispose();
   }
 
   @override
+  // build: builds build for the Authentication flow.
   Widget build(BuildContext context) {
     if (_isCheckingSession) {
       return const Scaffold(
@@ -406,6 +417,7 @@ class _Orb extends StatelessWidget {
   final Color color;
 
   @override
+  // build: builds build for the Authentication flow.
   Widget build(BuildContext context) {
     return IgnorePointer(
       child: Container(

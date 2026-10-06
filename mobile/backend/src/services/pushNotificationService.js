@@ -1,3 +1,4 @@
+// SMaRT-PDM: Notifications — push Notification Service (mobile backend service); contains mobile-facing business logic and data operations.
 const {
   applicationDefault,
   cert,
@@ -18,10 +19,12 @@ const INVALID_TOKEN_CODES = new Set([
 let firebaseApp = null;
 let configurationWarningShown = false;
 
+// safeText: handles safe text for the Notifications flow.
 function safeText(value) {
   return value === null || value === undefined ? '' : String(value).trim();
 }
 
+// getFirebaseApp: reads and returns get firebase app for the Notifications flow.
 function getFirebaseApp() {
   if (firebaseApp) return firebaseApp;
 
@@ -79,11 +82,13 @@ function getFirebaseApp() {
   return null;
 }
 
+// stringData: handles string data for the Notifications flow.
 function stringData(value) {
   if (value === null || value === undefined) return '';
   return String(value);
 }
 
+// buildMessage: builds build message for the Notifications flow.
 function buildMessage(token, notification) {
   const notificationId =
     notification.notification_id ||
@@ -123,6 +128,7 @@ function buildMessage(token, notification) {
   };
 }
 
+// removeInvalidTokens: removes remove invalid tokens for the Notifications flow.
 async function removeInvalidTokens(tokens = []) {
   const uniqueTokens = [...new Set(tokens.map(safeText).filter(Boolean))];
   if (uniqueTokens.length === 0) return;
@@ -137,6 +143,7 @@ async function removeInvalidTokens(tokens = []) {
   }
 }
 
+// markPushSent: marks mark push sent for the Notifications flow.
 async function markPushSent(notificationId) {
   if (!notificationId) return;
 
@@ -150,6 +157,7 @@ async function markPushSent(notificationId) {
   }
 }
 
+// sendUserNotificationPush: sends send user notification push for the Notifications flow.
 async function sendUserNotificationPush({ userId, notification = {} }) {
   if (!(await notificationsEnabled())) {
     return { sent: false, skipped: true, reason: 'notifications_disabled' };

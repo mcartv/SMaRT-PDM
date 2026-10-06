@@ -1,3 +1,4 @@
+// SMaRT-PDM: new applicant screen — new applicant screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -39,6 +40,7 @@ class NewApplicantScreen extends StatefulWidget {
   final bool editExistingApplication;
 
   @override
+  // createState: creates create state for the new applicant screen flow.
   State<NewApplicantScreen> createState() => _NewApplicantScreenState();
 }
 
@@ -70,11 +72,13 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   ];
 
   @override
+  // initState: handles init state for the new applicant screen flow.
   void initState() {
     super.initState();
     _bootstrapFormData();
   }
 
+  // _applyOpeningSelection: handles apply opening selection for the new applicant screen flow.
   void _applyOpeningSelection({
     required String openingId,
     required String openingTitle,
@@ -89,6 +93,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
 
   bool get _hasSelectedOpening => _data.openingId.trim().isNotEmpty;
 
+  // _bootstrapFormData: handles bootstrap form data for the new applicant screen flow.
   Future<void> _bootstrapFormData() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -246,8 +251,10 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     }
   }
 
+  // _savedString: handles saved string for the new applicant screen flow.
   String _savedString(dynamic value) => value?.toString() ?? '';
 
+  // _queueAutosave: handles queue autosave for the new applicant screen flow.
   void _queueAutosave({bool immediate = false}) {
     if (_isBootstrapping ||
         !_hasSelectedOpening ||
@@ -260,6 +267,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     _autosaveDebounce = Timer(delay, _saveDraft);
   }
 
+  // _saveDraft: handles save draft for the new applicant screen flow.
   Future<void> _saveDraft() async {
     if (_isBootstrapping ||
         !_hasSelectedOpening ||
@@ -291,6 +299,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     }
   }
 
+  // _syncAccountHolderCache: handles sync account holder cache for the new applicant screen flow.
   Future<void> _syncAccountHolderCache() async {
     await _sessionService.saveProfileCache(
       firstName: ApplicationData.toTitleCase(_data.firstName),
@@ -303,6 +312,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     );
   }
 
+  // _scrollToFormTop: handles scroll to form top for the new applicant screen flow.
   void _scrollToFormTop() {
     FocusScope.of(context).unfocus();
     if (!_scrollCtrl.hasClients) return;
@@ -313,6 +323,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     );
   }
 
+  // _stepForSection: handles step for section for the new applicant screen flow.
   int _stepForSection(ApplicationSubmissionSection section) {
     switch (section) {
       case ApplicationSubmissionSection.personal:
@@ -329,6 +340,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     }
   }
 
+  // _repairMissingCourse: handles repair missing course for the new applicant screen flow.
   Future<void> _repairMissingCourse() async {
     await _saveDraft();
     if (!mounted) return;
@@ -371,6 +383,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   static const String _parentGuardianMobileRequiredMessage =
       'Provide at least one parent or guardian mobile number.';
 
+  // _hasUsableParentGuardianMobile: handles has usable parent guardian mobile for the new applicant screen flow.
   bool _hasUsableParentGuardianMobile() {
     return <String>[
       _data.fatherMobile,
@@ -382,24 +395,28 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     });
   }
 
+  // _parentGuardianMobileSnapshot: handles parent guardian mobile snapshot for the new applicant screen flow.
   List<String> _parentGuardianMobileSnapshot() => <String>[
     _data.fatherMobile,
     _data.motherMobile,
     _data.guardianMobile,
   ];
 
+  // _fillBlankParentGuardianMobilesWithNA: handles fill blank parent guardian mobiles with na for the new applicant screen flow.
   void _fillBlankParentGuardianMobilesWithNA() {
     if (_data.fatherMobile.trim().isEmpty) _data.fatherMobile = 'N/A';
     if (_data.motherMobile.trim().isEmpty) _data.motherMobile = 'N/A';
     if (_data.guardianMobile.trim().isEmpty) _data.guardianMobile = 'N/A';
   }
 
+  // _restoreParentGuardianMobiles: handles restore parent guardian mobiles for the new applicant screen flow.
   void _restoreParentGuardianMobiles(List<String> snapshot) {
     _data.fatherMobile = snapshot[0];
     _data.motherMobile = snapshot[1];
     _data.guardianMobile = snapshot[2];
   }
 
+  // _validateFamilyWithOptionalMobiles: handles validate family with optional mobiles for the new applicant screen flow.
   String? _validateFamilyWithOptionalMobiles() {
     if (!_hasUsableParentGuardianMobile()) {
       return _parentGuardianMobileRequiredMessage;
@@ -437,6 +454,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     }
   }
 
+  // _next: handles next for the new applicant screen flow.
   void _next() {
     final validationError = _validateCurrentForm();
     if (validationError != null) {
@@ -473,6 +491,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     }
   }
 
+  // _back: handles back for the new applicant screen flow.
   void _back() {
     if (_step > 0) {
       setState(() {
@@ -499,6 +518,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
         final bodyColor = AppSurfacePalette.mutedText(dialogContext);
         final borderColor = AppSurfacePalette.outline(dialogContext);
 
+        // reviewPoint: handles review point for the new applicant screen flow.
         Widget reviewPoint(String text) {
           return Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -720,6 +740,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     return confirmed == true;
   }
 
+  // _submitApplication: handles submit application for the new applicant screen flow.
   Future<void> _submitApplication() async {
     if (!_hasSelectedOpening) {
       setState(() {
@@ -815,6 +836,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     });
   }
 
+  // _validateCurrentForm: handles validate current form for the new applicant screen flow.
   String? _validateCurrentForm() {
     switch (_step) {
       case 0:
@@ -838,6 +860,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     }
   }
 
+  // _handleFormChanged: handles handle form changed for the new applicant screen flow.
   void _handleFormChanged() {
     final validationError = _showValidationErrors
         ? _validateCurrentForm()
@@ -853,9 +876,11 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     _queueAutosave();
   }
 
+  // _buildStep: handles build step for the new applicant screen flow.
   Widget _buildStep() =>
       KeyedSubtree(key: _stepContentKey, child: _buildStepContent());
 
+  // _buildStepContent: handles build step content for the new applicant screen flow.
   Widget _buildStepContent() {
     switch (_step) {
       case 0:
@@ -903,6 +928,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   }
 
   @override
+  // dispose: handles dispose for the new applicant screen flow.
   void dispose() {
     _autosaveDebounce?.cancel();
     _scrollCtrl.dispose();
@@ -910,6 +936,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   }
 
   @override
+  // build: builds build for the new applicant screen flow.
   Widget build(BuildContext context) {
     final provider = context.watch<NewScholarProvider>();
     final cardColor = AppSurfacePalette.surface(context);
@@ -1032,6 +1059,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     );
   }
 
+  // _buildOpeningReminder: handles build opening reminder for the new applicant screen flow.
   Widget _buildOpeningReminder(BuildContext context) {
     final textColor = AppSurfacePalette.text(context);
     final mutedColor = AppSurfacePalette.mutedText(context);
@@ -1078,6 +1106,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     );
   }
 
+  // _buildSelectedOpeningCard: handles build selected opening card for the new applicant screen flow.
   Widget _buildSelectedOpeningCard(BuildContext context) {
     final textColor = AppSurfacePalette.text(context);
     final mutedColor = AppSurfacePalette.mutedText(context);
@@ -1210,6 +1239,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     return 'Next';
   }
 
+  // _buildFooter: handles build footer for the new applicant screen flow.
   Widget _buildFooter(NewScholarProvider provider) {
     final width = MediaQuery.sizeOf(context).width;
     final textScale = MediaQuery.textScalerOf(context).scale(1);

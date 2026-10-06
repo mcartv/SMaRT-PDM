@@ -1,3 +1,4 @@
+// SMaRT-PDM: Reports — Report Generation (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
@@ -151,6 +152,7 @@ const REPORT_FILTER_FIELDS = {
 const EXPORT_COOLDOWN_MS = 1500;
 const EXPORT_TIMEOUT_MS = 90 * 1000;
 
+// getAuthHeaders: reads and returns get auth headers for the Reports flow.
 function getAuthHeaders(tokenStorageKey = 'adminToken') {
   const token = sessionStorage.getItem(tokenStorageKey);
   return {
@@ -158,6 +160,7 @@ function getAuthHeaders(tokenStorageKey = 'adminToken') {
   };
 }
 
+// TemplateRow: handles template row for the Reports flow.
 function TemplateRow({ report, active, onClick, theme, compact = false }) {
   return (
     <button
@@ -194,6 +197,7 @@ function TemplateRow({ report, active, onClick, theme, compact = false }) {
   );
 }
 
+// FilterField: handles filter field for the Reports flow.
 function FilterField({ label, children }) {
   return (
     <div className="report-filter-field min-w-0 space-y-2">
@@ -205,6 +209,7 @@ function FilterField({ label, children }) {
   );
 }
 
+// formatCellValue: formats format cell value for the Reports flow.
 function formatCellValue(value) {
   if (value === null || value === undefined || value === '') return '—';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
@@ -227,6 +232,7 @@ function formatCellValue(value) {
   return text;
 }
 
+// formatHeader: formats format header for the Reports flow.
 function formatHeader(key) {
   const customLabels = {
     pdm_id: 'Student Number',
@@ -257,6 +263,7 @@ function formatHeader(key) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+// escapePrintHtml: handles escape print html for the Reports flow.
 function escapePrintHtml(value) {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -541,6 +548,7 @@ export default function ReportGeneration({
   }, [loadMetadata]);
 
   const buildParams = useCallback(() => {
+    // has: checks whether has for the Reports flow.
     const has = (field) => activeFilterFields.has(field);
     return new URLSearchParams({
       reportType: selected,
@@ -570,6 +578,7 @@ export default function ReportGeneration({
     verificationStatus, batchStatus, releaseStatus, paymentMode, dateFrom, dateTo,
   ]);
 
+  // resetFilters: resets reset filters for the Reports flow.
   function resetFilters() {
     setAcademicYearId('all');
     setAcademicYearFromId('all');
@@ -595,6 +604,7 @@ export default function ReportGeneration({
     setHasPreviewed(false);
   }
 
+  // handleReportTypeChange: handles handle report type change for the Reports flow.
   function handleReportTypeChange(reportId) {
     setSelected(reportId);
     setAcademicYearFromId('all');
@@ -743,6 +753,7 @@ export default function ReportGeneration({
     scheduleReportRefresh();
   }, [scheduleReportRefresh]);
 
+  // acquireClientExportLock: handles acquire client export lock for the Reports flow.
   function acquireClientExportLock(reportId) {
     if (exportLocksRef.current.has(reportId)) return false;
 
@@ -755,6 +766,7 @@ export default function ReportGeneration({
     return true;
   }
 
+  // releaseClientExportLockAfterCooldown: handles release client export lock after cooldown for the Reports flow.
   function releaseClientExportLockAfterCooldown(reportId) {
     const previousTimer = exportCooldownTimersRef.current.get(reportId);
     if (previousTimer) window.clearTimeout(previousTimer);
@@ -772,10 +784,12 @@ export default function ReportGeneration({
     exportCooldownTimersRef.current.set(reportId, timer);
   }
 
+  // handleGenerateReport: handles handle generate report for the Reports flow.
   async function handleGenerateReport() {
     await handleDownloadByFormat(isScholarCountReport ? 'pdf' : 'xlsx');
   }
 
+  // handleDownloadByFormat: handles handle download by format for the Reports flow.
   async function handleDownloadByFormat(format = 'xlsx') {
     if (hasInvalidFilterRange) {
       setFeedback({
@@ -858,6 +872,7 @@ export default function ReportGeneration({
     }
   }
 
+  // handlePrintPreview: handles handle print preview for the Reports flow.
   function handlePrintPreview() {
     const printWindow = window.open('', '_blank', 'width=1200,height=800');
     if (!printWindow) {

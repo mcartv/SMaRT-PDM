@@ -1,3 +1,4 @@
+// SMaRT-PDM: step family — step family (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 
@@ -8,6 +9,7 @@ class StepFamily extends StatefulWidget {
   const StepFamily({super.key, required this.data, required this.onChanged});
 
   @override
+  // createState: creates create state for the step family flow.
   State<StepFamily> createState() => _StepFamilyState();
 }
 
@@ -71,6 +73,7 @@ class _StepFamilyState extends State<StepFamily> {
   late String selectedParentNative;
 
   @override
+  // initState: handles init state for the step family flow.
   void initState() {
     super.initState();
 
@@ -313,12 +316,14 @@ class _StepFamilyState extends State<StepFamily> {
     );
   }
 
+  // _dec: handles dec for the step family flow.
   InputDecoration _dec(String hint) => InputDecoration(
     hintText: hint,
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
   );
 
+  // _field: handles field for the step family flow.
   Widget _field(String label, Widget child) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -333,6 +338,7 @@ class _StepFamilyState extends State<StepFamily> {
     ],
   );
 
+  // _row: handles row for the step family flow.
   Widget _row(List<Widget> fields) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -375,6 +381,7 @@ class _StepFamilyState extends State<StepFamily> {
     );
   }
 
+  // _bind: handles bind for the step family flow.
   void _bind(TextEditingController controller, void Function(String) setter) {
     controller.addListener(() {
       setter(controller.text);
@@ -382,6 +389,7 @@ class _StepFamilyState extends State<StepFamily> {
     });
   }
 
+  // _educationSelection: handles education selection for the step family flow.
   String? _educationSelection(String value) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) {
@@ -400,6 +408,7 @@ class _StepFamilyState extends State<StepFamily> {
     return null;
   }
 
+  // _buildApplicantAddress: handles build applicant address for the step family flow.
   String _buildApplicantAddress() {
     final parts = [
       widget.data.unitBldgNo,
@@ -415,6 +424,7 @@ class _StepFamilyState extends State<StepFamily> {
     return parts.join(', ');
   }
 
+  // _applySameAddress: handles apply same address for the step family flow.
   void _applySameAddress(bool value) {
     setState(() {
       sameAddress = value;
@@ -433,6 +443,7 @@ class _StepFamilyState extends State<StepFamily> {
     widget.onChanged();
   }
 
+  // _setGuardianOnly: handles set guardian only for the step family flow.
   void _setGuardianOnly(bool value) {
     setState(() {
       guardianOnly = value;
@@ -463,6 +474,7 @@ class _StepFamilyState extends State<StepFamily> {
     widget.onChanged();
   }
 
+  // _setHasFather: handles set has father for the step family flow.
   void _setHasFather(bool value) {
     setState(() {
       hasFather = value;
@@ -482,6 +494,7 @@ class _StepFamilyState extends State<StepFamily> {
     widget.onChanged();
   }
 
+  // _setHasMother: handles set has mother for the step family flow.
   void _setHasMother(bool value) {
     setState(() {
       hasMother = value;
@@ -503,6 +516,7 @@ class _StepFamilyState extends State<StepFamily> {
 
   bool get _showGuardianFields => guardianOnly || (!hasFather && !hasMother);
 
+  // _fatherSection: handles father section for the step family flow.
   Widget _fatherSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -587,6 +601,7 @@ class _StepFamilyState extends State<StepFamily> {
     );
   }
 
+  // _motherSection: handles mother section for the step family flow.
   Widget _motherSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -671,6 +686,7 @@ class _StepFamilyState extends State<StepFamily> {
     );
   }
 
+  // _siblingSection: handles sibling section for the step family flow.
   Widget _siblingSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -721,6 +737,7 @@ class _StepFamilyState extends State<StepFamily> {
     );
   }
 
+  // _guardianSection: handles guardian section for the step family flow.
   Widget _guardianSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -805,6 +822,7 @@ class _StepFamilyState extends State<StepFamily> {
     );
   }
 
+  // _nativeMarilaoSection: handles native marilao section for the step family flow.
   Widget _nativeMarilaoSection() {
     final nativeOptions = guardianOnly
         ? const <MapEntry<String, String>>[
@@ -890,6 +908,7 @@ class _StepFamilyState extends State<StepFamily> {
   }
 
   @override
+  // dispose: handles dispose for the step family flow.
   void dispose() {
     parentAddressController.dispose();
     fatherLastNameController.dispose();
@@ -925,6 +944,7 @@ class _StepFamilyState extends State<StepFamily> {
   }
 
   @override
+  // build: builds build for the step family flow.
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),

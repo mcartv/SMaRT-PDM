@@ -1,3 +1,4 @@
+// SMaRT-PDM: Dashboard — applicant home view (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
@@ -35,6 +36,7 @@ class ApplicantHomeView extends StatelessWidget {
   final VoidCallback onRetryLatestUpdate;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
@@ -118,6 +120,7 @@ class _ApplicantIdentityHeader extends StatelessWidget {
   final VoidCallback onRetry;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final identity = section.data;
@@ -193,6 +196,7 @@ class _ApplicationStatusSection extends StatelessWidget {
   final VoidCallback onRetry;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     final application = section.data;
 
@@ -235,6 +239,7 @@ class _ProgressStateSection extends StatelessWidget {
   final VoidCallback onRetryDocuments;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     return ApplicantHomeSectionStateView(
       hasLoaded: status.hasLoaded,

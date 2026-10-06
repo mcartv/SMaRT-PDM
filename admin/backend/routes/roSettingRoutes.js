@@ -1,3 +1,4 @@
+// SMaRT-PDM: Return of Obligations — ro Setting Routes (admin backend route); maps API endpoints to middleware and controllers.
 const express = require('express');
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
 const roSettingController = require('../controllers/roSettingController');

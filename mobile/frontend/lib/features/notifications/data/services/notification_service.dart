@@ -1,3 +1,4 @@
+// SMaRT-PDM: Notifications — notification service (mobile service); calls APIs or shared services and returns processed results.
 import 'package:flutter/foundation.dart';
 
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
@@ -28,6 +29,7 @@ class NotificationService {
   final ApiClient _apiClient;
   final SessionService _sessionService;
 
+  // fetchNotifications: fetches and returns fetch notifications for the Notifications flow.
   Future<NotificationListResult> fetchNotifications({
     int limit = 50,
     int offset = 0,
@@ -71,6 +73,7 @@ class NotificationService {
     );
   }
 
+  // fetchUnreadCount: fetches and returns fetch unread count for the Notifications flow.
   Future<int> fetchUnreadCount() async {
     try {
       final response = await _apiClient.getObject(
@@ -96,6 +99,7 @@ class NotificationService {
     }
   }
 
+  // markAsRead: marks mark as read for the Notifications flow.
   Future<AppNotification> markAsRead(String notificationId) async {
     final response = await _apiClient.patchJson(
       '/api/notifications/$notificationId/read',
@@ -117,6 +121,7 @@ class NotificationService {
     return AppNotification.fromJson(response);
   }
 
+  // markAllAsRead: marks mark all as read for the Notifications flow.
   Future<int> markAllAsRead() async {
     try {
       await _apiClient.patchJson(
@@ -133,10 +138,12 @@ class NotificationService {
     return 0;
   }
 
+  // deleteNotification: deletes delete notification for the Notifications flow.
   Future<void> deleteNotification(String notificationId) async {
     await _apiClient.deleteJson('/api/notifications/$notificationId');
   }
 
+  // registerStoredDeviceToken: handles register stored device token for the Notifications flow.
   Future<void> registerStoredDeviceToken() async {
     final stored = await _sessionService.getPushDeviceToken();
 

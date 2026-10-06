@@ -1,3 +1,4 @@
+// SMaRT-PDM: Applications — application Service (mobile backend service); contains mobile-facing business logic and data operations.
 const crypto = require('crypto');
 const supabase = require('../config/supabase');
 const {
@@ -15,6 +16,7 @@ const {
     replaceFileExtension,
 } = require('./storageImageOptimizer');
 
+// normalizeStorageBucketName: normalizes normalize storage bucket name for the Applications flow.
 function normalizeStorageBucketName(value) {
     const normalized = String(value || '')
         .trim()
@@ -48,6 +50,7 @@ const PORT5000_SIGNED_URL_CACHE_DEBUG =
 const applicationDocumentSignedUrlCache = new Map();
 const applicationDocumentSignedUrlInFlight = new Map();
 
+// pruneApplicationDocumentSignedUrlCache: handles prune application document signed url cache for the Applications flow.
 function pruneApplicationDocumentSignedUrlCache(now = Date.now()) {
     for (const [key, entry] of applicationDocumentSignedUrlCache.entries()) {
         if (!entry || entry.expiresAt <= now) applicationDocumentSignedUrlCache.delete(key);
@@ -60,6 +63,7 @@ function pruneApplicationDocumentSignedUrlCache(now = Date.now()) {
     }
 }
 
+// logStorageSignedUrlCache: handles log storage signed url cache for the Applications flow.
 function logStorageSignedUrlCache(kind, cacheKey) {
     if (!PORT5000_SIGNED_URL_CACHE_DEBUG) return;
     console.log(`[Storage Signed URL Cache] ${kind}`, {
@@ -155,16 +159,19 @@ const BLOCKER_MESSAGES = Object.freeze({
     activated: 'Your scholar access has been activated.',
 });
 
+// createHttpError: creates create http error for the Applications flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// safeText: handles safe text for the Applications flow.
 function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
 }
 
+// isRequiredUploadDocumentType: checks whether is required upload document type for the Applications flow.
 function isRequiredUploadDocumentType(value) {
     const normalized = normalizeRequiredDocumentType(value).toLowerCase();
     return (
@@ -173,6 +180,7 @@ function isRequiredUploadDocumentType(value) {
     );
 }
 
+// withUploadRequirementFlag: handles with upload requirement flag for the Applications flow.
 function withUploadRequirementFlag(document = {}) {
     return {
         ...document,
@@ -187,6 +195,7 @@ const FINANCIAL_SUPPORT_TYPES = Object.freeze([
     'Other',
 ]);
 
+// financialSupportChoices: handles financial support choices for the Applications flow.
 function financialSupportChoices(support = {}) {
     const rawChoices = Array.isArray(support.financial_support_choices)
         ? support.financial_support_choices
@@ -206,6 +215,7 @@ function financialSupportChoices(support = {}) {
     );
 }
 
+// createApplicationDocumentSignedUrl: creates create application document signed url for the Applications flow.
 async function createApplicationDocumentSignedUrl(filePath) {
     const normalizedPath = safeText(filePath).replace(/^\/+/, '');
     if (!normalizedPath) return null;
@@ -227,6 +237,7 @@ async function createApplicationDocumentSignedUrl(filePath) {
         return applicationDocumentSignedUrlInFlight.get(cacheKey);
     }
 
+    // request: handles request for the Applications flow.
     const request = (async () => {
         logStorageSignedUrlCache('MISS', cacheKey);
 
@@ -268,6 +279,7 @@ async function createApplicationDocumentSignedUrl(filePath) {
     }
 }
 
+// attachSignedUrlsToDocuments: handles attach signed urls to documents for the Applications flow.
 async function attachSignedUrlsToDocuments(documents = []) {
     return Promise.all(
         (documents || []).map(async (document) => {
@@ -294,6 +306,7 @@ async function attachSignedUrlsToDocuments(documents = []) {
     );
 }
 
+// getStudentDisplayName: reads and returns get student display name for the Applications flow.
 function getStudentDisplayName(student = {}) {
     return (
         [student.first_name, student.middle_name, student.last_name]
@@ -303,6 +316,7 @@ function getStudentDisplayName(student = {}) {
     );
 }
 
+// createStaffNotificationsSafely: creates create staff notifications safely for the Applications flow.
 async function createStaffNotificationsSafely(payload, context) {
     try {
         return await notificationService.createStaffNotifications(payload);
@@ -315,6 +329,7 @@ async function createStaffNotificationsSafely(payload, context) {
     }
 }
 
+// firstNonEmpty: handles first non empty for the Applications flow.
 function firstNonEmpty(...values) {
     for (const value of values) {
         const text = safeText(value);
@@ -323,6 +338,7 @@ function firstNonEmpty(...values) {
     return '';
 }
 
+// normalizeFamilyRelation: normalizes normalize family relation for the Applications flow.
 function normalizeFamilyRelation(value) {
     const text = safeText(value).toLowerCase();
 
@@ -334,6 +350,7 @@ function normalizeFamilyRelation(value) {
     return safeText(value);
 }
 
+// normalizeEducationalAttainment: normalizes normalize educational attainment for the Applications flow.
 function normalizeEducationalAttainment(value) {
     const normalized = normalizeLookupKey(value);
 
@@ -356,6 +373,7 @@ function normalizeEducationalAttainment(value) {
     return lookup[normalized] || null;
 }
 
+// splitFamilyName: handles split family name for the Applications flow.
 function splitFamilyName(row = {}) {
     return [
         safeText(row.first_name),
@@ -366,6 +384,7 @@ function splitFamilyName(row = {}) {
         .join(' ');
 }
 
+// mapFamilyMember: maps map family member for the Applications flow.
 function mapFamilyMember(row = {}, fallbackRelation = '') {
     return {
         relation: safeText(row.relation || fallbackRelation),
@@ -392,6 +411,7 @@ function mapFamilyMember(row = {}, fallbackRelation = '') {
     };
 }
 
+// parseIsoDate: parses parse iso date for the Applications flow.
 function parseIsoDate(value) {
     const text = safeText(value);
     if (!text) return null;
@@ -402,6 +422,7 @@ function parseIsoDate(value) {
     return parsed;
 }
 
+// calculateAgeFromDate: handles calculate age from date for the Applications flow.
 function calculateAgeFromDate(value) {
     const parsed = parseIsoDate(value);
     if (!parsed) return '';
@@ -422,6 +443,7 @@ function calculateAgeFromDate(value) {
     return years >= 0 ? String(years) : '';
 }
 
+// educationRowByLevel: handles education row by level for the Applications flow.
 function educationRowByLevel(rows = [], level = '') {
     const normalizedLevel = safeText(level).toLowerCase();
 
@@ -432,6 +454,7 @@ function educationRowByLevel(rows = [], level = '') {
     );
 }
 
+// familyNativeStatusFromRows: handles family native status from rows for the Applications flow.
 function familyNativeStatusFromRows(rows = []) {
     const father = rows.find(
         (row) => normalizeFamilyRelation(row.relation) === 'Father'
@@ -462,6 +485,7 @@ function familyNativeStatusFromRows(rows = []) {
     return '';
 }
 
+// firstNonEmptyFamilyValue: handles first non empty family value for the Applications flow.
 function firstNonEmptyFamilyValue(rows = [], field) {
     for (const row of rows) {
         const text = safeText(row?.[field]);
@@ -471,6 +495,7 @@ function firstNonEmptyFamilyValue(rows = [], field) {
     return '';
 }
 
+// normalizeLookupKey: normalizes normalize lookup key for the Applications flow.
 function normalizeLookupKey(value) {
     return safeText(value)
         .toLowerCase()
@@ -480,6 +505,7 @@ function normalizeLookupKey(value) {
         .trim();
 }
 
+// rawSnapshotValue: handles raw snapshot value for the Applications flow.
 function rawSnapshotValue(snapshot = {}, keys = []) {
     if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
         return '';
@@ -500,6 +526,7 @@ function rawSnapshotValue(snapshot = {}, keys = []) {
     return '';
 }
 
+// splitFullName: handles split full name for the Applications flow.
 function splitFullName(value) {
     const parts = safeText(value).split(/\s+/).filter(Boolean);
     if (parts.length === 0) {
@@ -518,10 +545,12 @@ function splitFullName(value) {
     };
 }
 
+// rawFamilyMember: handles raw family member for the Applications flow.
 function rawFamilyMember(snapshot = {}, relation = '') {
     const prefix = normalizeLookupKey(relation);
     if (!prefix) return {};
 
+    // keys: handles keys for the Applications flow.
     const keys = (field) => [
         `${relation} ${field}`,
         `${relation}'s ${field}`,
@@ -564,6 +593,7 @@ function rawFamilyMember(snapshot = {}, relation = '') {
     };
 }
 
+// graduationYearFromRegistryValue: handles graduation year from registry value for the Applications flow.
 function graduationYearFromRegistryValue(value) {
     const text = safeText(value);
     if (!text) return '';
@@ -572,6 +602,7 @@ function graduationYearFromRegistryValue(value) {
     return years.length > 0 ? years[years.length - 1] : text;
 }
 
+// registryEducationFromRawSnapshot: handles registry education from raw snapshot for the Applications flow.
 function registryEducationFromRawSnapshot(snapshot = {}, level = '') {
     const normalizedLevel = safeText(level).toLowerCase();
 
@@ -617,6 +648,7 @@ function registryEducationFromRawSnapshot(snapshot = {}, level = '') {
     return {};
 }
 
+// emergencyGuardianFromRawSnapshot: handles emergency guardian from raw snapshot for the Applications flow.
 function emergencyGuardianFromRawSnapshot(snapshot = {}) {
     const relationship = normalizeLookupKey(
         rawSnapshotValue(snapshot, ['Relationship'])
@@ -636,6 +668,7 @@ function emergencyGuardianFromRawSnapshot(snapshot = {}) {
     };
 }
 
+// addressFromRawSnapshot: adds address from raw snapshot for the Applications flow.
 function addressFromRawSnapshot(snapshot = {}) {
     const permanentAddress = rawSnapshotValue(snapshot, ['Permanent Address']);
     const presentAddress = rawSnapshotValue(snapshot, ['Present Address']);
@@ -675,10 +708,12 @@ function addressFromRawSnapshot(snapshot = {}) {
     };
 }
 
+// hasFamilyName: checks whether has family name for the Applications flow.
 function hasFamilyName(row = {}) {
     return Boolean(safeText(row.first_name) || safeText(row.last_name));
 }
 
+// deriveFinancialSupport: derives derive financial support for the Applications flow.
 function deriveFinancialSupport(master = {}, profile = {}) {
     const profileSupport = safeText(profile?.financial_support_type);
     if (profileSupport) return profileSupport;
@@ -691,6 +726,7 @@ function deriveFinancialSupport(master = {}, profile = {}) {
     return 'Parents';
 }
 
+// getUser: reads and returns get user for the Applications flow.
 async function getUser(userId) {
     const { data, error } = await supabase
         .from('users')
@@ -702,6 +738,7 @@ async function getUser(userId) {
     return data || null;
 }
 
+// getStudent: reads and returns get student for the Applications flow.
 async function getStudent(userId) {
     const { data, error } = await supabase
         .from('students')
@@ -739,6 +776,7 @@ async function getStudent(userId) {
     return data || null;
 }
 
+// getMasterStudent: reads and returns get master student for the Applications flow.
 async function getMasterStudent(masterStudentId) {
     if (!masterStudentId) return null;
 
@@ -782,6 +820,7 @@ async function getMasterStudent(masterStudentId) {
     return data || null;
 }
 
+// getStudentProfile: reads and returns get student profile for the Applications flow.
 async function getStudentProfile(studentId) {
     if (!studentId) return null;
 
@@ -831,6 +870,7 @@ async function getStudentProfile(studentId) {
     return data || null;
 }
 
+// getCourse: reads and returns get course for the Applications flow.
 async function getCourse(courseId) {
     if (!courseId) return null;
 
@@ -844,6 +884,7 @@ async function getCourse(courseId) {
     return data || null;
 }
 
+// getFamilyRows: reads and returns get family rows for the Applications flow.
 async function getFamilyRows(studentId) {
     if (!studentId) return [];
 
@@ -870,6 +911,7 @@ async function getFamilyRows(studentId) {
     return data || [];
 }
 
+// getEducationRows: reads and returns get education rows for the Applications flow.
 async function getEducationRows(studentId) {
     if (!studentId) return [];
 
@@ -897,6 +939,7 @@ async function getEducationRows(studentId) {
     return data || [];
 }
 
+// getDraft: reads and returns get draft for the Applications flow.
 async function getDraft(userId) {
     const { data, error } = await supabase
         .from(APPLICATION_DRAFT_TABLE)
@@ -931,6 +974,7 @@ function isPlainPrefillObject(value) {
     );
 }
 
+// mergeMissingPrefillValues: handles merge missing prefill values for the Applications flow.
 function mergeMissingPrefillValues(primary = {}, fallback = {}) {
     if (!isPlainPrefillObject(primary)) {
         return isPlainPrefillObject(fallback)
@@ -974,6 +1018,7 @@ function mergeMissingPrefillValues(primary = {}, fallback = {}) {
     return merged;
 }
 
+// mergeHistoricalApplicationPrefill: handles merge historical application prefill for the Applications flow.
 function mergeHistoricalApplicationPrefill(
     basePayload = {},
     historicalPayload = {}
@@ -1015,6 +1060,7 @@ function mergeHistoricalApplicationPrefill(
     return merged;
 }
 
+// getLatestApplicationPrefillPayload: reads and returns get latest application prefill payload for the Applications flow.
 async function getLatestApplicationPrefillPayload(studentId) {
     if (!studentId) {
         return {};
@@ -1049,6 +1095,7 @@ async function getLatestApplicationPrefillPayload(studentId) {
         : {};
 }
 
+// getOpening: reads and returns get opening for the Applications flow.
 async function getOpening(openingId) {
     if (!openingId) return null;
 
@@ -1070,6 +1117,7 @@ async function getOpening(openingId) {
     return data || null;
 }
 
+// getMyFormData: reads and returns get my form data for the Applications flow.
 async function getMyFormData(userId, options = {}) {
     if (!userId) {
         throw createHttpError(401, 'Authentication required.');
@@ -1537,6 +1585,7 @@ async function getMyFormData(userId, options = {}) {
     };
 }
 
+// saveMyFormData: validates and saves save my form data for the Applications flow.
 async function saveMyFormData(userId, payload = {}) {
     if (!userId) {
         throw createHttpError(401, 'Authentication required.');
@@ -1657,6 +1706,7 @@ function getApplicationDocumentUploadLock(application = {}) {
     };
 }
 
+// getMyDocuments: reads and returns get my documents for the Applications flow.
 async function getMyDocuments(userId) {
     if (!userId) {
         throw createHttpError(401, 'Authentication required.');
@@ -1813,6 +1863,7 @@ async function getMyDocuments(userId) {
     };
 }
 
+// isMissingSchemaError: checks whether is missing schema error for the Applications flow.
 function isMissingSchemaError(error) {
     const message = String(error?.message || '').toLowerCase();
 
@@ -1825,6 +1876,7 @@ function isMissingSchemaError(error) {
     );
 }
 
+// normalizeWorkflowKey: normalizes normalize workflow key for the Applications flow.
 function normalizeWorkflowKey(value) {
     return safeText(value)
         .toLowerCase()
@@ -1834,6 +1886,7 @@ function normalizeWorkflowKey(value) {
         .trim();
 }
 
+// normalizeDocumentReviewKey: normalizes normalize document review key for the Applications flow.
 function normalizeDocumentReviewKey(value) {
     const normalized = normalizeWorkflowKey(value).replace(/\s+/g, '_');
 
@@ -1865,6 +1918,7 @@ function normalizeDocumentReviewKey(value) {
     return normalized;
 }
 
+// normalizeUploadDocumentType: normalizes normalize upload document type for the Applications flow.
 function normalizeUploadDocumentType(value) {
     const normalized = normalizeWorkflowKey(value);
 
@@ -1896,6 +1950,7 @@ function normalizeUploadDocumentType(value) {
     return normalized;
 }
 
+// normalizeReviewDecision: normalizes normalize review decision for the Applications flow.
 function normalizeReviewDecision(value) {
     const normalized = normalizeWorkflowKey(value);
 
@@ -1926,6 +1981,7 @@ function normalizeReviewDecision(value) {
     return normalized || 'pending';
 }
 
+// isSubmittedDocument: checks whether is submitted document for the Applications flow.
 function isSubmittedDocument(document = {}) {
     return (
         document.is_submitted === true &&
@@ -1933,6 +1989,7 @@ function isSubmittedDocument(document = {}) {
     );
 }
 
+// pickLatestRemark: handles pick latest remark for the Applications flow.
 function pickLatestRemark(...rows) {
     for (const row of rows) {
         const text = safeText(row?.admin_comment || row?.remarks || row?.notes);
@@ -1942,6 +1999,7 @@ function pickLatestRemark(...rows) {
     return '';
 }
 
+// fetchLatestApplication: fetches and returns fetch latest application for the Applications flow.
 async function fetchLatestApplication(studentId) {
     if (!studentId) {
         return null;
@@ -1999,6 +2057,7 @@ async function fetchLatestApplication(studentId) {
         : null;
 }
 
+// fetchApplicationStatusRows: fetches and returns fetch application status rows for the Applications flow.
 async function fetchApplicationStatusRows(applicationId) {
     const [documentsResult, reviewsResult, slipResult] = await Promise.all([
         supabase
@@ -2076,6 +2135,7 @@ async function fetchApplicationStatusRows(applicationId) {
     };
 }
 
+// enrichSlipActorNames: handles enrich slip actor names for the Applications flow.
 async function enrichSlipActorNames(slip) {
     if (!slip) return null;
 
@@ -2111,6 +2171,7 @@ async function enrichSlipActorNames(slip) {
     };
 }
 
+// fetchApplicationProgramContext: fetches and returns fetch application program context for the Applications flow.
 async function fetchApplicationProgramContext(application = {}) {
     const [openingResult, programResult] = await Promise.all([
         application.opening_id
@@ -2138,6 +2199,7 @@ async function fetchApplicationProgramContext(application = {}) {
     };
 }
 
+// buildRequirementsStatus: builds build requirements status for the Applications flow.
 function buildRequirementsStatus(application = {}, documents = [], reviews = []) {
     const requiredReviewKeys = new Set(REQUIRED_REVIEW_DOCUMENT_KEYS);
     const requiredUploadTypes = new Set(REQUIRED_UPLOAD_DOCUMENT_TYPES);
@@ -2252,11 +2314,13 @@ function buildRequirementsStatus(application = {}, documents = [], reviews = [])
     };
 }
 
+// deriveSlipCode: derives derive slip code for the Applications flow.
 function deriveSlipCode(slipId) {
     const base = safeText(slipId).split('-')[0].toUpperCase();
     return base ? `ES-${base}` : 'ES-PENDING';
 }
 
+// buildOfficeReview: builds build office review for the Applications flow.
 function buildOfficeReview({
     office,
     decision,
@@ -2273,6 +2337,7 @@ function buildOfficeReview({
     };
 }
 
+// buildEndorsementStatus: builds build endorsement status for the Applications flow.
 function buildEndorsementStatus(slip = null) {
     if (!slip) {
         return {
@@ -2374,6 +2439,7 @@ function buildEndorsementStatus(slip = null) {
     };
 }
 
+// buildWorkflowBlocker: builds build workflow blocker for the Applications flow.
 function buildWorkflowBlocker(code, source) {
     return {
         code,
@@ -2382,6 +2448,7 @@ function buildWorkflowBlocker(code, source) {
     };
 }
 
+// buildWorkflowSummary: builds build workflow summary for the Applications flow.
 function buildWorkflowSummary({
     student,
     application,
@@ -2526,6 +2593,7 @@ function buildWorkflowSummary({
     };
 }
 
+// getMyApplicationStatusSummary: reads and returns get my application status summary for the Applications flow.
 async function getMyApplicationStatusSummary(userId) {
     if (!userId) {
         throw createHttpError(401, 'Authentication required.');
@@ -2673,6 +2741,7 @@ async function getMyApplicationStatusSummary(userId) {
     };
 }
 
+// downloadMyEndorsementSlipPdf: downloads download my endorsement slip pdf for the Applications flow.
 async function downloadMyEndorsementSlipPdf(userId) {
     if (!userId) {
         throw createHttpError(401, 'Authentication required.');
@@ -2734,6 +2803,7 @@ async function downloadMyEndorsementSlipPdf(userId) {
     };
 }
 
+// uploadMyDocument: uploads upload my document for the Applications flow.
 async function uploadMyDocument(userId, file, body = {}, params = {}) {
     if (!userId) throw createHttpError(401, 'Authentication required.');
     if (!file) throw createHttpError(400, 'File is required.');
@@ -3099,6 +3169,7 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
     return getMyDocuments(userId);
 }
 
+// reviewKeyForRequiredDocumentType: handles review key for required document type for the Applications flow.
 function reviewKeyForRequiredDocumentType(value) {
     const normalized = normalizeRequiredDocumentType(value);
 
@@ -3125,6 +3196,7 @@ function reviewKeyForRequiredDocumentType(value) {
     return normalizeDocumentReviewKey(normalized);
 }
 
+// normalizeRequiredDocumentType: normalizes normalize required document type for the Applications flow.
 function normalizeRequiredDocumentType(value) {
     const text = String(value || '').trim().toLowerCase();
 
@@ -3156,6 +3228,7 @@ function normalizeRequiredDocumentType(value) {
     return value;
 }
 
+// boolValue: handles bool value for the Applications flow.
 function boolValue(value, fallback = false) {
     if (value === true || value === 'true' || value === 1 || value === '1') {
         return true;
@@ -3168,11 +3241,13 @@ function boolValue(value, fallback = false) {
     return fallback;
 }
 
+// intOrNull: handles int or null for the Applications flow.
 function intOrNull(value) {
     const parsed = Number.parseInt(value, 10);
     return Number.isInteger(parsed) ? parsed : null;
 }
 
+// numericOrNull: handles numeric or null for the Applications flow.
 function numericOrNull(value) {
     const text = safeText(value).replace(',', '.');
     if (!text) return null;
@@ -3181,6 +3256,7 @@ function numericOrNull(value) {
     return Number.isFinite(parsed) ? parsed : null;
 }
 
+// parseOptionalGwa: parses parse optional gwa for the Applications flow.
 function parseOptionalGwa(value) {
     const parsed = numericOrNull(value);
     if (parsed === null) return null;
@@ -3190,6 +3266,7 @@ function parseOptionalGwa(value) {
     return parsed;
 }
 
+// normalizeDate: normalizes normalize date for the Applications flow.
 function normalizeDate(value) {
     const raw = safeText(value);
 
@@ -3209,6 +3286,7 @@ function normalizeDate(value) {
     return parsed.toISOString().slice(0, 10);
 }
 
+// educationPayload: handles education payload for the Applications flow.
 function educationPayload(studentId, level, data = {}) {
     return {
         student_id: studentId,
@@ -3222,6 +3300,7 @@ function educationPayload(studentId, level, data = {}) {
     };
 }
 
+// familyPayload: handles family payload for the Applications flow.
 function familyPayload(studentId, relation, data = {}, extra = {}) {
     const highestEducationalAttainment = normalizeEducationalAttainment(
         data.highest_educational_attainment || data.educational_attainment
@@ -3247,6 +3326,7 @@ function familyPayload(studentId, relation, data = {}, extra = {}) {
     };
 }
 
+// createRequiredDocumentSlots: creates create required document slots for the Applications flow.
 async function createRequiredDocumentSlots(applicationId, studentId) {
     const uploadDocuments = APPLICATION_UPLOAD_DOCUMENT_TYPES;
 
@@ -3289,6 +3369,7 @@ async function createRequiredDocumentSlots(applicationId, studentId) {
     if (error) throw error;
 }
 
+// ensureApplicationEndorsementSlip: ensures ensure application endorsement slip for the Applications flow.
 async function ensureApplicationEndorsementSlip(application = {}) {
     if (!application?.application_id || !application?.student_id) return null;
 
@@ -3329,6 +3410,7 @@ const CIVIL_STATUS_TYPES = Object.freeze([
     'Divorced',
 ]);
 
+// isBlankSubmissionValue: checks whether is blank submission value for the Applications flow.
 function isBlankSubmissionValue(value) {
     return (
         value === null ||
@@ -3337,6 +3419,7 @@ function isBlankSubmissionValue(value) {
     );
 }
 
+// mergeMissingSubmissionValues: handles merge missing submission values for the Applications flow.
 function mergeMissingSubmissionValues(primary, fallback, preserveBlank = false) {
     if (
         fallback === null ||
@@ -3377,6 +3460,7 @@ function mergeMissingSubmissionValues(primary, fallback, preserveBlank = false) 
     return merged;
 }
 
+// collectMissingSubmissionFields: handles collect missing submission fields for the Applications flow.
 function collectMissingSubmissionFields(payload = {}) {
     const personal = payload.personal || {};
     const address = payload.address || {};
@@ -3502,6 +3586,7 @@ function collectMissingSubmissionFields(payload = {}) {
         .map((field) => field.label);
 }
 
+// normalizePhilippineMobileSubmission: normalizes normalize philippine mobile submission for the Applications flow.
 function normalizePhilippineMobileSubmission(value) {
     const compact = safeText(value).replace(/[\s-]+/g, '');
 
@@ -3516,6 +3601,7 @@ function normalizePhilippineMobileSubmission(value) {
     return compact.replace(/\D/g, '');
 }
 
+// validateApplicationSubmissionPayload: validates validate application submission payload for the Applications flow.
 function validateApplicationSubmissionPayload(payload = {}) {
     validateSection(payload.academic, { required: true });
     validateApplicationFieldLimits(payload);
@@ -3669,6 +3755,7 @@ function validateApplicationSubmissionPayload(payload = {}) {
     }
 }
 
+// getMySubmittedFormData: reads and returns get my submitted form data for the Applications flow.
 async function getMySubmittedFormData(userId) {
     if (!userId) {
         throw createHttpError(401, 'Authentication required.');
@@ -4058,6 +4145,7 @@ async function getMySubmittedFormData(userId) {
     };
 }
 
+// getMyApplicationById: reads and returns get my application by id for the Applications flow.
 async function getMyApplicationById(userId, applicationId) {
     const normalizedApplicationId = safeText(applicationId);
 
@@ -4082,6 +4170,7 @@ async function getMyApplicationById(userId, applicationId) {
     return submitted.form_data || {};
 }
 
+// submitMyApplicationForm: handles submit my application form for the Applications flow.
 async function submitMyApplicationForm(userId, payload = {}) {
     const editExistingApplication =
         payload?.edit_existing_application === true;

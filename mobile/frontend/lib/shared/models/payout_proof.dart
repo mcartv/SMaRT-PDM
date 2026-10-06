@@ -1,3 +1,4 @@
+// SMaRT-PDM: Payout — payout proof (mobile frontend); supports mobile UI behavior.
 class PayoutProof {
   const PayoutProof({
     required this.proofId,

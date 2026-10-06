@@ -1,3 +1,4 @@
+// SMaRT-PDM: app feedback — app feedback (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 
 enum AppFeedbackTone { success, error, warning, info }

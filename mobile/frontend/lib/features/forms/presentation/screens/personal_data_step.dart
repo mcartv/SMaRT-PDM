@@ -1,3 +1,4 @@
+// SMaRT-PDM: personal data step — personal data step (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -7,6 +8,7 @@ class PersonalDataStep extends StatefulWidget {
   const PersonalDataStep({super.key, required this.formKey});
 
   @override
+  // createState: creates create state for the personal data step flow.
   State<PersonalDataStep> createState() => _PersonalDataStepState();
 }
 
@@ -15,6 +17,7 @@ class _PersonalDataStepState extends State<PersonalDataStep> {
   late final TextEditingController _lastNameController;
 
   @override
+  // initState: handles init state for the personal data step flow.
   void initState() {
     super.initState();
     _firstNameController = TextEditingController();
@@ -22,6 +25,7 @@ class _PersonalDataStepState extends State<PersonalDataStep> {
   }
 
   @override
+  // dispose: handles dispose for the personal data step flow.
   void dispose() {
     _firstNameController.dispose();
     _lastNameController.dispose();
@@ -29,6 +33,7 @@ class _PersonalDataStepState extends State<PersonalDataStep> {
   }
 
   @override
+  // build: builds build for the personal data step flow.
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: EdgeInsets.all(24.w),

@@ -1,3 +1,4 @@
+// SMaRT-PDM: api — api (admin frontend); supports admin-side UI behavior.
 const configuredApiBaseUrl = String(import.meta.env.VITE_API_URL || '')
   .trim()
   .replace(/\/+$/, '');
@@ -16,6 +17,7 @@ const API_BASE_URL = isLocalDevelopment
   ? browserOrigin
   : configuredApiBaseUrl || browserOrigin;
 
+// buildApiUrl: builds build api url for the api flow.
 export const buildApiUrl = (path = '') => {
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
   return `${API_BASE_URL}${cleanPath}`;

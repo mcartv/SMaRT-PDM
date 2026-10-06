@@ -1,17 +1,21 @@
+// SMaRT-PDM: support Ticket Service — support Ticket Service (mobile backend service); contains mobile-facing business logic and data operations.
 const supabase = require('../config/supabase');
 
 const SUPPORT_TICKET_STATUSES = ['Open', 'In Progress', 'Resolved', 'Closed'];
 
+// createHttpError: creates create http error for the support Ticket Service flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// safeText: handles safe text for the support Ticket Service flow.
 function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
 }
 
+// isSupportAdmin: checks whether is support admin for the support Ticket Service flow.
 function isSupportAdmin(authUser = {}) {
     return !!(
         authUser.adminId ||
@@ -20,6 +24,7 @@ function isSupportAdmin(authUser = {}) {
     );
 }
 
+// resolveStudentByUserId: resolves resolve student by user id for the support Ticket Service flow.
 async function resolveStudentByUserId(userId) {
     const { data, error } = await supabase
         .from('students')
@@ -31,6 +36,7 @@ async function resolveStudentByUserId(userId) {
     return data || null;
 }
 
+// resolveAdminId: resolves resolve admin id for the support Ticket Service flow.
 async function resolveAdminId(authUser = {}) {
     if (authUser.adminId || authUser.admin_id) {
         return authUser.adminId || authUser.admin_id;
@@ -51,6 +57,7 @@ async function resolveAdminId(authUser = {}) {
     return data?.admin_id || null;
 }
 
+// mapSupportTicketRow: maps map support ticket row for the support Ticket Service flow.
 function mapSupportTicketRow(row = {}) {
     const studentProfile = row.students || {};
     const handlerProfile = row.admin_profiles || {};
@@ -80,6 +87,7 @@ function mapSupportTicketRow(row = {}) {
     };
 }
 
+// getMyTickets: reads and returns get my tickets for the support Ticket Service flow.
 async function getMyTickets(userId) {
     const student = await resolveStudentByUserId(userId);
 
@@ -109,6 +117,7 @@ async function getMyTickets(userId) {
     };
 }
 
+// createTicket: creates create ticket for the support Ticket Service flow.
 async function createTicket(userId, body = {}) {
     const student = await resolveStudentByUserId(userId);
 
@@ -159,6 +168,7 @@ async function createTicket(userId, body = {}) {
     };
 }
 
+// getAllTickets: reads and returns get all tickets for the support Ticket Service flow.
 async function getAllTickets(authUser = {}) {
     if (!isSupportAdmin(authUser)) {
         throw createHttpError(403, 'Only authorized support accounts can access support tickets.');
@@ -196,6 +206,7 @@ async function getAllTickets(authUser = {}) {
     };
 }
 
+// updateTicket: updates update ticket for the support Ticket Service flow.
 async function updateTicket({ authUser = {}, ticketId, body = {} }) {
     if (!isSupportAdmin(authUser)) {
         throw createHttpError(403, 'Only authorized support accounts can update support tickets.');

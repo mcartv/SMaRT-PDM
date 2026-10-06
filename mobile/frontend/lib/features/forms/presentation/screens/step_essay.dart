@@ -1,3 +1,4 @@
+// SMaRT-PDM: step essay — step essay (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 
@@ -14,6 +15,7 @@ class StepEssay extends StatefulWidget {
   });
 
   @override
+  // createState: creates create state for the step essay flow.
   State<StepEssay> createState() => _StepEssayState();
 }
 
@@ -21,18 +23,21 @@ class _StepEssayState extends State<StepEssay> {
   late final TextEditingController describeYourselfController;
   late final TextEditingController aimsAndAmbitionController;
 
+  // _dec: handles dec for the step essay flow.
   InputDecoration _dec(String hint) => InputDecoration(
     hintText: hint,
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
   );
 
+  // _requiredEssayError: handles required essay error for the step essay flow.
   String? _requiredEssayError(String value, String label) {
     if (!widget.showErrors) return null;
     return value.trim().isEmpty ? '$label is required.' : null;
   }
 
   @override
+  // initState: handles init state for the step essay flow.
   void initState() {
     super.initState();
 
@@ -55,6 +60,7 @@ class _StepEssayState extends State<StepEssay> {
   }
 
   @override
+  // dispose: handles dispose for the step essay flow.
   void dispose() {
     describeYourselfController.dispose();
     aimsAndAmbitionController.dispose();
@@ -62,6 +68,7 @@ class _StepEssayState extends State<StepEssay> {
   }
 
   @override
+  // build: builds build for the step essay flow.
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),

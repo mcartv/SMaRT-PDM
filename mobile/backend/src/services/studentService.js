@@ -1,11 +1,14 @@
+// SMaRT-PDM: student Service — student Service (mobile backend service); contains mobile-facing business logic and data operations.
 const supabase = require('../config/supabase');
 
+// createHttpError: creates create http error for the student Service flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// getMyStatus: reads and returns get my status for the student Service flow.
 async function getMyStatus(userId) {
     const { data: student, error } = await supabase
         .from('students')

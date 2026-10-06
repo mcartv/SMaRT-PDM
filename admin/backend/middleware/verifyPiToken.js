@@ -1,6 +1,8 @@
+// SMaRT-PDM: verify Pi Token — verify Pi Token (admin backend middleware); validates or transforms requests before controller handling.
 const crypto = require('crypto');
 const { normalizeDeviceId } = require('../utils/iotOcrIdentity');
 
+// verifyPiToken: verifies verify pi token for the verify Pi Token flow.
 function verifyPiToken(req, res, next) {
     const expectedToken = String(process.env.PI_SHARED_TOKEN || '').trim();
     const providedToken = String(req.headers['x-pi-token'] || '').trim();

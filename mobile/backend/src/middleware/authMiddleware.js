@@ -1,9 +1,11 @@
+// SMaRT-PDM: Authentication — auth Middleware (mobile backend middleware); validates or transforms mobile API requests.
 const jwt = require('jsonwebtoken');
 const supabase = require('../config/supabase');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'smart-pdm-dev-secret';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
+// normalizeDecodedUser: normalizes normalize decoded user for the Authentication flow.
 function normalizeDecodedUser(decoded = {}) {
     const normalizedUserId = decoded.user_id || decoded.userId || decoded.sub || null;
 
@@ -15,11 +17,13 @@ function normalizeDecodedUser(decoded = {}) {
     };
 }
 
+// extractToken: handles extract token for the Authentication flow.
 function extractToken(value = '') {
     if (!value || typeof value !== 'string') return null;
     return value.startsWith('Bearer ') ? value.slice(7).trim() : value.trim();
 }
 
+// buildAuthToken: builds build auth token for the Authentication flow.
 function buildAuthToken(user) {
     return jwt.sign(
         normalizeDecodedUser({
@@ -36,10 +40,12 @@ function buildAuthToken(user) {
     );
 }
 
+// verifyToken: verifies verify token for the Authentication flow.
 function verifyToken(token) {
     return normalizeDecodedUser(jwt.verify(token, JWT_SECRET));
 }
 
+// validateTokenVersion: validates validate token version for the Authentication flow.
 async function validateTokenVersion(decoded = {}) {
     const userId = decoded.user_id || decoded.userId || decoded.sub;
     if (!userId) {
@@ -62,6 +68,7 @@ async function validateTokenVersion(decoded = {}) {
     return tokenVersion === currentVersion;
 }
 
+// protect: handles protect for the Authentication flow.
 async function protect(req, res, next) {
     try {
         const token = extractToken(req.headers.authorization);
@@ -84,6 +91,7 @@ async function protect(req, res, next) {
     }
 }
 
+// authenticateSocket: handles authenticate socket for the Authentication flow.
 async function authenticateSocket(socket, next) {
     try {
         const rawToken =

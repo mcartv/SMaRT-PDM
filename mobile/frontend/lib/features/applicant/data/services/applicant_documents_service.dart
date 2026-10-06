@@ -1,3 +1,4 @@
+// SMaRT-PDM: Document Verification — applicant documents service (mobile service); calls APIs or shared services and returns processed results.
 import 'dart:typed_data';
 
 import 'package:smartpdm_mobileapp/shared/models/applicant_documents_package.dart';
@@ -9,6 +10,7 @@ class ApplicantDocumentsService {
 
   final ApiClient _apiClient;
 
+  // fetchMyDocuments: fetches and returns fetch my documents for the Document Verification flow.
   Future<ApplicantDocumentsPackage> fetchMyDocuments() async {
     final response = await _apiClient.getObject(
       '/api/applications/me/documents',
@@ -16,6 +18,7 @@ class ApplicantDocumentsService {
     return ApplicantDocumentsPackage.fromJson(response);
   }
 
+  // uploadDocument: uploads upload document for the Document Verification flow.
   Future<ApplicantDocumentsPackage> uploadDocument({
     required String documentRouteParam,
     required String fileName,

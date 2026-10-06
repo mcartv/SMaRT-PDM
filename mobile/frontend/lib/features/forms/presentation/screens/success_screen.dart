@@ -1,3 +1,4 @@
+// SMaRT-PDM: success screen — success screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
@@ -12,6 +13,7 @@ class SuccessScreen extends StatefulWidget {
   final PrintableApplicationService? printableApplicationService;
 
   @override
+  // createState: creates create state for the success screen flow.
   State<SuccessScreen> createState() => _SuccessScreenState();
 }
 
@@ -21,12 +23,14 @@ class _SuccessScreenState extends State<SuccessScreen> {
   bool _isGeneratingPdf = false;
 
   @override
+  // initState: handles init state for the success screen flow.
   void initState() {
     super.initState();
     _printableApplicationService =
         widget.printableApplicationService ?? PrintableApplicationService();
   }
 
+  // _mapPayload: handles map payload for the success screen flow.
   Map<String, dynamic>? _mapPayload(dynamic value) {
     if (value is Map<String, dynamic>) return value;
     if (value is Map) {
@@ -35,6 +39,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
     return null;
   }
 
+  // _handleGeneratePdf: handles handle generate pdf for the success screen flow.
   Future<void> _handleGeneratePdf({
     required String applicationId,
     required Map<String, dynamic>? submissionPayload,
@@ -80,6 +85,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
     }
   }
 
+  // _buildActionTile: handles build action tile for the success screen flow.
   Widget _buildActionTile({
     required IconData icon,
     required String title,
@@ -153,6 +159,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
   }
 
   @override
+  // build: builds build for the success screen flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final pageColor = AppSurfacePalette.background(context);

@@ -1,11 +1,14 @@
+// SMaRT-PDM: staff Roles — staff Roles (admin backend); supports backend application behavior.
 function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
 }
 
+// includesAny: handles includes any for the staff Roles flow.
 function includesAny(haystack, terms) {
     return terms.some((term) => haystack.includes(term));
 }
 
+// resolveStaffRole: resolves resolve staff role for the staff Roles flow.
 function resolveStaffRole(profile = {}) {
     const explicitUserRole = safeText(profile.user_role || profile.role).toLowerCase();
     const department = safeText(profile.department).toLowerCase();

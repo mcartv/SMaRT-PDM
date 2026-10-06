@@ -1,3 +1,4 @@
+// SMaRT-PDM: Return of Obligations — selection Routes (admin backend route); maps API endpoints to middleware and controllers.
 const express = require('express');
 const selectionController = require('../controllers/selectionController');
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');

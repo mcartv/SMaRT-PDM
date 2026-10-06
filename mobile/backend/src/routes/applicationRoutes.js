@@ -1,3 +1,4 @@
+// SMaRT-PDM: Applications — application Routes (mobile backend route); maps mobile API endpoints to middleware and controllers.
 const express = require('express');
 const multer = require('multer');
 

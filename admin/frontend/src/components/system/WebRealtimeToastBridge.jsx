@@ -1,3 +1,4 @@
+// SMaRT-PDM: Web Realtime Toast Bridge — Web Realtime Toast Bridge (admin frontend component); renders reusable UI and handles local interactions.
 import { useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -8,6 +9,7 @@ import { getStoredPortalSession } from '@/utils/authStorage';
 const TOAST_DURATION_MS = 3000;
 const MAX_PREVIEW_LENGTH = 180;
 
+// getPortalNameFromPath: reads and returns get portal name from path for the Web Realtime Toast Bridge flow.
 function getPortalNameFromPath(pathname = '') {
   if (pathname.startsWith('/admin')) return 'admin';
   if (pathname.startsWith('/sdo')) return 'sdo';
@@ -17,6 +19,7 @@ function getPortalNameFromPath(pathname = '') {
   return null;
 }
 
+// decodeJwtPayload: handles decode jwt payload for the Web Realtime Toast Bridge flow.
 function decodeJwtPayload(token = '') {
   try {
     const parts = String(token || '').trim().split('.');
@@ -31,6 +34,7 @@ function decodeJwtPayload(token = '') {
   }
 }
 
+// getCurrentUserId: reads and returns get current user id for the Web Realtime Toast Bridge flow.
 function getCurrentUserId(session) {
   const payload = decodeJwtPayload(session?.token || '');
 
@@ -43,6 +47,7 @@ function getCurrentUserId(session) {
   ).trim();
 }
 
+// unwrapPayload: handles unwrap payload for the Web Realtime Toast Bridge flow.
 function unwrapPayload(raw, nestedKey) {
   if (!raw || typeof raw !== 'object') return {};
 
@@ -54,6 +59,7 @@ function unwrapPayload(raw, nestedKey) {
   return raw;
 }
 
+// pickText: handles pick text for the Web Realtime Toast Bridge flow.
 function pickText(source, keys = []) {
   for (const key of keys) {
     const value = source?.[key];
@@ -66,12 +72,14 @@ function pickText(source, keys = []) {
   return '';
 }
 
+// clipPreview: handles clip preview for the Web Realtime Toast Bridge flow.
 function clipPreview(value) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
   if (text.length <= MAX_PREVIEW_LENGTH) return text;
   return `${text.slice(0, MAX_PREVIEW_LENGTH - 1).trimEnd()}…`;
 }
 
+// getCurrentPortalSession: reads and returns get current portal session for the Web Realtime Toast Bridge flow.
 function getCurrentPortalSession(pathname) {
   const portalName = getPortalNameFromPath(pathname);
   if (!portalName) return null;

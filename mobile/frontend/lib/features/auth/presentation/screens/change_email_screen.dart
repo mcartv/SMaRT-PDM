@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — change email screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -12,6 +13,7 @@ class ChangeEmailScreen extends StatefulWidget {
   const ChangeEmailScreen({super.key});
 
   @override
+  // createState: creates create state for the Authentication flow.
   State<ChangeEmailScreen> createState() => _ChangeEmailScreenState();
 }
 
@@ -34,11 +36,13 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
   bool get _isOtpStep => (_requestId ?? '').isNotEmpty;
 
   @override
+  // initState: handles init state for the Authentication flow.
   void initState() {
     super.initState();
     _prefillEmail();
   }
 
+  // _prefillEmail: handles prefill email for the Authentication flow.
   Future<void> _prefillEmail() async {
     final session = await _sessionService.getCurrentUser();
     if (!mounted) return;
@@ -48,6 +52,7 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
     });
   }
 
+  // _startCooldown: handles start cooldown for the Authentication flow.
   void _startCooldown(int seconds) {
     _timer?.cancel();
     setState(() => _resendSeconds = seconds);
@@ -61,6 +66,7 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
     });
   }
 
+  // _requestCode: handles request code for the Authentication flow.
   Future<void> _requestCode() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
@@ -97,6 +103,7 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
     }
   }
 
+  // _verifyCode: handles verify code for the Authentication flow.
   Future<void> _verifyCode() async {
     FocusScope.of(context).unfocus();
 
@@ -139,6 +146,7 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
     }
   }
 
+  // _changeEnteredEmail: handles change entered email for the Authentication flow.
   void _changeEnteredEmail() {
     _timer?.cancel();
     setState(() {
@@ -152,6 +160,7 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
   }
 
   @override
+  // dispose: handles dispose for the Authentication flow.
   void dispose() {
     _timer?.cancel();
     _emailController.dispose();
@@ -160,6 +169,7 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
   }
 
   @override
+  // build: builds build for the Authentication flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final background = isDark
@@ -403,6 +413,7 @@ class _StatusBox extends StatelessWidget {
   final bool isError;
 
   @override
+  // build: builds build for the Authentication flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final color = isError ? Colors.red : Colors.green;

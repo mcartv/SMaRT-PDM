@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — reset password otp screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -17,6 +18,7 @@ class ResetPasswordOtpScreen extends StatefulWidget {
   final PasswordResetService? _passwordResetService;
 
   @override
+  // createState: creates create state for the Authentication flow.
   State<ResetPasswordOtpScreen> createState() => _ResetPasswordOtpScreenState();
 }
 
@@ -37,12 +39,14 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
   Timer? _cooldownTimer;
 
   @override
+  // initState: handles init state for the Authentication flow.
   void initState() {
     super.initState();
     _startCooldown();
   }
 
   @override
+  // dispose: handles dispose for the Authentication flow.
   void dispose() {
     _cooldownTimer?.cancel();
     for (final controller in _controllers) {
@@ -54,6 +58,7 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
     super.dispose();
   }
 
+  // _getArgs: handles get args for the Authentication flow.
   Map<String, String>? _getArgs() {
     final args = ModalRoute.of(context)?.settings.arguments;
     if (args is Map) {
@@ -64,6 +69,7 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
     return null;
   }
 
+  // _getStudentId: handles get student id for the Authentication flow.
   String? _getStudentId() {
     final args = _getArgs();
     final studentId = args?['studentId']?.trim();
@@ -75,6 +81,7 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
 
   bool get _isOtpComplete => _otpValue.length == 6;
 
+  // _showMessage: handles show message for the Authentication flow.
   void _showMessage(String text, {bool isError = false}) {
     if (!mounted) return;
 
@@ -86,6 +93,7 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
     );
   }
 
+  // _startCooldown: handles start cooldown for the Authentication flow.
   void _startCooldown() {
     _cooldownTimer?.cancel();
 
@@ -106,6 +114,7 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
     });
   }
 
+  // _verifyOtp: handles verify otp for the Authentication flow.
   Future<void> _verifyOtp() async {
     FocusScope.of(context).unfocus();
 
@@ -145,6 +154,7 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
     }
   }
 
+  // _resendOtp: handles resend otp for the Authentication flow.
   Future<void> _resendOtp() async {
     if (_resendCooldown > 0 || _isLoading) return;
 
@@ -170,6 +180,7 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
     }
   }
 
+  // _validateOtpBox: handles validate otp box for the Authentication flow.
   String? _validateOtpBox(String? value) {
     final v = (value ?? '').trim();
     if (v.isEmpty) return '';
@@ -177,6 +188,7 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
     return null;
   }
 
+  // _buildOtpBox: handles build otp box for the Authentication flow.
   Widget _buildOtpBox(int index, {required double height}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
@@ -258,6 +270,7 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
     );
   }
 
+  // _buildOtpRow: handles build otp row for the Authentication flow.
   Widget _buildOtpRow() {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -276,6 +289,7 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
   }
 
   @override
+  // build: builds build for the Authentication flow.
   Widget build(BuildContext context) {
     final studentId = _getStudentId();
     final isDark = Theme.of(context).brightness == Brightness.dark;

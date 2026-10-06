@@ -1,3 +1,4 @@
+// SMaRT-PDM: http Status — http Status (mobile backend); supports mobile API behavior.
 function getSafeStatusCode(error, fallback = 500) {
   const parsed = Number.parseInt(error?.statusCode, 10);
 

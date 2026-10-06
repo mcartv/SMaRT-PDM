@@ -1,3 +1,4 @@
+// SMaRT-PDM: Reports — benefactor Report Pdf Service (admin backend service); contains business logic and data operations.
 const path = require('path');
 const PDFDocument = require('pdfkit');
 
@@ -24,10 +25,12 @@ const BORDER = '#E7E5E4';
 const TRACK = '#F5F5F4';
 
 
+// clamp: handles clamp for the Reports flow.
 function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
 }
 
+// fitSingleLineText: handles fit single line text for the Reports flow.
 function fitSingleLineText(doc, text, x, y, {
     width,
     font = 'Helvetica',
@@ -58,6 +61,7 @@ function fitSingleLineText(doc, text, x, y, {
         });
 }
 
+// resolveChartLayout: resolves resolve chart layout for the Reports flow.
 function resolveChartLayout(rows = []) {
     const longestLabel = rows.reduce(
         (longest, row) => Math.max(longest, safeText(row?.label).length),
@@ -89,18 +93,21 @@ function resolveChartLayout(rows = []) {
     };
 }
 
+// safeText: handles safe text for the Reports flow.
 function safeText(value, fallback = '') {
     if (value === null || value === undefined) return fallback;
     const normalized = String(value).trim();
     return normalized || fallback;
 }
 
+// resolveLabel: resolves resolve label for the Reports flow.
 function resolveLabel(items, idKey, labelKey, selectedValue, fallback) {
     if (!selectedValue || selectedValue === 'all') return fallback;
     const match = (items || []).find((item) => String(item?.[idKey]) === String(selectedValue));
     return safeText(match?.[labelKey], fallback);
 }
 
+// buildFilterLabels: builds build filter labels for the Reports flow.
 function buildFilterLabels(query = {}, metadata = {}) {
     const academicYear = resolveLabel(
         metadata.academicYears,
@@ -161,6 +168,7 @@ function buildFilterLabels(query = {}, metadata = {}) {
     };
 }
 
+// extractChartRows: handles extract chart rows for the Reports flow.
 function extractChartRows(workbook, query = {}) {
     const sheet = workbook?.worksheets?.[0];
     if (!sheet) return [];
@@ -183,6 +191,7 @@ function extractChartRows(workbook, query = {}) {
     return rows;
 }
 
+// drawTemplate: handles draw template for the Reports flow.
 function drawTemplate(doc) {
     doc.image(TEMPLATE_PATH, 0, 0, {
         width: PAGE_WIDTH,
@@ -190,6 +199,7 @@ function drawTemplate(doc) {
     });
 }
 
+// drawHeader: handles draw header for the Reports flow.
 function drawHeader(doc, { filters, groupedBy, totalScholars, pageNumber, totalPages }) {
     drawTemplate(doc);
 
@@ -254,6 +264,7 @@ function drawHeader(doc, { filters, groupedBy, totalScholars, pageNumber, totalP
     }
 }
 
+// drawChartPage: handles draw chart page for the Reports flow.
 function drawChartPage(doc, rows, {
     groupedBy,
     pageNumber,
@@ -334,6 +345,7 @@ function drawChartPage(doc, rows, {
     });
 }
 
+// drawEmptyState: handles draw empty state for the Reports flow.
 function drawEmptyState(doc, { groupedBy, filters }) {
     drawHeader(doc, {
         filters,
@@ -368,6 +380,7 @@ function drawEmptyState(doc, { groupedBy, filters }) {
         });
 }
 
+// generateScholarCountPdf: handles generate scholar count pdf for the Reports flow.
 function generateScholarCountPdf({ workbook, query = {}, metadata = {} } = {}) {
     const chartRows = extractChartRows(workbook, query);
     const filters = buildFilterLabels(query, metadata);

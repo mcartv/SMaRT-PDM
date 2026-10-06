@@ -1,3 +1,4 @@
+// SMaRT-PDM: Document Verification — legal documents (mobile frontend); supports mobile UI behavior.
 abstract final class LegalDocuments {
   static const termsOfServiceTitle = 'Terms of Service';
   static const privacyStatementTitle = 'SMaRT-PDM Privacy Statement';

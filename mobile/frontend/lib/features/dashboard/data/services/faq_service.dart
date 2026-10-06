@@ -1,3 +1,4 @@
+// SMaRT-PDM: FAQs — faq service (mobile service); calls APIs or shared services and returns processed results.
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/shared/models/faq_item.dart';
@@ -7,6 +8,7 @@ class FaqService {
 
   final ApiClient _apiClient;
 
+  // fetchFaqs: fetches and returns fetch faqs for the FAQs flow.
   Future<List<FaqItem>> fetchFaqs() async {
     try {
       final response = await _apiClient.getList('/api/faqs');
@@ -24,6 +26,7 @@ class FaqService {
     }
   }
 
+  // _parseFaqs: handles parse faqs for the FAQs flow.
   List<FaqItem> _parseFaqs(List<dynamic> rawFaqs) {
     final items = <FaqItem>[];
 

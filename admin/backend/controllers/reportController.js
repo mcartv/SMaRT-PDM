@@ -1,3 +1,4 @@
+// SMaRT-PDM: Reports — report Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const reportService = require('../services/reportService');
 const benefactorReportPdfService = require('../services/benefactorReportPdfService');
 const auditLogService = require('../services/auditLogService');
@@ -7,6 +8,7 @@ const EXPORT_LOCK_TIMEOUT_MS = 2 * 60 * 1000;
 const EXPORT_COOLDOWN_MS = 1500;
 const reportExportLocks = new Map();
 
+// cleanupExportLocks: handles cleanup export locks for the Reports flow.
 function cleanupExportLocks(now = Date.now()) {
     for (const [key, value] of reportExportLocks.entries()) {
         if (!value || Number(value.expiresAt || 0) <= now) {
@@ -15,6 +17,7 @@ function cleanupExportLocks(now = Date.now()) {
     }
 }
 
+// buildExportLockKey: builds build export lock key for the Reports flow.
 function buildExportLockKey(access, queryPayload) {
     const filterFingerprint = JSON.stringify({
         reportType: String(queryPayload.reportType || 'applications').toLowerCase(),
@@ -40,6 +43,7 @@ function buildExportLockKey(access, queryPayload) {
     return `${access.userId || access.role || 'unknown'}|${filterFingerprint}`;
 }
 
+// acquireExportLock: handles acquire export lock for the Reports flow.
 function acquireExportLock(access, queryPayload) {
     const now = Date.now();
     cleanupExportLocks(now);
@@ -53,6 +57,7 @@ function acquireExportLock(access, queryPayload) {
     return key;
 }
 
+// releaseExportLock: handles release export lock for the Reports flow.
 function releaseExportLock(key) {
     if (!key) return;
     reportExportLocks.set(key, {
@@ -61,11 +66,13 @@ function releaseExportLock(key) {
     });
 }
 
+// canAccessReports: checks whether can access reports for the Reports flow.
 function canAccessReports(req) {
     const role = String(req.user?.role || '').toLowerCase();
     return ['admin', 'sdo', 'guidance', 'pd', 'ro_coordinator'].includes(role);
 }
 
+// getAllowedReportTypes: reads and returns get allowed report types for the Reports flow.
 function getAllowedReportTypes(role, hasRoCoordinatorAccess = false) {
     const normalizedRole = String(role || '').toLowerCase();
 
@@ -98,6 +105,7 @@ function getAllowedReportTypes(role, hasRoCoordinatorAccess = false) {
     return allowed;
 }
 
+// resolveReportAccess: resolves resolve report access for the Reports flow.
 async function resolveReportAccess(req) {
     const role = String(req.user?.role || '').toLowerCase();
 
@@ -127,15 +135,18 @@ async function resolveReportAccess(req) {
     };
 }
 
+// isSilentRequest: checks whether is silent request for the Reports flow.
 function isSilentRequest(req) {
     const value = String(req.query?.silent || '').toLowerCase();
     return value === '1' || value === 'true' || value === 'yes';
 }
 
+// getActorUserId: reads and returns get actor user id for the Reports flow.
 function getActorUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+// getScopedServiceQuery: reads and returns get scoped service query for the Reports flow.
 function getScopedServiceQuery(req, access) {
     const reportType = String(req.query?.reportType || req.query?.type || 'applications').toLowerCase();
 
@@ -156,6 +167,7 @@ function getScopedServiceQuery(req, access) {
     };
 }
 
+// getReportQueryPayload: reads and returns get report query payload for the Reports flow.
 function getReportQueryPayload(req) {
     return {
         reportType: req.query?.reportType || req.query?.type || 'applications',
@@ -188,6 +200,7 @@ function getReportQueryPayload(req) {
     };
 }
 
+// writeReportAudit: handles write report audit for the Reports flow.
 async function writeReportAudit(req, actionTaken, description, metadata = {}) {
     if (isSilentRequest(req)) return;
 
@@ -212,6 +225,7 @@ async function writeReportAudit(req, actionTaken, description, metadata = {}) {
     }
 }
 
+// getReportMetadata: reads and returns get report metadata for the Reports flow.
 async function getReportMetadata(req, res) {
     try {
         const access = await resolveReportAccess(req);
@@ -239,6 +253,7 @@ async function getReportMetadata(req, res) {
     }
 }
 
+// previewReport: handles preview report for the Reports flow.
 async function previewReport(req, res) {
     try {
         const access = await resolveReportAccess(req);
@@ -264,6 +279,7 @@ async function previewReport(req, res) {
     }
 }
 
+// exportReport: handles export report for the Reports flow.
 async function exportReport(req, res) {
     let exportLockKey = null;
 

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Renewal — renewal Service (mobile backend service); contains mobile-facing business logic and data operations.
 const crypto = require('crypto');
 const supabase = require('../config/supabase');
 const {
@@ -35,24 +36,29 @@ const SUPPORTED_MIME_TYPES = new Set([
     'image/webp',
 ]);
 
+// createHttpError: creates create http error for the Renewal flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// cleanText: handles clean text for the Renewal flow.
 function cleanText(value) {
     return String(value || '').trim();
 }
 
+// normalizeText: normalizes normalize text for the Renewal flow.
 function normalizeText(value) {
     return String(value || '').trim().toLowerCase();
 }
 
+// getUserId: reads and returns get user id for the Renewal flow.
 function getUserId(user = {}) {
     return user?.userId || user?.user_id || user?.id || user?.sub || null;
 }
 
+// documentKeyFromType: handles document key from type for the Renewal flow.
 function documentKeyFromType(value) {
     const normalized = normalizeText(value);
 
@@ -75,6 +81,7 @@ function documentKeyFromType(value) {
     return normalized.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 }
 
+// getRequiredDocumentByKey: reads and returns get required document by key for the Renewal flow.
 function getRequiredDocumentByKey(keyOrType) {
     const key = documentKeyFromType(keyOrType);
 
@@ -87,6 +94,7 @@ function getRequiredDocumentByKey(keyOrType) {
     );
 }
 
+// getDocumentStatus: reads and returns get document status for the Renewal flow.
 function getDocumentStatus(document = {}) {
     const reviewStatus = normalizeText(document.review_status);
 
@@ -102,6 +110,7 @@ function getDocumentStatus(document = {}) {
     return 'pending';
 }
 
+// deriveDocumentStatus: derives derive document status for the Renewal flow.
 function deriveDocumentStatus(documents = [], renewalStatus = 'Pending Submission') {
     const normalizedRenewalStatus = normalizeText(renewalStatus);
     const statuses = documents.map(getDocumentStatus);
@@ -116,6 +125,7 @@ function deriveDocumentStatus(documents = [], renewalStatus = 'Pending Submissio
     return 'Missing Docs';
 }
 
+// detectMimeTypeFromFileName: handles detect mime type from file name for the Renewal flow.
 function detectMimeTypeFromFileName(originalName = '') {
     const name = String(originalName).trim().toLowerCase();
 
@@ -127,6 +137,7 @@ function detectMimeTypeFromFileName(originalName = '') {
     return null;
 }
 
+// detectMimeTypeFromBuffer: handles detect mime type from buffer for the Renewal flow.
 function detectMimeTypeFromBuffer(buffer) {
     if (!Buffer.isBuffer(buffer) || buffer.length === 0) return null;
 
@@ -176,6 +187,7 @@ function detectMimeTypeFromBuffer(buffer) {
     return null;
 }
 
+// normalizeMimeType: normalizes normalize mime type for the Renewal flow.
 function normalizeMimeType(file = {}) {
     const rawMime = String(file.mimetype || '').trim().toLowerCase();
 
@@ -195,6 +207,7 @@ function normalizeMimeType(file = {}) {
     );
 }
 
+// extensionFromMimeType: handles extension from mime type for the Renewal flow.
 function extensionFromMimeType(mimeType) {
     if (mimeType === 'application/pdf') return 'pdf';
     if (mimeType === 'image/png') return 'png';
@@ -202,6 +215,7 @@ function extensionFromMimeType(mimeType) {
     return 'jpg';
 }
 
+// sanitizeFileName: handles sanitize file name for the Renewal flow.
 function sanitizeFileName(fileName = '') {
     return String(fileName)
         .trim()
@@ -209,6 +223,7 @@ function sanitizeFileName(fileName = '') {
         .slice(0, 180);
 }
 
+// extractStoragePath: handles extract storage path for the Renewal flow.
 function extractStoragePath(value, bucketName) {
     const rawValue = String(value || '').trim();
 
@@ -237,6 +252,7 @@ function extractStoragePath(value, bucketName) {
     return null;
 }
 
+// resolveRenewalDocumentUrl: resolves resolve renewal document url for the Renewal flow.
 async function resolveRenewalDocumentUrl(fileUrl, filePath) {
     const rawFileUrl = String(fileUrl || '').trim();
     const rawFilePath = String(filePath || '').trim();
@@ -260,6 +276,7 @@ async function resolveRenewalDocumentUrl(fileUrl, filePath) {
     return data?.signedUrl || rawFileUrl || rawFilePath || null;
 }
 
+// getStudentByUserId: reads and returns get student by user id for the Renewal flow.
 async function getStudentByUserId(userId) {
     if (!userId) {
         throw createHttpError(401, 'Authentication required.');
@@ -298,6 +315,7 @@ async function getStudentByUserId(userId) {
     return data;
 }
 
+// getLatestApprovedApplication: reads and returns get latest approved application for the Renewal flow.
 async function getLatestApprovedApplication(student) {
     let query = supabase
         .from('applications')
@@ -351,6 +369,7 @@ async function getLatestApprovedApplication(student) {
     return fallback.data || null;
 }
 
+// getCurrentPeriod: reads and returns get current period for the Renewal flow.
 async function getCurrentPeriod() {
     const { data, error } = await supabase
         .from('academic_period')
@@ -373,6 +392,7 @@ async function getCurrentPeriod() {
     return data;
 }
 
+// getAcademicYearLabel: reads and returns get academic year label for the Renewal flow.
 async function getAcademicYearLabel(academicYearId) {
     if (!academicYearId) return '';
 
@@ -392,6 +412,7 @@ async function getAcademicYearLabel(academicYearId) {
     );
 }
 
+// getProgram: reads and returns get program for the Renewal flow.
 async function getProgram(programId) {
     if (!programId) return null;
 
@@ -408,6 +429,7 @@ async function getProgram(programId) {
     return data || null;
 }
 
+// getBenefactor: reads and returns get benefactor for the Renewal flow.
 async function getBenefactor(benefactorId) {
     if (!benefactorId) return null;
 
@@ -426,6 +448,7 @@ async function getBenefactor(benefactorId) {
 
 
 
+// getActivePeriodForRenewalAvailability: reads and returns get active period for renewal availability for the Renewal flow.
 async function getActivePeriodForRenewalAvailability() {
     const { data, error } = await supabase
         .from('academic_period')
@@ -441,6 +464,7 @@ async function getActivePeriodForRenewalAvailability() {
     return data || null;
 }
 
+// getOpeningPeriodId: reads and returns get opening period id for the Renewal flow.
 async function getOpeningPeriodId(openingId) {
     if (!openingId) return null;
 
@@ -457,6 +481,7 @@ async function getOpeningPeriodId(openingId) {
     return data?.period_id || null;
 }
 
+// getRenewalAvailability: reads and returns get renewal availability for the Renewal flow.
 async function getRenewalAvailability(student) {
     const period = await getActivePeriodForRenewalAvailability();
 
@@ -532,6 +557,7 @@ async function getRenewalAvailability(student) {
     };
 }
 
+// serializeRenewalAvailability: handles serialize renewal availability for the Renewal flow.
 function serializeRenewalAvailability(availability = {}) {
     return {
         is_available: availability.is_available === true,
@@ -553,6 +579,7 @@ function serializeRenewalAvailability(availability = {}) {
     };
 }
 
+// buildUnavailableRenewalPackage: builds build unavailable renewal package for the Renewal flow.
 async function buildUnavailableRenewalPackage(
     student,
     availability
@@ -615,6 +642,7 @@ async function buildUnavailableRenewalPackage(
     };
 }
 
+// assertRenewalAvailable: handles assert renewal available for the Renewal flow.
 async function assertRenewalAvailable(student) {
     const availability = await getRenewalAvailability(student);
 
@@ -628,6 +656,7 @@ async function assertRenewalAvailable(student) {
 
     return availability;
 }
+// getOrCreateCurrentRenewal: reads and returns get or create current renewal for the Renewal flow.
 async function getOrCreateCurrentRenewal(student) {
     const application = await getLatestApprovedApplication(student);
     const period = await getCurrentPeriod();
@@ -703,6 +732,7 @@ async function getOrCreateCurrentRenewal(student) {
     };
 }
 
+// ensureRenewalDocuments: ensures ensure renewal documents for the Renewal flow.
 async function ensureRenewalDocuments(renewalId) {
     const { data: existingDocuments, error } = await supabase
         .from('renewal_documents')
@@ -780,6 +810,7 @@ async function ensureRenewalDocuments(renewalId) {
     });
 }
 
+// serializeDocument: handles serialize document for the Renewal flow.
 async function serializeDocument(document = {}) {
     const required = getRequiredDocumentByKey(document.document_type);
     const key = required?.key || documentKeyFromType(document.document_type);
@@ -808,6 +839,7 @@ async function serializeDocument(document = {}) {
     };
 }
 
+// buildRenewalPackage: builds build renewal package for the Renewal flow.
 async function buildRenewalPackage(userId) {
     const student = await getStudentByUserId(userId);
 
@@ -887,6 +919,7 @@ async function buildRenewalPackage(userId) {
     };
 }
 
+// removeStorageObjectQuietly: removes remove storage object quietly for the Renewal flow.
 async function removeStorageObjectQuietly(filePath) {
     if (!filePath) return;
 

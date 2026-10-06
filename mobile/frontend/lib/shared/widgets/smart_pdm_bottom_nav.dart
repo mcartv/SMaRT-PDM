@@ -1,3 +1,4 @@
+// SMaRT-PDM: smart pdm bottom nav — smart pdm bottom nav (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 
 import 'package:smartpdm_mobileapp/app/settings/interaction_settings_provider.dart';
@@ -49,6 +50,7 @@ class SmartPdmBottomNav extends StatelessWidget {
   ];
 
   @override
+  // build: builds build for the smart pdm bottom nav flow.
   Widget build(BuildContext context) {
     final safeIndex = selectedIndex.clamp(0, _routes.length - 1);
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -94,6 +96,7 @@ class SmartPdmBottomNav extends StatelessWidget {
     );
   }
 
+  // _handleTap: handles handle tap for the smart pdm bottom nav flow.
   void _handleTap(BuildContext context, int index, int safeIndex) {
     if (index == safeIndex) return;
 
@@ -139,6 +142,7 @@ class _NavDestination extends StatelessWidget {
   final VoidCallback onPressed;
 
   @override
+  // build: builds build for the smart pdm bottom nav flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final scheme = Theme.of(context).colorScheme;

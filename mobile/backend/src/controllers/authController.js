@@ -1,8 +1,10 @@
+// SMaRT-PDM: Authentication — auth Controller (mobile backend controller); handles mobile API input/output and delegates business logic.
 const authService = require('../services/authService');
 const passwordResetService = require('../services/passwordResetService');
 const emailChangeService = require('../services/emailChangeService');
 const { getSafeStatusCode } = require('../utils/httpStatus');
 
+// checkStudentId: checks check student id for the Authentication flow.
 async function checkStudentId(req, res) {
     try {
         const result = await authService.checkStudentId(req.body || {});
@@ -15,6 +17,7 @@ async function checkStudentId(req, res) {
     }
 }
 
+// register: handles register for the Authentication flow.
 async function register(req, res) {
     try {
         const result = await authService.register(req.body || {});
@@ -27,6 +30,7 @@ async function register(req, res) {
     }
 }
 
+// verifyOtp: verifies verify otp for the Authentication flow.
 async function verifyOtp(req, res) {
     try {
         const result = await authService.verifyOtp(req.body || {});
@@ -39,6 +43,7 @@ async function verifyOtp(req, res) {
     }
 }
 
+// resendOtp: handles resend otp for the Authentication flow.
 async function resendOtp(req, res) {
     try {
         const result = await authService.resendOtp(req.body || {});
@@ -51,6 +56,7 @@ async function resendOtp(req, res) {
     }
 }
 
+// cancelRegistration: checks whether cancel registration for the Authentication flow.
 async function cancelRegistration(req, res) {
     try {
         const result = await authService.cancelRegistration(req.body || {});
@@ -63,6 +69,7 @@ async function cancelRegistration(req, res) {
     }
 }
 
+// login: handles login for the Authentication flow.
 async function login(req, res) {
     try {
         const result = await authService.login(req.body || {});
@@ -75,6 +82,7 @@ async function login(req, res) {
     }
 }
 
+// forgotPassword: handles forgot password for the Authentication flow.
 async function forgotPassword(req, res) {
     try {
         const result = await passwordResetService.forgotPassword(req.body || {}, req);
@@ -87,6 +95,7 @@ async function forgotPassword(req, res) {
     }
 }
 
+// verifyResetOtp: verifies verify reset otp for the Authentication flow.
 async function verifyResetOtp(req, res) {
     try {
         const result = await passwordResetService.verifyResetOtp(req.body || {}, req);
@@ -99,6 +108,7 @@ async function verifyResetOtp(req, res) {
     }
 }
 
+// resetPassword: resets reset password for the Authentication flow.
 async function resetPassword(req, res) {
     try {
         const result = await passwordResetService.resetPassword(req.body || {}, req);
@@ -111,6 +121,7 @@ async function resetPassword(req, res) {
     }
 }
 
+// requestEmailChange: handles request email change for the Authentication flow.
 async function requestEmailChange(req, res) {
     try {
         const userId = req.user?.user_id || req.user?.userId || req.user?.sub;
@@ -124,6 +135,7 @@ async function requestEmailChange(req, res) {
     }
 }
 
+// verifyEmailChange: verifies verify email change for the Authentication flow.
 async function verifyEmailChange(req, res) {
     try {
         const userId = req.user?.user_id || req.user?.userId || req.user?.sub;

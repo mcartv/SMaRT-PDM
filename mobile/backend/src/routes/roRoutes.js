@@ -1,3 +1,4 @@
+// SMaRT-PDM: Return of Obligations — ro Routes (mobile backend route); maps mobile API endpoints to middleware and controllers.
 const express = require('express');
 const multer = require('multer');
 
@@ -29,6 +30,7 @@ const upload = multer({
   },
 });
 
+// runUpload: handles run upload for the Return of Obligations flow.
 function runUpload(fieldName) {
   return function uploadMiddleware(req, res, next) {
     upload.single(fieldName)(req, res, (error) => {

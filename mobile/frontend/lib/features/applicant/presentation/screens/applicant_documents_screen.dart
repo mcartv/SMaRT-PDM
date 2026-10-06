@@ -1,3 +1,4 @@
+// SMaRT-PDM: Document Verification — applicant documents screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -32,6 +33,7 @@ class ApplicantDocumentsScreen extends StatefulWidget {
   final String? initialProgramName;
 
   @override
+  // createState: creates create state for the Document Verification flow.
   State<ApplicantDocumentsScreen> createState() =>
       _ApplicantDocumentsScreenState();
 }
@@ -54,6 +56,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
   final Map<String, bool> _uploadingDocuments = <String, bool>{};
 
   @override
+  // initState: handles init state for the Document Verification flow.
   void initState() {
     super.initState();
     _loadPackage(showFullLoader: true);
@@ -69,6 +72,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
   }
 
   @override
+  // didChangeDependencies: handles did change dependencies for the Document Verification flow.
   void didChangeDependencies() {
     super.didChangeDependencies();
     final provider = context.read<NotificationProvider>();
@@ -80,6 +84,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     _notificationProvider?.addListener(_handleRealtimeUpdates);
   }
 
+  // _loadPackage: handles load package for the Document Verification flow.
   Future<void> _loadPackage({
     bool showFullLoader = false,
     bool silent = false,
@@ -144,6 +149,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     }
   }
 
+  // _handleRealtimeUpdates: handles handle realtime updates for the Document Verification flow.
   void _handleRealtimeUpdates() {
     final provider = _notificationProvider;
     if (provider == null) return;
@@ -162,6 +168,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
   }
 
   @override
+  // dispose: handles dispose for the Document Verification flow.
   void dispose() {
     _pollingTimer?.cancel();
     _notificationProvider?.removeListener(_handleRealtimeUpdates);
@@ -169,6 +176,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     super.dispose();
   }
 
+  // _orderedDocuments: handles ordered documents for the Document Verification flow.
   List<ApplicantRequirementDocument> _orderedDocuments(
     List<ApplicantRequirementDocument> documents,
   ) {
@@ -193,6 +201,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     return items;
   }
 
+  // _documentOrder: handles document order for the Document Verification flow.
   int _documentOrder(String type) {
     final text = type.trim().toLowerCase();
     if (text.contains('birth') || text == 'psa' || text == 'nso') return 1;
@@ -203,6 +212,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     return 99;
   }
 
+  // _showUploadMessage: handles show upload message for the Document Verification flow.
   void _showUploadMessage(String message, {bool isError = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -275,6 +285,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     return confirmed == true;
   }
 
+  // _chooseUploadSource: handles choose upload source for the Document Verification flow.
   Future<_DocumentUploadSource?> _chooseUploadSource(
     ApplicantRequirementDocument document,
   ) {
@@ -326,6 +337,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     );
   }
 
+  // _pickAndUploadDocument: handles pick and upload document for the Document Verification flow.
   Future<void> _pickAndUploadDocument(
     ApplicantRequirementDocument document,
   ) async {
@@ -450,6 +462,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     }
   }
 
+  // _showDocumentPreview: handles show document preview for the Document Verification flow.
   Future<void> _showDocumentPreview(
     ApplicantRequirementDocument document,
   ) async {
@@ -603,6 +616,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     }
   }
 
+  // _statusColor: handles status color for the Document Verification flow.
   Color _statusColor(ApplicantRequirementDocument document) {
     if (document.isVerified) return Colors.green;
     if (document.needsReplacement) return Colors.red.shade700;
@@ -611,6 +625,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     return primaryColor;
   }
 
+  // _statusLabel: handles status label for the Document Verification flow.
   String _statusLabel(ApplicantRequirementDocument document) {
     if (document.isVerified) return 'Verified';
     if (document.status == 'reupload_required') return 'Needs Re-upload';
@@ -628,6 +643,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
         .join(' ');
   }
 
+  // _summaryText: handles summary text for the Document Verification flow.
   String _summaryText(ApplicantDocumentsPackage package) {
     final applicationStatus = package.applicationStatus.trim().toLowerCase();
     if (applicationStatus == 'rejected') {
@@ -662,12 +678,14 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     return 'Upload all required scholarship documents below.';
   }
 
+  // _formatTimestamp: handles format timestamp for the Document Verification flow.
   String _formatTimestamp(DateTime? value) {
     if (value == null) return 'Not uploaded yet';
     return DateFormat('MMM d, yyyy • h:mm a').format(value.toLocal());
   }
 
   @override
+  // build: builds build for the Document Verification flow.
   Widget build(BuildContext context) {
     final package = _package;
     final titleColor = AppSurfacePalette.text(context);
@@ -899,6 +917,7 @@ class _HeaderCard extends StatelessWidget {
   final ApplicantDocumentsPackage? package;
 
   @override
+  // build: builds build for the Document Verification flow.
   Widget build(BuildContext context) {
     final uploaded = package?.uploadedCount ?? 0;
     final total = package?.requiredCount ?? 0;
@@ -1042,6 +1061,7 @@ class _NeedApplicationCard extends StatelessWidget {
   final VoidCallback onOpenOpenings;
 
   @override
+  // build: builds build for the Document Verification flow.
   Widget build(BuildContext context) {
     return _SimpleCard(
       title: 'Submit an application first',
@@ -1061,6 +1081,7 @@ class _ErrorCard extends StatelessWidget {
   final VoidCallback onRetry;
 
   @override
+  // build: builds build for the Document Verification flow.
   Widget build(BuildContext context) {
     return _SimpleCard(
       title: 'Unable to load documents',
@@ -1085,6 +1106,7 @@ class _SimpleCard extends StatelessWidget {
   final VoidCallback onPressed;
 
   @override
+  // build: builds build for the Document Verification flow.
   Widget build(BuildContext context) {
     return AppSurfaceCard(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -1142,6 +1164,7 @@ class _DocumentCard extends StatelessWidget {
   final VoidCallback? onOpen;
 
   @override
+  // build: builds build for the Document Verification flow.
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1367,6 +1390,7 @@ class _DocumentCard extends StatelessWidget {
     );
   }
 
+  // _iconForDocument: handles icon for document for the Document Verification flow.
   IconData _iconForDocument(String type) {
     final text = type.toLowerCase();
     if (text.contains('birth') || text == 'psa') {
@@ -1392,6 +1416,7 @@ class _PreviewUnavailable extends StatelessWidget {
   final IconData icon;
 
   @override
+  // build: builds build for the Document Verification flow.
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
@@ -1426,6 +1451,7 @@ class _DocumentStatus extends StatelessWidget {
       label == 'Verified' || label == 'Missing' || label == 'Rejected';
 
   @override
+  // build: builds build for the Document Verification flow.
   Widget build(BuildContext context) {
     if (_usePill) {
       return Container(

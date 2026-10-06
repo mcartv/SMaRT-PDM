@@ -1,3 +1,4 @@
+// SMaRT-PDM: Return of Obligations — ROCoordinator Dashboard (admin frontend page); loads data, handles page actions, and renders the admin view.
 import { createElement, useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
@@ -19,6 +20,7 @@ import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
 const tokenKey = 'roCoordinatorToken';
 
+// authHeaders: handles auth headers for the Return of Obligations flow.
 function authHeaders() {
   return {
     Authorization: `Bearer ${sessionStorage.getItem(tokenKey) || ''}`,
@@ -26,6 +28,7 @@ function authHeaders() {
   };
 }
 
+// formatDate: formats format date for the Return of Obligations flow.
 function formatDate(value) {
   if (!value) return 'Not available';
   const date = new Date(value);
@@ -39,6 +42,7 @@ function formatDate(value) {
   });
 }
 
+// SummaryCard: handles summary card for the Return of Obligations flow.
 function SummaryCard({ icon, label, value, detail, theme }) {
   return (
     <Card className="rounded-2xl border-stone-200 bg-white shadow-none">

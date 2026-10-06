@@ -1,12 +1,15 @@
+// SMaRT-PDM: Profile — admin Profile Photo Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const adminProfilePhotoService = require('../services/adminProfilePhotoService');
 const auditLogService = require('../services/auditLogService');
 const { getSafeStatusCode } = require('../utils/httpStatus');
 const socketEvents = require('../utils/socketEvents');
 
+// getRequestUserId: reads and returns get request user id for the Profile flow.
 function getRequestUserId(req) {
   return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+// getProfilePhotoReviews: reads and returns get profile photo reviews for the Profile flow.
 async function getProfilePhotoReviews(req, res) {
   try {
     const result = await adminProfilePhotoService.getProfilePhotoReviews({
@@ -23,6 +26,7 @@ async function getProfilePhotoReviews(req, res) {
   }
 }
 
+// getProfilePhotoReviewById: reads and returns get profile photo review by id for the Profile flow.
 async function getProfilePhotoReviewById(req, res) {
   try {
     const result = await adminProfilePhotoService.getProfilePhotoReviewById({
@@ -39,6 +43,7 @@ async function getProfilePhotoReviewById(req, res) {
   }
 }
 
+// approveProfilePhotoReview: handles approve profile photo review for the Profile flow.
 async function approveProfilePhotoReview(req, res) {
   try {
     const result = await adminProfilePhotoService.approveProfilePhotoReview({
@@ -56,6 +61,7 @@ async function approveProfilePhotoReview(req, res) {
   }
 }
 
+// rejectProfilePhotoReview: handles reject profile photo review for the Profile flow.
 async function rejectProfilePhotoReview(req, res) {
   try {
     const result = await adminProfilePhotoService.rejectProfilePhotoReview({
@@ -92,10 +98,12 @@ module.exports = {
 
     const readOnlyPrefixes = ['get', 'fetch', 'list', 'download', 'export'];
 
+    // isReadOnlyAction: checks whether is read only action for the Profile flow.
     function isReadOnlyAction(name) {
         return readOnlyPrefixes.some((prefix) => String(name).startsWith(prefix));
     }
 
+    // resolveActionName: resolves resolve action name for the Profile flow.
     function resolveActionName(name) {
         const raw = String(name || '').toLowerCase();
 
@@ -108,10 +116,12 @@ module.exports = {
         return 'updated';
     }
 
+    // getActorUserId: reads and returns get actor user id for the Profile flow.
     function getActorUserId(req) {
         return req.user?.user_id || req.user?.userId || req.user?.id || null;
     }
 
+    // getEntityId: reads and returns get entity id for the Profile flow.
     function getEntityId(req, body) {
         return (
             req.params?.id ||
@@ -131,6 +141,7 @@ module.exports = {
         );
     }
 
+    // safeAudit: handles safe audit for the Profile flow.
     function safeAudit(req, functionName, responseBody) {
         try {
             const action = resolveActionName(functionName);

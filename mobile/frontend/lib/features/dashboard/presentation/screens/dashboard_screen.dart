@@ -1,3 +1,4 @@
+// SMaRT-PDM: Dashboard — dashboard screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -25,6 +26,7 @@ import 'package:smartpdm_mobileapp/shared/models/program_opening.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/notification_bell_button.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
+// showSmartPdmGettingStartedGuide: handles show smart pdm getting started guide for the Dashboard flow.
 Future<void> showSmartPdmGettingStartedGuide(
   BuildContext context, {
   bool barrierDismissible = true,
@@ -53,6 +55,7 @@ class DashboardScreen extends StatelessWidget {
   final bool showTopBar;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -107,6 +110,7 @@ class DashboardScreen extends StatelessWidget {
 }
 
 typedef DashboardScholarAccessResolver =
+    // Function: handles function for the Dashboard flow.
     Future<bool> Function(
       NotificationProvider provider,
       SessionService sessionService,
@@ -128,6 +132,7 @@ class DashboardContent extends StatelessWidget {
   final DashboardScholarAccessResolver? scholarAccessResolver;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     return _UnifiedDashboardContent(
       sessionService: sessionService,
@@ -146,6 +151,7 @@ class _UnifiedDashboardContent extends StatefulWidget {
   final DashboardScholarAccessResolver? scholarAccessResolver;
 
   @override
+  // createState: creates create state for the Dashboard flow.
   State<_UnifiedDashboardContent> createState() =>
       _UnifiedDashboardContentState();
 }
@@ -230,6 +236,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   }
 
   @override
+  // initState: handles init state for the Dashboard flow.
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -246,6 +253,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     });
   }
 
+  // _showFirstTimeGuideIfNeeded: handles show first time guide if needed for the Dashboard flow.
   Future<void> _showFirstTimeGuideIfNeeded() async {
     if (_guideChecked) return;
     _guideChecked = true;
@@ -300,6 +308,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   // Manual guide access now lives in Menu > Information.
 
   @override
+  // didChangeDependencies: handles did change dependencies for the Dashboard flow.
   void didChangeDependencies() {
     super.didChangeDependencies();
 
@@ -312,6 +321,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     provider.addListener(_handleProviderChange);
   }
 
+  // _captureProviderRevisions: handles capture provider revisions for the Dashboard flow.
   void _captureProviderRevisions(NotificationProvider provider) {
     _lastApplicationRevision = provider.applicationRevision;
     _lastAnnouncementRevision = provider.announcementRevision;
@@ -323,6 +333,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     _lastScholarAccessRevision = provider.scholarAccessRevision;
   }
 
+  // _handleProviderChange: handles handle provider change for the Dashboard flow.
   void _handleProviderChange() {
     final provider = _notificationProvider;
     if (provider == null) return;
@@ -374,6 +385,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     }
   }
 
+  // _syncAnnouncementsFromProvider: handles sync announcements from provider for the Dashboard flow.
   void _syncAnnouncementsFromProvider(NotificationProvider provider) {
     if (!mounted) return;
 
@@ -389,6 +401,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     });
   }
 
+  // _loadDashboardData: handles load dashboard data for the Dashboard flow.
   Future<void> _loadDashboardData({bool refreshNotifications = true}) async {
     if (_isRefreshing) {
       _pendingRealtimeDashboardRefresh = true;
@@ -441,6 +454,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     }
   }
 
+  // _loadIdentity: handles load identity for the Dashboard flow.
   Future<void> _loadIdentity() async {
     try {
       final session = await widget.sessionService.getCurrentUser();
@@ -483,6 +497,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     }
   }
 
+  // _loadApplicationStatus: handles load application status for the Dashboard flow.
   Future<void> _loadApplicationStatus() async {
     try {
       final summary = await _applicationService
@@ -506,6 +521,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     }
   }
 
+  // _loadRequirements: handles load requirements for the Dashboard flow.
   Future<void> _loadRequirements() async {
     try {
       final package = await _documentsService.fetchMyDocuments();
@@ -543,6 +559,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     }
   }
 
+  // _loadAnnouncements: handles load announcements for the Dashboard flow.
   Future<void> _loadAnnouncements() async {
     try {
       final items = await _announcementService.fetchAnnouncements();
@@ -569,6 +586,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     }
   }
 
+  // _loadOpenings: handles load openings for the Dashboard flow.
   Future<void> _loadOpenings() async {
     if (_openingRefreshInProgress) return;
     _openingRefreshInProgress = true;
@@ -595,16 +613,19 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     }
   }
 
+  // _safeText: handles safe text for the Dashboard flow.
   String _safeText(dynamic value, {String fallback = ''}) {
     final text = value?.toString().trim() ?? '';
     return text.isEmpty ? fallback : text;
   }
 
+  // _displayFirstName: handles display first name for the Dashboard flow.
   String _displayFirstName() {
     final pieces = _userName.trim().split(RegExp(r'\s+'));
     return pieces.isEmpty || pieces.first.isEmpty ? 'Student' : pieces.first;
   }
 
+  // _formatDate: handles format date for the Dashboard flow.
   String _formatDate(DateTime value) {
     final local = value.toLocal();
     final now = DateTime.now();
@@ -633,6 +654,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     return '${months[local.month - 1]} ${local.day}, ${local.year}';
   }
 
+  // _cleanOpeningTitle: handles clean opening title for the Dashboard flow.
   String _cleanOpeningTitle(ProgramOpening opening) {
     final programName = _safeText(
       opening.programName,
@@ -652,6 +674,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     return title.isEmpty ? programName : title;
   }
 
+  // _openOfficeUpdate: handles open office update for the Dashboard flow.
   void _openOfficeUpdate(AppNotification notification) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -663,6 +686,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     );
   }
 
+  // _latestAnnouncements: handles latest announcements for the Dashboard flow.
   List<AppNotification> _latestAnnouncements() {
     final announcements = List<AppNotification>.from(_announcements)
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -670,8 +694,10 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     return announcements.take(3).toList(growable: false);
   }
 
+  // _latestMatching: handles latest matching for the Dashboard flow.
   AppNotification? _latestMatching(
     NotificationProvider provider,
+    // Function: handles function for the Dashboard flow.
     bool Function(AppNotification item) test,
   ) {
     for (final item in provider.notifications) {
@@ -680,6 +706,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     return null;
   }
 
+  // _buildHero: handles build hero for the Dashboard flow.
   Widget _buildHero() {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -820,6 +847,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     );
   }
 
+  // _buildAnnouncements: handles build announcements for the Dashboard flow.
   Widget _buildAnnouncements(List<AppNotification> announcements) {
     if (_isLoadingAnnouncements && announcements.isEmpty) {
       return _LoadingCard(isDark: _isDark);
@@ -860,6 +888,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     );
   }
 
+  // _buildScholarResponsibilities: handles build scholar responsibilities for the Dashboard flow.
   Widget _buildScholarResponsibilities(NotificationProvider provider) {
     final renewal = _latestMatching(
       provider,
@@ -1011,6 +1040,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
             ? (constraints.maxWidth - gap) / 2
             : constraints.maxWidth;
 
+        // tile: handles tile for the Dashboard flow.
         Widget tile({
           required double width,
           required int order,
@@ -1178,6 +1208,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   }
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     final provider = context.watch<NotificationProvider>();
     final announcements = _latestAnnouncements();
@@ -1270,6 +1301,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   }
 
   @override
+  // dispose: handles dispose for the Dashboard flow.
   void dispose() {
     _openingReconciliationTimer?.cancel();
     _notificationProvider?.removeListener(_handleProviderChange);
@@ -1291,6 +1323,7 @@ class _DashboardSectionHeading extends StatelessWidget {
   final bool isDark;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     final titleColor = isDark
         ? AppColors.applicantDarkText
@@ -1366,6 +1399,7 @@ class _DashboardBentoTile extends StatelessWidget {
   final bool emphasized;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     final surface = emphasized
         ? (isDark ? const Color(0xFF302417) : const Color(0xFFFFFAE9))
@@ -1504,6 +1538,7 @@ class _FirstTimeGuideDialog extends StatefulWidget {
   final Future<void> Function() onFinish;
 
   @override
+  // createState: creates create state for the Dashboard flow.
   State<_FirstTimeGuideDialog> createState() => _FirstTimeGuideDialogState();
 }
 
@@ -1540,6 +1575,7 @@ class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
   ];
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     final step = _steps[_index];
     final isLast = _index == _steps.length - 1;
@@ -1841,6 +1877,7 @@ class _DashboardIllustration extends StatelessWidget {
   const _DashboardIllustration();
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -1932,6 +1969,7 @@ class _SurfaceCard extends StatelessWidget {
   final EdgeInsetsGeometry padding;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
@@ -1963,6 +2001,7 @@ class _LoadingCard extends StatelessWidget {
   final bool isDark;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     return _SurfaceCard(
       isDark: isDark,
@@ -1992,6 +2031,7 @@ class _StateCard extends StatelessWidget {
   final VoidCallback? onPressed;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     return _SurfaceCard(
       isDark: isDark,
@@ -2056,6 +2096,7 @@ class _AccentIcon extends StatelessWidget {
   final IconData icon;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -2078,6 +2119,7 @@ class _StatusPill extends StatelessWidget {
   final bool isDark;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -2112,6 +2154,7 @@ class _AnnouncementCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     return Semantics(
       container: true,
@@ -2235,6 +2278,7 @@ class _ResponsibilityRow extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     final content = Row(
       crossAxisAlignment: CrossAxisAlignment.start,

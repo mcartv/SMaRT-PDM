@@ -1,11 +1,14 @@
+// SMaRT-PDM: Return of Obligations — room Admin Service (admin backend service); contains business logic and data operations.
 'use strict';
 
 const db = require('../config/db');
 
+// normalizeId: normalizes normalize id for the Return of Obligations flow.
 function normalizeId(value) {
   return String(value || '').trim();
 }
 
+// getDisplayName: reads and returns get display name for the Return of Obligations flow.
 async function getDisplayName(client, userId) {
   const result = await client.query(
     `
@@ -30,6 +33,7 @@ async function getDisplayName(client, userId) {
   return result.rows[0]?.display_name || 'Unknown User';
 }
 
+// ensureCreatorCanManageAdmins: ensures ensure creator can manage admins for the Return of Obligations flow.
 async function ensureCreatorCanManageAdmins(client, actorId, roomId) {
   const result = await client.query(
     `
@@ -73,6 +77,7 @@ async function ensureCreatorCanManageAdmins(client, actorId, roomId) {
   return room;
 }
 
+// setRoomMemberAdminRole: sets set room member admin role for the Return of Obligations flow.
 async function setRoomMemberAdminRole({ actorId, roomId, memberId, isAdmin }) {
   const normalizedActorId = normalizeId(actorId);
   const normalizedRoomId = normalizeId(roomId);

@@ -1,12 +1,15 @@
+// SMaRT-PDM: Accounts — account Rate Limiters (admin backend middleware); validates or transforms requests before controller handling.
 'use strict';
 
 const rateLimit = require('express-rate-limit');
 
+// authenticatedUserKey: handles authenticated user key for the Accounts flow.
 function authenticatedUserKey(req) {
     const userId = req.user?.user_id || req.user?.userId || req.user?.id;
     return `account:${String(userId || 'authenticated-user')}`;
 }
 
+// createAccountLimiter: creates create account limiter for the Accounts flow.
 function createAccountLimiter({ windowMs, max, message, skipSuccessfulRequests = false }) {
     return rateLimit({
         windowMs,

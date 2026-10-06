@@ -1,19 +1,24 @@
+// SMaRT-PDM: Announcements — announcement Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const announcementService = require('../services/announcementService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 
+// getActorUserId: reads and returns get actor user id for the Announcements flow.
 function getActorUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+// getAnnouncementId: reads and returns get announcement id for the Announcements flow.
 function getAnnouncementId(announcement) {
     return announcement?.id || announcement?.announcement_id || null;
 }
 
+// getAnnouncementStatus: reads and returns get announcement status for the Announcements flow.
 function getAnnouncementStatus(announcement) {
     return String(announcement?.status || 'Draft');
 }
 
+// buildAnnouncementSocketPayload: builds build announcement socket payload for the Announcements flow.
 function buildAnnouncementSocketPayload(announcement = {}, action = 'updated') {
     const now = new Date().toISOString();
 
@@ -36,11 +41,13 @@ function buildAnnouncementSocketPayload(announcement = {}, action = 'updated') {
     };
 }
 
+// emitAnnouncementRealtime: handles emit announcement realtime for the Announcements flow.
 function emitAnnouncementRealtime(req, announcement, action = 'updated') {
     const io = req.app.get('io');
     if (!io || !announcement) return;
 
     const payload = buildAnnouncementSocketPayload(announcement, action);
+    // emitFallback: handles emit fallback for the Announcements flow.
     const emitFallback = (eventName, data) => {
         io.emit(eventName, data);
     };
@@ -116,6 +123,7 @@ function emitAnnouncementRealtime(req, announcement, action = 'updated') {
     }
 }
 
+// writeAnnouncementAudit: handles write announcement audit for the Announcements flow.
 async function writeAnnouncementAudit(req, actionTaken, description, announcement = null, metadata = {}) {
     try {
         if (typeof auditLogService?.logAudit !== 'function') {
@@ -171,6 +179,7 @@ async function writeAnnouncementAudit(req, actionTaken, description, announcemen
     }
 }
 
+// resolveCreateAuditAction: resolves resolve create audit action for the Announcements flow.
 function resolveCreateAuditAction(created) {
     const status = String(created?.status || '').toLowerCase();
 
@@ -197,6 +206,7 @@ function resolveCreateAuditAction(created) {
     };
 }
 
+// resolveUpdateAuditAction: resolves resolve update audit action for the Announcements flow.
 function resolveUpdateAuditAction(updated) {
     const status = String(updated?.status || '').toLowerCase();
 

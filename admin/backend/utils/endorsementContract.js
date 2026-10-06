@@ -1,3 +1,4 @@
+// SMaRT-PDM: Endorsement — endorsement Contract (admin backend); supports backend application behavior.
 'use strict';
 
 /**
@@ -68,10 +69,12 @@ const RESULT_LABELS = Object.freeze({
     }),
 });
 
+// normalizeText: normalizes normalize text for the Endorsement flow.
 function normalizeText(value) {
     return value === null || value === undefined ? '' : String(value).trim().toLowerCase();
 }
 
+// normalizeSdoAction: normalizes normalize sdo action for the Endorsement flow.
 function normalizeSdoAction(action) {
     const value = normalizeText(action);
     if ([SDO_RESULTS.NO_OFFENSE, 'clear', LEGACY_RESULTS.SDO_CLEARED].includes(value)) {
@@ -86,6 +89,7 @@ function normalizeSdoAction(action) {
     return null;
 }
 
+// normalizeGuidanceAction: normalizes normalize guidance action for the Endorsement flow.
 function normalizeGuidanceAction(action) {
     const value = normalizeText(action);
     return [
@@ -97,6 +101,7 @@ function normalizeGuidanceAction(action) {
         : null;
 }
 
+// normalizePdAction: normalizes normalize pd action for the Endorsement flow.
 function normalizePdAction(action, { scholasticStanding = null, gwa = null } = {}) {
     const value = normalizeText(action);
     const explicitStanding = normalizeText(scholasticStanding);
@@ -123,10 +128,12 @@ function normalizePdAction(action, { scholasticStanding = null, gwa = null } = {
     return null;
 }
 
+// isSdoContinuingResult: checks whether is sdo continuing result for the Endorsement flow.
 function isSdoContinuingResult(result) {
     return [SDO_RESULTS.NO_OFFENSE, SDO_RESULTS.MINOR_OFFENSE].includes(result);
 }
 
+// isCanonicalPdResult: checks whether is canonical pd result for the Endorsement flow.
 function isCanonicalPdResult(result) {
     return [PD_RESULTS.GOOD_SCHOLASTIC_STANDING, PD_RESULTS.AVERAGE_SCHOLASTIC_STANDING].includes(result);
 }

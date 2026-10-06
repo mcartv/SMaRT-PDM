@@ -1,3 +1,4 @@
+// SMaRT-PDM: messaging config — messaging config (admin frontend); supports admin-side UI behavior.
 const trimTrailingSlash = (value, fallback) => {
   const resolved = String(value || fallback || '').trim()
 
@@ -14,10 +15,12 @@ export const MESSAGING_SOCKET_BASE = trimTrailingSlash(
   MESSAGING_API_BASE
 )
 
+// getAdminMessagingToken: reads and returns get admin messaging token for the messaging config flow.
 export function getAdminMessagingToken() {
   return sessionStorage.getItem('adminToken') || ''
 }
 
+// buildMessagingHeaders: builds build messaging headers for the messaging config flow.
 export function buildMessagingHeaders(token, { json = false } = {}) {
   const headers = {}
 
@@ -32,6 +35,7 @@ export function buildMessagingHeaders(token, { json = false } = {}) {
   return headers
 }
 
+// parseMessagingToken: parses parse messaging token for the messaging config flow.
 export function parseMessagingToken(token) {
   if (!token) {
     return {}

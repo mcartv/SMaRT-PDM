@@ -1,3 +1,4 @@
+// SMaRT-PDM: Not Found Page — Not Found Page (admin frontend page); loads data, handles page actions, and renders the admin view.
 import { ArrowLeft, Home } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import notFoundIllustration from '../assets/404-page-not-found.png';
@@ -8,6 +9,7 @@ const theme = getDefaultLandingTheme();
 export default function NotFoundPage() {
   const navigate = useNavigate();
 
+  // handleGoBack: handles handle go back for the Not Found Page flow.
   const handleGoBack = () => {
     if (window.history.length > 1) {
       navigate(-1);

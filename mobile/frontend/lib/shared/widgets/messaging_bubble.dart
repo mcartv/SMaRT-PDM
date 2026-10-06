@@ -1,3 +1,4 @@
+// SMaRT-PDM: messaging bubble — messaging bubble (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -9,6 +10,7 @@ class MessagingBubble extends StatelessWidget {
   const MessagingBubble({super.key});
 
   @override
+  // build: builds build for the messaging bubble flow.
   Widget build(BuildContext context) {
     final provider = context.watch<MessagingProvider>();
     final unreadCount = provider.unreadCount;

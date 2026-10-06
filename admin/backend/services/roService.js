@@ -1,3 +1,4 @@
+// SMaRT-PDM: Return of Obligations — ro Service (admin backend service); contains business logic and data operations.
 const supabase = require('../config/supabase');
 const db = require('../config/db');
 const notificationService = require('./notificationService');
@@ -6,25 +7,30 @@ const APPROVED_APPLICATION_STATUSES = ['Approved', 'Approved Scholar', 'Accepted
 const RO_PROOFS_BUCKET = process.env.RO_PROOFS_BUCKET || 'ro-proofs';
 const SCHOLAR_REQUEST_ASSIGNMENT_TOKEN = Symbol('scholar-request-assignment');
 
+// createHttpError: creates create http error for the Return of Obligations flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// normalizeText: normalizes normalize text for the Return of Obligations flow.
 function normalizeText(value) {
     return String(value || '').trim().toLowerCase();
 }
 
+// cleanText: handles clean text for the Return of Obligations flow.
 function cleanText(value) {
     return String(value || '').trim();
 }
 
+// toNumber: handles to number for the Return of Obligations flow.
 function toNumber(value, fallback = 0) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+// fullName: handles full name for the Return of Obligations flow.
 function fullName(student = {}) {
     return [student.first_name, student.middle_name, student.last_name]
         .filter(Boolean)
@@ -33,10 +39,12 @@ function fullName(student = {}) {
         .trim();
 }
 
+// isClearedStatus: checks whether is cleared status for the Return of Obligations flow.
 function isClearedStatus(status) {
     return normalizeText(status) === 'cleared';
 }
 
+// hasActiveRoPlacement: checks whether has active ro placement for the Return of Obligations flow.
 function hasActiveRoPlacement(placements = []) {
     return placements.some((placement) =>
         ['pending', 'approved'].includes(
@@ -45,6 +53,7 @@ function hasActiveRoPlacement(placements = []) {
     );
 }
 
+// percentFromMinutes: handles percent from minutes for the Return of Obligations flow.
 function percentFromMinutes(doneMinutes, requiredMinutes) {
     const done = toNumber(doneMinutes);
     const required = toNumber(requiredMinutes);
@@ -54,6 +63,7 @@ function percentFromMinutes(doneMinutes, requiredMinutes) {
     return Math.min(100, Math.max(0, Math.round((done / required) * 100)));
 }
 
+// extractAvatarStoragePath: handles extract avatar storage path for the Return of Obligations flow.
 function extractAvatarStoragePath(value) {
     const rawValue = String(value || '').trim();
 
@@ -80,6 +90,7 @@ function extractAvatarStoragePath(value) {
     return null;
 }
 
+// resolveAvatarUrl: resolves resolve avatar url for the Return of Obligations flow.
 async function resolveAvatarUrl(value) {
     const rawValue = String(value || '').trim();
 
@@ -98,6 +109,7 @@ async function resolveAvatarUrl(value) {
     return data?.signedUrl || rawValue;
 }
 
+// extractStoragePath: handles extract storage path for the Return of Obligations flow.
 function extractStoragePath(value, bucketName) {
     const rawValue = String(value || '').trim();
 
@@ -126,6 +138,7 @@ function extractStoragePath(value, bucketName) {
     return null;
 }
 
+// resolveRoProofUrl: resolves resolve ro proof url for the Return of Obligations flow.
 async function resolveRoProofUrl(fileUrl, filePath) {
     const rawFileUrl = String(fileUrl || '').trim();
     const rawFilePath = String(filePath || '').trim();
@@ -150,10 +163,12 @@ async function resolveRoProofUrl(fileUrl, filePath) {
     return data?.signedUrl || rawFileUrl || rawFilePath || null;
 }
 
+// getUserId: reads and returns get user id for the Return of Obligations flow.
 function getUserId(user = {}) {
     return user?.userId || user?.user_id || user?.id || user?.sub || null;
 }
 
+// getCurrentAcademicPeriod: reads and returns get current academic period for the Return of Obligations flow.
 async function getCurrentAcademicPeriod() {
     const { data, error } = await supabase
         .from('academic_period')
@@ -176,6 +191,7 @@ async function getCurrentAcademicPeriod() {
     return data;
 }
 
+// getApprovedApplicationForStudent: reads and returns get approved application for student for the Return of Obligations flow.
 async function getApprovedApplicationForStudent(studentId, payload = {}) {
     if (!studentId) {
         throw createHttpError(400, 'Student ID is required.');
@@ -223,6 +239,7 @@ async function getApprovedApplicationForStudent(studentId, payload = {}) {
     return data;
 }
 
+// getROByApplication: reads and returns get roby application for the Return of Obligations flow.
 async function getROByApplication(studentId, applicationId, periodId = null) {
     const currentPeriod =
         periodId
@@ -244,6 +261,7 @@ async function getROByApplication(studentId, applicationId, periodId = null) {
     return data || null;
 }
 
+// getActivePlacementForRO: reads and returns get active placement for ro for the Return of Obligations flow.
 async function getActivePlacementForRO(roId) {
     if (!roId) return null;
 
@@ -271,6 +289,7 @@ async function getActivePlacementForRO(roId) {
     return data || null;
 }
 
+// getProofsForLogIds: reads and returns get proofs for log ids for the Return of Obligations flow.
 async function getProofsForLogIds(logIds = []) {
     const ids = [...new Set(logIds.filter(Boolean))];
 
@@ -335,6 +354,7 @@ async function getProofsForLogIds(logIds = []) {
     return map;
 }
 
+// getLogsForROIds: reads and returns get logs for roids for the Return of Obligations flow.
 async function getLogsForROIds(roIds) {
     const ids = [...new Set(roIds.filter(Boolean))];
 
@@ -391,6 +411,7 @@ async function getLogsForROIds(roIds) {
     return map;
 }
 
+// serializeProof: handles serialize proof for the Return of Obligations flow.
 function serializeProof(proof = {}) {
     return {
         proof_id: proof.proof_id,
@@ -473,6 +494,7 @@ function serializeProof(proof = {}) {
     };
 }
 
+// serializeLog: handles serialize log for the Return of Obligations flow.
 function serializeLog(log = {}) {
     const proofs = Array.isArray(log.proofs) ? log.proofs.map(serializeProof) : [];
 
@@ -549,6 +571,7 @@ function serializeLog(log = {}) {
     };
 }
 
+// syncRoTotals: synchronizes sync ro totals for the Return of Obligations flow.
 async function syncRoTotals(roId, user = {}) {
     const { data: ro, error: roError } = await supabase
         .from('return_of_obligations')
@@ -633,6 +656,7 @@ async function syncRoTotals(roId, user = {}) {
     return data;
 }
 
+// resolveAssignedDepartment: resolves resolve assigned department for the Return of Obligations flow.
 async function resolveAssignedDepartment(value) {
     const departmentName = cleanText(value);
 
@@ -661,6 +685,7 @@ async function resolveAssignedDepartment(value) {
     return data;
 }
 
+// getPlacementsForROIds: reads and returns get placements for roids for the Return of Obligations flow.
 async function getPlacementsForROIds(roIds) {
     const ids = [...new Set(roIds.filter(Boolean))];
     if (!ids.length) return new Map();
@@ -703,6 +728,7 @@ async function getPlacementsForROIds(roIds) {
     return map;
 }
 
+// findRoCoordinator: finds and returns find ro coordinator for the Return of Obligations flow.
 async function findRoCoordinator(department) {
     const result = await db.query(
         `
@@ -738,6 +764,7 @@ async function findRoCoordinator(department) {
     return coordinator;
 }
 
+// getCurrentPlacement: reads and returns get current placement for the Return of Obligations flow.
 async function getCurrentPlacement(roId, roAreaId) {
     const { data: current, error: currentError } = await supabase
         .from('ro_placements')
@@ -755,6 +782,7 @@ async function getCurrentPlacement(roId, roAreaId) {
     return current || null;
 }
 
+// getScholarRequestForAssignment: reads and returns get scholar request for assignment for the Return of Obligations flow.
 async function getScholarRequestForAssignment(requestId, client = db) {
     const normalizedRequestId = cleanText(requestId);
     if (!normalizedRequestId) return null;
@@ -801,6 +829,7 @@ async function getScholarRequestForAssignment(requestId, client = db) {
     return request;
 }
 
+// getScholarRequestProgress: reads and returns get scholar request progress for the Return of Obligations flow.
 async function getScholarRequestProgress(requestId, client = db) {
     const result = await client.query(
         `SELECT
@@ -852,6 +881,7 @@ async function getScholarRequestProgress(requestId, client = db) {
     };
 }
 
+// getRequestAssignmentStage: reads and returns get request assignment stage for the Return of Obligations flow.
 function getRequestAssignmentStage(progress = {}) {
     const requested = Math.max(0, Number(progress.requested_scholar_count || 0));
     const assigned = Math.max(0, Number(progress.active_assignment_count || 0));
@@ -861,6 +891,7 @@ function getRequestAssignmentStage(progress = {}) {
     return 'Partially Assigned';
 }
 
+// syncScholarRequestStatus: synchronizes sync scholar request status for the Return of Obligations flow.
 async function syncScholarRequestStatus(requestId, adminUserId = null, client = db) {
     if (!requestId) return null;
     const progress = await getScholarRequestProgress(requestId, client);
@@ -896,6 +927,7 @@ async function syncScholarRequestStatus(requestId, adminUserId = null, client = 
     };
 }
 
+// sendScholarAssignmentNotification: sends send scholar assignment notification for the Return of Obligations flow.
 async function sendScholarAssignmentNotification({ student, roId, assignedArea }) {
     if (!student?.user_id || typeof notificationService?.createUserNotification !== 'function') return null;
     try {
@@ -914,6 +946,7 @@ async function sendScholarAssignmentNotification({ student, roId, assignedArea }
     }
 }
 
+// createPlacementRequest: creates create placement request for the Return of Obligations flow.
 async function createPlacementRequest({
     client,
     roId,
@@ -979,6 +1012,7 @@ async function saveAssignmentRecord(client, table, payload, idColumn = null, id 
     return result.rows[0];
 }
 
+// sendCoordinatorRequestNotification: sends send coordinator request notification for the Return of Obligations flow.
 async function sendCoordinatorRequestNotification({ coordinator, roId, student, assignedArea }) {
     if (!coordinator?.user_id || typeof notificationService?.createUserNotification !== 'function') return null;
     try {
@@ -997,6 +1031,7 @@ async function sendCoordinatorRequestNotification({ coordinator, roId, student, 
     }
 }
 
+// getStudentForRoNotice: reads and returns get student for ro notice for the Return of Obligations flow.
 async function getStudentForRoNotice(studentId) {
     const { data, error } = await supabase
         .from('students')
@@ -1022,6 +1057,7 @@ async function getStudentForRoNotice(studentId) {
     return data;
 }
 
+// sendRoAssignmentNotification: sends send ro assignment notification for the Return of Obligations flow.
 async function sendRoAssignmentNotification({
     student,
     roId,
@@ -1059,6 +1095,7 @@ async function sendRoAssignmentNotification({
     }
 }
 
+// getStudentNotificationTarget: reads and returns get student notification target for the Return of Obligations flow.
 async function getStudentNotificationTarget(studentId) {
     if (!studentId) return null;
 
@@ -1083,6 +1120,7 @@ async function getStudentNotificationTarget(studentId) {
     return data || null;
 }
 
+// sendRoTimeLogValidationNotification: sends send ro time log validation notification for the Return of Obligations flow.
 async function sendRoTimeLogValidationNotification({
     studentId,
     log,
@@ -1122,6 +1160,7 @@ async function sendRoTimeLogValidationNotification({
     }
 }
 
+// getScholarObligationHistory: reads and returns get scholar obligation history for the Return of Obligations flow.
 async function getScholarObligationHistory(studentId) {
     if (!studentId) {
         throw createHttpError(400, 'Student ID is required.');
@@ -1288,6 +1327,7 @@ async function getScholarObligationHistory(studentId) {
         getPlacementsForROIds(roIds),
     ]);
 
+    // semesterRank: handles semester rank for the Return of Obligations flow.
     const semesterRank = (value) => {
         const normalized = normalizeText(value);
 
@@ -1557,6 +1597,7 @@ async function getScholarObligationHistory(studentId) {
 exports.getScholarObligationHistory =
     getScholarObligationHistory;
 
+// sendRoClearanceNotification: sends send ro clearance notification for the Return of Obligations flow.
 async function sendRoClearanceNotification({ studentId, ro }) {
     try {
         if (typeof notificationService?.createUserNotification !== 'function') {
@@ -2096,6 +2137,7 @@ exports.getROScholars = async (filters = {}) => {
     return finalRows;
 };
 
+// getActiveRoSettingForAssignments: reads and returns get active ro setting for assignments for the Return of Obligations flow.
 async function getActiveRoSettingForAssignments(currentPeriod = null) {
     const period = currentPeriod || await getCurrentAcademicPeriod();
 

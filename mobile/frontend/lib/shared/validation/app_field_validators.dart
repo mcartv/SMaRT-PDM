@@ -1,3 +1,4 @@
+// SMaRT-PDM: app field validators — app field validators (mobile frontend); supports mobile UI behavior.
 import 'package:smartpdm_mobileapp/shared/formatters/student_id_input_formatter.dart';
 
 class AppFieldValidators {

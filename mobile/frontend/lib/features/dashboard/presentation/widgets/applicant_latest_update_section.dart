@@ -1,3 +1,4 @@
+// SMaRT-PDM: Dashboard — applicant latest update section (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
@@ -20,6 +21,7 @@ class ApplicantLatestUpdateSection extends StatelessWidget {
   final VoidCallback onRetry;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final update = section.data;
@@ -78,6 +80,7 @@ class _UpdateCard extends StatelessWidget {
   final ValueChanged<ApplicantHomeActionPresentation> onAction;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final statusColors = AppStatusColors.of(context);

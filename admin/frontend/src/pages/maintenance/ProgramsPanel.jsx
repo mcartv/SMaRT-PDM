@@ -1,3 +1,4 @@
+// SMaRT-PDM: Maintenance — Programs Panel (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useEffect, useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -21,6 +22,7 @@ import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { confirmArchive } from '@/utils/confirmArchive';
 
+// ProgramModal: handles program modal for the Maintenance flow.
 function ProgramModal({
     open,
     mode,
@@ -36,6 +38,7 @@ function ProgramModal({
     const isEdit = mode === 'edit';
     const noGwaThreshold = form.gwa_threshold === null;
 
+    // handleToggleNoGwaThreshold: handles handle toggle no gwa threshold for the Maintenance flow.
     const handleToggleNoGwaThreshold = (nextNoThreshold) => {
         setForm((prev) => ({
             ...prev,
@@ -297,6 +300,7 @@ export default function ProgramsPanel() {
 
     const [form, setForm] = useState(emptyForm);
 
+    // fetchPrograms: fetches and returns fetch programs for the Maintenance flow.
     const fetchPrograms = async () => {
         const res = await fetch(buildApiUrl('/api/scholarship-program'), {
             headers: {
@@ -314,6 +318,7 @@ export default function ProgramsPanel() {
         setPrograms(Array.isArray(data) ? data : []);
     };
 
+    // fetchBenefactors: fetches and returns fetch benefactors for the Maintenance flow.
     const fetchBenefactors = async () => {
         const res = await fetch(buildApiUrl('/api/benefactors'), {
             headers: {
@@ -331,6 +336,7 @@ export default function ProgramsPanel() {
         setBenefactors(Array.isArray(data) ? data.filter((b) => !b.is_archived) : []);
     };
 
+    // loadAll: loads and returns load all for the Maintenance flow.
     const loadAll = async () => {
         try {
             setLoading(true);
@@ -403,6 +409,7 @@ export default function ProgramsPanel() {
         [programs]
     );
 
+    // openCreateModal: handles open create modal for the Maintenance flow.
     const openCreateModal = () => {
         setModalMode('create');
         setEditingProgramId(null);
@@ -410,6 +417,7 @@ export default function ProgramsPanel() {
         setModalOpen(true);
     };
 
+    // openEditModal: handles open edit modal for the Maintenance flow.
     const openEditModal = (program) => {
         setModalMode('edit');
         setEditingProgramId(program.program_id);
@@ -429,6 +437,7 @@ export default function ProgramsPanel() {
         setModalOpen(true);
     };
 
+    // handleSave: handles handle save for the Maintenance flow.
     const handleSave = async () => {
         try {
             setSaving(true);
@@ -490,6 +499,7 @@ export default function ProgramsPanel() {
         }
     };
 
+    // handleArchiveToggle: handles handle archive toggle for the Maintenance flow.
     const handleArchiveToggle = async (program) => {
         if (
             !program.is_archived &&
@@ -526,6 +536,7 @@ export default function ProgramsPanel() {
         }
     };
 
+    // getAudienceLabel: reads and returns get audience label for the Maintenance flow.
     const getAudienceLabel = (audience) => {
         if (audience === 'Both') return 'Scholars & Applicants';
         if (audience === 'Scholars') return 'Scholars Only';

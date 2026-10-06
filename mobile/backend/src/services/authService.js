@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — auth Service (mobile backend service); contains mobile-facing business logic and data operations.
 const supabase = require('../config/supabase');
 const bcrypt = require('bcrypt');
 const { mailFrom, transporter } = require('../config/mailer');
@@ -14,20 +15,24 @@ const otpStore = new Map();
 const pendingRegistrationStore = new Map();
 const REGISTRATION_OTP_EXPIRY_MS = 60 * 1000;
 
+// createHttpError: creates create http error for the Authentication flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// safeText: handles safe text for the Authentication flow.
 function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
 }
 
+// generateOTP: handles generate otp for the Authentication flow.
 function generateOTP() {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+// ensurePasswordPolicy: ensures ensure password policy for the Authentication flow.
 function ensurePasswordPolicy(password) {
     const value = String(password || '');
 
@@ -99,6 +104,7 @@ async function sendOTPEmail(email, otp) {
     }
 }
 
+// findUserByEmail: finds and returns find user by email for the Authentication flow.
 async function findUserByEmail(email) {
     const { data, error } = await supabase
         .from('users')
@@ -113,6 +119,7 @@ async function findUserByEmail(email) {
     return data || null;
 }
 
+// generateAndStoreNewOtp: handles generate and store new otp for the Authentication flow.
 async function generateAndStoreNewOtp(existingUser, plainPassword = null) {
     const otp = generateOTP();
     const expiresAt = Date.now() + REGISTRATION_OTP_EXPIRY_MS;
@@ -137,6 +144,7 @@ async function generateAndStoreNewOtp(existingUser, plainPassword = null) {
     return otp;
 }
 
+// buildAuthUser: builds build auth user for the Authentication flow.
 async function buildAuthUser(user, studentProfile = null) {
     const hasScholarAccess =
         studentProfile?.is_active_scholar === true ||
@@ -158,6 +166,7 @@ async function buildAuthUser(user, studentProfile = null) {
     };
 }
 
+// buildAuthResponse: builds build auth response for the Authentication flow.
 async function buildAuthResponse(user) {
     const studentProfile = user?.user_id
         ? await resolveStudentByUserId(user.user_id)
@@ -173,6 +182,7 @@ async function buildAuthResponse(user) {
     };
 }
 
+// checkStudentId: checks check student id for the Authentication flow.
 async function checkStudentId(body = {}) {
     const student_id = normalizeStudentNumber(body.student_id);
 
@@ -205,6 +215,7 @@ async function checkStudentId(body = {}) {
     };
 }
 
+// register: handles register for the Authentication flow.
 async function register(body = {}) {
     let { email, password, student_id } = body;
 
@@ -320,6 +331,7 @@ async function register(body = {}) {
     };
 }
 
+// verifyOtp: verifies verify otp for the Authentication flow.
 async function verifyOtp(body = {}) {
     let { email, otp } = body;
 
@@ -436,6 +448,7 @@ async function verifyOtp(body = {}) {
     };
 }
 
+// resendOtp: handles resend otp for the Authentication flow.
 async function resendOtp(body = {}) {
     const email = safeText(body.email).toLowerCase();
 
@@ -486,6 +499,7 @@ async function resendOtp(body = {}) {
     };
 }
 
+// cancelRegistration: checks whether cancel registration for the Authentication flow.
 async function cancelRegistration(body = {}) {
     const email = safeText(body.email).toLowerCase();
 
@@ -501,6 +515,7 @@ async function cancelRegistration(body = {}) {
     };
 }
 
+// login: handles login for the Authentication flow.
 async function login(body = {}) {
     const rawStudentId =
         body.student_id || body.studentId || body.username || body.pdm_id || '';

@@ -1,8 +1,10 @@
+// SMaRT-PDM: OCR — grade Ocr V2 Service (admin backend service); contains business logic and data operations.
 const crypto = require('crypto');
 const pool = require('../config/db');
 const supabase = require('../config/supabase');
 const iotOcrRequestService = require('./iotOcrRequestService');
 
+// getEnhancedOcrProvider: reads and returns get enhanced ocr provider for the OCR flow.
 function getEnhancedOcrProvider() {
     // Load the cloud SDK only when an Enhanced OCR job actually runs.
     return require('./enhancedOcrProvider');
@@ -42,12 +44,14 @@ const GRADE_SCHEMA = {
     required: ['raw_text', 'fields'],
 };
 
+// httpError: handles http error for the OCR flow.
 function httpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// validateManifest: validates validate manifest for the OCR flow.
 function validateManifest(artifacts) {
     if (!Array.isArray(artifacts) || artifacts.length !== 1) {
         throw httpError(400, 'Grade Enhanced OCR requires one original capture');
@@ -63,6 +67,7 @@ function validateManifest(artifacts) {
     return artifact;
 }
 
+// lockRequest: handles lock request for the OCR flow.
 async function lockRequest(client, requestId, deviceId) {
     const result = await client.query(
         'SELECT * FROM public.iot_ocr_requests WHERE request_id = $1::uuid FOR UPDATE',
@@ -112,6 +117,7 @@ exports.authorizeUploads = async ({ requestId, deviceId, artifacts }) => {
     }
 };
 
+// downloadOriginal: downloads download original for the OCR flow.
 async function downloadOriginal(requestId) {
     const result = await pool.query(`
         SELECT * FROM public.iot_ocr_capture_artifacts
@@ -128,11 +134,13 @@ async function downloadOriginal(requestId) {
     return { ...row, bytes };
 }
 
+// toField: handles to field for the OCR flow.
 function toField(value) {
     const normalized = String(value || '').replace(/\s+/g, ' ').trim();
     return { raw_text: normalized, normalized_value: normalized, confidence: null };
 }
 
+// normalizeFields: normalizes normalize fields for the OCR flow.
 function normalizeFields(value) {
     const fields = value && typeof value === 'object' ? value : {};
     return Object.fromEntries(FIELD_KEYS.map((key) => [key, toField(fields[key])]));

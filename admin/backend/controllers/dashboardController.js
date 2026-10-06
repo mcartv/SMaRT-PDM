@@ -1,6 +1,8 @@
+// SMaRT-PDM: Dashboard — dashboard Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const dashboardService = require('../services/dashboardService');
 const auditLogService = require('../services/auditLogService');
 
+// getActorUserId: reads and returns get actor user id for the Dashboard flow.
 function getActorUserId(req) {
     return (
         req.user?.user_id ||
@@ -10,6 +12,7 @@ function getActorUserId(req) {
     );
 }
 
+// writeDashboardAudit: handles write dashboard audit for the Dashboard flow.
 async function writeDashboardAudit(req, dashboardPayload) {
     try {
         if (typeof auditLogService?.logAudit !== 'function') return;

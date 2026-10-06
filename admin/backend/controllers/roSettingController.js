@@ -1,12 +1,15 @@
+// SMaRT-PDM: Return of Obligations — ro Setting Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const roSettingService = require('../services/roSettingService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 
+// getActorUserId: reads and returns get actor user id for the Return of Obligations flow.
 function getActorUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+// getSafeStatusCode: reads and returns get safe status code for the Return of Obligations flow.
 function getSafeStatusCode(error) {
     const parsed = Number.parseInt(error?.statusCode, 10);
 
@@ -15,6 +18,7 @@ function getSafeStatusCode(error) {
         : 500;
 }
 
+// writeRoSettingAudit: handles write ro setting audit for the Return of Obligations flow.
 async function writeRoSettingAudit(
     req,
     actionTaken,
@@ -45,6 +49,7 @@ async function writeRoSettingAudit(
     }
 }
 
+// emitRoSettingUpdate: handles emit ro setting update for the Return of Obligations flow.
 function emitRoSettingUpdate(req, payload = {}) {
     const updatedAt = new Date().toISOString();
 
@@ -92,6 +97,7 @@ function emitRoSettingUpdate(req, payload = {}) {
         });
 }
 
+// getSettings: reads and returns get settings for the Return of Obligations flow.
 async function getSettings(req, res) {
     try {
         const result = await roSettingService.getSettings();
@@ -106,6 +112,7 @@ async function getSettings(req, res) {
     }
 }
 
+// getActiveSetting: reads and returns get active setting for the Return of Obligations flow.
 async function getActiveSetting(req, res) {
     try {
         const result = await roSettingService.getActiveSetting();
@@ -120,6 +127,7 @@ async function getActiveSetting(req, res) {
     }
 }
 
+// createSetting: creates create setting for the Return of Obligations flow.
 async function createSetting(req, res) {
     try {
         const result = await roSettingService.createSetting(req.body || {});
@@ -150,6 +158,7 @@ async function createSetting(req, res) {
     }
 }
 
+// updateSetting: updates update setting for the Return of Obligations flow.
 async function updateSetting(req, res) {
     try {
         const result = await roSettingService.updateSetting(
@@ -184,6 +193,7 @@ async function updateSetting(req, res) {
     }
 }
 
+// activateSetting: handles activate setting for the Return of Obligations flow.
 async function activateSetting(req, res) {
     try {
         const result = await roSettingService.activateSetting(req.params.settingId);
@@ -215,6 +225,7 @@ async function activateSetting(req, res) {
     }
 }
 
+// applyActiveSettingToPending: handles apply active setting to pending for the Return of Obligations flow.
 async function applyActiveSettingToPending(req, res) {
     try {
         const result = await roSettingService.applyActiveSettingToPending();
@@ -245,6 +256,7 @@ async function applyActiveSettingToPending(req, res) {
     }
 }
 
+// getDepartments: reads and returns get departments for the Return of Obligations flow.
 async function getDepartments(req, res) {
     try {
         const result = await roSettingService.getDepartments();
@@ -259,6 +271,7 @@ async function getDepartments(req, res) {
     }
 }
 
+// setDepartmentCoordinator: sets set department coordinator for the Return of Obligations flow.
 async function setDepartmentCoordinator(req, res) {
     try {
         const result = await roSettingService.setDepartmentCoordinator(
@@ -293,6 +306,7 @@ async function setDepartmentCoordinator(req, res) {
     }
 }
 
+// createDepartment: creates create department for the Return of Obligations flow.
 async function createDepartment(req, res) {
     try {
         const result = await roSettingService.createDepartment(req.body || {});
@@ -323,6 +337,7 @@ async function createDepartment(req, res) {
     }
 }
 
+// updateDepartment: updates update department for the Return of Obligations flow.
 async function updateDepartment(req, res) {
     try {
         const result = await roSettingService.updateDepartment(
@@ -357,6 +372,7 @@ async function updateDepartment(req, res) {
     }
 }
 
+// toggleDepartment: handles toggle department for the Return of Obligations flow.
 async function toggleDepartment(req, res) {
     try {
         const result = await roSettingService.toggleDepartment(req.params.departmentId);

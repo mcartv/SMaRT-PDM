@@ -1,3 +1,4 @@
+// SMaRT-PDM: api client — api client (mobile frontend); supports mobile UI behavior.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -28,6 +29,7 @@ class ApiClient {
   final http.Client _httpClient;
   final SessionService _sessionService = const SessionService();
 
+  // buildUri: builds build uri for the api client flow.
   Uri buildUri(String path) {
     final normalizedBaseUrl = AppConfig.apiBaseUrl.replaceFirst(
       RegExp(r'/+$'),
@@ -37,6 +39,7 @@ class ApiClient {
     return Uri.parse('$normalizedBaseUrl$normalizedPath');
   }
 
+  // _buildHeaders: handles build headers for the api client flow.
   Future<Map<String, String>> _buildHeaders({
     String? contentType,
     Map<String, String> extra = const {},
@@ -58,6 +61,7 @@ class ApiClient {
     return headers;
   }
 
+  // postJson: handles post json for the api client flow.
   Future<Map<String, dynamic>> postJson(
     String path, {
     required Map<String, dynamic> body,
@@ -88,6 +92,7 @@ class ApiClient {
     }
   }
 
+  // getList: reads and returns get list for the api client flow.
   Future<List<dynamic>> getList(
     String path, {
     Duration timeout = const Duration(seconds: 15),
@@ -126,6 +131,7 @@ class ApiClient {
     }
   }
 
+  // getObject: reads and returns get object for the api client flow.
   Future<Map<String, dynamic>> getObject(
     String path, {
     Duration timeout = const Duration(seconds: 15),
@@ -151,6 +157,7 @@ class ApiClient {
     }
   }
 
+  // downloadBytes: downloads download bytes for the api client flow.
   Future<ApiDownload> downloadBytes(
     String path, {
     Duration timeout = const Duration(seconds: 30),
@@ -191,6 +198,7 @@ class ApiClient {
     }
   }
 
+  // patchJson: handles patch json for the api client flow.
   Future<Map<String, dynamic>> patchJson(
     String path, {
     Map<String, dynamic> body = const {},
@@ -221,6 +229,7 @@ class ApiClient {
     }
   }
 
+  // putJson: handles put json for the api client flow.
   Future<Map<String, dynamic>> putJson(
     String path, {
     Map<String, dynamic> body = const {},
@@ -251,6 +260,7 @@ class ApiClient {
     }
   }
 
+  // deleteJson: deletes delete json for the api client flow.
   Future<Map<String, dynamic>> deleteJson(
     String path, {
     Duration timeout = const Duration(seconds: 15),
@@ -276,6 +286,7 @@ class ApiClient {
     }
   }
 
+  // uploadFile: uploads upload file for the api client flow.
   Future<Map<String, dynamic>> uploadFile(
     String path, {
     required String fieldName,
@@ -315,6 +326,7 @@ class ApiClient {
     }
   }
 
+  // uploadBytes: uploads upload bytes for the api client flow.
   Future<Map<String, dynamic>> uploadBytes(
     String path, {
     required String fieldName,
@@ -356,6 +368,7 @@ class ApiClient {
     }
   }
 
+  // _decodeObjectResponse: handles decode object response for the api client flow.
   Map<String, dynamic> _decodeObjectResponse(http.Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw _buildApiException(response);
@@ -373,6 +386,7 @@ class ApiClient {
     throw const ApiException('Unexpected response from server.');
   }
 
+  // _buildApiException: handles build api exception for the api client flow.
   ApiException _buildApiException(http.Response response) {
     if (response.body.isNotEmpty) {
       try {
@@ -421,6 +435,7 @@ class ApiClient {
     );
   }
 
+  // _friendlyStatusMessage: handles friendly status message for the api client flow.
   String _friendlyStatusMessage(int statusCode) {
     switch (statusCode) {
       case 400:
@@ -447,6 +462,7 @@ class ApiClient {
     }
   }
 
+  // _fileNameFromDisposition: handles file name from disposition for the api client flow.
   String _fileNameFromDisposition(String? value) {
     final header = value ?? '';
     final starMatch = RegExp(

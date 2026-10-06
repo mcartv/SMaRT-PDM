@@ -1,3 +1,4 @@
+// SMaRT-PDM: Courses — Courses Panel (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -28,6 +29,7 @@ import { useSocketEvent } from '@/hooks/useSocket';
 import { confirmArchive } from '@/utils/confirmArchive';
 import { toast } from 'sonner';
 
+// CourseModal: handles course modal for the Courses flow.
 function CourseModal({
     open,
     mode,
@@ -136,6 +138,7 @@ function CourseModal({
     );
 }
 
+// CourseNoticeModal: handles course notice modal for the Courses flow.
 function CourseNoticeModal({ notice, onClose }) {
     if (!notice) return null;
     return (
@@ -155,11 +158,13 @@ function CourseNoticeModal({ notice, onClose }) {
 
 const NEW_COURSE_DAYS = 30;
 
+// courseCreatedTime: handles course created time for the Courses flow.
 function courseCreatedTime(course) {
     const value = Date.parse(course?.created_at || '');
     return Number.isFinite(value) ? value : 0;
 }
 
+// isNewCourse: checks whether is new course for the Courses flow.
 function isNewCourse(course) {
     const created = courseCreatedTime(course);
     if (!created) return false;
@@ -268,6 +273,7 @@ export default function CoursesPanel() {
             });
     }, [courses, search, pageTab]);
 
+    // resetModal: resets reset modal for the Courses flow.
     const resetModal = () => {
         setModalOpen(false);
         setModalMode('create');
@@ -275,6 +281,7 @@ export default function CoursesPanel() {
         setForm(emptyForm);
     };
 
+    // openCreateModal: handles open create modal for the Courses flow.
     const openCreateModal = () => {
         setModalMode('create');
         setEditingCourseId(null);
@@ -282,6 +289,7 @@ export default function CoursesPanel() {
         setModalOpen(true);
     };
 
+    // openEditModal: handles open edit modal for the Courses flow.
     const openEditModal = (course) => {
         setModalMode('edit');
         setEditingCourseId(course.course_id);
@@ -292,6 +300,7 @@ export default function CoursesPanel() {
         setModalOpen(true);
     };
 
+    // handleSave: handles handle save for the Courses flow.
     const handleSave = async () => {
         try {
             setSaving(true);
@@ -356,6 +365,7 @@ export default function CoursesPanel() {
         }
     };
 
+    // handleArchive: handles handle archive for the Courses flow.
     const handleArchive = async (course) => {
         const courseName = course.course_name || course.course_code || 'this course';
         if (!(await confirmArchive({ itemName: courseName }))) return;
@@ -392,6 +402,7 @@ export default function CoursesPanel() {
         }
     };
 
+    // handleRestore: handles handle restore for the Courses flow.
     const handleRestore = async (course) => {
         try {
             setActionLoadingId(course.course_id);

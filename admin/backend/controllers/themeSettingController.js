@@ -1,11 +1,14 @@
+// SMaRT-PDM: Settings — theme Setting Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const socketEvents = require('../utils/socketEvents');
 const auditLogService = require('../services/auditLogService');
 const themeSettingService = require('../services/themeSettingService');
 
+// getActorUserId: reads and returns get actor user id for the Settings flow.
 function getActorUserId(req) {
   return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+// writeThemeSettingAudit: handles write theme setting audit for the Settings flow.
 async function writeThemeSettingAudit(req, result) {
   try {
     if (typeof auditLogService?.logAudit !== 'function') return;
@@ -34,11 +37,13 @@ async function writeThemeSettingAudit(req, result) {
   }
 }
 
+// getSafeStatusCode: reads and returns get safe status code for the Settings flow.
 function getSafeStatusCode(error) {
   const parsed = Number.parseInt(error?.statusCode, 10);
   return Number.isInteger(parsed) && parsed >= 400 && parsed <= 599 ? parsed : 500;
 }
 
+// emitThemeRealtime: handles emit theme realtime for the Settings flow.
 function emitThemeRealtime(io, payload = {}, userId = null) {
   if (!io) return;
 
@@ -52,6 +57,7 @@ function emitThemeRealtime(io, payload = {}, userId = null) {
   socketEvents.maintenanceUpdated(io, payload);
 }
 
+// getPublicThemeSetting: reads and returns get public theme setting for the Settings flow.
 async function getPublicThemeSetting(req, res) {
   try {
     const result = await themeSettingService.getPublicThemeSetting(req.params.portalKey);
@@ -64,6 +70,7 @@ async function getPublicThemeSetting(req, res) {
   }
 }
 
+// getThemeSettings: reads and returns get theme settings for the Settings flow.
 async function getThemeSettings(req, res) {
   try {
     const result = await themeSettingService.getThemeSettings(req.user || {});
@@ -76,6 +83,7 @@ async function getThemeSettings(req, res) {
   }
 }
 
+// getCurrentThemeSetting: reads and returns get current theme setting for the Settings flow.
 async function getCurrentThemeSetting(req, res) {
   try {
     const result = await themeSettingService.getPersonalThemeSetting(
@@ -91,6 +99,7 @@ async function getCurrentThemeSetting(req, res) {
   }
 }
 
+// updateThemeSetting: updates update theme setting for the Settings flow.
 async function updateThemeSetting(req, res) {
   try {
     const result = await themeSettingService.updateThemeSetting(
@@ -140,6 +149,7 @@ async function updateThemeSetting(req, res) {
   }
 }
 
+// updateForceDarkMode: updates update force dark mode for the Settings flow.
 async function updateForceDarkMode(req, res) {
   try {
     const result = await themeSettingService.updateForceDarkMode(

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Return of Obligations — support Ticket Routes (mobile backend route); maps mobile API endpoints to middleware and controllers.
 const express = require('express');
 const { protect } = require('../middleware/authMiddleware');
 const supportTicketController = require('../controllers/supportTicketController');

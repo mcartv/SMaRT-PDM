@@ -1,11 +1,14 @@
+// SMaRT-PDM: Document Verification — use Document Title Badge (admin frontend); supports admin-side UI behavior.
 import { useEffect } from 'react';
 
 const FAVICON_SIZE = 64;
 
+// getFavicon: reads and returns get favicon for the Document Verification flow.
 function getFavicon() {
   return document.querySelector('link[rel~="icon"]');
 }
 
+// createBadgedFavicon: creates create badged favicon for the Document Verification flow.
 function createBadgedFavicon(sourceHref, onReady) {
   const image = new Image();
 

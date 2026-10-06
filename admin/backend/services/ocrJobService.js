@@ -1,15 +1,18 @@
+// SMaRT-PDM: OCR — ocr Job Service (admin backend service); contains business logic and data operations.
 const pool = require('../config/db');
 const {
     DOCUMENT_TYPE_TO_NAME,
     normalizeDocumentType,
 } = require('../utils/documentTypes');
 
+// buildHttpError: builds build http error for the OCR flow.
 function buildHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// mapJobRow: maps map job row for the OCR flow.
 function mapJobRow(row) {
     return {
         id: row.id,
@@ -37,6 +40,7 @@ function mapJobRow(row) {
     };
 }
 
+// normalizeCreateJobInput: normalizes normalize create job input for the OCR flow.
 function normalizeCreateJobInput(input = {}) {
     return {
         applicationId: input.applicationId || input.application_id || null,
@@ -49,6 +53,7 @@ function normalizeCreateJobInput(input = {}) {
     };
 }
 
+// validateQueueableDocument: validates validate queueable document for the OCR flow.
 async function validateQueueableDocument(
     client,
     applicationId,

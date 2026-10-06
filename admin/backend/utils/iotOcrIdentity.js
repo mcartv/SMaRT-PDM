@@ -1,18 +1,23 @@
+// SMaRT-PDM: OCR — iot Ocr Identity (admin backend); supports backend application behavior.
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+// normalizeUuid: normalizes normalize uuid for the OCR flow.
 function normalizeUuid(value) {
     const normalized = String(value || '').trim();
     return UUID_PATTERN.test(normalized) ? normalized.toLowerCase() : null;
 }
 
+// normalizeDeviceId: normalizes normalize device id for the OCR flow.
 function normalizeDeviceId(value) {
     return normalizeUuid(value);
 }
 
+// normalizeUserId: normalizes normalize user id for the OCR flow.
 function normalizeUserId(value) {
     return normalizeUuid(value);
 }
 
+// resolveActorUserId: resolves resolve actor user id for the OCR flow.
 function resolveActorUserId(req = {}) {
     return normalizeUserId(
         req.user?.user_id ||

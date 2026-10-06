@@ -1,4 +1,5 @@
-﻿let bridgeStarted = false;
+﻿// SMaRT-PDM: realtime Bridge Service — realtime Bridge Service (admin backend service); contains business logic and data operations.
+let bridgeStarted = false;
 let bridgeChannels = [];
 let bridgeRetryTimer = null;
 let bridgeGeneration = 0;
@@ -10,6 +11,7 @@ const PUBLIC_EVENT_DEDUPE_TTL_MS = 1500;
 const PUBLIC_EVENT_DEDUPE_MAX_ENTRIES = 1000;
 const recentPublicEvents = new Map();
 
+// buildPublicEventDedupeKey: builds build public event dedupe key for the realtime Bridge Service flow.
 function buildPublicEventDedupeKey(eventName, payload = {}) {
   const entityId =
     payload.application_id ||
@@ -31,6 +33,7 @@ function buildPublicEventDedupeKey(eventName, payload = {}) {
   return `${eventName}:${entityId}:${version}`;
 }
 
+// shouldSuppressDuplicatePublicEvent: handles should suppress duplicate public event for the realtime Bridge Service flow.
 function shouldSuppressDuplicatePublicEvent(eventName, payload = {}) {
   const key = buildPublicEventDedupeKey(eventName, payload);
   if (!key) return false;
@@ -56,18 +59,22 @@ function shouldSuppressDuplicatePublicEvent(eventName, payload = {}) {
   return false;
 }
 
+// safeText: handles safe text for the realtime Bridge Service flow.
 function safeText(value) {
   return value === null || value === undefined ? '' : String(value).trim();
 }
 
+// normalizeValue: normalizes normalize value for the realtime Bridge Service flow.
 function normalizeValue(value) {
   return safeText(value);
 }
 
+// normalizeId: normalizes normalize id for the realtime Bridge Service flow.
 function normalizeId(value) {
   return safeText(value);
 }
 
+// uniqueIds: handles unique ids for the realtime Bridge Service flow.
 function uniqueIds(...values) {
   return [
     ...new Set(
@@ -79,6 +86,7 @@ function uniqueIds(...values) {
   ];
 }
 
+// emitPublic: handles emit public for the realtime Bridge Service flow.
 function emitPublic(io, eventName, payload) {
   if (!io) return;
   if (shouldSuppressDuplicatePublicEvent(eventName, payload)) return;
@@ -92,6 +100,7 @@ function emitPublic(io, eventName, payload) {
   io.emit(eventName, finalPayload);
 }
 
+// emitToUser: handles emit to user for the realtime Bridge Service flow.
 function emitToUser(io, userId, eventName, payload) {
   if (!io) return;
 
@@ -114,6 +123,7 @@ function emitToUser(io, userId, eventName, payload) {
   io.to(`user:${normalizedUserId}`).emit(eventName, finalPayload);
 }
 
+// emitToUsers: handles emit to users for the realtime Bridge Service flow.
 function emitToUsers(io, userIds = [], eventName, payload) {
   const targetUserIds = uniqueIds(userIds);
 
@@ -122,6 +132,7 @@ function emitToUsers(io, userIds = [], eventName, payload) {
   }
 }
 
+// buildApplicationPayload: builds build application payload for the realtime Bridge Service flow.
 function buildApplicationPayload(row = {}) {
   return {
     application_id: row.application_id?.toString() || '',
@@ -138,6 +149,7 @@ function buildApplicationPayload(row = {}) {
   };
 }
 
+// buildApplicationDocumentPayload: builds build application document payload for the realtime Bridge Service flow.
 function buildApplicationDocumentPayload(row = {}) {
   return {
     document_id: row.document_id?.toString() || '',
@@ -154,6 +166,7 @@ function buildApplicationDocumentPayload(row = {}) {
   };
 }
 
+// buildEndorsementPayload: builds build endorsement payload for the realtime Bridge Service flow.
 function buildEndorsementPayload(row = {}) {
   return {
     slip_id: row.slip_id?.toString() || '',
@@ -169,6 +182,7 @@ function buildEndorsementPayload(row = {}) {
   };
 }
 
+// handleApplicationChange: handles handle application change for the realtime Bridge Service flow.
 function handleApplicationChange(io, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const nextRow = payload.new || {};
@@ -204,6 +218,7 @@ function handleApplicationChange(io, payload = {}) {
   }
 }
 
+// handleApplicationDocumentChange: handles handle application document change for the realtime Bridge Service flow.
 function handleApplicationDocumentChange(io, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const nextRow = payload.new || {};
@@ -228,6 +243,7 @@ function handleApplicationDocumentChange(io, payload = {}) {
 
 }
 
+// buildApplicationDocumentReviewPayload: builds build application document review payload for the realtime Bridge Service flow.
 function buildApplicationDocumentReviewPayload(row = {}) {
   return {
     review_id: row.review_id?.toString() || '',
@@ -245,6 +261,7 @@ function buildApplicationDocumentReviewPayload(row = {}) {
   };
 }
 
+// handleApplicationDocumentReviewChange: handles handle application document review change for the realtime Bridge Service flow.
 function handleApplicationDocumentReviewChange(io, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const nextRow = payload.new || {};
@@ -266,6 +283,7 @@ function handleApplicationDocumentReviewChange(io, payload = {}) {
   });
 }
 
+// handleEndorsementSlipChange: handles handle endorsement slip change for the realtime Bridge Service flow.
 function handleEndorsementSlipChange(io, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const nextRow = payload.new || {};
@@ -285,6 +303,7 @@ function handleEndorsementSlipChange(io, payload = {}) {
 
 }
 
+// fetchRoomMemberIds: fetches and returns fetch room member ids for the realtime Bridge Service flow.
 async function fetchRoomMemberIds(supabase, roomId) {
   if (!supabase || !roomId) return [];
 
@@ -303,6 +322,7 @@ async function fetchRoomMemberIds(supabase, roomId) {
     .filter(Boolean);
 }
 
+// fetchUserSummary: fetches and returns fetch user summary for the realtime Bridge Service flow.
 async function fetchUserSummary(supabase, userId) {
   if (!supabase || !userId) return null;
 
@@ -365,6 +385,7 @@ async function fetchUserSummary(supabase, userId) {
   };
 }
 
+// buildMessagePayload: builds build message payload for the realtime Bridge Service flow.
 async function buildMessagePayload(supabase, row = {}) {
   const senderSummary = await fetchUserSummary(supabase, row.sender_id);
 
@@ -408,6 +429,7 @@ async function buildMessagePayload(supabase, row = {}) {
   };
 }
 
+// handleMessageChange: handles handle message change for the realtime Bridge Service flow.
 async function handleMessageChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -496,6 +518,7 @@ async function handleMessageChange(io, supabase, payload = {}) {
   }
 }
 
+// disposeRealtimeBridgeChannels: handles dispose realtime bridge channels for the realtime Bridge Service flow.
 async function disposeRealtimeBridgeChannels(supabase) {
   const channels = bridgeChannels;
   bridgeChannels = [];
@@ -513,6 +536,7 @@ async function disposeRealtimeBridgeChannels(supabase) {
   );
 }
 
+// scheduleRealtimeBridgeRestart: handles schedule realtime bridge restart for the realtime Bridge Service flow.
 function scheduleRealtimeBridgeRestart({ io, supabase, reason }) {
   if (bridgeRetryTimer) return;
 
@@ -541,6 +565,7 @@ function scheduleRealtimeBridgeRestart({ io, supabase, reason }) {
   bridgeRetryTimer.unref?.();
 }
 
+// createRealtimeDomainChannel: creates create realtime domain channel for the realtime Bridge Service flow.
 function createRealtimeDomainChannel({
   io,
   supabase,
@@ -585,6 +610,7 @@ function createRealtimeDomainChannel({
   return channel;
 }
 
+// configureRealtimeBridge: handles configure realtime bridge for the realtime Bridge Service flow.
 function configureRealtimeBridge({ io, supabase }) {
   if (bridgeStarted && bridgeChannels.length > 0) {
     return bridgeChannels[0];

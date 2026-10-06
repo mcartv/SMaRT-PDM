@@ -1,10 +1,13 @@
+// SMaRT-PDM: Profile — profile Controller (mobile backend controller); handles mobile API input/output and delegates business logic.
 const profileService = require('../services/profileService');
 const { getSafeStatusCode } = require('../utils/httpStatus');
 
+// getRequestUserId: reads and returns get request user id for the Profile flow.
 function getRequestUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+// getMyProfile: reads and returns get my profile for the Profile flow.
 async function getMyProfile(req, res) {
     try {
         const userId = getRequestUserId(req);
@@ -19,6 +22,7 @@ async function getMyProfile(req, res) {
     }
 }
 
+// setupMyProfile: sets setup my profile for the Profile flow.
 async function setupMyProfile(req, res) {
     try {
         const userId = getRequestUserId(req);
@@ -36,6 +40,7 @@ async function setupMyProfile(req, res) {
     }
 }
 
+// updateMyProfile: updates update my profile for the Profile flow.
 async function updateMyProfile(req, res) {
     try {
         const userId = getRequestUserId(req);
@@ -82,6 +87,7 @@ async function updateMyProfile(req, res) {
     }
 }
 
+// getMyOnboardingPreference: reads and returns get my onboarding preference for the Profile flow.
 async function getMyOnboardingPreference(req, res) {
     try {
         const result = await profileService.getMyOnboardingPreference(
@@ -96,6 +102,7 @@ async function getMyOnboardingPreference(req, res) {
     }
 }
 
+// markMyOnboardingSeen: marks mark my onboarding seen for the Profile flow.
 async function markMyOnboardingSeen(req, res) {
     try {
         const result = await profileService.markMyOnboardingSeen(
@@ -110,6 +117,7 @@ async function markMyOnboardingSeen(req, res) {
     }
 }
 
+// uploadAvatar: uploads upload avatar for the Profile flow.
 async function uploadAvatar(req, res) {
     try {
         const userId = getRequestUserId(req);

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — scholarship Branding Migration Service (admin backend service); contains business logic and data operations.
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
@@ -12,6 +13,7 @@ const MIGRATION_PATH = path.resolve(
   '../../../supabase/migrations/20260927000400_add_scholarship_branding.sql'
 );
 
+// ensureScholarshipBrandingMigration: ensures ensure scholarship branding migration for the Scholars flow.
 async function ensureScholarshipBrandingMigration() {
   if (!fs.existsSync(MIGRATION_PATH)) {
     throw new Error(`Scholarship branding migration file missing: ${MIGRATION_PATH}`);

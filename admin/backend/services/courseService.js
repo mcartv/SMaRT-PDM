@@ -1,13 +1,17 @@
+// SMaRT-PDM: Courses — course Service (admin backend service); contains business logic and data operations.
 const pool = require('../config/db');
 
+// normalizeCourseCode: normalizes normalize course code for the Courses flow.
 function normalizeCourseCode(value) {
     return String(value || '').trim().toUpperCase();
 }
 
+// normalizeCourseName: normalizes normalize course name for the Courses flow.
 function normalizeCourseName(value) {
     return String(value || '').trim();
 }
 
+// mapCourse: maps map course for the Courses flow.
 function mapCourse(row = {}) {
     return {
         course_id: row.course_id,
@@ -25,6 +29,7 @@ function mapCourse(row = {}) {
     };
 }
 
+// getCourseById: reads and returns get course by id for the Courses flow.
 async function getCourseById(courseId) {
     const result = await pool.query(
         `
@@ -45,6 +50,7 @@ async function getCourseById(courseId) {
     return result.rows[0] ? mapCourse(result.rows[0]) : null;
 }
 
+// ensureUniqueCourseCode: ensures ensure unique course code for the Courses flow.
 async function ensureUniqueCourseCode(courseCode, excludeCourseId = null) {
     const result = await pool.query(
         `
@@ -62,6 +68,7 @@ async function ensureUniqueCourseCode(courseCode, excludeCourseId = null) {
     }
 }
 
+// fetchCourses: fetches and returns fetch courses for the Courses flow.
 const fetchCourses = async () => {
     const result = await pool.query(
         `
@@ -215,6 +222,7 @@ const updateCourse = async (
     return result.rows[0] ? mapCourse(result.rows[0]) : null;
 };
 
+// archiveCourse: archives archive course for the Courses flow.
 const archiveCourse = async (courseId) => {
     const existing = await getCourseById(courseId);
 
@@ -252,6 +260,7 @@ const archiveCourse = async (courseId) => {
     }
 };
 
+// restoreCourse: restores restore course for the Courses flow.
 const restoreCourse = async (courseId) => {
     const existing = await getCourseById(courseId);
 

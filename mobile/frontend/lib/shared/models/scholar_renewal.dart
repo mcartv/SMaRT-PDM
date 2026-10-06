@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — scholar renewal (mobile frontend); supports mobile UI behavior.
 class ScholarRenewalDocument {
   const ScholarRenewalDocument({
     required this.id,

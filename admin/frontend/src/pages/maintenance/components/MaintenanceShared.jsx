@@ -1,3 +1,4 @@
+// SMaRT-PDM: Maintenance — Maintenance Shared (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Building2, ToggleLeft, ToggleRight } from 'lucide-react';
@@ -19,6 +20,7 @@ export const C = {
     muted: '#78716c',
 };
 
+// FieldLabel: handles field label for the Maintenance flow.
 export function FieldLabel({ children }) {
     const text = typeof children === 'string' ? children.trimEnd() : null;
     const hasRequiredMark = Boolean(text?.endsWith('*'));
@@ -35,6 +37,7 @@ export function FieldLabel({ children }) {
     );
 }
 
+// GroupCard: handles group card for the Maintenance flow.
 export function GroupCard({ title, icon: Icon = Building2, children }) {
     return (
         <Card className="overflow-hidden rounded-xl border-stone-200 bg-white shadow-none">
@@ -52,6 +55,7 @@ export function GroupCard({ title, icon: Icon = Building2, children }) {
     );
 }
 
+// Toggle: handles toggle for the Maintenance flow.
 export function Toggle({ value, onChange, labels = ['Enabled', 'Disabled'] }) {
     return (
         <button
@@ -75,6 +79,7 @@ export function Toggle({ value, onChange, labels = ['Enabled', 'Disabled'] }) {
     );
 }
 
+// EmptyState: handles empty state for the Maintenance flow.
 export function EmptyState({ icon: Icon = Building2, title, subtitle }) {
     return (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-stone-300 bg-stone-50 px-5 py-10 text-center">

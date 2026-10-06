@@ -1,11 +1,14 @@
+// SMaRT-PDM: Notifications — endorsement Notification Middleware (admin backend middleware); validates or transforms requests before controller handling.
 const db = require('../config/db');
 const notificationService = require('../services/notificationService');
 const socketEvents = require('../utils/socketEvents');
 
+// normalizeVerificationStatus: normalizes normalize verification status for the Notifications flow.
 function normalizeVerificationStatus(value) {
     return String(value || '').trim().toLowerCase();
 }
 
+// notifySdoForVerifiedApplication: creates or sends notify sdo for verified application for the Notifications flow.
 async function notifySdoForVerifiedApplication(req) {
     const applicationId = String(req.params?.id || '').trim();
     if (!applicationId) return [];
@@ -94,6 +97,7 @@ async function notifySdoForVerifiedApplication(req) {
     return created;
 }
 
+// notifySdoAfterSuccessfulVerification: creates or sends notify sdo after successful verification for the Notifications flow.
 function notifySdoAfterSuccessfulVerification(req, res, next) {
     if (normalizeVerificationStatus(req.body?.verification_status) !== 'verified') {
         return next();

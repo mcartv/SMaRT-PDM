@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — auth Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const crypto = require('crypto');
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
@@ -9,6 +10,7 @@ const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 const adminSessionService = require('../services/adminSessionService');
 
+// emitAdminSessionUpdated: handles emit admin session updated for the Authentication flow.
 function emitAdminSessionUpdated(req, action, session = null) {
     socketEvents.emitEvent(req.app?.get?.('io'), 'admin-session:updated', {
         action,
@@ -23,6 +25,7 @@ const RESET_RESEND_SECONDS = Number(process.env.RESET_RESEND_SECONDS || 60);
 const MAX_RESET_ATTEMPTS = Number(process.env.MAX_RESET_ATTEMPTS || 5);
 const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS || 12);
 
+// hasAdminProfilePhotoColumn: checks whether has admin profile photo column for the Authentication flow.
 async function hasAdminProfilePhotoColumn() {
     const result = await db.query(
         `
@@ -38,6 +41,7 @@ async function hasAdminProfilePhotoColumn() {
     return result.rows.length > 0;
 }
 
+// buildStaffUserQuery: builds build staff user query for the Authentication flow.
 function buildStaffUserQuery(photoEnabled = false, lookup = 'email') {
     const identityCondition = lookup === 'identifier'
         ? '(LOWER(u.email) = LOWER($1) OR LOWER(u.username) = LOWER($1))'
@@ -66,14 +70,17 @@ function buildStaffUserQuery(photoEnabled = false, lookup = 'email') {
     `;
 }
 
+// normalizeLoginIdentifier: normalizes normalize login identifier for the Authentication flow.
 function normalizeLoginIdentifier(identifier) {
     return String(identifier || '').trim().toLowerCase();
 }
 
+// normalizeEmail: normalizes normalize email for the Authentication flow.
 function normalizeEmail(email) {
     return normalizeLoginIdentifier(email);
 }
 
+// buildToken: builds build token for the Authentication flow.
 function buildToken(profile, role) {
     const fallbackName =
         [profile.first_name, profile.last_name].filter(Boolean).join(' ') ||
@@ -98,6 +105,7 @@ function buildToken(profile, role) {
     );
 }
 
+// hashSecret: checks whether hash secret for the Authentication flow.
 function hashSecret(value) {
     if (!process.env.JWT_SECRET) {
         throw new Error('JWT_SECRET is required for OTP/reset hashing');
@@ -109,14 +117,17 @@ function hashSecret(value) {
         .digest('hex');
 }
 
+// makeOtp: handles make otp for the Authentication flow.
 function makeOtp() {
     return String(crypto.randomInt(100000, 1000000));
 }
 
+// makeResetToken: handles make reset token for the Authentication flow.
 function makeResetToken() {
     return crypto.randomBytes(32).toString('hex');
 }
 
+// validatePasswordPolicy: validates validate password policy for the Authentication flow.
 function validatePasswordPolicy(password) {
     const value = String(password || '');
     const errors = [];
@@ -127,6 +138,7 @@ function validatePasswordPolicy(password) {
     return errors;
 }
 
+// findStaffByEmail: finds and returns find staff by email for the Authentication flow.
 async function findStaffByEmail(email) {
     const normalizedEmail = normalizeEmail(email);
     const photoEnabled = await hasAdminProfilePhotoColumn();
@@ -136,6 +148,7 @@ async function findStaffByEmail(email) {
     return result.rows[0] || null;
 }
 
+// findStaffByIdentifier: finds and returns find staff by identifier for the Authentication flow.
 async function findStaffByIdentifier(identifier) {
     const normalizedIdentifier = normalizeLoginIdentifier(identifier);
     const photoEnabled = await hasAdminProfilePhotoColumn();
@@ -148,6 +161,7 @@ async function findStaffByIdentifier(identifier) {
     return result.rows[0] || null;
 }
 
+// findAuthorizedAdminForReset: finds and returns find authorized admin for reset for the Authentication flow.
 async function findAuthorizedAdminForReset(email) {
     const normalizedEmail = normalizeEmail(email);
     if (!normalizedEmail) return null;
@@ -167,6 +181,7 @@ async function findAuthorizedAdminForReset(email) {
     return user;
 }
 
+// loginUnified: handles login unified for the Authentication flow.
 async function loginUnified(req, res) {
     const {
         identifier,
@@ -929,10 +944,12 @@ exports.resetAdminPassword = async (req, res) => {
 
     const readOnlyPrefixes = ['get', 'fetch', 'list', 'download', 'export'];
 
+    // isReadOnlyAction: checks whether is read only action for the Authentication flow.
     function isReadOnlyAction(name) {
         return readOnlyPrefixes.some((prefix) => String(name).startsWith(prefix));
     }
 
+    // resolveActionName: resolves resolve action name for the Authentication flow.
     function resolveActionName(name) {
         const raw = String(name || '').toLowerCase();
 
@@ -945,10 +962,12 @@ exports.resetAdminPassword = async (req, res) => {
         return 'updated';
     }
 
+    // getActorUserId: reads and returns get actor user id for the Authentication flow.
     function getActorUserId(req) {
         return req.user?.user_id || req.user?.userId || req.user?.id || null;
     }
 
+    // getEntityId: reads and returns get entity id for the Authentication flow.
     function getEntityId(req, body) {
         return (
             req.params?.id ||
@@ -968,6 +987,7 @@ exports.resetAdminPassword = async (req, res) => {
         );
     }
 
+    // safeAudit: handles safe audit for the Authentication flow.
     function safeAudit(req, functionName, responseBody) {
         try {
             const action = resolveActionName(functionName);

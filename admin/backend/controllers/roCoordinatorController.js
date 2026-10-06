@@ -1,3 +1,4 @@
+// SMaRT-PDM: Return of Obligations — ro Coordinator Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const db = require('../config/db');
 const supabase = require('../config/supabase');
 const auditLogService = require('../services/auditLogService');
@@ -11,6 +12,7 @@ const { resolveAvatarUrl } = require('../services/avatarService');
 const RO_PROOFS_BUCKET =
   process.env.RO_PROOFS_BUCKET || 'ro-proofs';
 
+// getAttendanceProofStoragePath: reads and returns get attendance proof storage path for the Return of Obligations flow.
 function getAttendanceProofStoragePath(proof = {}) {
   const directPath = String(proof.file_path || '').trim();
 
@@ -41,6 +43,7 @@ function getAttendanceProofStoragePath(proof = {}) {
   return '';
 }
 
+// resolveAttendanceProofUrl: resolves resolve attendance proof url for the Return of Obligations flow.
 async function resolveAttendanceProofUrl(proof = {}) {
   const storagePath = getAttendanceProofStoragePath(proof);
 
@@ -63,6 +66,7 @@ async function resolveAttendanceProofUrl(proof = {}) {
   return data?.signedUrl || '';
 }
 
+// hydrateAttendanceProofUrls: handles hydrate attendance proof urls for the Return of Obligations flow.
 async function hydrateAttendanceProofUrls(rows = []) {
   return Promise.all(
     (Array.isArray(rows) ? rows : []).map(async (row) => {
@@ -82,10 +86,12 @@ async function hydrateAttendanceProofUrls(rows = []) {
     })
   );
 }
+// currentUserId: handles current user id for the Return of Obligations flow.
 function currentUserId(req) {
   return req.user?.user_id || req.user?.userId || req.user?.sub || null;
 }
 
+// getCoordinator: reads and returns get coordinator for the Return of Obligations flow.
 async function getCoordinator(req) {
   const userId = currentUserId(req);
   const result = await db.query(
@@ -125,6 +131,7 @@ async function getCoordinator(req) {
   };
 }
 
+// emitUpdate: handles emit update for the Return of Obligations flow.
 function emitUpdate(req, payload) {
   const io = req.app.get('io');
   if (socketEvents?.roUpdated) {
@@ -134,6 +141,7 @@ function emitUpdate(req, payload) {
   }
 }
 
+// notify: creates or sends notify for the Return of Obligations flow.
 async function notify(req, coordinator, request, decision, remarks) {
   const io = req.app.get('io');
   const student = await db.query(

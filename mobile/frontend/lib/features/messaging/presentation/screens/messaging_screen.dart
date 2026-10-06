@@ -1,3 +1,4 @@
+// SMaRT-PDM: messaging screen — messaging screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -34,6 +35,7 @@ class MessagingScreen extends StatefulWidget {
   final String? messageReferenceId;
 
   @override
+  // createState: creates create state for the messaging screen flow.
   State<MessagingScreen> createState() => _MessagingScreenState();
 }
 
@@ -84,6 +86,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
   }
 
   @override
+  // initState: handles init state for the messaging screen flow.
   void initState() {
     super.initState();
     if (_normalizedRoomId == null) {
@@ -103,6 +106,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
   }
 
   @override
+  // didUpdateWidget: handles did update widget for the messaging screen flow.
   void didUpdateWidget(covariant MessagingScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.roomId?.trim() != widget.roomId?.trim() ||
@@ -113,6 +117,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     }
   }
 
+  // _resetHistoryWindow: handles reset history window for the messaging screen flow.
   void _resetHistoryWindow() {
     _historyRequestGeneration += 1;
     _olderMessages.clear();
@@ -123,6 +128,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     _replyingTo = null;
   }
 
+  // _visibleMessages: handles visible messages for the messaging screen flow.
   List<ChatMessage> _visibleMessages(MessagingProvider provider) {
     final byId = <String, ChatMessage>{};
     for (final message in <ChatMessage>[
@@ -141,10 +147,12 @@ class _MessagingScreenState extends State<MessagingScreen> {
     return items;
   }
 
+  // _handleComposerChanged: handles handle composer changed for the messaging screen flow.
   void _handleComposerChanged() {
     if (mounted) setState(() {});
   }
 
+  // _handleMessageScroll: handles handle message scroll for the messaging screen flow.
   void _handleMessageScroll() {
     if (!_messageScrollController.hasClients) return;
     _isNearLatest = _messageScrollController.offset <= 120;
@@ -157,6 +165,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     }
   }
 
+  // _handleProviderMessagesChanged: handles handle provider messages changed for the messaging screen flow.
   void _handleProviderMessagesChanged() {
     final provider = _provider;
     if (provider == null || provider.messages.isEmpty) return;
@@ -174,6 +183,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     }
   }
 
+  // _scheduleLatestDeliveredStatus: handles schedule latest delivered status for the messaging screen flow.
   void _scheduleLatestDeliveredStatus(MessagingProvider provider) {
     String? newestOutgoingId;
     for (final message in provider.messages) {
@@ -203,6 +213,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     });
   }
 
+  // _scrollToLatest: handles scroll to latest for the messaging screen flow.
   void _scrollToLatest({bool animated = true}) {
     if (!_messageScrollController.hasClients) return;
     _isNearLatest = true;
@@ -218,6 +229,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     }
   }
 
+  // _messagesBelongTogether: handles messages belong together for the messaging screen flow.
   bool _messagesBelongTogether(ChatMessage older, ChatMessage newer) {
     if (older.subject?.toLowerCase() == 'system' ||
         newer.subject?.toLowerCase() == 'system') {
@@ -235,6 +247,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     return newer.sentAt.difference(older.sentAt).inMinutes <= 5;
   }
 
+  // _shouldShowTimeDivider: handles should show time divider for the messaging screen flow.
   bool _shouldShowTimeDivider(ChatMessage older, ChatMessage newer) {
     final olderLocal = older.sentAt.toLocal();
     final newerLocal = newer.sentAt.toLocal();
@@ -247,6 +260,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     return newer.sentAt.difference(older.sentAt) > const Duration(hours: 1);
   }
 
+  // _openThread: handles open thread for the messaging screen flow.
   Future<void> _openThread() async {
     final provider = _provider ?? context.read<MessagingProvider>();
 
@@ -281,6 +295,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     }
   }
 
+  // _loadOlderMessages: handles load older messages for the messaging screen flow.
   Future<void> _loadOlderMessages() async {
     final provider = _provider;
     if (!mounted || provider == null || !_historyInitialized) return;
@@ -361,6 +376,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     }
   }
 
+  // _startRefreshFallback: handles start refresh fallback for the messaging screen flow.
   void _startRefreshFallback() {
     _refreshFallback?.cancel();
     _refreshFallback = Timer.periodic(const Duration(seconds: 20), (_) async {
@@ -382,6 +398,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     });
   }
 
+  // _refreshThread: handles refresh thread for the messaging screen flow.
   Future<void> _refreshThread() async {
     if (_isRefreshing) return;
 
@@ -393,6 +410,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     }
   }
 
+  // _sendMessage: handles send message for the messaging screen flow.
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty || _isSending) return;
@@ -424,12 +442,14 @@ class _MessagingScreenState extends State<MessagingScreen> {
     }
   }
 
+  // _sendQuickLike: handles send quick like for the messaging screen flow.
   Future<void> _sendQuickLike() async {
     if (_isSending || _messageController.text.trim().isNotEmpty) return;
     _messageController.text = '👍';
     await _sendMessage();
   }
 
+  // _copyMessage: handles copy message for the messaging screen flow.
   Future<void> _copyMessage(ChatMessage message) async {
     final body = message.messageBody.trim();
     if (body.isEmpty || message.isUnsent) return;
@@ -440,6 +460,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     );
   }
 
+  // _showMessageActions: handles show message actions for the messaging screen flow.
   Future<void> _showMessageActions(ChatMessage message) async {
     if (message.subject?.toLowerCase() == 'system') return;
     final provider = _provider ?? context.read<MessagingProvider>();
@@ -511,6 +532,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     );
   }
 
+  // _privateContactIcon: handles private contact icon for the messaging screen flow.
   IconData _privateContactIcon(SupportConversation? contact) {
     switch ((contact?.role ?? '').toLowerCase()) {
       case 'sdo':
@@ -526,6 +548,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     }
   }
 
+  // _showPrivateInfo: handles show private info for the messaging screen flow.
   Future<void> _showPrivateInfo() async {
     if (!mounted) return;
     final contact = MessageService.selectedSupportConversation;
@@ -644,6 +667,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     );
   }
 
+  // _confirmUnsend: handles confirm unsend for the messaging screen flow.
   Future<void> _confirmUnsend(ChatMessage message) async {
     if (!message.isUnsent && mounted) {
       final confirmed = await showDialog<bool>(
@@ -678,6 +702,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     }
   }
 
+  // _showReadOnlyGroupInfo: handles show read only group info for the messaging screen flow.
   Future<void> _showReadOnlyGroupInfo(MessagingProvider provider) async {
     final room = provider.activeGroupRoom;
     if (room == null || !mounted) return;
@@ -748,6 +773,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     );
   }
 
+  // _showGroupInfo: handles show group info for the messaging screen flow.
   Future<void> _showGroupInfo() async {
     final roomId = _normalizedRoomId;
     if (roomId == null) return;
@@ -927,6 +953,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     );
   }
 
+  // _showMemberProfile: handles show member profile for the messaging screen flow.
   Future<void> _showMemberProfile(GroupMember member) async {
     if (!mounted) return;
     await showModalBottomSheet<void>(
@@ -975,6 +1002,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     );
   }
 
+  // _confirmLeaveGroup: handles confirm leave group for the messaging screen flow.
   Future<void> _confirmLeaveGroup() async {
     final roomId = _normalizedRoomId;
     if (roomId == null || !mounted) return;
@@ -1013,6 +1041,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     }
   }
 
+  // _formatTime: handles format time for the messaging screen flow.
   String _formatTime(DateTime value) {
     final local = value.toLocal();
     final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
@@ -1021,6 +1050,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     return '$hour:$minute $period';
   }
 
+  // _formatDate: handles format date for the messaging screen flow.
   String _formatDate(DateTime value) {
     final local = value.toLocal();
     final now = DateTime.now();
@@ -1050,6 +1080,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
   }
 
   @override
+  // build: builds build for the messaging screen flow.
   Widget build(BuildContext context) {
     final provider = context.watch<MessagingProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1239,6 +1270,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     );
   }
 
+  // _buildMessageArea: handles build message area for the messaging screen flow.
   Widget _buildMessageArea(MessagingProvider provider, bool isDark) {
     final messages = _visibleMessages(provider);
 
@@ -1406,6 +1438,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
   }
 
   @override
+  // dispose: handles dispose for the messaging screen flow.
   void dispose() {
     _historyRequestGeneration += 1;
     _refreshFallback?.cancel();
@@ -1427,6 +1460,7 @@ class _DateDivider extends StatelessWidget {
   final String label;
 
   @override
+  // build: builds build for the messaging screen flow.
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1456,6 +1490,7 @@ class _TimeDivider extends StatelessWidget {
   final String label;
 
   @override
+  // build: builds build for the messaging screen flow.
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 14),
@@ -1513,6 +1548,7 @@ class _MessageBubble extends StatelessWidget {
   final VoidCallback? onLongPress;
 
   @override
+  // build: builds build for the messaging screen flow.
   Widget build(BuildContext context) {
     if (message.subject?.toLowerCase() == 'system') {
       return Padding(
@@ -1781,6 +1817,7 @@ class _ChatSearchBar extends StatelessWidget {
   final VoidCallback onClose;
 
   @override
+  // build: builds build for the messaging screen flow.
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(
@@ -1842,6 +1879,7 @@ class _GroupMemberAvatar extends StatelessWidget {
   final double radius;
 
   @override
+  // build: builds build for the messaging screen flow.
   Widget build(BuildContext context) {
     final avatarUrl = member.avatarUrl.trim();
     final initials = member.name
@@ -1875,6 +1913,7 @@ class _ProfileLine extends StatelessWidget {
   final String value;
 
   @override
+  // build: builds build for the messaging screen flow.
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -1909,6 +1948,7 @@ class _SenderAvatar extends StatelessWidget {
   final ChatMessage message;
 
   @override
+  // build: builds build for the messaging screen flow.
   Widget build(BuildContext context) {
     final avatarUrl = message.senderAvatarUrl?.trim();
 
@@ -1931,6 +1971,7 @@ class _FormerGroupReadOnlyBanner extends StatelessWidget {
   final DateTime? cutoffAt;
 
   @override
+  // build: builds build for the messaging screen flow.
   Widget build(BuildContext context) {
     final cutoff = cutoffAt?.toLocal();
     final cutoffLabel = cutoff == null
@@ -1991,6 +2032,7 @@ class _MessageComposer extends StatelessWidget {
   final VoidCallback onSend;
   final VoidCallback onLike;
 
+  // _replyName: handles reply name for the messaging screen flow.
   String _replyName(ChatMessage message) {
     if (message.senderId == currentUserId) return 'yourself';
     final senderName = (message.senderName ?? '').trim();
@@ -1998,6 +2040,7 @@ class _MessageComposer extends StatelessWidget {
   }
 
   @override
+  // build: builds build for the messaging screen flow.
   Widget build(BuildContext context) {
     final canSend = controller.text.trim().isNotEmpty && !isSending;
 
@@ -2166,6 +2209,7 @@ class _MessageErrorState extends StatelessWidget {
   final Future<void> Function() onRetry;
 
   @override
+  // build: builds build for the messaging screen flow.
   Widget build(BuildContext context) {
     final status = Theme.of(context).extension<AppStatusColors>()!;
 

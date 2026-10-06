@@ -1,3 +1,4 @@
+// SMaRT-PDM: Public Visitor Tracker — Public Visitor Tracker (admin frontend component); renders reusable UI and handles local interactions.
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { buildApiUrl } from '@/api';
@@ -22,11 +23,13 @@ const PUBLIC_PATHS = [
   '/endorsement/verify',
 ];
 
+// isPublicWebPath: checks whether is public web path for the Public Visitor Tracker flow.
 function isPublicWebPath(pathname) {
   const path = String(pathname || '/');
   return PUBLIC_PATHS.some((entry) => path === entry || path.startsWith(`${entry}/`));
 }
 
+// createVisitorId: creates create visitor id for the Public Visitor Tracker flow.
 function createVisitorId() {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
     return globalThis.crypto.randomUUID();
@@ -34,6 +37,7 @@ function createVisitorId() {
   return `visitor_${Date.now()}_${Math.random().toString(36).slice(2, 18)}`;
 }
 
+// getVisitorId: reads and returns get visitor id for the Public Visitor Tracker flow.
 function getVisitorId() {
   try {
     const existing = localStorage.getItem(VISITOR_ID_KEY);
@@ -50,6 +54,7 @@ function getVisitorId() {
   }
 }
 
+// getLastPingAt: reads and returns get last ping at for the Public Visitor Tracker flow.
 function getLastPingAt() {
   try {
     return Number(localStorage.getItem(LAST_PING_KEY) || 0);
@@ -58,6 +63,7 @@ function getLastPingAt() {
   }
 }
 
+// rememberLastPing: handles remember last ping for the Public Visitor Tracker flow.
 function rememberLastPing() {
   const timestamp = Date.now();
   fallbackLastPingAt = timestamp;

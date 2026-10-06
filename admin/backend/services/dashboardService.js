@@ -1,4 +1,5 @@
-﻿const supabase = require('../config/supabase');
+﻿// SMaRT-PDM: Dashboard — dashboard Service (admin backend service); contains business logic and data operations.
+const supabase = require('../config/supabase');
 
 const DASHBOARD_CACHE_TTL_MS = Math.max(
     5000,
@@ -9,22 +10,27 @@ let dashboardCache = null;
 let dashboardCacheExpiresAt = 0;
 let dashboardInFlight = null;
 
+// normalizeText: normalizes normalize text for the Dashboard flow.
 function normalizeText(value) {
     return String(value || '').trim();
 }
 
+// normalizeLower: normalizes normalize lower for the Dashboard flow.
 function normalizeLower(value) {
     return normalizeText(value).toLowerCase();
 }
 
+// isRecordArchived: checks whether is record archived for the Dashboard flow.
 function isRecordArchived(row) {
     return row?.is_archived === true;
 }
 
+// isScholarArchived: checks whether is scholar archived for the Dashboard flow.
 function isScholarArchived(row) {
     return row?.scholar_is_archived === true;
 }
 
+// isTerminalApplication: checks whether is terminal application for the Dashboard flow.
 function isTerminalApplication(row) {
     const status = normalizeLower(row?.application_status);
 
@@ -36,6 +42,7 @@ function isTerminalApplication(row) {
     );
 }
 
+// isActiveScholar: checks whether is active scholar for the Dashboard flow.
 function isActiveScholar(row) {
     const scholarshipStatus = normalizeLower(row?.scholarship_status);
 
@@ -46,6 +53,7 @@ function isActiveScholar(row) {
     return row?.is_active_scholar === true || scholarshipStatus === 'active';
 }
 
+// fullName: handles full name for the Dashboard flow.
 function fullName(student = {}) {
     return [
         student.first_name,
@@ -59,6 +67,7 @@ function fullName(student = {}) {
         .trim();
 }
 
+// fetchRows: fetches and returns fetch rows for the Dashboard flow.
 async function fetchRows(table, columns = '*', options = {}) {
     try {
         let query = supabase.from(table).select(columns);
@@ -97,15 +106,18 @@ async function fetchRows(table, columns = '*', options = {}) {
     }
 }
 
+// countBy: handles count by for the Dashboard flow.
 function countBy(rows, predicate) {
     return rows.filter(predicate).length;
 }
 
+// getApplicationStatus: reads and returns get application status for the Dashboard flow.
 function getApplicationStatus(row) {
     if (row?.is_disqualified === true) return 'Disqualified';
     return normalizeText(row?.application_status) || 'Unknown';
 }
 
+// getRequirementsStatus: reads and returns get requirements status for the Dashboard flow.
 function getRequirementsStatus(row) {
     const verificationStatus = normalizeLower(row?.verification_status);
 
@@ -121,6 +133,7 @@ function getRequirementsStatus(row) {
     return documentStatus || normalizeText(row?.verification_status) || 'Pending Review';
 }
 
+// getEndorsementMap: reads and returns get endorsement map for the Dashboard flow.
 function getEndorsementMap(endorsements = []) {
     return new Map(
         endorsements
@@ -129,6 +142,7 @@ function getEndorsementMap(endorsements = []) {
     );
 }
 
+// getOpeningMap: reads and returns get opening map for the Dashboard flow.
 function getOpeningMap(openings = []) {
     return new Map(
         openings
@@ -137,6 +151,7 @@ function getOpeningMap(openings = []) {
     );
 }
 
+// isOperationalOpening: checks whether is operational opening for the Dashboard flow.
 function isOperationalOpening(opening) {
     return (
         !!opening &&
@@ -145,6 +160,7 @@ function isOperationalOpening(opening) {
     );
 }
 
+// isApplicationInOperationalOpening: checks whether is application in operational opening for the Dashboard flow.
 function isApplicationInOperationalOpening(application, openingMap) {
     const openingId = String(application?.opening_id || '');
     if (!openingId) return false;
@@ -152,6 +168,7 @@ function isApplicationInOperationalOpening(application, openingMap) {
     return isOperationalOpening(openingMap.get(openingId));
 }
 
+// getWorkflowStage: reads and returns get workflow stage for the Dashboard flow.
 function getWorkflowStage(application, endorsementMap) {
     const applicationStatus = normalizeLower(application?.application_status);
     const selectionStatus = normalizeLower(application?.selection_status);
@@ -207,6 +224,7 @@ function getWorkflowStage(application, endorsementMap) {
     return 'Processing';
 }
 
+// buildApplicationPipeline: builds build application pipeline for the Dashboard flow.
 function buildApplicationPipeline(applications, endorsements, openings) {
     const endorsementMap = getEndorsementMap(endorsements);
     const openingMap = getOpeningMap(openings);
@@ -265,6 +283,7 @@ function buildApplicationPipeline(applications, endorsements, openings) {
     }));
 }
 
+// buildApplicationProgramMaps: builds build application program maps for the Dashboard flow.
 function buildApplicationProgramMaps(applications) {
     const applicationProgramMap = new Map();
     const latestProgramByStudentMap = new Map();
@@ -309,6 +328,7 @@ function buildApplicationProgramMaps(applications) {
     };
 }
 
+// buildScholarsByBenefactor: builds build scholars by benefactor for the Dashboard flow.
 function buildScholarsByBenefactor(
     students,
     programs,
@@ -387,6 +407,7 @@ function buildScholarsByBenefactor(
         .slice(0, 8);
 }
 
+// buildRecentApplications: builds build recent applications for the Dashboard flow.
 function buildRecentApplications(
     applications,
     students,
@@ -478,6 +499,7 @@ function buildRecentApplications(
         });
 }
 
+// isActivePayoutBatch: checks whether is active payout batch for the Dashboard flow.
 function isActivePayoutBatch(row) {
     if (isRecordArchived(row)) return false;
 
@@ -492,6 +514,7 @@ function isActivePayoutBatch(row) {
     ].includes(status);
 }
 
+// isPendingRenewal: checks whether is pending renewal for the Dashboard flow.
 function isPendingRenewal(row) {
     if (isRecordArchived(row)) return false;
 
@@ -511,6 +534,7 @@ function isPendingRenewal(row) {
     ].includes(status);
 }
 
+// isActiveRO: checks whether is active ro for the Dashboard flow.
 function isActiveRO(row) {
     if (isRecordArchived(row)) return false;
 
@@ -528,6 +552,7 @@ function isActiveRO(row) {
     ].includes(status);
 }
 
+// isROLogNeedingAttention: checks whether is rolog needing attention for the Dashboard flow.
 function isROLogNeedingAttention(row) {
     if (row?.requires_admin_attention === true) return true;
 
@@ -541,6 +566,7 @@ function isROLogNeedingAttention(row) {
     );
 }
 
+// buildSummaryCards: builds build summary cards for the Dashboard flow.
 function buildSummaryCards({
     applications,
     students,
@@ -694,6 +720,7 @@ function buildSummaryCards({
     ];
 }
 
+// buildActionSummary: builds build action summary for the Dashboard flow.
 function buildActionSummary({
     applications,
     openings,
@@ -840,6 +867,7 @@ function buildActionSummary({
     ];
 }
 
+// buildAdminDashboard: builds build admin dashboard for the Dashboard flow.
 async function buildAdminDashboard() {
     const [
         applications,

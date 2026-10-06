@@ -1,10 +1,13 @@
+// SMaRT-PDM: support Controller — support Controller (mobile backend controller); handles mobile API input/output and delegates business logic.
 const supportService = require('../services/supportService');
 const { getSafeStatusCode } = require('../utils/httpStatus');
 
+// getRequestUserId: reads and returns get request user id for the support Controller flow.
 function getRequestUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+// isSupportAdmin: checks whether is support admin for the support Controller flow.
 function isSupportAdmin(req) {
     return !!(
         req.user?.adminId ||
@@ -13,6 +16,7 @@ function isSupportAdmin(req) {
     );
 }
 
+// getSupportTickets: reads and returns get support tickets for the support Controller flow.
 async function getSupportTickets(req, res) {
     try {
         if (!isSupportAdmin(req)) {
@@ -31,6 +35,7 @@ async function getSupportTickets(req, res) {
     }
 }
 
+// createSupportTicket: creates create support ticket for the support Controller flow.
 async function createSupportTicket(req, res) {
     try {
         const userId = getRequestUserId(req);

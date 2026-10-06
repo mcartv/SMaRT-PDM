@@ -1,3 +1,4 @@
+// SMaRT-PDM: Benefactors — Benefactors Panel (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useEffect, useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -22,6 +23,7 @@ import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { confirmArchive } from '@/utils/confirmArchive';
 
+// BenefactorOnlyModal: handles benefactor only modal for the Benefactors flow.
 function BenefactorOnlyModal({
     open,
     mode,
@@ -157,6 +159,7 @@ function BenefactorOnlyModal({
     );
 }
 
+// BenefactorFilterModal: handles benefactor filter modal for the Benefactors flow.
 function BenefactorFilterModal({
     open,
     onClose,
@@ -269,6 +272,7 @@ export default function BenefactorsPanel() {
 
     const [form, setForm] = useState(emptyForm);
 
+    // fetchBenefactors: fetches and returns fetch benefactors for the Benefactors flow.
     const fetchBenefactors = async () => {
         try {
             setLoading(true);
@@ -347,6 +351,7 @@ export default function BenefactorsPanel() {
 
     const hasActiveFilters = typeFilter !== 'All';
 
+    // openCreateModal: handles open create modal for the Benefactors flow.
     const openCreateModal = () => {
         setModalMode('create');
         setEditingBenefactorId(null);
@@ -354,6 +359,7 @@ export default function BenefactorsPanel() {
         setModalOpen(true);
     };
 
+    // openEditModal: handles open edit modal for the Benefactors flow.
     const openEditModal = (benefactor) => {
         setModalMode('edit');
         setEditingBenefactorId(benefactor.benefactor_id);
@@ -366,18 +372,21 @@ export default function BenefactorsPanel() {
         setModalOpen(true);
     };
 
+    // openFilterModal: handles open filter modal for the Benefactors flow.
     const openFilterModal = () => {
         setDraftTypeFilter(typeFilter);
         setDraftArchiveFilter(archiveFilter);
         setFilterOpen(true);
     };
 
+    // applyFilters: handles apply filters for the Benefactors flow.
     const applyFilters = () => {
         setTypeFilter(draftTypeFilter);
         setArchiveFilter(draftArchiveFilter);
         setFilterOpen(false);
     };
 
+    // clearFilters: clears clear filters for the Benefactors flow.
     const clearFilters = () => {
         setDraftTypeFilter('All');
         setDraftArchiveFilter('Active');
@@ -386,6 +395,7 @@ export default function BenefactorsPanel() {
         setFilterOpen(false);
     };
 
+    // handleSave: handles handle save for the Benefactors flow.
     const handleSave = async () => {
         try {
             setSaving(true);
@@ -435,6 +445,7 @@ export default function BenefactorsPanel() {
         }
     };
 
+    // handleArchiveToggle: handles handle archive toggle for the Benefactors flow.
     const handleArchiveToggle = async (benefactor) => {
         if (
             !benefactor.is_archived &&

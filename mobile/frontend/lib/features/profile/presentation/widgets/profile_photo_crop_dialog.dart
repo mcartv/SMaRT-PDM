@@ -1,3 +1,4 @@
+// SMaRT-PDM: Profile — profile photo crop dialog (mobile widget); renders reusable mobile UI behavior.
 import 'dart:typed_data';
 
 import 'package:crop_your_image/crop_your_image.dart';
@@ -7,6 +8,7 @@ import 'package:image/image.dart' as img;
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_button_styles.dart';
 
+// showProfilePhotoCropDialog: handles show profile photo crop dialog for the Profile flow.
 Future<Uint8List?> showProfilePhotoCropDialog(
   BuildContext context, {
   required Uint8List imageBytes,
@@ -26,6 +28,7 @@ class _ProfilePhotoCropDialog extends StatefulWidget {
   final Uint8List imageBytes;
 
   @override
+  // createState: creates create state for the Profile flow.
   State<_ProfilePhotoCropDialog> createState() =>
       _ProfilePhotoCropDialogState();
 }
@@ -37,6 +40,7 @@ class _ProfilePhotoCropDialogState
   bool _isCropping = false;
   String? _errorMessage;
 
+  // _usePhoto: handles use photo for the Profile flow.
   void _usePhoto() {
     if (_isCropping) return;
 
@@ -48,6 +52,7 @@ class _ProfilePhotoCropDialogState
     _cropController.crop();
   }
 
+  // _handleCropResult: handles handle crop result for the Profile flow.
   void _handleCropResult(Uint8List croppedImage) {
     try {
       final decoded = img.decodeImage(croppedImage);
@@ -84,6 +89,7 @@ class _ProfilePhotoCropDialogState
   }
 
   @override
+  // build: builds build for the Profile flow.
   Widget build(BuildContext context) {
     final isDark =
         Theme.of(context).brightness == Brightness.dark;

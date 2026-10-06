@@ -1,3 +1,4 @@
+// SMaRT-PDM: Profile — Profile Photo Queue (admin frontend page); loads data, handles page actions, and renders the admin view.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -21,6 +22,7 @@ function getToken() {
   return sessionStorage.getItem('adminToken') || '';
 }
 
+// authHeaders: handles auth headers for the Profile flow.
 function authHeaders(extra = {}) {
   return {
     ...extra,
@@ -28,6 +30,7 @@ function authHeaders(extra = {}) {
   };
 }
 
+// formatDate: formats format date for the Profile flow.
 function formatDate(value) {
   if (!value) return 'Not recorded';
   const date = new Date(value);
@@ -35,6 +38,7 @@ function formatDate(value) {
   return date.toLocaleString();
 }
 
+// getStudentCode: reads and returns get student code for the Profile flow.
 function getStudentCode(student = {}) {
   return (
     student.pdm_id ||
@@ -44,6 +48,7 @@ function getStudentCode(student = {}) {
   );
 }
 
+// statusClass: handles status class for the Profile flow.
 function statusClass(status) {
   switch (status) {
     case 'approved':
@@ -57,6 +62,7 @@ function statusClass(status) {
   }
 }
 
+// StatusPill: handles status pill for the Profile flow.
 function StatusPill({ status }) {
   return (
     <span
@@ -77,12 +83,14 @@ const PROFILE_PHOTO_REJECTION_REASONS = [
   'Other',
 ];
 
+// RejectModal: handles reject modal for the Profile flow.
 function RejectModal({ onClose, onSubmit, busy, error }) {
   const [reasonOption, setReasonOption] = useState('');
   const [customReason, setCustomReason] = useState('');
   const [remarks, setRemarks] = useState('');
   const [validationError, setValidationError] = useState('');
 
+  // handleSubmit: handles handle submit for the Profile flow.
   const handleSubmit = (event) => {
     event.preventDefault();
     const trimmedReason =
@@ -315,11 +323,13 @@ export default function ProfilePhotoQueue() {
     });
   }, [items, search]);
 
+  // handleStatusChange: handles handle status change for the Profile flow.
   const handleStatusChange = (nextStatus) => {
     setStatus(nextStatus);
     setSearch('');
   };
 
+  // handleApprove: handles handle approve for the Profile flow.
   const handleApprove = async () => {
     if (!detail?.review_id) return;
 
@@ -349,6 +359,7 @@ export default function ProfilePhotoQueue() {
     }
   };
 
+  // handleReject: handles handle reject for the Profile flow.
   const handleReject = async ({ reason, remarks }) => {
     if (!detail?.review_id) return;
 

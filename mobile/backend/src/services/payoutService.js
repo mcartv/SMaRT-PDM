@@ -1,3 +1,4 @@
+// SMaRT-PDM: Payout — payout Service (mobile backend service); contains mobile-facing business logic and data operations.
 const path = require('path');
 const pool = require('../config/db');
 const supabase = require('../config/supabase');
@@ -10,6 +11,7 @@ const ALLOWED_PROOF_MIME_TYPES = new Set([
     'image/webp',
 ]);
 
+// inferProofMimeType: handles infer proof mime type for the Payout flow.
 function inferProofMimeType(file = {}) {
     const provided = safeText(file.mimetype).toLowerCase();
     if (ALLOWED_PROOF_MIME_TYPES.has(provided)) return provided;
@@ -23,16 +25,19 @@ function inferProofMimeType(file = {}) {
     return provided || 'application/octet-stream';
 }
 
+// createHttpError: creates create http error for the Payout flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// safeText: handles safe text for the Payout flow.
 function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
 }
 
+// getMyPayouts: reads and returns get my payouts for the Payout flow.
 async function getMyPayouts(userId) {
     if (!userId) {
         throw createHttpError(401, 'Authentication required.');
@@ -183,6 +188,7 @@ async function getMyPayouts(userId) {
 }
 
 
+// sanitizeFileName: handles sanitize file name for the Payout flow.
 function sanitizeFileName(value) {
     const original = path.basename(safeText(value) || 'payout-proof');
     const extension = path.extname(original).toLowerCase();
@@ -193,6 +199,7 @@ function sanitizeFileName(value) {
     return `${base}${extension}`;
 }
 
+// uploadMyPayoutProof: uploads upload my payout proof for the Payout flow.
 async function uploadMyPayoutProof(userId, payoutEntryId, file) {
     if (!userId) throw createHttpError(401, 'Authentication required.');
     if (!file?.buffer?.length) throw createHttpError(400, 'Select a payout proof file to upload.');

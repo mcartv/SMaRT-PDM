@@ -1,9 +1,12 @@
+// SMaRT-PDM: support Ticket Controller — support Ticket Controller (mobile backend controller); handles mobile API input/output and delegates business logic.
 const supportTicketService = require('../services/supportTicketService');
 
+// getRequestUserId: reads and returns get request user id for the support Ticket Controller flow.
 function getRequestUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+// getSafeStatusCode: reads and returns get safe status code for the support Ticket Controller flow.
 function getSafeStatusCode(error) {
     const parsed = Number.parseInt(error?.statusCode, 10);
     return Number.isInteger(parsed) && parsed >= 400 && parsed <= 599
@@ -11,6 +14,7 @@ function getSafeStatusCode(error) {
         : 500;
 }
 
+// getMyTickets: reads and returns get my tickets for the support Ticket Controller flow.
 async function getMyTickets(req, res) {
     try {
         const userId = getRequestUserId(req);
@@ -29,6 +33,7 @@ async function getMyTickets(req, res) {
     }
 }
 
+// createTicket: creates create ticket for the support Ticket Controller flow.
 async function createTicket(req, res) {
     try {
         const userId = getRequestUserId(req);
@@ -47,6 +52,7 @@ async function createTicket(req, res) {
     }
 }
 
+// getAllTickets: reads and returns get all tickets for the support Ticket Controller flow.
 async function getAllTickets(req, res) {
     try {
         const result = await supportTicketService.getAllTickets(req.user || {});
@@ -59,6 +65,7 @@ async function getAllTickets(req, res) {
     }
 }
 
+// updateTicket: updates update ticket for the support Ticket Controller flow.
 async function updateTicket(req, res) {
     try {
         const result = await supportTicketService.updateTicket({

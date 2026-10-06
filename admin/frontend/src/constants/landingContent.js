@@ -1,3 +1,4 @@
+// SMaRT-PDM: landing Content — landing Content (admin frontend); supports admin-side UI behavior.
 const LEGACY_HERO_TITLE = 'Scholarship access, tracking, and updates in one system.';
 
 export const DEFAULT_LANDING_CONTENT = {
@@ -63,6 +64,7 @@ export const DEFAULT_LANDING_CONTENT = {
 };
 
 
+// normalizeUserTerminology: normalizes normalize user terminology for the landing Content flow.
 function normalizeUserTerminology(value) {
   if (typeof value !== 'string') return value;
   return value
@@ -71,6 +73,7 @@ function normalizeUserTerminology(value) {
     .replace(/\bstaff\b/gi, 'users');
 }
 
+// mergeLandingContent: handles merge landing content for the landing Content flow.
 export function mergeLandingContent(content) {
   const source = content && typeof content === 'object' ? content : {};
   const normalizedSource = Object.fromEntries(
@@ -79,6 +82,7 @@ export function mergeLandingContent(content) {
       typeof value === 'string' ? normalizeUserTerminology(value) : value,
     ])
   );
+  // normalizeTextItems: normalizes normalize text items for the landing Content flow.
   const normalizeTextItems = (items, defaults) => {
     if (!Array.isArray(items)) return defaults;
     const normalized = items
@@ -87,6 +91,7 @@ export function mergeLandingContent(content) {
       .slice(0, 12);
     return normalized.length ? normalized : defaults;
   };
+  // normalizeContentItems: normalizes normalize content items for the landing Content flow.
   const normalizeContentItems = (items, defaults) => {
     if (!Array.isArray(items)) return defaults;
     const normalized = items

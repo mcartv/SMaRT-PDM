@@ -1,13 +1,16 @@
+// SMaRT-PDM: Renewal — renewal Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const renewalService = require('../services/renewalService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 
+// getStatusCode: reads and returns get status code for the Renewal flow.
 function getStatusCode(error) {
     const statusCode = Number(error?.statusCode || error?.status || 500);
     return statusCode >= 400 && statusCode <= 599 ? statusCode : 500;
 }
 
+// emitRenewalUpdated: handles emit renewal updated for the Renewal flow.
 function emitRenewalUpdated(req, action, payload = {}) {
     const io = req.app?.get?.('io');
 
@@ -59,6 +62,7 @@ function emitRenewalUpdated(req, action, payload = {}) {
     }
 }
 
+// writeAudit: handles write audit for the Renewal flow.
 async function writeAudit(req, action, entityId, metadata = {}) {
     try {
         if (typeof auditLogService?.logAudit !== 'function') {

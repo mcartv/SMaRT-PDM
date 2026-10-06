@@ -1,8 +1,10 @@
+// SMaRT-PDM: student Support Conversation Controller — student Support Conversation Controller (mobile backend controller); handles mobile API input/output and delegates business logic.
 'use strict';
 
 const supportConversationService = require('../services/studentSupportConversationService');
 const { getSafeStatusCode } = require('../utils/httpStatus');
 
+// currentUserId: handles current user id for the student Support Conversation Controller flow.
 function currentUserId(req) {
   return req.user?.userId || req.user?.user_id || req.user?.id || null;
 }

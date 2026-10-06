@@ -1,7 +1,9 @@
+// SMaRT-PDM: OCR — iot Ocr Schema Service (admin backend service); contains business logic and data operations.
 const pool = require('../config/db');
 
 let schemaPromise = null;
 
+// verifyRuntimeSchema: verifies verify runtime schema for the OCR flow.
 async function verifyRuntimeSchema() {
     const result = await pool.query(`
         SELECT
@@ -75,6 +77,7 @@ async function verifyRuntimeSchema() {
     }
 }
 
+// ensureIotOcrSchema: ensures ensure iot ocr schema for the OCR flow.
 async function ensureIotOcrSchema() {
     if (!schemaPromise) {
         schemaPromise = verifyRuntimeSchema().catch((error) => {

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Announcements — announcement service (mobile service); calls APIs or shared services and returns processed results.
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
 
@@ -26,6 +27,7 @@ class MobileAnnouncement {
     );
   }
 
+  // toNotification: handles to notification for the Announcements flow.
   AppNotification toNotification() {
     final id = announcementId.trim();
 
@@ -52,6 +54,7 @@ class AnnouncementService {
 
   final ApiClient _apiClient;
 
+  // markViewed: marks mark viewed for the Announcements flow.
   Future<void> markViewed(String announcementId) async {
     final id = announcementId.trim();
     if (id.isEmpty) return;
@@ -59,6 +62,7 @@ class AnnouncementService {
     await _apiClient.postJson('/api/announcements/$id/view', body: const {});
   }
 
+  // fetchAnnouncements: fetches and returns fetch announcements for the Announcements flow.
   Future<List<MobileAnnouncement>> fetchAnnouncements() async {
     final response = await _apiClient.getObject('/api/announcements');
     final items = response['items'] as List<dynamic>? ?? const [];

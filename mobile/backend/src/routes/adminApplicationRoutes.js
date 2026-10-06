@@ -1,3 +1,4 @@
+// SMaRT-PDM: Applications — admin Application Routes (mobile backend route); maps mobile API endpoints to middleware and controllers.
 const express = require('express');
 const { protect } = require('../middleware/authMiddleware');
 const adminApplicationController = require('../controllers/adminApplicationController');

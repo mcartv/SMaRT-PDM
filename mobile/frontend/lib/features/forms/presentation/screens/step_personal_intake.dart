@@ -1,3 +1,4 @@
+// SMaRT-PDM: step personal intake — step personal intake (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
@@ -20,6 +21,7 @@ class StepPersonal extends StatefulWidget {
   final bool showErrors;
 
   @override
+  // createState: creates create state for the step personal intake flow.
   State<StepPersonal> createState() => _StepPersonalState();
 }
 
@@ -333,6 +335,7 @@ class _StepPersonalState extends State<StepPersonal> {
   bool get _showOtherReligionField => selectedReligion == 'Other';
 
   @override
+  // initState: handles init state for the step personal intake flow.
   void initState() {
     super.initState();
     _initControllers();
@@ -364,6 +367,7 @@ class _StepPersonalState extends State<StepPersonal> {
     _bind(emailController, (value) => widget.data.email = value);
   }
 
+  // _initControllers: handles init controllers for the step personal intake flow.
   void _initControllers() {
     firstNameController = TextEditingController(text: widget.data.firstName);
     middleNameController = TextEditingController(text: widget.data.middleName);
@@ -449,6 +453,7 @@ class _StepPersonalState extends State<StepPersonal> {
     barangayController = TextEditingController(text: savedBarangay);
   }
 
+  // _bind: handles bind for the step personal intake flow.
   void _bind(TextEditingController controller, void Function(String) setter) {
     controller.addListener(() {
       setter(controller.text);
@@ -456,6 +461,7 @@ class _StepPersonalState extends State<StepPersonal> {
     });
   }
 
+  // _updateAgeFromDob: handles update age from dob for the step personal intake flow.
   void _updateAgeFromDob(String value) {
     final parsed = ApplicationData.parseInputDate(value);
     if (parsed == null) {
@@ -473,11 +479,13 @@ class _StepPersonalState extends State<StepPersonal> {
     widget.onChanged();
   }
 
+  // _requiredError: handles required error for the step personal intake flow.
   String? _requiredError(String value, String label) {
     if (!widget.showErrors) return null;
     return value.trim().isEmpty ? '$label is required.' : null;
   }
 
+  // _ageError: handles age error for the step personal intake flow.
   String? _ageError() {
     if (!widget.showErrors) return null;
     final value = ageController.text.trim();
@@ -493,6 +501,7 @@ class _StepPersonalState extends State<StepPersonal> {
     return null;
   }
 
+  // _dobError: handles dob error for the step personal intake flow.
   String? _dobError() {
     if (!widget.showErrors) return null;
     final value = dobController.text.trim();
@@ -509,6 +518,7 @@ class _StepPersonalState extends State<StepPersonal> {
     return null;
   }
 
+  // _nameError: handles name error for the step personal intake flow.
   String? _nameError(
     String value,
     String label, {
@@ -525,17 +535,20 @@ class _StepPersonalState extends State<StepPersonal> {
     );
   }
 
+  // _zipCodeError: handles zip code error for the step personal intake flow.
   String? _zipCodeError() {
     if (!widget.showErrors) return null;
     if (zipCodeController.text.trim().toUpperCase() == 'N/A') return null;
     return AppFieldValidators.zipCode(zipCodeController.text);
   }
 
+  // _mobileError: handles mobile error for the step personal intake flow.
   String? _mobileError() {
     if (!widget.showErrors) return null;
     return AppFieldValidators.philippineMobile(mobileController.text);
   }
 
+  // _emailError: handles email error for the step personal intake flow.
   String? _emailError() {
     if (!widget.showErrors) return null;
     return AppFieldValidators.email(
@@ -544,6 +557,7 @@ class _StepPersonalState extends State<StepPersonal> {
     );
   }
 
+  // _dec: handles dec for the step personal intake flow.
   InputDecoration _dec(
     String hint, {
     String? errorText,
@@ -559,6 +573,7 @@ class _StepPersonalState extends State<StepPersonal> {
     readOnly: readOnly,
   );
 
+  // _field: handles field for the step personal intake flow.
   Widget _field({required String label, required Widget child}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -566,6 +581,7 @@ class _StepPersonalState extends State<StepPersonal> {
     );
   }
 
+  // _row: handles row for the step personal intake flow.
   Widget _row(List<Widget> items) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -608,6 +624,7 @@ class _StepPersonalState extends State<StepPersonal> {
     );
   }
 
+  // _textField: handles text field for the step personal intake flow.
   Widget _textField({
     required TextEditingController controller,
     required String label,
@@ -642,6 +659,7 @@ class _StepPersonalState extends State<StepPersonal> {
     );
   }
 
+  // _dropdownField: handles dropdown field for the step personal intake flow.
   Widget _dropdownField({
     required String label,
     required String hint,
@@ -690,6 +708,7 @@ class _StepPersonalState extends State<StepPersonal> {
     );
   }
 
+  // _sectionCard: handles section card for the step personal intake flow.
   Widget _sectionCard({required String title, required List<Widget> children}) {
     return IntakeCard(
       margin: const EdgeInsets.only(bottom: 18),
@@ -712,6 +731,7 @@ class _StepPersonalState extends State<StepPersonal> {
     );
   }
 
+  // _pickBirthDate: handles pick birth date for the step personal intake flow.
   Future<void> _pickBirthDate() async {
     final initialDate =
         ApplicationData.parseInputDate(widget.data.dateOfBirth) ??
@@ -732,6 +752,7 @@ class _StepPersonalState extends State<StepPersonal> {
     _updateAgeFromDob(formatted);
   }
 
+  // _cityLocationField: handles city location field for the step personal intake flow.
   Widget _cityLocationField() {
     if (selectedProvince == null) {
       return _dropdownField(
@@ -821,6 +842,7 @@ class _StepPersonalState extends State<StepPersonal> {
     );
   }
 
+  // _barangayLocationField: handles barangay location field for the step personal intake flow.
   Widget _barangayLocationField() {
     if (selectedProvince == null) {
       return _dropdownField(
@@ -920,6 +942,7 @@ class _StepPersonalState extends State<StepPersonal> {
   }
 
   @override
+  // dispose: handles dispose for the step personal intake flow.
   void dispose() {
     firstNameController.dispose();
     middleNameController.dispose();
@@ -946,6 +969,7 @@ class _StepPersonalState extends State<StepPersonal> {
   }
 
   @override
+  // build: builds build for the step personal intake flow.
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,3 +1,4 @@
+// SMaRT-PDM: module guidance card — module guidance card (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 
@@ -16,6 +17,7 @@ class ModuleGuidanceCard extends StatefulWidget {
   final IconData icon;
 
   @override
+  // createState: creates create state for the module guidance card flow.
   State<ModuleGuidanceCard> createState() => _ModuleGuidanceCardState();
 }
 
@@ -23,12 +25,14 @@ class _ModuleGuidanceCardState extends State<ModuleGuidanceCard> {
   late bool _expanded;
 
   @override
+  // initState: handles init state for the module guidance card flow.
   void initState() {
     super.initState();
     _expanded = widget.initiallyExpanded;
   }
 
   @override
+  // build: builds build for the module guidance card flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Settings — app theme (mobile frontend); supports mobile UI behavior.
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/motion/app_motion.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';

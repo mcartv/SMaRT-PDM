@@ -1,3 +1,4 @@
+// SMaRT-PDM: Public Page Footer — Public Page Footer (admin frontend component); renders reusable UI and handles local interactions.
 import React, { useEffect, useState } from 'react';
 import { ArrowRight, Clock3, Globe2, Lock, Mail, MapPin, Phone, Smartphone } from 'lucide-react';
 import { Link } from 'react-router-dom';

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Endorsement — All Endorsements Tracker (admin frontend page); loads data, handles page actions, and renders the admin view.
 import { createElement, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
@@ -27,6 +28,7 @@ import EndorsementProgressTracker from '@/components/endorsement/EndorsementProg
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
 
+// getInitials: reads and returns get initials for the Endorsement flow.
 function getInitials(name = '') {
   return (name || 'NA')
     .split(' ')
@@ -37,6 +39,7 @@ function getInitials(name = '') {
     .toUpperCase();
 }
 
+// buildHeaders: builds build headers for the Endorsement flow.
 function buildHeaders(tokenStorageKey) {
   return {
     Authorization: `Bearer ${sessionStorage.getItem(tokenStorageKey)}`,
@@ -44,6 +47,7 @@ function buildHeaders(tokenStorageKey) {
   };
 }
 
+// formatDate: formats format date for the Endorsement flow.
 function formatDate(value) {
   if (!value) return 'N/A';
   const date = new Date(value);
@@ -57,6 +61,7 @@ function formatDate(value) {
   });
 }
 
+// formatStatus: formats format status for the Endorsement flow.
 function formatStatus(value = '') {
   return (
     String(value || '')
@@ -65,6 +70,7 @@ function formatStatus(value = '') {
   );
 }
 
+// formatWorkflowStatus: formats format workflow status for the Endorsement flow.
 function formatWorkflowStatus(value = '', fallback = '') {
   const normalized = String(value || '').trim().toLowerCase();
   const labels = {
@@ -106,6 +112,7 @@ const STOPPED_STATUSES = new Set([
   'guidance_rejected',
 ]);
 
+// getActiveRowsForOffice: reads and returns get active rows for office for the Endorsement flow.
 function getActiveRowsForOffice(rows, tokenStorageKey) {
   if (tokenStorageKey === 'sdoToken') {
     return rows.filter((row) => row.current_stage === 'pending_sdo');
@@ -122,6 +129,7 @@ function getActiveRowsForOffice(rows, tokenStorageKey) {
   return rows.filter((row) => !FINISHED_STATUSES.has(row.overall_status));
 }
 
+// getOfficeConfig: reads and returns get office config for the Endorsement flow.
 function getOfficeConfig(tokenStorageKey) {
   if (tokenStorageKey === 'sdoToken') {
     return {
@@ -162,6 +170,7 @@ function getOfficeConfig(tokenStorageKey) {
   return null;
 }
 
+// getAdminRowsForMode: reads and returns get admin rows for mode for the Endorsement flow.
 function getAdminRowsForMode(rows, viewMode) {
   switch (viewMode) {
     case 'sdo':
@@ -329,6 +338,7 @@ export default function AllEndorsementsTracker({
     [officeProcessedRows.length, rows]
   );
 
+  // handleViewModeChange: handles handle view mode change for the Endorsement flow.
   const handleViewModeChange = (mode) => {
     setViewMode(mode);
     setStatusFilter('all');

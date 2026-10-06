@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — scholar renewal requirements screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
@@ -32,6 +33,7 @@ class ScholarRenewalRequirementsScreen extends StatefulWidget {
   });
 
   @override
+  // createState: creates create state for the Scholars flow.
   State<ScholarRenewalRequirementsScreen> createState() =>
       _ScholarRenewalRequirementsScreenState();
 }
@@ -52,6 +54,7 @@ class _ScholarRenewalRequirementsScreenState
   bool _pendingLiveRefresh = false;
 
   @override
+  // initState: handles init state for the Scholars flow.
   void initState() {
     super.initState();
     _loadRenewal();
@@ -63,6 +66,7 @@ class _ScholarRenewalRequirementsScreenState
   }
 
   @override
+  // didChangeDependencies: handles did change dependencies for the Scholars flow.
   void didChangeDependencies() {
     super.didChangeDependencies();
     final provider = context.read<NotificationProvider>();
@@ -76,6 +80,7 @@ class _ScholarRenewalRequirementsScreenState
     _notificationProvider?.addListener(_handleRealtimeRenewals);
   }
 
+  // _loadRenewal: handles load renewal for the Scholars flow.
   Future<void> _loadRenewal({bool silent = false}) async {
     if (_fetchInProgress) {
       _pendingLiveRefresh = true;
@@ -121,6 +126,7 @@ class _ScholarRenewalRequirementsScreenState
     }
   }
 
+  // _requestLiveRefresh: handles request live refresh for the Scholars flow.
   void _requestLiveRefresh() {
     if (!mounted) return;
     if (_isSubmitting || _uploadingDocuments.isNotEmpty || _fetchInProgress) {
@@ -130,6 +136,7 @@ class _ScholarRenewalRequirementsScreenState
     _loadRenewal(silent: true);
   }
 
+  // _handleRealtimeRenewals: handles handle realtime renewals for the Scholars flow.
   void _handleRealtimeRenewals() {
     final provider = _notificationProvider;
     if (provider == null) {
@@ -146,12 +153,14 @@ class _ScholarRenewalRequirementsScreenState
   }
 
   @override
+  // dispose: handles dispose for the Scholars flow.
   void dispose() {
     _liveSyncTimer?.cancel();
     _notificationProvider?.removeListener(_handleRealtimeRenewals);
     super.dispose();
   }
 
+  // _handleScholarChipTap: handles handle scholar chip tap for the Scholars flow.
   void _handleScholarChipTap(String label) {
     switch (label) {
       case 'Payout Schedule':
@@ -174,6 +183,7 @@ class _ScholarRenewalRequirementsScreenState
         );
   }
 
+  // _chooseUploadSource: handles choose upload source for the Scholars flow.
   Future<_RenewalUploadSource?> _chooseUploadSource() async {
     if (kIsWeb) return _RenewalUploadSource.file;
     if (!mounted) return null;
@@ -223,6 +233,7 @@ class _ScholarRenewalRequirementsScreenState
     );
   }
 
+  // _pickAndUploadDocument: handles pick and upload document for the Scholars flow.
   Future<void> _pickAndUploadDocument(ScholarRenewalDocument document) async {
     final source = await _chooseUploadSource();
     if (source == null || !mounted) return;
@@ -328,6 +339,7 @@ class _ScholarRenewalRequirementsScreenState
     }
   }
 
+  // _submitRenewal: handles submit renewal for the Scholars flow.
   Future<void> _submitRenewal() async {
     if (_renewalPackage?.isRenewalAvailable == false) {
       final reason = _renewalPackage?.availabilityReason.trim() ?? '';
@@ -393,6 +405,7 @@ class _ScholarRenewalRequirementsScreenState
     }
   }
 
+  // _isImageDocument: handles is image document for the Scholars flow.
   bool _isImageDocument(ScholarRenewalDocument document) {
     final url = (document.fileUrl ?? '').toLowerCase();
     final type = document.documentType.toLowerCase();
@@ -404,6 +417,7 @@ class _ScholarRenewalRequirementsScreenState
         type.contains('image');
   }
 
+  // _openFilePreview: handles open file preview for the Scholars flow.
   Future<void> _openFilePreview(ScholarRenewalDocument document) async {
     final fileUrl = document.fileUrl;
 
@@ -511,6 +525,7 @@ class _ScholarRenewalRequirementsScreenState
     );
   }
 
+  // _showSnackBar: handles show snack bar for the Scholars flow.
   void _showSnackBar(String message) {
     if (!mounted) return;
 
@@ -519,6 +534,7 @@ class _ScholarRenewalRequirementsScreenState
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  // _statusLabel: handles status label for the Scholars flow.
   String _statusLabel(
     ScholarRenewalDocument document,
     ScholarRenewalPackage package,
@@ -536,6 +552,7 @@ class _ScholarRenewalRequirementsScreenState
     }
   }
 
+  // _formatSubmittedDate: handles format submitted date for the Scholars flow.
   String _formatSubmittedDate(String? value) {
     final raw = value?.trim() ?? '';
     if (raw.isEmpty) return '';
@@ -568,6 +585,7 @@ class _ScholarRenewalRequirementsScreenState
     return 'Uploaded ${months[parsed.month - 1]} ${parsed.day}, ${parsed.year} at $hour:$minute $period';
   }
 
+  // _renewalStatusLabel: handles renewal status label for the Scholars flow.
   String _renewalStatusLabel(ScholarRenewal renewal) {
     switch (renewal.normalizedStatus) {
       case 'approved':
@@ -586,6 +604,7 @@ class _ScholarRenewalRequirementsScreenState
     }
   }
 
+  // _renewalDocumentStatusLabel: handles renewal document status label for the Scholars flow.
   String _renewalDocumentStatusLabel(String status) {
     switch (status.trim().toLowerCase()) {
       case 'verified':
@@ -610,6 +629,7 @@ class _ScholarRenewalRequirementsScreenState
     }
   }
 
+  // _renewalPeriodLabel: handles renewal period label for the Scholars flow.
   String _renewalPeriodLabel(ScholarRenewalPackage package) {
     final parts = <String>[
       if (package.semesterLabel.trim().isNotEmpty) package.semesterLabel.trim(),
@@ -619,6 +639,7 @@ class _ScholarRenewalRequirementsScreenState
     return parts.join(' ');
   }
 
+  // _renewalSummary: handles renewal summary for the Scholars flow.
   String _renewalSummary(ScholarRenewalPackage package) {
     if (!package.isRenewalAvailable) {
       final reasonCode = package.availabilityReasonCode.trim().toUpperCase();
@@ -649,6 +670,7 @@ class _ScholarRenewalRequirementsScreenState
     }
   }
 
+  // _lockedSubmitLabel: handles locked submit label for the Scholars flow.
   String _lockedSubmitLabel(ScholarRenewal renewal) {
     if (renewal.isApproved) return 'Renewal Approved';
     if (renewal.isRejected) return 'Renewal Rejected';
@@ -656,11 +678,13 @@ class _ScholarRenewalRequirementsScreenState
     return 'Waiting for OSFA Review';
   }
 
+  // _sortedDocuments: handles sorted documents for the Scholars flow.
   List<ScholarRenewalDocument> _sortedDocuments(
     List<ScholarRenewalDocument> documents,
   ) {
     final sorted = List<ScholarRenewalDocument>.from(documents);
 
+    // priority: handles priority for the Scholars flow.
     int priority(ScholarRenewalDocument document) {
       final status = document.status.trim().toLowerCase();
       if (status == 'rejected' || status.contains('reupload')) return 0;
@@ -676,6 +700,7 @@ class _ScholarRenewalRequirementsScreenState
   }
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     final titleColor = AppSurfacePalette.text(context);
     final subtitleColor = AppSurfacePalette.mutedText(context);
@@ -791,6 +816,7 @@ class _ScholarRenewalRequirementsScreenState
     );
   }
 
+  // _buildHeaderCard: handles build header card for the Scholars flow.
   Widget _buildHeaderCard({
     required ScholarRenewalPackage package,
     required Color titleColor,
@@ -911,6 +937,7 @@ class _ScholarRenewalRequirementsScreenState
     );
   }
 
+  // _buildPeriodCard: handles build period card for the Scholars flow.
   Widget _buildPeriodCard({
     required ScholarRenewalPackage package,
     required Color titleColor,
@@ -963,6 +990,7 @@ class _ScholarRenewalRequirementsScreenState
     );
   }
 
+  // _buildDocumentRow: handles build document row for the Scholars flow.
   Widget _buildDocumentRow({
     required ScholarRenewalDocument document,
     required ScholarRenewalPackage package,
@@ -1128,6 +1156,7 @@ class _InfoChip extends StatelessWidget {
   final String label;
   final bool semanticStatus;
 
+  // _tone: handles tone for the Scholars flow.
   AppStatusTone _tone() {
     final normalized = label.toLowerCase();
     if (!semanticStatus) return AppStatusTone.neutral;
@@ -1144,6 +1173,7 @@ class _InfoChip extends StatelessWidget {
   }
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     final tone = _tone();
     final colors = AppStatusColors.of(context);
@@ -1212,6 +1242,7 @@ class _RenewalErrorCard extends StatelessWidget {
   final Future<void> Function() onRetry;
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     final colors = AppStatusColors.of(context);
 
@@ -1246,6 +1277,7 @@ class _RenewalEmptyState extends StatelessWidget {
   const _RenewalEmptyState();
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     return const AppSurfaceCard(
       child: Row(

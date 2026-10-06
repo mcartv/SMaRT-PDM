@@ -1,3 +1,4 @@
+// SMaRT-PDM: server — server (admin backend); supports backend application behavior.
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -23,18 +24,21 @@ const LOG_REALTIME_DETAILS =
 const LOG_SOCKET_DETAILS =
   String(process.env.LOG_SOCKET_DETAILS || 'false').toLowerCase() === 'true';
 
+// startupLog: handles startup log for the server flow.
 const startupLog = (...args) => {
   if (LOG_STARTUP_DETAILS) {
     console.log(...args);
   }
 };
 
+// realtimeLog: handles realtime log for the server flow.
 const realtimeLog = (...args) => {
   if (LOG_REALTIME_DETAILS) {
     console.log(...args);
   }
 };
 
+// socketLog: handles socket log for the server flow.
 const socketLog = (...args) => {
   if (LOG_SOCKET_DETAILS) {
     console.log(...args);
@@ -143,10 +147,12 @@ const allowedHeaders = [
   'X-Audit-Access-Token',
 ];
 
+// normalizeOrigin: normalizes normalize origin for the server flow.
 function normalizeOrigin(origin) {
   return String(origin || '').trim().replace(/\/+$/, '');
 }
 
+// isAllowedOrigin: checks whether is allowed origin for the server flow.
 function isAllowedOrigin(origin) {
   if (!origin) return true;
 
@@ -403,6 +409,7 @@ function joinSocketToUserRoom(socket) {
   return true;
 }
 
+// handleJoinPayload: handles handle join payload for the server flow.
 function handleJoinPayload(socket) {
   // Legacy clients still emit several join aliases after connecting. Never
   // trust a userId/token supplied in those events; the authenticated handshake
@@ -539,6 +546,7 @@ const SCHEDULER_LEADER_LOCK_KEY = 'smart-pdm:admin:scheduler-leader';
 let schedulerLeaderClient = null;
 let schedulerLeadershipPromise = null;
 
+// ensureSchedulerLeadership: ensures ensure scheduler leadership for the server flow.
 async function ensureSchedulerLeadership() {
   if (schedulerLeaderClient) return true;
   if (schedulerLeadershipPromise) return schedulerLeadershipPromise;
@@ -582,6 +590,7 @@ if (!global._announcementSchedulerRunning) {
   let reminderSchedulerBusy = false;
   let digestSchedulerBusy = false;
 
+  // runAnnouncementScheduler: handles run announcement scheduler for the server flow.
   const runAnnouncementScheduler = async () => {
     if (!global._applicationStartupReady) return;
     if (announcementSchedulerBusy) return;
@@ -612,6 +621,7 @@ if (!global._announcementSchedulerRunning) {
     }
   };
 
+  // runReminderScheduler: handles run reminder scheduler for the server flow.
   const runReminderScheduler = async () => {
     if (!global._applicationStartupReady) return;
     if (reminderSchedulerBusy) return;
@@ -632,6 +642,7 @@ if (!global._announcementSchedulerRunning) {
     }
   };
 
+  // runDigestScheduler: handles run digest scheduler for the server flow.
   const runDigestScheduler = async () => {
     if (!global._applicationStartupReady) return;
     if (digestSchedulerBusy) return;
@@ -659,6 +670,7 @@ if (!global._announcementSchedulerRunning) {
   setInterval(runDigestScheduler, BACKGROUND_SCHEDULER_INTERVAL_MS);
 }
 
+// startServer: handles start server for the server flow.
 async function startServer() {
   try {
     await ensureCanonicalIotOcrMigration();

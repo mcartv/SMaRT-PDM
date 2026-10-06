@@ -1,3 +1,4 @@
+// SMaRT-PDM: Applications — printable application service (mobile service); calls APIs or shared services and returns processed results.
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -15,6 +16,7 @@ class PrintableApplicationService {
   final ApplicationService _applicationService;
   final ScholarshipFormPdfService _pdfService;
 
+  // generateBytesFromSubmissionPayload: handles generate bytes from submission payload for the Applications flow.
   Future<Uint8List> generateBytesFromSubmissionPayload(
     Map<String, dynamic> payload,
   ) async {
@@ -22,6 +24,7 @@ class PrintableApplicationService {
     return _pdfService.generateBytesFromSavedApplication(model);
   }
 
+  // generateBytesFromMySubmittedApplicationForm: handles generate bytes from my submitted application form for the Applications flow.
   Future<Uint8List> generateBytesFromMySubmittedApplicationForm() async {
     final response = await _applicationService
         .fetchMySubmittedApplicationForm();
@@ -47,6 +50,7 @@ class PrintableApplicationService {
     return generateBytesFromSubmissionPayload(payload);
   }
 
+  // generateFromSubmissionPayload: handles generate from submission payload for the Applications flow.
   Future<File> generateFromSubmissionPayload(
     Map<String, dynamic> payload,
   ) async {
@@ -54,6 +58,7 @@ class PrintableApplicationService {
     return _pdfService.generateFromSavedApplication(model);
   }
 
+  // generateOpenFromSubmissionPayload: handles generate open from submission payload for the Applications flow.
   Future<void> generateOpenFromSubmissionPayload(
     Map<String, dynamic> payload,
   ) async {
@@ -61,17 +66,20 @@ class PrintableApplicationService {
     await _pdfService.openGeneratedPdf(file);
   }
 
+  // generateFromMySavedFormData: handles generate from my saved form data for the Applications flow.
   Future<File> generateFromMySavedFormData() async {
     final payload = await _applicationService.fetchMySavedFormData();
     final model = SavedApplicationPrintModel.fromSavedFormData(payload);
     return _pdfService.generateFromSavedApplication(model);
   }
 
+  // generateOpenFromMySavedFormData: handles generate open from my saved form data for the Applications flow.
   Future<void> generateOpenFromMySavedFormData() async {
     final file = await generateFromMySavedFormData();
     await _pdfService.openGeneratedPdf(file);
   }
 
+  // generateFromApplicationId: handles generate from application id for the Applications flow.
   Future<File> generateFromApplicationId(String applicationId) async {
     final payload = await _applicationService.fetchApplicationDetails(
       applicationId,
@@ -80,6 +88,7 @@ class PrintableApplicationService {
     return _pdfService.generateFromSavedApplication(model);
   }
 
+  // generateOpenFromApplicationId: handles generate open from application id for the Applications flow.
   Future<void> generateOpenFromApplicationId(String applicationId) async {
     final file = await generateFromApplicationId(applicationId);
     await _pdfService.openGeneratedPdf(file);

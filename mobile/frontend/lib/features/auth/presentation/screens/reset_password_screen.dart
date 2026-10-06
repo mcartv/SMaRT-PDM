@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — reset password screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/material.dart';
 
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
@@ -17,6 +18,7 @@ class ResetPasswordScreen extends StatefulWidget {
   final PasswordResetService? _passwordResetService;
 
   @override
+  // createState: creates create state for the Authentication flow.
   State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
 }
 
@@ -35,12 +37,14 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   String? _error;
 
   @override
+  // dispose: handles dispose for the Authentication flow.
   void dispose() {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
   }
 
+  // _getArgs: handles get args for the Authentication flow.
   Map<String, String>? _getArgs() {
     final args = ModalRoute.of(context)?.settings.arguments;
     if (args is Map) {
@@ -51,6 +55,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     return null;
   }
 
+  // _getStudentId: handles get student id for the Authentication flow.
   String? _getStudentId() {
     final args = _getArgs();
     final studentId = args?['studentId']?.trim();
@@ -58,6 +63,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     return PasswordResetService.normalizeStudentId(studentId);
   }
 
+  // _getOtp: handles get otp for the Authentication flow.
   String? _getOtp() {
     final args = _getArgs();
     final otp = args?['otp']?.trim();
@@ -65,10 +71,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     return otp;
   }
 
+  // _validatePassword: handles validate password for the Authentication flow.
   String? _validatePassword(String? value) {
     return AppFieldValidators.password(value);
   }
 
+  // _validateConfirmPassword: handles validate confirm password for the Authentication flow.
   String? _validateConfirmPassword(String? value) {
     return AppFieldValidators.confirmPassword(
       value,
@@ -76,6 +84,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     );
   }
 
+  // _submit: handles submit for the Authentication flow.
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
 
@@ -128,6 +137,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   }
 
   @override
+  // build: builds build for the Authentication flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final mutedText = isDark

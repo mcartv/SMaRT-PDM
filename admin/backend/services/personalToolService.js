@@ -1,3 +1,4 @@
+// SMaRT-PDM: personal Tool Service — personal Tool Service (admin backend service); contains business logic and data operations.
 const crypto = require('crypto');
 const db = require('../config/db');
 
@@ -5,12 +6,14 @@ const MAX_NOTE_LENGTH = 2000;
 const MAX_EVENT_TITLE_LENGTH = 100;
 const MAX_EVENTS = 30;
 
+// createHttpError: creates create http error for the personal Tool Service flow.
 function createHttpError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
 }
 
+// normalizeUserId: normalizes normalize user id for the personal Tool Service flow.
 function normalizeUserId(userId) {
   const normalized = String(userId || '').trim();
   if (!normalized) {
@@ -19,6 +22,7 @@ function normalizeUserId(userId) {
   return normalized;
 }
 
+// normalizeWorkspace: normalizes normalize workspace for the personal Tool Service flow.
 function normalizeWorkspace(row = {}) {
   return {
     note: String(row.note_content || ''),
@@ -28,6 +32,7 @@ function normalizeWorkspace(row = {}) {
   };
 }
 
+// handleDatabaseError: handles handle database error for the personal Tool Service flow.
 function handleDatabaseError(error) {
   if (error?.code === '42P01') {
     throw createHttpError(
@@ -38,6 +43,7 @@ function handleDatabaseError(error) {
   throw error;
 }
 
+// ensureWorkspace: ensures ensure workspace for the personal Tool Service flow.
 async function ensureWorkspace(client, userId) {
   await client.query(
     `
@@ -49,6 +55,7 @@ async function ensureWorkspace(client, userId) {
   );
 }
 
+// getWorkspace: reads and returns get workspace for the personal Tool Service flow.
 async function getWorkspace(userId) {
   const ownerId = normalizeUserId(userId);
 
@@ -71,6 +78,7 @@ async function getWorkspace(userId) {
   }
 }
 
+// updateNote: updates update note for the personal Tool Service flow.
 async function updateNote(userId, note) {
   const ownerId = normalizeUserId(userId);
   const normalizedNote = String(note ?? '').slice(0, MAX_NOTE_LENGTH);
@@ -101,6 +109,7 @@ async function updateNote(userId, note) {
   }
 }
 
+// normalizeEventInput: normalizes normalize event input for the personal Tool Service flow.
 function normalizeEventInput(input = {}) {
   const title = String(input.title || '').trim().slice(0, MAX_EVENT_TITLE_LENGTH);
   const date = String(input.date || '').trim();
@@ -137,6 +146,7 @@ function normalizeEventInput(input = {}) {
   };
 }
 
+// addEvent: adds add event for the personal Tool Service flow.
 async function addEvent(userId, input) {
   const ownerId = normalizeUserId(userId);
   const reminder = normalizeEventInput(input);
@@ -186,6 +196,7 @@ async function addEvent(userId, input) {
   }
 }
 
+// deleteEvent: deletes delete event for the personal Tool Service flow.
 async function deleteEvent(userId, eventId) {
   const ownerId = normalizeUserId(userId);
   const normalizedEventId = String(eventId || '').trim();
@@ -239,6 +250,7 @@ async function deleteEvent(userId, eventId) {
   }
 }
 
+// getPhilippineDateTime: reads and returns get philippine date time for the personal Tool Service flow.
 function getPhilippineDateTime(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Manila',
@@ -249,6 +261,7 @@ function getPhilippineDateTime(now = new Date()) {
     minute: '2-digit',
     hourCycle: 'h23',
   }).formatToParts(now);
+  // getPart: reads and returns get part for the personal Tool Service flow.
   const getPart = (type) => parts.find((part) => part.type === type)?.value || '';
 
   return {
@@ -257,6 +270,7 @@ function getPhilippineDateTime(now = new Date()) {
   };
 }
 
+// isReminderDue: checks whether is reminder due for the personal Tool Service flow.
 function isReminderDue(event, philippineNow) {
   if (!event || event.notified_at) return false;
   const date = String(event.date || '');
@@ -267,6 +281,7 @@ function isReminderDue(event, philippineNow) {
 
 let lastDueReminderCheckAt = 0;
 
+// processDueReminders: processes process due reminders for the personal Tool Service flow.
 async function processDueReminders() {
   if (!(await require('../config/notificationPolicy').notificationsEnabled())) return [];
   const nowMs = Date.now();

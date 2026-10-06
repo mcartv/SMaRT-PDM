@@ -1,3 +1,4 @@
+// SMaRT-PDM: Profile — profile screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -28,6 +29,7 @@ class ProfileScreen extends StatefulWidget {
   final bool showBottomNav;
 
   @override
+  // createState: creates create state for the Profile flow.
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
@@ -70,6 +72,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _pendingRealtimeProfileReload = false;
 
   @override
+  // initState: handles init state for the Profile flow.
   void initState() {
     super.initState();
 
@@ -99,6 +102,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
+  // _loadProfile: handles load profile for the Profile flow.
   Future<void> _loadProfile({
     bool refreshRemote = true,
     bool silent = false,
@@ -187,6 +191,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // _requestProfileRefresh: handles request profile refresh for the Profile flow.
   void _requestProfileRefresh() {
     if (!mounted) return;
     if (_isEditing || _isSaving || _isUploading || _profileFetchInProgress) {
@@ -200,6 +205,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
+  // _applyValues: handles apply values for the Profile flow.
   void _applyValues({
     required String firstName,
     required String lastName,
@@ -279,6 +285,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
+  // _firstNonEmpty: handles first non empty for the Profile flow.
   String _firstNonEmpty(Iterable<Object?> values) {
     for (final value in values) {
       final text = value?.toString().trim() ?? '';
@@ -287,6 +294,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return '';
   }
 
+  // _composeAddress: handles compose address for the Profile flow.
   String _composeAddress(Map<String, dynamic> profile) {
     final parts = <String?>[
       profile['street_address']?.toString().trim(),
@@ -303,6 +311,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         .join(', ');
   }
 
+  // _applyAddressParts: handles apply address parts for the Profile flow.
   void _applyAddressParts(Map<String, dynamic> profile) {
     final values = <TextEditingController, String>{
       _streetAddressController: profile['street_address']?.toString() ?? '',
@@ -320,6 +329,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
+  // _validateAvatarSelection: handles validate avatar selection for the Profile flow.
   Future<String?> _validateAvatarSelection(XFile picked) async {
     const maxBytes = 5 * 1024 * 1024;
     const supportedExtensions = {'jpg', 'jpeg', 'png', 'webp'};
@@ -360,6 +370,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return null;
   }
 
+  // _pickAvatar: handles pick avatar for the Profile flow.
   Future<void> _pickAvatar() async {
     final picked = await ImagePicker().pickImage(
       source: ImageSource.gallery,
@@ -445,6 +456,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // _saveProfile: handles save profile for the Profile flow.
   Future<void> _saveProfile() async {
     final email = _emailController.text.trim();
     final phone = _phoneController.text.trim();
@@ -515,11 +527,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // _showMessage: handles show message for the Profile flow.
   void _showMessage(String value) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
   }
 
+  // _handleBack: handles handle back for the Profile flow.
   void _handleBack() {
     final navigator = Navigator.of(context);
     if (navigator.canPop()) {
@@ -530,6 +544,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     AppNavigator.goToTopLevel(context, AppRoutes.menu);
   }
 
+  // _buildAvatar: handles build avatar for the Profile flow.
   Widget _buildAvatar() {
     final avatar = _avatarUrl;
 
@@ -559,6 +574,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   @override
+  // build: builds build for the Profile flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -706,6 +722,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // _buildProfileHeader: handles build profile header for the Profile flow.
   Widget _buildProfileHeader() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -832,6 +849,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // _buildAvatarNotice: handles build avatar notice for the Profile flow.
   Widget _buildAvatarNotice() {
     final rejected = _avatarReviewStatus == 'rejected';
     final color = rejected ? Colors.redAccent : AppColors.gold;
@@ -872,6 +890,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // _buildOverviewCard: handles build overview card for the Profile flow.
   Widget _buildOverviewCard({
     required String title,
     required IconData icon,
@@ -946,6 +965,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // _editSection: handles edit section for the Profile flow.
   Widget _editSection(String title, IconData icon, {String? note}) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
@@ -978,6 +998,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // _buildEditForm: handles build edit form for the Profile flow.
   Widget _buildEditForm() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -1126,6 +1147,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // _buildCancelProfileButton: handles build cancel profile button for the Profile flow.
   Widget _buildCancelProfileButton(bool isDark) {
     return OutlinedButton(
       onPressed: _isSaving
@@ -1153,6 +1175,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // _buildSaveProfileButton: handles build save profile button for the Profile flow.
   Widget _buildSaveProfileButton() {
     return FilledButton.icon(
       onPressed: _isSaving ? null : _saveProfile,
@@ -1178,6 +1201,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   @override
+  // dispose: handles dispose for the Profile flow.
   void dispose() {
     _liveSyncTimer?.cancel();
     _realtimeRefreshTimer?.cancel();
@@ -1213,6 +1237,7 @@ class _InfoRow extends StatelessWidget {
   final bool isLast;
 
   @override
+  // build: builds build for the Profile flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -1294,6 +1319,7 @@ class _ProfileField extends StatelessWidget {
   final String? helperText;
 
   @override
+  // build: builds build for the Profile flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 

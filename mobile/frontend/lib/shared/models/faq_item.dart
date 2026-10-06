@@ -1,3 +1,4 @@
+// SMaRT-PDM: FAQs — faq item (mobile frontend); supports mobile UI behavior.
 class FaqItem {
   const FaqItem({
     required this.id,

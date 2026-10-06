@@ -1,3 +1,4 @@
+// SMaRT-PDM: app surface widgets — app surface widgets (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
@@ -55,6 +56,7 @@ class AppSurfaceCard extends StatelessWidget {
   final double radius;
 
   @override
+  // build: builds build for the app surface widgets flow.
   Widget build(BuildContext context) {
     final isDark = AppSurfacePalette.isDark(context);
     final borderRadius = BorderRadius.circular(radius);
@@ -104,6 +106,7 @@ class AppIconTile extends StatelessWidget {
   final double size;
 
   @override
+  // build: builds build for the app surface widgets flow.
   Widget build(BuildContext context) {
     return Container(
       width: size,
@@ -132,6 +135,7 @@ class AppStatusCapsule extends StatelessWidget {
   final bool compact;
 
   @override
+  // build: builds build for the app surface widgets flow.
   Widget build(BuildContext context) {
     final colors = AppStatusColors.of(context);
     final (background, foreground, outline) = switch (tone) {
@@ -210,6 +214,7 @@ class AppSectionHeading extends StatelessWidget {
   final VoidCallback? onAction;
 
   @override
+  // build: builds build for the app surface widgets flow.
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,

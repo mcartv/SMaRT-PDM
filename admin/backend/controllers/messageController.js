@@ -1,3 +1,4 @@
+// SMaRT-PDM: Messaging — message Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const db = require('../config/db');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
@@ -8,6 +9,7 @@ const { resolveAvatarUrl } = require('../services/avatarService');
 
 let adminProfilePhotoColumnPromise = null;
 
+// hasAdminProfilePhotoColumn: checks whether has admin profile photo column for the Messaging flow.
 async function hasAdminProfilePhotoColumn() {
   if (!adminProfilePhotoColumnPromise) {
     adminProfilePhotoColumnPromise = db.query(
@@ -31,26 +33,32 @@ async function hasAdminProfilePhotoColumn() {
   return adminProfilePhotoColumnPromise;
 }
 
+// getCurrentUserId: reads and returns get current user id for the Messaging flow.
 function getCurrentUserId(req) {
   return req.user?.userId || req.user?.user_id || req.user?.id || null;
 }
 
+// getCurrentRole: reads and returns get current role for the Messaging flow.
 function getCurrentRole(req) {
   return String(req.user?.role || '').trim().toLowerCase();
 }
 
+// isAdminLike: checks whether is admin like for the Messaging flow.
 function isAdminLike(req) {
   return ['admin', 'osfa_admin', 'sdo', 'guidance', 'pd', 'ro_coordinator'].includes(getCurrentRole(req));
 }
 
+// isSystemAdmin: checks whether is system admin for the Messaging flow.
 function isSystemAdmin(req) {
   return ['admin', 'osfa_admin'].includes(getCurrentRole(req));
 }
 
+// normalizeId: normalizes normalize id for the Messaging flow.
 function normalizeId(value) {
   return String(value || '').trim();
 }
 
+// uniqueIds: handles unique ids for the Messaging flow.
 function uniqueIds(...values) {
   return [
     ...new Set(
@@ -62,6 +70,7 @@ function uniqueIds(...values) {
   ];
 }
 
+// getMessageBody: reads and returns get message body for the Messaging flow.
 function getMessageBody(req) {
   return (
     req.body?.messageBody ??
@@ -71,6 +80,7 @@ function getMessageBody(req) {
   );
 }
 
+// getAttachmentUrl: reads and returns get attachment url for the Messaging flow.
 function getAttachmentUrl(req) {
   return (
     req.body?.attachmentUrl ??
@@ -79,10 +89,12 @@ function getAttachmentUrl(req) {
   );
 }
 
+// getSubject: reads and returns get subject for the Messaging flow.
 function getSubject(req) {
   return req.body?.subject || null;
 }
 
+// getReplyToMessageId: reads and returns get reply to message id for the Messaging flow.
 function getReplyToMessageId(req) {
   return normalizeId(
     req.body?.replyToMessageId ??
@@ -91,6 +103,7 @@ function getReplyToMessageId(req) {
   ) || null;
 }
 
+// getClientMessageId: reads and returns get client message id for the Messaging flow.
 function getClientMessageId(req) {
   return normalizeId(
     req.body?.clientMessageId ??
@@ -99,6 +112,7 @@ function getClientMessageId(req) {
   ) || null;
 }
 
+// toMessagePayload: handles to message payload for the Messaging flow.
 function toMessagePayload(row = {}) {
   return {
     messageId: row.message_id,
@@ -172,6 +186,7 @@ function toMessagePayload(row = {}) {
   };
 }
 
+// buildMessageSocketPayload: builds build message socket payload for the Messaging flow.
 function buildMessageSocketPayload(message) {
   return {
     messageId: message.messageId || message.message_id,
@@ -229,6 +244,7 @@ function buildMessageSocketPayload(message) {
   };
 }
 
+// logMessageAudit: handles log message audit for the Messaging flow.
 async function logMessageAudit({
   req,
   actionTaken,
@@ -254,6 +270,7 @@ async function logMessageAudit({
   }
 }
 
+// relayToStudentBackend: handles relay to student backend for the Messaging flow.
 function relayToStudentBackend(eventName, payload, targetUserIds = []) {
   studentRealtimeRelayService
     .relayMessageEvent({
@@ -266,6 +283,7 @@ function relayToStudentBackend(eventName, payload, targetUserIds = []) {
     });
 }
 
+// emitToUsers: handles emit to users for the Messaging flow.
 function emitToUsers(io, eventName, payload, targetUserIds = []) {
   if (!io) return;
 
@@ -274,12 +292,14 @@ function emitToUsers(io, eventName, payload, targetUserIds = []) {
   });
 }
 
+// emitRoomEvent: handles emit room event for the Messaging flow.
 function emitRoomEvent(io, eventName, payload, targetUserIds = []) {
   const targets = uniqueIds(targetUserIds);
   emitToUsers(io, eventName, payload, targets);
   relayToStudentBackend(eventName, payload, targets);
 }
 
+// emitMessageCreated: handles emit message created for the Messaging flow.
 function emitMessageCreated(io, message, targetUserIds = []) {
   const payload = buildMessageSocketPayload(message);
   const targets = uniqueIds(targetUserIds, payload.sender_id, payload.receiver_id);
@@ -298,6 +318,7 @@ function emitMessageCreated(io, message, targetUserIds = []) {
   relayToStudentBackend('message:new', payload, targets);
 }
 
+// emitMessageRead: handles emit message read for the Messaging flow.
 function emitMessageRead(io, payload, targetUserIds = []) {
   if (io) {
     if (socketEvents?.messageRead) {
@@ -312,21 +333,25 @@ function emitMessageRead(io, payload, targetUserIds = []) {
   relayToStudentBackend('message:read', payload, targetUserIds);
 }
 
+// emitMessageUnread: handles emit message unread for the Messaging flow.
 function emitMessageUnread(io, payload, targetUserIds = []) {
   emitToUsers(io, 'message:unread', payload, targetUserIds);
   relayToStudentBackend('message:unread', payload, targetUserIds);
 }
 
+// emitThreadArchived: handles emit thread archived for the Messaging flow.
 function emitThreadArchived(io, payload, targetUserIds = []) {
   emitToUsers(io, 'message:thread-archived', payload, targetUserIds);
   relayToStudentBackend('message:thread-archived', payload, targetUserIds);
 }
 
+// emitThreadRestored: handles emit thread restored for the Messaging flow.
 function emitThreadRestored(io, payload, targetUserIds = []) {
   emitToUsers(io, 'message:thread-restored', payload, targetUserIds);
   relayToStudentBackend('message:thread-restored', payload, targetUserIds);
 }
 
+// getPrimarySupportAdminId: reads and returns get primary support admin id for the Messaging flow.
 async function getPrimarySupportAdminId(currentUserId) {
   const latestThreadResult = await db.query(
     `
@@ -372,6 +397,7 @@ async function getPrimarySupportAdminId(currentUserId) {
   return fallbackAdminResult.rows[0]?.user_id || null;
 }
 
+// fetchConversationMessages: fetches and returns fetch conversation messages for the Messaging flow.
 async function fetchConversationMessages(leftUserId, rightUserId) {
   const adminPhotoExpression = await hasAdminProfilePhotoColumn()
     ? 'ap.profile_photo_url'
@@ -419,6 +445,7 @@ async function fetchConversationMessages(leftUserId, rightUserId) {
   return result.rows.map(toMessagePayload);
 }
 
+// fetchRoomMemberUserIds: fetches and returns fetch room member user ids for the Messaging flow.
 async function fetchRoomMemberUserIds(roomId) {
   const result = await db.query(
     `
@@ -432,6 +459,7 @@ async function fetchRoomMemberUserIds(roomId) {
   return result.rows.map((row) => row.user_id).filter(Boolean);
 }
 
+// createPrivateMessage: creates create private message for the Messaging flow.
 async function createPrivateMessage({
   senderId,
   receiverId,
@@ -546,6 +574,7 @@ async function createPrivateMessage({
   };
 }
 
+// createRoomMessage: creates create room message for the Messaging flow.
 async function createRoomMessage({
   senderId,
   roomId,
@@ -677,6 +706,7 @@ async function createRoomMessage({
   };
 }
 
+// getStatusCode: reads and returns get status code for the Messaging flow.
 function getStatusCode(error) {
   return error?.statusCode || error?.status || 500;
 }

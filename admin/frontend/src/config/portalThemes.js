@@ -1,3 +1,4 @@
+// SMaRT-PDM: Settings — portal Themes (admin frontend); supports admin-side UI behavior.
 export const THEME_PRESET_KEYS = [
   'default',
   'midnight',
@@ -303,10 +304,12 @@ const PRESET_OVERRIDES = {
   },
 };
 
+// getPortalDefaultTheme: reads and returns get portal default theme for the Settings flow.
 export function getPortalDefaultTheme(portalKey) {
   return DEFAULT_THEMES[portalKey] || DEFAULT_THEMES.admin;
 }
 
+// readableTextColor: handles readable text color for the Settings flow.
 function readableTextColor(hexColor) {
   const value = String(hexColor || '').replace('#', '');
   if (!/^[0-9a-f]{6}$/i.test(value)) return '#ffffff';
@@ -315,6 +318,7 @@ function readableTextColor(hexColor) {
   return luminance > 0.58 ? '#1c1917' : '#ffffff';
 }
 
+// resolvePortalTheme: resolves resolve portal theme for the Settings flow.
 export function resolvePortalTheme(portalKey, presetKey = 'default', customColors = null) {
   const normalizedPortal = String(portalKey || 'admin').trim().toLowerCase();
   const normalizedPreset = String(presetKey || 'default').trim().toLowerCase();
@@ -349,6 +353,7 @@ export function resolvePortalTheme(portalKey, presetKey = 'default', customColor
   };
 }
 
+// getThemePresetOptions: reads and returns get theme preset options for the Settings flow.
 export function getThemePresetOptions(portalKey = 'admin') {
   return THEME_PRESET_KEYS.map((presetKey) => {
     const sample = resolvePortalTheme(portalKey, presetKey);
@@ -364,6 +369,7 @@ export function getThemePresetOptions(portalKey = 'admin') {
   });
 }
 
+// buildMaintenancePalette: builds build maintenance palette for the Settings flow.
 export function buildMaintenancePalette(theme) {
   return {
     base: theme.base,

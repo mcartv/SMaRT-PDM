@@ -1,3 +1,4 @@
+// SMaRT-PDM: Maintenance — system Maintenance Service (admin backend service); contains business logic and data operations.
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -9,13 +10,16 @@ const iotOcrPresenceService = require('./iotOcrPresenceService');
 const DEFAULT_MAINTENANCE_MESSAGE =
   'SMaRT-PDM is temporarily unavailable while system maintenance is in progress. Please try again later.';
 
+// SAFE_FILE_STAMP: handles safe file stamp for the Maintenance flow.
 const SAFE_FILE_STAMP = () => new Date().toISOString().replace(/[:.]/g, '-');
 
+// normalizeMessage: normalizes normalize message for the Maintenance flow.
 function normalizeMessage(value) {
   const text = String(value || '').trim();
   return text ? text.slice(0, 500) : DEFAULT_MAINTENANCE_MESSAGE;
 }
 
+// getDatabaseUrl: reads and returns get database url for the Maintenance flow.
 function getDatabaseUrl() {
   return String(
     process.env.MIGRATION_DATABASE_URL ||
@@ -24,10 +28,12 @@ function getDatabaseUrl() {
   ).trim();
 }
 
+// pgDumpBinary: handles pg dump binary for the Maintenance flow.
 function pgDumpBinary() {
   return String(process.env.PG_DUMP_BIN || 'pg_dump').trim() || 'pg_dump';
 }
 
+// checkPgDump: checks check pg dump for the Maintenance flow.
 function checkPgDump() {
   try {
     const result = spawnSync(pgDumpBinary(), ['--version'], {
@@ -55,6 +61,7 @@ function checkPgDump() {
   }
 }
 
+// getMaintenanceState: reads and returns get maintenance state for the Maintenance flow.
 async function getMaintenanceState() {
   const result = await pool.query(`
     SELECT
@@ -75,6 +82,7 @@ async function getMaintenanceState() {
   };
 }
 
+// updateMaintenanceState: updates update maintenance state for the Maintenance flow.
 async function updateMaintenanceState({ maintenanceMode, maintenanceMessage, actorUserId }) {
   const enabled = maintenanceMode === true;
   const message = normalizeMessage(maintenanceMessage);
@@ -106,6 +114,7 @@ async function updateMaintenanceState({ maintenanceMode, maintenanceMessage, act
   };
 }
 
+// safeStorageUsage: handles safe storage usage for the Maintenance flow.
 async function safeStorageUsage() {
   try {
     const result = await pool.query(`
@@ -132,6 +141,7 @@ async function safeStorageUsage() {
   }
 }
 
+// safeOcrJobCounts: handles safe ocr job counts for the Maintenance flow.
 async function safeOcrJobCounts() {
   try {
     const result = await pool.query(`
@@ -164,6 +174,7 @@ async function safeOcrJobCounts() {
   }
 }
 
+// formatBytes: formats format bytes for the Maintenance flow.
 function formatBytes(bytes) {
   const value = Number(bytes || 0);
   if (!Number.isFinite(value) || value <= 0) return '0 B';
@@ -178,6 +189,7 @@ function formatBytes(bytes) {
   return `${amount.toFixed(decimals)} ${units[index]}`;
 }
 
+// getSystemStatus: reads and returns get system status for the Maintenance flow.
 async function getSystemStatus() {
   const [maintenance, databaseResult, storage, ocrJobs, activity] = await Promise.all([
     getMaintenanceState(),
@@ -225,6 +237,7 @@ async function getSystemStatus() {
   };
 }
 
+// parseDatabaseConnection: parses parse database connection for the Maintenance flow.
 function parseDatabaseConnection(connectionString) {
   const parsed = new URL(connectionString);
   const databaseName = decodeURIComponent(parsed.pathname.replace(/^\/+/, ''));
@@ -241,6 +254,7 @@ function parseDatabaseConnection(connectionString) {
   };
 }
 
+// runPgDump: handles run pg dump for the Maintenance flow.
 function runPgDump(filePath) {
   const connectionString = getDatabaseUrl();
   if (!connectionString) {
@@ -290,14 +304,17 @@ function runPgDump(filePath) {
   });
 }
 
+// quoteIdentifier: handles quote identifier for the Maintenance flow.
 function quoteIdentifier(value) {
   return `"${String(value).replace(/"/g, '""')}"`;
 }
 
+// quoteSqlText: handles quote sql text for the Maintenance flow.
 function quoteSqlText(value) {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 
+// writeDataOnlyFallback: handles write data only fallback for the Maintenance flow.
 async function writeDataOnlyFallback(filePath) {
   const client = await pool.connect();
   const chunks = [];
@@ -375,6 +392,7 @@ async function writeDataOnlyFallback(filePath) {
   }
 }
 
+// createDatabaseBackup: creates create database backup for the Maintenance flow.
 async function createDatabaseBackup() {
   const stamp = SAFE_FILE_STAMP();
   const dumpAvailable = checkPgDump().available;

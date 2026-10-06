@@ -1,9 +1,11 @@
+// SMaRT-PDM: focus invalid field — focus invalid field (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 
 /// Call after error decorations have rebuilt. Traversal follows visual field
 /// order and works for both text inputs and decorated dropdowns.
 bool focusFirstInvalidField(BuildContext context) {
   Element? target;
+  // findInvalid: finds and returns find invalid for the focus invalid field flow.
   void findInvalid(Element element) {
     if (target != null) return;
     final widget = element.widget;
@@ -21,6 +23,7 @@ bool focusFirstInvalidField(BuildContext context) {
   if (invalid == null) return false;
 
   EditableText? input;
+  // findInput: finds and returns find input for the focus invalid field flow.
   void findInput(Element element) {
     if (element.widget is EditableText) {
       input = element.widget as EditableText;

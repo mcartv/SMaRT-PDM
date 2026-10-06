@@ -1,16 +1,20 @@
+// SMaRT-PDM: Applications — admin Application Service (mobile backend service); contains mobile-facing business logic and data operations.
 const { notificationsEnabled } = require('../config/notificationPolicy');
 const supabase = require('../config/supabase');
 
+// createHttpError: creates create http error for the Applications flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// safeText: handles safe text for the Applications flow.
 function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
 }
 
+// getAdminProfileId: reads and returns get admin profile id for the Applications flow.
 async function getAdminProfileId(adminUserId) {
     if (!adminUserId) return null;
 
@@ -24,6 +28,7 @@ async function getAdminProfileId(adminUserId) {
     return data?.admin_id || null;
 }
 
+// getApplications: reads and returns get applications for the Applications flow.
 async function getApplications(query = {}) {
     const status = safeText(query.status);
     const openingId = safeText(query.opening_id || query.openingId);
@@ -95,6 +100,7 @@ async function getApplications(query = {}) {
     };
 }
 
+// getApplicationById: reads and returns get application by id for the Applications flow.
 async function getApplicationById(applicationId) {
     if (!applicationId) {
         throw createHttpError(400, 'Application ID is required.');
@@ -140,6 +146,7 @@ async function getApplicationById(applicationId) {
     };
 }
 
+// approveApplication: handles approve application for the Applications flow.
 async function approveApplication({ applicationId, adminUserId, remarks }) {
     if (!applicationId) {
         throw createHttpError(400, 'Application ID is required.');
@@ -221,6 +228,7 @@ async function approveApplication({ applicationId, adminUserId, remarks }) {
     };
 }
 
+// rejectApplication: handles reject application for the Applications flow.
 async function rejectApplication({
     applicationId,
     adminUserId,

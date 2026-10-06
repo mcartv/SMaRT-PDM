@@ -1,3 +1,4 @@
+// SMaRT-PDM: Applications — application form preview screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -16,6 +17,7 @@ class ApplicationFormPreviewScreen extends StatefulWidget {
   const ApplicationFormPreviewScreen({super.key});
 
   @override
+  // createState: creates create state for the Applications flow.
   State<ApplicationFormPreviewScreen> createState() =>
       _ApplicationFormPreviewScreenState();
 }
@@ -48,6 +50,7 @@ class _ApplicationFormPreviewScreenState
   bool _fetchInProgress = false;
 
   @override
+  // initState: handles init state for the Applications flow.
   void initState() {
     super.initState();
     _load();
@@ -62,6 +65,7 @@ class _ApplicationFormPreviewScreenState
   }
 
   @override
+  // didChangeDependencies: handles did change dependencies for the Applications flow.
   void didChangeDependencies() {
     super.didChangeDependencies();
 
@@ -74,6 +78,7 @@ class _ApplicationFormPreviewScreenState
     provider.addListener(_handleRealtimeApplicationUpdate);
   }
 
+  // _handleRealtimeApplicationUpdate: handles handle realtime application update for the Applications flow.
   void _handleRealtimeApplicationUpdate() {
     final provider = _notificationProvider;
     if (provider == null ||
@@ -90,6 +95,7 @@ class _ApplicationFormPreviewScreenState
     }
   }
 
+  // _load: handles load for the Applications flow.
   Future<void> _load({bool silent = false}) async {
     if (_fetchInProgress) {
       _pendingRealtimeReload = true;
@@ -167,6 +173,7 @@ class _ApplicationFormPreviewScreenState
     }
   }
 
+  // _openEditor: handles open editor for the Applications flow.
   Future<void> _openEditor() async {
     final data = _data;
     if (data == null || !_canEdit) return;
@@ -200,6 +207,7 @@ class _ApplicationFormPreviewScreenState
     }
   }
 
+  // _exportPdf: handles export pdf for the Applications flow.
   Future<void> _exportPdf() async {
     if (_isExportingPdf) return;
 
@@ -246,11 +254,13 @@ class _ApplicationFormPreviewScreenState
     }
   }
 
+  // _optional: handles optional for the Applications flow.
   String? _optional(dynamic value) {
     final text = value?.toString().trim() ?? '';
     return text.isEmpty ? null : text;
   }
 
+  // _editabilityLabel: handles editability label for the Applications flow.
   String _editabilityLabel() {
     if (_awaitingVerification) return 'Under Review';
     if (_correctionRequested) return 'Correction Needed';
@@ -259,6 +269,7 @@ class _ApplicationFormPreviewScreenState
     return 'Editing Closed';
   }
 
+  // _editabilityIcon: handles editability icon for the Applications flow.
   IconData _editabilityIcon() {
     if (_awaitingVerification) return Icons.hourglass_top_rounded;
     if (_correctionRequested) return Icons.edit_note_outlined;
@@ -266,6 +277,7 @@ class _ApplicationFormPreviewScreenState
     return Icons.lock_outline_rounded;
   }
 
+  // _editabilityMessage: handles editability message for the Applications flow.
   String _editabilityMessage() {
     if (_awaitingVerification) {
       return 'Your updated application is being reviewed. You can edit it again if OSFA requests another correction.';
@@ -293,6 +305,7 @@ class _ApplicationFormPreviewScreenState
     return 'Editing is no longer available for this Application Form. You can still review or export it.';
   }
 
+  // _text: handles text for the Applications flow.
   String _text(String value) {
     final trimmed = value.trim();
     if (trimmed.isEmpty || trimmed.toUpperCase() == 'N/A') {
@@ -301,13 +314,16 @@ class _ApplicationFormPreviewScreenState
     return trimmed;
   }
 
+  // _yesNo: handles yes no for the Applications flow.
   String _yesNo(bool value) => value ? 'Yes' : 'No';
 
+  // _answerLabel: handles answer label for the Applications flow.
   String _answerLabel(bool answered, bool value) {
     if (!answered) return 'Not answered';
     return value ? 'Yes' : 'No';
   }
 
+  // _residencyDurationLabel: handles residency duration label for the Applications flow.
   String _residencyDurationLabel(String value) {
     final raw = value.trim();
     final years = int.tryParse(raw);
@@ -331,6 +347,7 @@ class _ApplicationFormPreviewScreenState
     return _text(raw);
   }
 
+  // _scholarshipLevels: handles scholarship levels for the Applications flow.
   String _scholarshipLevels(ApplicationData data) {
     final levels = <String>[
       if (data.scholarshipElementary) 'Elementary',
@@ -345,6 +362,7 @@ class _ApplicationFormPreviewScreenState
     return levels.isEmpty ? 'Not provided' : levels.join(', ');
   }
 
+  // _field: handles field for the Applications flow.
   Widget _field(String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 13),
@@ -373,6 +391,7 @@ class _ApplicationFormPreviewScreenState
     );
   }
 
+  // _expandableField: handles expandable field for the Applications flow.
   Widget _expandableField(String label, String value) {
     final displayValue = _text(value);
 
@@ -446,6 +465,7 @@ class _ApplicationFormPreviewScreenState
     );
   }
 
+  // _section: handles section for the Applications flow.
   Widget _section({
     required String sectionKey,
     required String title,
@@ -528,6 +548,7 @@ class _ApplicationFormPreviewScreenState
     );
   }
 
+  // _subsection: handles subsection for the Applications flow.
   Widget _subsection(String title) {
     return Padding(
       padding: const EdgeInsets.only(top: 2, bottom: 12),
@@ -541,8 +562,10 @@ class _ApplicationFormPreviewScreenState
     );
   }
 
+  // _divider: handles divider for the Applications flow.
   Widget _divider() => const Divider(height: 26);
 
+  // _familyMember: handles family member for the Applications flow.
   Widget _familyMember({
     required String title,
     required bool present,
@@ -581,6 +604,7 @@ class _ApplicationFormPreviewScreenState
     );
   }
 
+  // _certificationRow: handles certification row for the Applications flow.
   Widget _certificationRow({
     required String label,
     required bool confirmed,
@@ -612,6 +636,7 @@ class _ApplicationFormPreviewScreenState
     );
   }
 
+  // _content: handles content for the Applications flow.
   Widget _content(ApplicationData data) {
     final applicationStatus =
         _optional(_application['application_status']) ?? 'Submitted';
@@ -949,6 +974,7 @@ class _ApplicationFormPreviewScreenState
     );
   }
 
+  // _pill: handles pill for the Applications flow.
   Widget _pill({required IconData icon, required String text}) {
     final maxWidth = (MediaQuery.sizeOf(context).width - 64)
         .clamp(160.0, 420.0)
@@ -992,10 +1018,12 @@ class _ApplicationFormPreviewScreenState
     );
   }
 
+  // _bottomAction: handles bottom action for the Applications flow.
   Widget _bottomAction() {
     final canEdit = _data != null && _canEdit;
     final canExport = _data != null && !_isExportingPdf;
 
+    // editButton: updates edit button for the Applications flow.
     Widget editButton() => OutlinedButton.icon(
       onPressed: canEdit ? _openEditor : null,
       icon: const Icon(Icons.edit_outlined, size: 19),
@@ -1021,6 +1049,7 @@ class _ApplicationFormPreviewScreenState
       ),
     );
 
+    // exportButton: handles export button for the Applications flow.
     Widget exportButton() => ElevatedButton.icon(
       onPressed: canExport ? _exportPdf : null,
       icon: _isExportingPdf
@@ -1118,6 +1147,7 @@ class _ApplicationFormPreviewScreenState
   }
 
   @override
+  // dispose: handles dispose for the Applications flow.
   void dispose() {
     _liveSyncTimer?.cancel();
     _notificationProvider?.removeListener(_handleRealtimeApplicationUpdate);
@@ -1125,6 +1155,7 @@ class _ApplicationFormPreviewScreenState
   }
 
   @override
+  // build: builds build for the Applications flow.
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(

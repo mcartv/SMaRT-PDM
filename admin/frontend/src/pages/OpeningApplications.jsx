@@ -1,3 +1,4 @@
+// SMaRT-PDM: Applications — Opening Applications (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { Button } from '@/components/ui/button';
@@ -65,20 +66,24 @@ const DISQ_REASONS = [
     'Other',
 ];
 
+// normalizeAppStatus: normalizes normalize app status for the Applications flow.
 function normalizeAppStatus(status) {
     return String(status || '').trim().toLowerCase();
 }
 
+// isApprovedCandidate: checks whether is approved candidate for the Applications flow.
 function isApprovedCandidate(app) {
     const raw = normalizeAppStatus(app?.application_status);
     const selection = normalizeAppStatus(app?.selection_status);
     return ['approved', 'accepted'].includes(raw) || ['selected', 'promoted'].includes(selection) || !!app?.is_scholar;
 }
 
+// getAppStatusMeta: reads and returns get app status meta for the Applications flow.
 function getAppStatusMeta(status) {
     return APP_STATUS[normalizeAppStatus(status)] || APP_STATUS.pending;
 }
 
+// getGwaMeta: reads and returns get gwa meta for the Applications flow.
 function getGwaMeta(gwa) {
     const numeric = Number(gwa);
 
@@ -93,6 +98,7 @@ function getGwaMeta(gwa) {
     return { label: `Above Cutoff · ${numeric}`, bg: C.redSoft, color: C.red };
 }
 
+// getRequirementsMeta: reads and returns get requirements meta for the Applications flow.
 function getRequirementsMeta(app = {}) {
     const verification = normalizeAppStatus(app.verification_status);
     const documentStatus = normalizeAppStatus(app.document_status);
@@ -142,6 +148,7 @@ function getRequirementsMeta(app = {}) {
     };
 }
 
+// getEndorsementMeta: reads and returns get endorsement meta for the Applications flow.
 function getEndorsementMeta(app = {}) {
     const status = normalizeAppStatus(
         app.endorsement_status ||
@@ -181,6 +188,7 @@ function getEndorsementMeta(app = {}) {
     };
 }
 
+// getSelectionMeta: reads and returns get selection meta for the Applications flow.
 function getSelectionMeta(app = {}) {
     if (app.scholar_activation_ready === true && !app.selection_status) {
         return { label: 'FCFS Ready', bg: C.blueSoft, color: C.blueMid };
@@ -210,6 +218,7 @@ function getSelectionMeta(app = {}) {
     return getAppStatusMeta(app.application_status);
 }
 
+// formatDate: formats format date for the Applications flow.
 function formatDate(value) {
     if (!value) return 'No date';
     const d = new Date(value);
@@ -222,12 +231,14 @@ function formatDate(value) {
     });
 }
 
+// toTimestamp: handles to timestamp for the Applications flow.
 function toTimestamp(value, fallback = Number.MAX_SAFE_INTEGER) {
     if (!value) return fallback;
     const parsed = new Date(value).getTime();
     return Number.isNaN(parsed) ? fallback : parsed;
 }
 
+// compareFcfs: handles compare fcfs for the Applications flow.
 function compareFcfs(a, b) {
     const queueA = Number(a?.queue_position);
     const queueB = Number(b?.queue_position);
@@ -258,6 +269,7 @@ function compareFcfs(a, b) {
     );
 }
 
+// getFcfsRank: reads and returns get fcfs rank for the Applications flow.
 function getFcfsRank(app, fallbackIndex = null) {
     const queuePosition = Number(app?.queue_position);
     if (Number.isFinite(queuePosition) && queuePosition > 0) {
@@ -266,6 +278,7 @@ function getFcfsRank(app, fallbackIndex = null) {
     return fallbackIndex;
 }
 
+// buildApplicantState: builds build applicant state for the Applications flow.
 function buildApplicantState(app) {
     const normalizedStatus = normalizeAppStatus(app.application_status || 'pending');
     const selectionStatus = normalizeAppStatus(app.selection_status);
@@ -317,6 +330,7 @@ function buildApplicantState(app) {
     };
 }
 
+// StatusPill: handles status pill for the Applications flow.
 function StatusPill({ meta }) {
     return (
         <span
@@ -328,6 +342,7 @@ function StatusPill({ meta }) {
     );
 }
 
+// parseErrorResponse: parses parse error response for the Applications flow.
 async function parseErrorResponse(res, fallbackMessage) {
     try {
         const contentType = res.headers.get('content-type') || '';
@@ -344,6 +359,7 @@ async function parseErrorResponse(res, fallbackMessage) {
     }
 }
 
+// DisqModal: handles disq modal for the Applications flow.
 function DisqModal({ app, onDisqualify, onClose }) {
     const [reason, setReason] = useState('');
 
@@ -415,6 +431,7 @@ function DisqModal({ app, onDisqualify, onClose }) {
     );
 }
 
+// RemarksModal: handles remarks modal for the Applications flow.
 function RemarksModal({ app, value, onChange, onSave, onClose, saving }) {
     return (
         <div
@@ -478,6 +495,7 @@ function RemarksModal({ app, value, onChange, onSave, onClose, saving }) {
     );
 }
 
+// ApplicantTable: handles applicant table for the Applications flow.
 function ApplicantTable({
     pageData,
     onReviewDocuments,
@@ -705,6 +723,7 @@ export default function OpeningApplications() {
     const [remarksText, setRemarksText] = useState('');
     const [remarksSaving, setRemarksSaving] = useState(false);
 
+    // reloadApplications: handles reload applications for the Applications flow.
     const reloadApplications = async ({ soft = false } = {}) => {
         try {
             if (soft) {
@@ -815,6 +834,7 @@ export default function OpeningApplications() {
         (app) => !isApprovedCandidate(app)
     ) || null;
 
+    // changeViewMode: handles change view mode for the Applications flow.
     const changeViewMode = (nextView) => {
         setViewMode(nextView);
         setPage(1);
@@ -880,6 +900,7 @@ export default function OpeningApplications() {
             String(opening?.status || opening?.posting_status || '').toLowerCase()
         );
 
+    // handleDisqualify: handles handle disqualify for the Applications flow.
     const handleDisqualify = async (id, reason) => {
         try {
             const res = await fetch(buildApiUrl(`/api/applications/${id}/disqualify`), {
@@ -918,11 +939,13 @@ export default function OpeningApplications() {
         }
     };
 
+    // handleOpenRemarks: handles handle open remarks for the Applications flow.
     const handleOpenRemarks = (app) => {
         setRemarksModal(app);
         setRemarksText(app.remarks || '');
     };
 
+    // handleSaveRemarks: handles handle save remarks for the Applications flow.
     const handleSaveRemarks = async () => {
         if (!remarksModal) return;
 

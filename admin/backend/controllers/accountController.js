@@ -1,12 +1,15 @@
+// SMaRT-PDM: Accounts — account Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const accountService = require('../services/accountService');
 const auditLogService = require('../services/auditLogService');
 const notificationService = require('../services/notificationService');
 const socketEvents = require('../utils/socketEvents');
 
+// getActorUserId: reads and returns get actor user id for the Accounts flow.
 function getActorUserId(req) {
     return req.user?.user_id || req.user?.userId || null;
 }
 
+// sendError: sends send error for the Accounts flow.
 function sendError(res, err, fallbackMessage) {
     const message = err?.message || fallbackMessage || 'Unknown backend error';
 
@@ -19,6 +22,7 @@ function sendError(res, err, fallbackMessage) {
     });
 }
 
+// emitAccountUpdate: handles emit account update for the Accounts flow.
 function emitAccountUpdate(req, action, account = null) {
     const io = req.app.get('io');
 
@@ -63,6 +67,7 @@ function emitAccountUpdate(req, action, account = null) {
     }
 }
 
+// disconnectAccountSockets: handles disconnect account sockets for the Accounts flow.
 function disconnectAccountSockets(
     req,
     userId,
@@ -94,6 +99,7 @@ function disconnectAccountSockets(
     };
 
     let disconnected = false;
+    // hardDisconnect: handles hard disconnect for the Accounts flow.
     const hardDisconnect = () => {
         if (disconnected) return;
         disconnected = true;
@@ -111,6 +117,7 @@ function disconnectAccountSockets(
     setTimeout(hardDisconnect, 1750);
 }
 
+// emitCreatedNotifications: handles emit created notifications for the Accounts flow.
 function emitCreatedNotifications(req, notifications = []) {
     const io = req.app.get('io');
 
@@ -124,10 +131,12 @@ function emitCreatedNotifications(req, notifications = []) {
     });
 }
 
+// normalizeProfileValue: normalizes normalize profile value for the Accounts flow.
 function normalizeProfileValue(value) {
     return value === null || value === undefined ? '' : String(value).trim();
 }
 
+// getProfileDisplayName: reads and returns get profile display name for the Accounts flow.
 function getProfileDisplayName(profile = {}) {
     const name = [
         normalizeProfileValue(profile.first_name),
@@ -140,12 +149,14 @@ function getProfileDisplayName(profile = {}) {
     return name || normalizeProfileValue(profile.email) || 'A user';
 }
 
+// formatProfileFieldList: formats format profile field list for the Accounts flow.
 function formatProfileFieldList(labels = []) {
     if (labels.length <= 1) return labels[0] || 'profile information';
     if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
     return `${labels.slice(0, -1).join(', ')}, and ${labels[labels.length - 1]}`;
 }
 
+// buildProfileChangeMessages: builds build profile change messages for the Accounts flow.
 function buildProfileChangeMessages(beforeProfile = {}, afterProfile = {}) {
     const actorName = getProfileDisplayName(beforeProfile);
 
@@ -201,6 +212,7 @@ function buildProfileChangeMessages(beforeProfile = {}, afterProfile = {}) {
     };
 }
 
+// notifyOwnAccountActivity: creates or sends notify own account activity for the Accounts flow.
 async function notifyOwnAccountActivity(
     req,
     profile,
@@ -233,6 +245,7 @@ async function notifyOwnAccountActivity(
     }
 }
 
+// notifyAdminManagedAccountChange: creates or sends notify admin managed account change for the Accounts flow.
 async function notifyAdminManagedAccountChange(req, account, actionLabel) {
     const actorUserId = getActorUserId(req);
     const targetUserId = account?.user_id;

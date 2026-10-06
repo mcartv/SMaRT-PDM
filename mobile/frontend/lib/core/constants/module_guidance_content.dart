@@ -1,3 +1,4 @@
+// SMaRT-PDM: module guidance content — module guidance content (mobile frontend); supports mobile UI behavior.
 abstract final class ModuleGuidanceContent {
   static const profileTitle = 'Profile Information';
   static const profileBody =

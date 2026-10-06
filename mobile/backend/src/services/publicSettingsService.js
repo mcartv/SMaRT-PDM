@@ -1,19 +1,23 @@
+// SMaRT-PDM: public Settings Service — public Settings Service (mobile backend service); contains mobile-facing business logic and data operations.
 const supabase = require('../config/supabase');
 
 const DEFAULT_MAINTENANCE_MESSAGE =
     'SMaRT-PDM is temporarily unavailable while system maintenance is in progress. Please try again later.';
 
+// safeText: handles safe text for the public Settings Service flow.
 function safeText(value, maxLength = Number.MAX_SAFE_INTEGER) {
     const normalized = value === null || value === undefined ? '' : String(value).trim();
     return normalized.slice(0, maxLength);
 }
 
+// normalizeDate: normalizes normalize date for the public Settings Service flow.
 function normalizeDate(value) {
     const normalized = safeText(value);
     if (!normalized) return null;
     return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
 }
 
+// normalizeDateTime: normalizes normalize date time for the public Settings Service flow.
 function normalizeDateTime(value) {
     const normalized = safeText(value);
     if (!normalized) return null;
@@ -21,11 +25,13 @@ function normalizeDateTime(value) {
     return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
 }
 
+// normalizeMaintenanceMessage: normalizes normalize maintenance message for the public Settings Service flow.
 function normalizeMaintenanceMessage(value) {
     const message = safeText(value);
     return message ? message.slice(0, 500) : DEFAULT_MAINTENANCE_MESSAGE;
 }
 
+// sanitizeFaqs: handles sanitize faqs for the public Settings Service flow.
 function sanitizeFaqs(value) {
     if (!Array.isArray(value)) return [];
 
@@ -40,6 +46,7 @@ function sanitizeFaqs(value) {
         .filter((item) => item.question && item.answer);
 }
 
+// sanitizeFeaturedNotices: handles sanitize featured notices for the public Settings Service flow.
 function sanitizeFeaturedNotices(value) {
     const source = Array.isArray(value)
         ? value
@@ -65,6 +72,7 @@ function sanitizeFeaturedNotices(value) {
         .filter((notice) => notice.title || notice.message);
 }
 
+// getManilaDateKey: reads and returns get manila date key for the public Settings Service flow.
 function getManilaDateKey(date = new Date()) {
     const parts = new Intl.DateTimeFormat('en-US', {
         timeZone: 'Asia/Manila',
@@ -76,6 +84,7 @@ function getManilaDateKey(date = new Date()) {
     return `${values.year}-${values.month}-${values.day}`;
 }
 
+// isFeaturedNoticePublished: checks whether is featured notice published for the public Settings Service flow.
 function isFeaturedNoticePublished(notice = {}) {
     if (!notice.is_visible || !notice.title || !notice.message) return false;
     const today = getManilaDateKey();
@@ -84,6 +93,7 @@ function isFeaturedNoticePublished(notice = {}) {
     return true;
 }
 
+// sortFeaturedNoticesNewestFirst: handles sort featured notices newest first for the public Settings Service flow.
 function sortFeaturedNoticesNewestFirst(notices = []) {
     return notices
         .map((notice, index) => ({ notice, index }))
@@ -101,6 +111,7 @@ function sortFeaturedNoticesNewestFirst(notices = []) {
         .map(({ notice }) => notice);
 }
 
+// getFeaturedNoticeNextChangeAt: reads and returns get featured notice next change at for the public Settings Service flow.
 function getFeaturedNoticeNextChangeAt(notice = {}) {
     if (!notice.is_visible || !notice.title || !notice.message) return null;
     const today = getManilaDateKey();
@@ -122,6 +133,7 @@ function getFeaturedNoticeNextChangeAt(notice = {}) {
     return null;
 }
 
+// getFeaturedNoticesNextChangeAt: reads and returns get featured notices next change at for the public Settings Service flow.
 function getFeaturedNoticesNextChangeAt(notices = []) {
     const boundaries = notices
         .map((notice) => getFeaturedNoticeNextChangeAt(notice))
@@ -133,6 +145,7 @@ function getFeaturedNoticesNextChangeAt(notices = []) {
     return new Date(Math.min(...boundaries)).toISOString();
 }
 
+// getPublicGeneralSettings: reads and returns get public general settings for the public Settings Service flow.
 async function getPublicGeneralSettings() {
     const { data, error } = await supabase
         .from('general_settings')
@@ -181,6 +194,7 @@ async function getPublicGeneralSettings() {
     };
 }
 
+// getMaintenanceState: reads and returns get maintenance state for the public Settings Service flow.
 async function getMaintenanceState() {
     const { data, error } = await supabase
         .from('general_settings')
@@ -197,6 +211,7 @@ async function getMaintenanceState() {
     };
 }
 
+// getPublishedScholarshipPrograms: reads and returns get published scholarship programs for the public Settings Service flow.
 async function getPublishedScholarshipPrograms() {
     const { data, error } = await supabase
         .from('scholarship_program')

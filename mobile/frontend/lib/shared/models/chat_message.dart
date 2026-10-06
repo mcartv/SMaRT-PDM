@@ -1,3 +1,4 @@
+// SMaRT-PDM: Messaging — chat message (mobile frontend); supports mobile UI behavior.
 class ChatMessage {
   final String messageId;
   final String senderId;
@@ -116,6 +117,7 @@ class ChatMessage {
     );
   }
 
+  // copyWith: handles copy with for the Messaging flow.
   ChatMessage copyWith({
     String? messageId,
     String? senderId,

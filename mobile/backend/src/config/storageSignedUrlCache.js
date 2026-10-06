@@ -1,3 +1,4 @@
+// SMaRT-PDM: Caching — storage Signed Url Cache (mobile backend config); configures shared mobile backend infrastructure.
 'use strict';
 
 /**
@@ -35,6 +36,7 @@ const EXPIRY_SAFETY_MS = Math.max(
 const cache = new Map();
 const inFlight = new Map();
 
+// stableSerialize: handles stable serialize for the Caching flow.
 function stableSerialize(value) {
     if (value === undefined) return 'undefined';
     if (value === null) return 'null';
@@ -50,6 +52,7 @@ function stableSerialize(value) {
         .join(',')}}`;
 }
 
+// getCacheTtlMs: reads and returns get cache ttl ms for the Caching flow.
 function getCacheTtlMs(expiresInSeconds) {
     const requestedMs = Math.max(0, Number(expiresInSeconds || 0) * 1000);
 
@@ -62,6 +65,7 @@ function getCacheTtlMs(expiresInSeconds) {
     return Math.min(MAX_TTL_MS, reusableMs);
 }
 
+// prune: handles prune for the Caching flow.
 function prune(now = Date.now()) {
     for (const [key, entry] of cache.entries()) {
         if (!entry || entry.expiresAt <= now) {
@@ -76,6 +80,7 @@ function prune(now = Date.now()) {
     }
 }
 
+// readCache: handles read cache for the Caching flow.
 function readCache(key, now = Date.now()) {
     const entry = cache.get(key);
 
@@ -90,6 +95,7 @@ function readCache(key, now = Date.now()) {
     return entry.value;
 }
 
+// writeCache: handles write cache for the Caching flow.
 function writeCache(key, value, ttlMs, now = Date.now()) {
     cache.set(key, {
         value,
@@ -98,10 +104,12 @@ function writeCache(key, value, ttlMs, now = Date.now()) {
     prune(now);
 }
 
+// isSuccessfulSignedUrlResponse: checks whether is successful signed url response for the Caching flow.
 function isSuccessfulSignedUrlResponse(result) {
     return Boolean(result && !result.error && result.data && result.data.signedUrl);
 }
 
+// isSuccessfulSignedUrlsResponse: checks whether is successful signed urls response for the Caching flow.
 function isSuccessfulSignedUrlsResponse(result) {
     return Boolean(
         result &&
@@ -111,6 +119,7 @@ function isSuccessfulSignedUrlsResponse(result) {
     );
 }
 
+// installStorageSignedUrlCache: handles install storage signed url cache for the Caching flow.
 function installStorageSignedUrlCache(supabase, { label = 'supabase' } = {}) {
     if (!supabase?.storage?.from || supabase.storage.__signedUrlCacheInstalled) {
         return supabase;
@@ -158,6 +167,7 @@ function installStorageSignedUrlCache(supabase, { label = 'supabase' } = {}) {
                     return inFlight.get(key);
                 }
 
+                // request: handles request for the Caching flow.
                 const request = (async () => {
                     const result = await originalCreateSignedUrl(
                         path,
@@ -216,6 +226,7 @@ function installStorageSignedUrlCache(supabase, { label = 'supabase' } = {}) {
                     return inFlight.get(key);
                 }
 
+                // request: handles request for the Caching flow.
                 const request = (async () => {
                     const result = await originalCreateSignedUrls(
                         paths,

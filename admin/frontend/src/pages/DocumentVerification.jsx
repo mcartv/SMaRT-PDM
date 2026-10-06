@@ -1,3 +1,4 @@
+// SMaRT-PDM: Document Verification — Document Verification (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
@@ -172,14 +173,17 @@ const OCR_ERROR_MESSAGES = {
   OCR_CHECKSUM_MISMATCH: 'The captured document could not be verified.',
 };
 
+// humanOcrError: handles human ocr error for the Document Verification flow.
 function humanOcrError(code, fallback = 'OCR could not complete this request.') {
   return OCR_ERROR_MESSAGES[String(code || '').trim()] || fallback;
 }
 
+// getActiveIotRequest: reads and returns get active iot request for the Document Verification flow.
 function getActiveIotRequest(document = {}) {
   return document?.iot_ocr_request || document?.ocr_job || null;
 }
 
+// isActiveIotRequest: checks whether is active iot request for the Document Verification flow.
 function isActiveIotRequest(request) {
   return ACTIVE_IOT_OCR_STATUSES.has(
     String(request?.status || '').trim().toLowerCase()
@@ -249,6 +253,7 @@ const MAJOR_REJECTION_OPTIONS = [
   },
 ];
 
+// deriveRequirementsOutcome: derives derive requirements outcome for the Document Verification flow.
 function deriveRequirementsOutcome(documents = []) {
   if (
     documents.some(
@@ -278,6 +283,7 @@ function deriveRequirementsOutcome(documents = []) {
   return 'pending';
 }
 
+// formatResidencyDuration: formats format residency duration for the Document Verification flow.
 function formatResidencyDuration(value) {
   const raw = String(value ?? '').trim();
   if (!raw) return 'N/A';
@@ -296,6 +302,7 @@ function formatResidencyDuration(value) {
   return 'More than 10 years';
 }
 
+// normalizeKey: normalizes normalize key for the Document Verification flow.
 function normalizeKey(value = '') {
   return String(value)
     .toLowerCase()
@@ -304,6 +311,7 @@ function normalizeKey(value = '') {
     .trim();
 }
 
+// getOcrFailureMessage: reads and returns get ocr failure message for the Document Verification flow.
 function getOcrFailureMessage(error) {
   const raw = String(error?.message || error || '').trim();
   const normalized = raw.toLowerCase();
@@ -342,6 +350,7 @@ function getOcrFailureMessage(error) {
   return raw || 'OCR processing failed. Retry the scan or continue with manual review.';
 }
 
+// findRequiredDocConfig: finds and returns find required doc config for the Document Verification flow.
 function findRequiredDocConfig(rawDoc = {}) {
   const candidates = [
     rawDoc.id,
@@ -363,6 +372,7 @@ function findRequiredDocConfig(rawDoc = {}) {
   );
 }
 
+// getDocumentCandidateScore: reads and returns get document candidate score for the Document Verification flow.
 function getDocumentCandidateScore(rawDoc = {}) {
   const resolvedUrl =
     rawDoc.url ||
@@ -397,6 +407,7 @@ function getDocumentCandidateScore(rawDoc = {}) {
   return score;
 }
 
+// normalizeDocumentReviewStatus: normalizes normalize document review status for the Document Verification flow.
 function normalizeDocumentReviewStatus(value = '') {
   const normalized = normalizeKey(value).replace(/\s+/g, '_');
 
@@ -423,6 +434,7 @@ function normalizeDocumentReviewStatus(value = '') {
   return normalized;
 }
 
+// normalizeRequiredDocuments: normalizes normalize required documents for the Document Verification flow.
 function normalizeRequiredDocuments(rawDocs = []) {
   const mapped = new Map();
 
@@ -531,11 +543,13 @@ function normalizeRequiredDocuments(rawDocs = []) {
     };
   });
 }
+// getDocumentStatusMeta: reads and returns get document status meta for the Document Verification flow.
 function getDocumentStatusMeta(status) {
   const normalizedStatus = normalizeDocumentReviewStatus(status);
   return DOC_STATUS_META[normalizedStatus] || DOC_STATUS_META.pending;
 }
 
+// isDocumentAvailable: checks whether is document available for the Document Verification flow.
 function isDocumentAvailable(document) {
   if (!document) return false;
   if (document.id === 'application_form') return true;
@@ -549,6 +563,7 @@ function isDocumentAvailable(document) {
   );
 }
 
+// isPsaBirthCertificateOcrVerified: checks whether is psa birth certificate ocr verified for the Document Verification flow.
 function isPsaBirthCertificateOcrVerified(document) {
   if (document?.id !== 'birth_certificate') return false;
 
@@ -557,6 +572,7 @@ function isPsaBirthCertificateOcrVerified(document) {
     .toLowerCase() === 'completed';
 }
 
+// isPsaBirthCertificateRequirementSatisfied: checks whether is psa birth certificate requirement satisfied for the Document Verification flow.
 function isPsaBirthCertificateRequirementSatisfied(document) {
   if (document?.id !== 'birth_certificate') return false;
 
@@ -566,6 +582,7 @@ function isPsaBirthCertificateRequirementSatisfied(document) {
   );
 }
 
+// getStructuredOcrFields: reads and returns get structured ocr fields for the Document Verification flow.
 function getStructuredOcrFields(document) {
   const structuredFields = document?.ocr?.structured_fields;
   return structuredFields?.fields && typeof structuredFields.fields === 'object'
@@ -573,11 +590,13 @@ function getStructuredOcrFields(document) {
     : {};
 }
 
+// hasStructuredOcrFields: checks whether has structured ocr fields for the Document Verification flow.
 function hasStructuredOcrFields(document) {
   return Object.keys(getStructuredOcrFields(document)).length > 0;
 }
 
 
+// getIotOcrRequestId: reads and returns get iot ocr request id for the Document Verification flow.
 export function getIotOcrRequestId(value = {}) {
   const candidate =
     value?.request_id ||
@@ -592,6 +611,7 @@ export function getIotOcrRequestId(value = {}) {
 }
 
 
+// buildIotOcrSnapshotOverride: builds build iot ocr snapshot override for the Document Verification flow.
 export function buildIotOcrSnapshotOverride(snapshot = {}) {
   const ocr = snapshot?.ocr && typeof snapshot.ocr === 'object'
     ? snapshot.ocr
@@ -608,6 +628,7 @@ export function buildIotOcrSnapshotOverride(snapshot = {}) {
   };
 }
 
+// _getFileType: handles get file type for the Document Verification flow.
 function _getFileType(document = {}) {
   const raw = (document?.file_name || document?.url || document?.file_path || '').toLowerCase();
 
@@ -625,16 +646,19 @@ function _getFileType(document = {}) {
   return 'other';
 }
 
+// formatYesNo: formats format yes no for the Document Verification flow.
 function formatYesNo(value) {
   if (value === true) return 'Yes';
   if (value === false) return 'No';
   return 'N/A';
 }
 
+// buildFullName: builds build full name for the Document Verification flow.
 function buildFullName(person = {}) {
   return [person.first_name, person.middle_name, person.last_name].filter(Boolean).join(' ') || null;
 }
 
+// buildAddress: builds build address for the Document Verification flow.
 function buildAddress(profile = {}) {
   return [
     profile.street_address,
@@ -647,6 +671,7 @@ function buildAddress(profile = {}) {
     .join(', ') || null;
 }
 
+// groupFamilyMembersByRelation: handles group family members by relation for the Document Verification flow.
 function groupFamilyMembersByRelation(familyMembers = []) {
   const order = ['Father', 'Mother', 'Guardian', 'Sibling'];
 
@@ -657,6 +682,7 @@ function groupFamilyMembersByRelation(familyMembers = []) {
   });
 }
 
+// groupEducationRecords: handles group education records for the Document Verification flow.
 function groupEducationRecords(educationRecords = []) {
   const order = ['Elementary', 'High School', 'Senior High School', 'College'];
 
@@ -667,6 +693,7 @@ function groupEducationRecords(educationRecords = []) {
   });
 }
 
+// formatOcrConfidence: formats format ocr confidence for the Document Verification flow.
 export function formatOcrConfidence(confidence, scannedViaIot = false) {
   if (confidence === null || confidence === undefined || confidence === '') return 'Unavailable';
 
@@ -680,6 +707,7 @@ export function formatOcrConfidence(confidence, scannedViaIot = false) {
   return `${Number(percentage.toFixed(2))}%`;
 }
 
+// buildExtractedData: builds build extracted data for the Document Verification flow.
 export function buildExtractedData(activeDoc, application) {
   if (!activeDoc) {
     return {
@@ -799,6 +827,7 @@ export function buildExtractedData(activeDoc, application) {
 }
 
 
+// buildRawOcrSnapshot: builds build raw ocr snapshot for the Document Verification flow.
 export function buildRawOcrSnapshot(activeDoc) {
   if (!activeDoc) return '';
 
@@ -814,6 +843,7 @@ export function buildRawOcrSnapshot(activeDoc) {
   return rawText || '(No OCR text yet)';
 }
 
+// normalizeOcrText: normalizes normalize ocr text for the Document Verification flow.
 function normalizeOcrText(value = '') {
   return String(value || '')
     .toLowerCase()
@@ -822,6 +852,7 @@ function normalizeOcrText(value = '') {
     .trim();
 }
 
+// normalizeIdentityText: normalizes normalize identity text for the Document Verification flow.
 function normalizeIdentityText(value = '') {
   return String(value || '')
     .toLowerCase()
@@ -831,6 +862,7 @@ function normalizeIdentityText(value = '') {
 }
 
 
+// reviewBirthApplicantIdentity: handles review birth applicant identity for the Document Verification flow.
 export function reviewBirthApplicantIdentity({
   applicantName,
   childNameRawText,
@@ -864,10 +896,12 @@ export function reviewBirthApplicantIdentity({
   };
 }
 
+// hasAnyMarker: checks whether has any marker for the Document Verification flow.
 function hasAnyMarker(normalizedText, markers = []) {
   return markers.some((marker) => normalizedText.includes(normalizeOcrText(marker)));
 }
 
+// detectBirthCertificateOcr: handles detect birth certificate ocr for the Document Verification flow.
 function detectBirthCertificateOcr(activeDoc) {
   const ocr = activeDoc?.ocr || {};
   const rawText = String(ocr.raw_text || ocr.text || '').trim();
@@ -1042,6 +1076,7 @@ function detectBirthCertificateOcr(activeDoc) {
   };
 }
 
+// InfoRow: handles info row for the Document Verification flow.
 function InfoRow({ label, value, mono, className = '' }) {
   const displayValue = value === undefined || value === null || value === '' ? 'N/A' : value;
 
@@ -1057,6 +1092,7 @@ function InfoRow({ label, value, mono, className = '' }) {
   );
 }
 
+// ApplicationFormPreview: handles application form preview for the Document Verification flow.
 function ApplicationFormPreview({ application }) {
   const student = application?.student || {};
   const profile = application?.student_profile || {};
@@ -1231,6 +1267,7 @@ function ApplicationFormPreview({ application }) {
   );
 }
 
+// inferPreviewMimeType: handles infer preview mime type for the Document Verification flow.
 function inferPreviewMimeType(document = {}, responseContentType = '') {
   const responseType = String(responseContentType || '')
     .split(';')[0]
@@ -1259,6 +1296,7 @@ function inferPreviewMimeType(document = {}, responseContentType = '') {
   return 'application/octet-stream';
 }
 
+// DocumentPreviewPanel: handles document preview panel for the Document Verification flow.
 function DocumentPreviewPanel({ activeDoc, application }) {
   const [previewUrl, setPreviewUrl] = useState('');
   const [previewMimeType, setPreviewMimeType] = useState('');
@@ -1271,6 +1309,7 @@ function DocumentPreviewPanel({ activeDoc, application }) {
     let objectUrl = '';
     const controller = new AbortController();
 
+    // getSignedUrl: reads and returns get signed url for the Document Verification flow.
     const getSignedUrl = async (source) => {
       const applicationId = application?.application_id || application?.id;
       const response = await fetch(
@@ -1287,6 +1326,7 @@ function DocumentPreviewPanel({ activeDoc, application }) {
       return payload.data;
     };
 
+    // getBytes: reads and returns get bytes for the Document Verification flow.
     const getBytes = async (url) => {
       const response = await fetch(url, {
         method: 'GET', cache: 'force-cache', redirect: 'follow', signal: controller.signal,
@@ -1298,6 +1338,7 @@ function DocumentPreviewPanel({ activeDoc, application }) {
       return response;
     };
 
+    // loadPreview: loads and returns load preview for the Document Verification flow.
     const loadPreview = async () => {
       setPreviewError('');
       setPreviewUrl('');
@@ -1401,6 +1442,7 @@ const BIRTH_NAME_PARTS = [
   ['last_name', 'Last Name'],
 ];
 
+// ocrFieldValue: handles ocr field value for the Document Verification flow.
 function ocrFieldValue(value) {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return value.normalized_value ?? value.raw_text ?? value.value ?? '';
@@ -1408,6 +1450,7 @@ function ocrFieldValue(value) {
   return value ?? '';
 }
 
+// deriveGradeReviewValues: derives derive grade review values for the Document Verification flow.
 function deriveGradeReviewValues(rawText) {
   const text = String(rawText || '').replace(/\s+/g, ' ').trim();
   const derived = {};
@@ -1460,6 +1503,7 @@ function deriveGradeReviewValues(rawText) {
   return derived;
 }
 
+// deriveIndigencyReviewValues: derives derive indigency review values for the Document Verification flow.
 function deriveIndigencyReviewValues(rawText) {
   const text = String(rawText || '').replace(/\s+/g, ' ').trim();
   const derived = {};
@@ -1478,6 +1522,7 @@ function deriveIndigencyReviewValues(rawText) {
   return derived;
 }
 
+// normalizeBirthName: normalizes normalize birth name for the Document Verification flow.
 function normalizeBirthName(value) {
   const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const components = source.components && typeof source.components === 'object'
@@ -1510,6 +1555,7 @@ const EMPTY_PARENT_NAME_MARKERS = new Set([
   'not listed',
 ]);
 
+// normalizeParentNameText: normalizes normalize parent name text for the Document Verification flow.
 function normalizeParentNameText(value = '') {
   return String(value || '')
     .normalize('NFKD')
@@ -1520,10 +1566,12 @@ function normalizeParentNameText(value = '') {
     .trim();
 }
 
+// isEmptyParentName: checks whether is empty parent name for the Document Verification flow.
 function isEmptyParentName(value = '') {
   return EMPTY_PARENT_NAME_MARKERS.has(normalizeParentNameText(value));
 }
 
+// birthParentDisplayName: handles birth parent display name for the Document Verification flow.
 function birthParentDisplayName(value) {
   const normalized = normalizeBirthName(value);
   if (String(normalized.section_status || '').toLowerCase() === 'not_applicable') {
@@ -1536,6 +1584,7 @@ function birthParentDisplayName(value) {
   ].filter(Boolean).join(' ').trim();
 }
 
+// applicantFamilyMember: handles applicant family member for the Document Verification flow.
 function applicantFamilyMember(application, relation) {
   const target = String(relation || '').trim().toLowerCase();
   return (application?.family_members || []).find(
@@ -1576,6 +1625,7 @@ export function compareBirthParentNames(applicantValue, birthValue) {
   };
 }
 
+// buildBirthParentsInformation: builds build birth parents information for the Document Verification flow.
 export function buildBirthParentsInformation({
   application,
   birthFields = {},
@@ -1619,6 +1669,7 @@ export function buildBirthParentsInformation({
   };
 }
 
+// resolveBirthAdminVerificationStatus: resolves resolve birth admin verification status for the Document Verification flow.
 function resolveBirthAdminVerificationStatus(request, candidate) {
   const requestStatus = String(request?.status || '').trim().toLowerCase();
   const candidateStatus = String(candidate?.status || '').trim().toLowerCase();
@@ -1647,7 +1698,9 @@ const BIRTH_OCR_LOOKUP_DOCUMENT_IDS = [
   'certificate_of_live_birth',
 ];
 
+// isSameOcrDocument: checks whether is same ocr document for the Document Verification flow.
 function isSameOcrDocument(left, right) {
+  // normalize: normalizes normalize for the Document Verification flow.
   const normalize = (value) => {
     const key = String(value || '').trim().toLowerCase();
     return BIRTH_OCR_DOCUMENT_KEYS.has(key) ? 'birth_certificate' : key;
@@ -1655,6 +1708,7 @@ function isSameOcrDocument(left, right) {
   return Boolean(normalize(left)) && normalize(left) === normalize(right);
 }
 
+// normalizeReviewFields: normalizes normalize review fields for the Document Verification flow.
 export function normalizeReviewFields(candidate) {
   const fields = candidate?.fields || {};
   if (candidate?.document_key === 'student_grade_forms') {
@@ -1685,6 +1739,7 @@ export function normalizeReviewFields(candidate) {
   return fields;
 }
 
+// _ocrScoreLabel: handles ocr score label for the Document Verification flow.
 function _ocrScoreLabel(candidate, key, displayedValue) {
   const rawScore = candidate?.field_confidence?.[key];
   const numeric = rawScore === null || rawScore === undefined ? NaN : Number(rawScore);
@@ -1692,6 +1747,7 @@ function _ocrScoreLabel(candidate, key, displayedValue) {
   return String(displayedValue || '').trim() ? 'Detected' : '\u2014';
 }
 
+// _birthComponentScoreLabel: handles birth component score label for the Document Verification flow.
 function _birthComponentScoreLabel(candidate, fieldKey, componentKey, displayedValue) {
   const rawScore = candidate?.fields?.[fieldKey]?.component_confidence?.[componentKey];
   const numeric = rawScore === null || rawScore === undefined ? NaN : Number(rawScore);
@@ -1705,6 +1761,7 @@ const BIRTH_REGION_PREFIX = {
   father_name: 'item13',
 };
 
+// BirthV2ReviewImage: handles birth v2 review image for the Document Verification flow.
 function BirthV2ReviewImage({ src, status, error, onRetry }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(1);
@@ -1712,6 +1769,7 @@ function BirthV2ReviewImage({ src, status, error, onRetry }) {
   const [previewDragging, setPreviewDragging] = useState(false);
   const dragStateRef = useRef({ pointerId: null, startX: 0, startY: 0, panX: 0, panY: 0 });
 
+  // resetPreviewTransform: resets reset preview transform for the Document Verification flow.
   const resetPreviewTransform = () => {
     setPreviewZoom(1);
     setPreviewPan({ x: 0, y: 0 });
@@ -1719,6 +1777,7 @@ function BirthV2ReviewImage({ src, status, error, onRetry }) {
     dragStateRef.current = { pointerId: null, startX: 0, startY: 0, panX: 0, panY: 0 };
   };
 
+  // closePreview: handles close preview for the Document Verification flow.
   const closePreview = () => {
     setPreviewOpen(false);
     resetPreviewTransform();
@@ -1726,6 +1785,7 @@ function BirthV2ReviewImage({ src, status, error, onRetry }) {
 
   useEffect(() => {
     if (!previewOpen) return undefined;
+    // handleKeyDown: handles handle key down for the Document Verification flow.
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') closePreview();
     };
@@ -1877,6 +1937,7 @@ function BirthV2ReviewImage({ src, status, error, onRetry }) {
   );
 }
 
+// OCRPanel: handles ocrpanel for the Document Verification flow.
 function OCRPanel({
   activeDoc,
   extractedData,
@@ -2666,6 +2727,7 @@ function OCRPanel({
   );
 }
 
+// ReviewIssueModal: handles review issue modal for the Document Verification flow.
 function ReviewIssueModal({
   mode,
   onClose,
@@ -2687,6 +2749,7 @@ function ReviewIssueModal({
     (option) => option.code === selectedCode
   );
 
+  // handleSubmit: handles handle submit for the Document Verification flow.
   const handleSubmit = () => {
     if (!selectedReason) return;
 
@@ -2838,6 +2901,7 @@ function ReviewIssueModal({
   );
 }
 
+// StudentCard: handles student card for the Document Verification flow.
 function StudentCard({ application, parentsInformation }) {
   const parentInfo = parentsInformation || {
     admin_status: 'PENDING VERIFICATION',
@@ -2850,6 +2914,7 @@ function StudentCard({ application, parentsInformation }) {
       ? 'border-red-200 bg-red-50 text-red-700'
       : 'border-amber-200 bg-amber-50 text-amber-700';
 
+  // comparisonClass: handles comparison class for the Document Verification flow.
   const comparisonClass = (status) => {
     if (status === 'MATCHED') {
       return 'border-green-200 bg-green-50 text-green-700';
@@ -2982,6 +3047,7 @@ function StudentCard({ application, parentsInformation }) {
   );
 }
 
+// ChecklistCard: checks checklist card for the Document Verification flow.
 function ChecklistCard({
   docs,
   activeDocId,
@@ -3105,6 +3171,7 @@ function ChecklistCard({
   );
 }
 
+// VerificationActions: handles verification actions for the Document Verification flow.
 function VerificationActions({
   activeDoc,
   onVerify,
@@ -3227,6 +3294,7 @@ function VerificationActions({
 
   const StatusIcon = statusConfig.icon;
 
+  // saveButtonLabel: validates and saves save button label for the Document Verification flow.
   const saveButtonLabel = (() => {
     if (reviewActionSaving) return 'Saving Document Review...';
     if (submitting) return 'Saving Requirements Review...';
@@ -3260,6 +3328,7 @@ function VerificationActions({
     isSaved ||
     !canCompleteVerification;
 
+  // saveButtonClass: validates and saves save button class for the Document Verification flow.
   const saveButtonClass = (() => {
     const base =
       'min-h-11 h-auto w-full min-w-0 whitespace-normal rounded-xl border-none px-3 py-2.5 text-center text-sm font-semibold leading-tight shadow-none transition-all duration-200';
@@ -3933,6 +4002,7 @@ export default function DocumentVerification() {
 
   useEffect(() => {
     let cancelled = false;
+    // checkPiAvailability: checks check pi availability for the Document Verification flow.
     const checkPiAvailability = async () => {
       try {
         const response = await fetch(`${API_BASE}/api/applications/iot-ocr/availability`, {
@@ -3950,6 +4020,7 @@ export default function DocumentVerification() {
         if (!cancelled) setPiAvailabilityChecked(true);
       }
     };
+    // refreshIfVisible: refreshes refresh if visible for the Document Verification flow.
     const refreshIfVisible = () => {
       if (document.visibilityState !== 'visible') return;
       checkPiAvailability();
@@ -3962,6 +4033,7 @@ export default function DocumentVerification() {
       60 * 1000
     );
 
+    // handleVisibilityChange: handles handle visibility change for the Document Verification flow.
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         checkPiAvailability();
@@ -3989,6 +4061,7 @@ export default function DocumentVerification() {
     // self-heals without re-signing and re-fetching every document every 8 seconds.
     const FALLBACK_REFRESH_INTERVAL_MS = 2 * 60 * 1000;
 
+    // refreshIfVisible: refreshes refresh if visible for the Document Verification flow.
     const refreshIfVisible = () => {
       if (document.visibilityState !== 'visible') return;
       fetchApplicationDocuments({ soft: true });
@@ -4167,6 +4240,7 @@ export default function DocumentVerification() {
   const canOpenEndorsement =
     requirementsVerifiedForEndorsement && Boolean(endorsementSlipId);
 
+  // endorsementHeaderStatus: handles endorsement header status for the Document Verification flow.
   const endorsementHeaderStatus = (() => {
     if (persistedVerificationStatus === 'rejected') {
       return {
@@ -4316,6 +4390,7 @@ export default function DocumentVerification() {
     };
 
     if (!pollingRef.current) {
+      // pollPersistedRequest: handles poll persisted request for the Document Verification flow.
       const pollPersistedRequest = async () => {
         let keepPolling = true;
 
@@ -4489,6 +4564,7 @@ export default function DocumentVerification() {
     let objectUrl = '';
     let activeController = null;
     setBirthReviewImageStatus('loading');
+    // loadPreview: loads and returns load preview for the Document Verification flow.
     const loadPreview = async () => {
       let lastError = null;
       for (const [attempt, timeoutMs] of [[1, 15000], [2, 20000]]) {
@@ -4684,6 +4760,7 @@ export default function DocumentVerification() {
     }
   };
 
+  // handleVerify: handles handle verify for the Document Verification flow.
   const handleVerify = async () => {
     await persistActiveDocStatus('verified', '', {
       issue_severity: null,
@@ -4836,6 +4913,7 @@ export default function DocumentVerification() {
     }
   };
 
+  // handleRunIotOcr: handles handle run iot ocr for the Document Verification flow.
   const handleRunIotOcr = async () => {
     if (!activeDoc || activeDoc.id === 'application_form') return;
     if (persistedIotOcrRunning) return;
@@ -4923,6 +5001,7 @@ export default function DocumentVerification() {
 
       let consecutivePollErrors = 0;
 
+      // pollFreshSnapshot: handles poll fresh snapshot for the Document Verification flow.
       const pollFreshSnapshot = async () => {
         const activeRequest = activeIotRequestRef.current;
 
@@ -5066,6 +5145,7 @@ export default function DocumentVerification() {
     }
   };
 
+  // handleConfirmCandidate: handles handle confirm candidate for the Document Verification flow.
   const handleConfirmCandidate = async () => {
     if (!activeDoc || !reviewCandidate) return;
     try {
@@ -5126,6 +5206,7 @@ export default function DocumentVerification() {
     }
   };
 
+  // handleBirthReviewAction: handles handle birth review action for the Document Verification flow.
   const handleBirthReviewAction = async (action) => {
     if (!activeDoc || !reviewCandidate || !birthReviewReason) return;
     try {
@@ -5172,6 +5253,7 @@ export default function DocumentVerification() {
     }
   };
 
+  // handleCancelIotOcr: handles handle cancel iot ocr for the Document Verification flow.
   const handleCancelIotOcr = async () => {
     if (!activeDoc) return;
     const request = activeIotRequestRef.current?.request || getActiveIotRequest(activeDoc);
@@ -5210,6 +5292,7 @@ export default function DocumentVerification() {
     }
   };
 
+  // handleRetryCandidate: handles handle retry candidate for the Document Verification flow.
   const handleRetryCandidate = async () => {
     if (!activeDoc || !reviewCandidate) return;
     try {
@@ -5235,6 +5318,7 @@ export default function DocumentVerification() {
     }
   };
 
+  // handleCompleteVerification: handles handle complete verification for the Document Verification flow.
   const handleCompleteVerification = async () => {
     if (requirementsReviewAlreadySaved || !canCompleteVerification) {
       return;
@@ -5356,6 +5440,7 @@ export default function DocumentVerification() {
     if (activeDoc?.id !== 'birth_certificate' || !reviewCandidate || reviewCandidate.status !== 'review_required') {
       return undefined;
     }
+    // onKeyDown: handles on key down for the Document Verification flow.
     const onKeyDown = (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
         event.preventDefault();

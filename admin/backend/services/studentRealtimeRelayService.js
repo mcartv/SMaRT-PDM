@@ -1,8 +1,10 @@
+// SMaRT-PDM: student Realtime Relay Service — student Realtime Relay Service (admin backend service); contains business logic and data operations.
 const { resolveInternalRealtimeSecret } = require('../utils/internalRealtimeSecret');
 
 const RELAY_TIMEOUT_MS = 15000;
 const RELAY_RETRY_DELAY_MS = 300;
 
+// cleanBaseUrl: handles clean base url for the student Realtime Relay Service flow.
 function cleanBaseUrl(value) {
   const raw = String(value || '').trim().replace(/\/+$/, '');
   if (!raw) return '';
@@ -16,6 +18,7 @@ function cleanBaseUrl(value) {
   }
 }
 
+// getStudentBackendBaseUrl: reads and returns get student backend base url for the student Realtime Relay Service flow.
 function getStudentBackendBaseUrl() {
   return cleanBaseUrl(
     process.env.STUDENT_BACKEND_BASE_URL ||
@@ -26,15 +29,18 @@ function getStudentBackendBaseUrl() {
   );
 }
 
+// getInternalRealtimeSecret: reads and returns get internal realtime secret for the student Realtime Relay Service flow.
 function getInternalRealtimeSecret() {
   const explicit = String(process.env.INTERNAL_REALTIME_SECRET || '').trim();
   return explicit || resolveInternalRealtimeSecret();
 }
 
+// wait: handles wait for the student Realtime Relay Service flow.
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// postRealtime: handles post realtime for the student Realtime Relay Service flow.
 async function postRealtime(path, body, label = 'event') {
   const baseUrl = getStudentBackendBaseUrl();
   const secret = getInternalRealtimeSecret();
@@ -121,6 +127,7 @@ async function postRealtime(path, body, label = 'event') {
   };
 }
 
+// relayMessageEvent: handles relay message event for the student Realtime Relay Service flow.
 async function relayMessageEvent({
   event,
   payload = {},
@@ -137,6 +144,7 @@ async function relayMessageEvent({
   );
 }
 
+// relayRoEvent: handles relay ro event for the student Realtime Relay Service flow.
 async function relayRoEvent({
   event = 'ro:updated',
   payload = {},
@@ -153,6 +161,7 @@ async function relayRoEvent({
   );
 }
 
+// relayRenewalEvent: handles relay renewal event for the student Realtime Relay Service flow.
 async function relayRenewalEvent({
   event = 'renewal:updated',
   payload = {},
@@ -167,6 +176,7 @@ async function relayRenewalEvent({
   );
 }
 
+// relayNotificationBatch: handles relay notification batch for the student Realtime Relay Service flow.
 async function relayNotificationBatch({
   event = 'notification:new',
   notifications = [],
@@ -193,6 +203,7 @@ async function relayNotificationBatch({
   );
 }
 
+// relayModuleEvent: handles relay module event for the student Realtime Relay Service flow.
 async function relayModuleEvent({
   event,
   payload = {},

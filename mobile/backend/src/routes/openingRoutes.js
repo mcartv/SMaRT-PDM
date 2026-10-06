@@ -1,3 +1,4 @@
+// SMaRT-PDM: Return of Obligations — opening Routes (mobile backend route); maps mobile API endpoints to middleware and controllers.
 const express = require('express');
 const { protect } = require('../middleware/authMiddleware');
 const openingController = require('../controllers/openingController');

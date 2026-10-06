@@ -1,3 +1,4 @@
+// SMaRT-PDM: Profile — profile Photo Validation (mobile backend); supports mobile API behavior.
 const ALLOWED_PROFILE_PHOTO_MIME_TYPES = new Set([
   'image/jpeg',
   'image/png',
@@ -10,12 +11,14 @@ const PROFILE_PHOTO_MAX_DIMENSION = 4096;
 const PROFILE_PHOTO_MIN_ASPECT_RATIO = 0.5;
 const PROFILE_PHOTO_MAX_ASPECT_RATIO = 1.35;
 
+// createValidationError: creates create validation error for the Profile flow.
 function createValidationError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
 }
 
+// readPngSize: handles read png size for the Profile flow.
 function readPngSize(buffer) {
   const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   if (buffer.length < 24 || !buffer.subarray(0, 8).equals(signature)) return null;
@@ -27,6 +30,7 @@ function readPngSize(buffer) {
   };
 }
 
+// readJpegSize: handles read jpeg size for the Profile flow.
 function readJpegSize(buffer) {
   if (buffer.length < 4 || buffer[0] !== 0xff || buffer[1] !== 0xd8) return null;
 
@@ -70,10 +74,12 @@ function readJpegSize(buffer) {
   return null;
 }
 
+// readUInt24LE: handles read uint24 le for the Profile flow.
 function readUInt24LE(buffer, offset) {
   return buffer[offset] | (buffer[offset + 1] << 8) | (buffer[offset + 2] << 16);
 }
 
+// readWebpSize: handles read webp size for the Profile flow.
 function readWebpSize(buffer) {
   if (
     buffer.length < 30 ||
@@ -117,10 +123,12 @@ function readWebpSize(buffer) {
   return null;
 }
 
+// inspectImage: handles inspect image for the Profile flow.
 function inspectImage(buffer) {
   return readPngSize(buffer) || readJpegSize(buffer) || readWebpSize(buffer);
 }
 
+// validateProfilePhoto: validates validate profile photo for the Profile flow.
 function validateProfilePhoto(file) {
   if (!file?.buffer || !Buffer.isBuffer(file.buffer)) {
     throw createValidationError(400, 'Choose a profile photo to upload.');

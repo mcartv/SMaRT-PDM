@@ -1,3 +1,4 @@
+// SMaRT-PDM: Notifications — notifications screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -25,6 +26,7 @@ class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key, this.showBottomNav = true});
 
   @override
+  // createState: creates create state for the Notifications flow.
   State<NotificationsScreen> createState() => _NotificationsScreenState();
 }
 
@@ -36,6 +38,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   bool _liveSyncRunning = false;
 
   @override
+  // initState: handles init state for the Notifications flow.
   void initState() {
     super.initState();
 
@@ -55,6 +58,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     });
   }
 
+  // _startLiveSyncWatchdog: handles start live sync watchdog for the Notifications flow.
   void _startLiveSyncWatchdog() {
     _liveSyncTimer?.cancel();
     _liveSyncTimer = Timer.periodic(const Duration(seconds: 12), (_) async {
@@ -75,6 +79,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   @override
+  // dispose: handles dispose for the Notifications flow.
   void dispose() {
     _sectionClock?.cancel();
     _sectionClock = null;
@@ -83,6 +88,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     super.dispose();
   }
 
+  // _isRoNotification: handles is ro notification for the Notifications flow.
   bool _isRoNotification(AppNotification item) {
     final type = item.type.toLowerCase();
     final title = item.title.toLowerCase();
@@ -99,6 +105,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         message.contains('return of obligation');
   }
 
+  // _isRenewalNotification: handles is renewal notification for the Notifications flow.
   bool _isRenewalNotification(AppNotification item) {
     final type = item.type.toLowerCase();
     final title = item.title.toLowerCase();
@@ -111,6 +118,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         message.contains('renewal');
   }
 
+  // _filteredItems: handles filtered items for the Notifications flow.
   List<AppNotification> _filteredItems(NotificationProvider provider) {
     final items = [...provider.notifications];
 
@@ -134,6 +142,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  // _filterLabel: handles filter label for the Notifications flow.
   String _filterLabel(_NotificationFilter filter) {
     switch (filter) {
       case _NotificationFilter.all:
@@ -149,6 +158,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  // _iconFor: handles icon for for the Notifications flow.
   IconData _iconFor(AppNotification notification) {
     final type = notification.type.toLowerCase();
     final title = notification.title.toLowerCase();
@@ -192,6 +202,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return Icons.notifications_rounded;
   }
 
+  // _accentFor: handles accent for for the Notifications flow.
   Color _accentFor(AppNotification notification) {
     final type = notification.type.toLowerCase();
     final title = notification.title.toLowerCase();
@@ -222,6 +233,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return AppColors.gold;
   }
 
+  // _notificationTypeLabel: handles notification type label for the Notifications flow.
   String _notificationTypeLabel(AppNotification notification) {
     final type = notification.type.toLowerCase();
     final title = notification.title.toLowerCase();
@@ -258,6 +270,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return 'Update';
   }
 
+  // _formatTime: handles format time for the Notifications flow.
   String _formatTime(DateTime value) {
     final now = DateTime.now();
     final diff = now.difference(value);
@@ -271,6 +284,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return '${value.month.toString().padLeft(2, '0')}/${value.day.toString().padLeft(2, '0')}/${value.year}';
   }
 
+  // _groupItems: handles group items for the Notifications flow.
   Map<String, List<AppNotification>> _groupItems(List<AppNotification> items) {
     final grouped = <String, List<AppNotification>>{
       'New': <AppNotification>[],
@@ -289,12 +303,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return grouped;
   }
 
+  // _isAnnouncementFallback: handles is announcement fallback for the Notifications flow.
   bool _isAnnouncementFallback(AppNotification notification) {
     return notification.isAnnouncementNotification &&
         notification.userId.trim().isEmpty &&
         notification.notificationId.startsWith('announcement-');
   }
 
+  // _openNotification: handles open notification for the Notifications flow.
   Future<void> _openNotification(AppNotification notification) async {
     if (!notification.isRead) {
       await context.read<NotificationProvider>().markAsRead(
@@ -426,6 +442,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     Navigator.pushNamed(context, AppRoutes.home);
   }
 
+  // _markAllAsRead: handles mark all as read for the Notifications flow.
   Future<void> _markAllAsRead(NotificationProvider provider) async {
     await provider.markAllAsRead();
 
@@ -439,6 +456,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
+  // _deleteNotification: handles delete notification for the Notifications flow.
   Future<void> _deleteNotification(
     NotificationProvider provider,
     AppNotification notification,
@@ -494,6 +512,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  // _countForFilter: handles count for filter for the Notifications flow.
   int _countForFilter(
     NotificationProvider provider,
     _NotificationFilter filter,
@@ -520,6 +539,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  // _buildFilterChips: handles build filter chips for the Notifications flow.
   Widget _buildFilterChips(NotificationProvider provider) {
     return SizedBox(
       height: 64,
@@ -547,6 +567,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
+  // _buildEmptyState: handles build empty state for the Notifications flow.
   Widget _buildEmptyState(NotificationProvider provider) {
     final title = provider.isLoading
         ? 'Loading notifications...'
@@ -618,6 +639,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
+  // _buildNotificationCard: handles build notification card for the Notifications flow.
   Widget _buildNotificationCard(
     NotificationProvider provider,
     AppNotification notification,
@@ -798,6 +820,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
+  // _buildNotificationList: handles build notification list for the Notifications flow.
   Widget _buildNotificationList(
     NotificationProvider provider,
     List<AppNotification> items,
@@ -865,6 +888,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   @override
+  // build: builds build for the Notifications flow.
   Widget build(BuildContext context) {
     return SmartPdmPageScaffold(
       selectedIndex: 0,
@@ -965,6 +989,7 @@ class _FilterButton extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  // build: builds build for the Notifications flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final borderColor = selected
@@ -1074,6 +1099,7 @@ class _MetaChip extends StatelessWidget {
   final Color color;
 
   @override
+  // build: builds build for the Notifications flow.
   Widget build(BuildContext context) {
     final normalized = label.trim().isEmpty ? 'General' : label.trim();
     final isDark = Theme.of(context).brightness == Brightness.dark;

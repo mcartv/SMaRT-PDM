@@ -1,3 +1,4 @@
+// SMaRT-PDM: Notifications — notification Realtime (mobile backend); supports mobile API behavior.
 function normalizeNotification(notification = {}) {
     const id = notification.notification_id || notification.notificationId || notification.id || null;
     const userId = notification.user_id || notification.userId || null;
@@ -31,6 +32,7 @@ function normalizeNotification(notification = {}) {
     };
 }
 
+// emitNotificationCreated: handles emit notification created for the Notifications flow.
 function emitNotificationCreated(req, notification) {
     if (!require('../config/notificationPolicy').isNotificationDeliveryEnabled()) return;
     const io = req.app.get('io');
@@ -52,6 +54,7 @@ function emitNotificationCreated(req, notification) {
     io.to(`user:${userId}`).emit('notificationUpdated', payload);
 }
 
+// emitNotificationRead: handles emit notification read for the Notifications flow.
 function emitNotificationRead(req, payload = {}) {
     const io = req.app.get('io');
 
@@ -72,6 +75,7 @@ function emitNotificationRead(req, payload = {}) {
     io.to(`user:${userId}`).emit('notificationUpdated', data);
 }
 
+// emitNotificationReadAll: handles emit notification read all for the Notifications flow.
 function emitNotificationReadAll(req, payload = {}) {
     const io = req.app.get('io');
 

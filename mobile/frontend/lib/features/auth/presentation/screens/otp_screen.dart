@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — otp screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +11,7 @@ class OtpScreen extends StatefulWidget {
   const OtpScreen({super.key});
 
   @override
+  // createState: creates create state for the Authentication flow.
   State<OtpScreen> createState() => _OtpScreenState();
 }
 
@@ -29,6 +31,7 @@ class _OtpScreenState extends State<OtpScreen> {
   Timer? _cooldownTimer;
 
   @override
+  // dispose: handles dispose for the Authentication flow.
   void dispose() {
     _cooldownTimer?.cancel();
 
@@ -42,10 +45,12 @@ class _OtpScreenState extends State<OtpScreen> {
     super.dispose();
   }
 
+  // _getArgs: handles get args for the Authentication flow.
   Map<String, String>? _getArgs() {
     return ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
   }
 
+  // _getEmail: handles get email for the Authentication flow.
   String? _getEmail() {
     final args = _getArgs();
     final email = args?['email']?.trim();
@@ -57,6 +62,7 @@ class _OtpScreenState extends State<OtpScreen> {
 
   bool get _isOtpComplete => _otpValue.length == 6;
 
+  // _showMessage: handles show message for the Authentication flow.
   void _showMessage(String text, {bool isError = false}) {
     if (!mounted) return;
 
@@ -68,6 +74,7 @@ class _OtpScreenState extends State<OtpScreen> {
     );
   }
 
+  // _startCooldown: handles start cooldown for the Authentication flow.
   void _startCooldown() {
     _cooldownTimer?.cancel();
 
@@ -90,6 +97,7 @@ class _OtpScreenState extends State<OtpScreen> {
     });
   }
 
+  // _handleBackPress: handles handle back press for the Authentication flow.
   Future<bool> _handleBackPress() async {
     final email = _getEmail();
 
@@ -104,6 +112,7 @@ class _OtpScreenState extends State<OtpScreen> {
     return true;
   }
 
+  // _verifyOtp: handles verify otp for the Authentication flow.
   Future<void> _verifyOtp() async {
     FocusScope.of(context).unfocus();
 
@@ -153,6 +162,7 @@ class _OtpScreenState extends State<OtpScreen> {
     }
   }
 
+  // _resendOtp: handles resend otp for the Authentication flow.
   Future<void> _resendOtp() async {
     if (_resendCooldown > 0 || _isLoading) return;
 
@@ -178,6 +188,7 @@ class _OtpScreenState extends State<OtpScreen> {
     }
   }
 
+  // _validateOtpBox: handles validate otp box for the Authentication flow.
   String? _validateOtpBox(String? value) {
     final v = (value ?? '').trim();
 
@@ -187,6 +198,7 @@ class _OtpScreenState extends State<OtpScreen> {
     return null;
   }
 
+  // _buildOtpBox: handles build otp box for the Authentication flow.
   Widget _buildOtpBox(int index, {required double height}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
@@ -270,6 +282,7 @@ class _OtpScreenState extends State<OtpScreen> {
     );
   }
 
+  // _buildOtpRow: handles build otp row for the Authentication flow.
   Widget _buildOtpRow() {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -288,6 +301,7 @@ class _OtpScreenState extends State<OtpScreen> {
   }
 
   @override
+  // build: builds build for the Authentication flow.
   Widget build(BuildContext context) {
     final email = _getEmail();
     final isDark = Theme.of(context).brightness == Brightness.dark;

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Settings — app design tokens (mobile frontend); supports mobile UI behavior.
 import 'package:flutter/material.dart';
 
 /// Spacing scale for redesigned, locally scoped application surfaces.

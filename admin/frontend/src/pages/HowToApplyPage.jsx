@@ -1,3 +1,4 @@
+// SMaRT-PDM: How To Apply Page — How To Apply Page (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React from 'react';
 import { Check, CheckCircle2, FileText, ShieldCheck } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
@@ -133,6 +134,7 @@ export default function HowToApplyPage() {
   );
 }
 
+// ProcessGuide: processes process guide for the How To Apply Page flow.
 function ProcessGuide({ theme }) {
   return (
     <div className="grid gap-5 md:gap-6">
@@ -271,6 +273,7 @@ function ProcessGuide({ theme }) {
   );
 }
 
+// RequirementsGuide: handles requirements guide for the How To Apply Page flow.
 function RequirementsGuide({ theme }) {
   return (
     <div className="grid gap-5 md:gap-6">
@@ -334,6 +337,7 @@ function RequirementsGuide({ theme }) {
   );
 }
 
+// ObligationsGuide: handles obligations guide for the How To Apply Page flow.
 function ObligationsGuide({ theme }) {
   return (
     <PublicContentCard theme={theme}>

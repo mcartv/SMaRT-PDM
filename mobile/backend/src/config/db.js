@@ -1,3 +1,4 @@
+// SMaRT-PDM: db — db (mobile backend config); configures shared mobile backend infrastructure.
 const { Pool } = require('pg');
 require('dotenv').config();
 

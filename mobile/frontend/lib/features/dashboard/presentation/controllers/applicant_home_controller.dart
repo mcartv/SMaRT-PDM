@@ -1,3 +1,4 @@
+// SMaRT-PDM: Dashboard — applicant home controller (mobile frontend); supports mobile UI behavior.
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -13,6 +14,7 @@ import 'package:smartpdm_mobileapp/shared/models/program_opening.dart';
 typedef ApplicantHomeIdentityLoader = Future<SessionUser> Function();
 typedef ApplicantHomeOpeningsLoader = Future<ProgramOpeningsResult> Function();
 typedef ApplicantHomeDocumentsLoader =
+    // Function: handles function for the Dashboard flow.
     Future<ApplicantDocumentsPackage> Function();
 typedef ApplicantHomeStatusLoader = Future<ApplicationStatusSummary> Function();
 typedef ApplicantHomeLatestUpdateLoader = Future<AppNotification?> Function();
@@ -130,25 +132,33 @@ class ApplicantHomeController extends ChangeNotifier {
     );
   }
 
+  // refreshSections: refreshes refresh sections for the Dashboard flow.
   Future<void> refreshSections(Set<ApplicantHomeSectionKey> sections) async {
     if (_disposed || sections.isEmpty) return;
     await Future.wait(sections.map(_requestSection));
   }
 
+  // retryIdentity: handles retry identity for the Dashboard flow.
   Future<void> retryIdentity() =>
       _requestSection(ApplicantHomeSectionKey.identity);
+  // retryApplicationStatus: handles retry application status for the Dashboard flow.
   Future<void> retryApplicationStatus() =>
       _requestSection(ApplicantHomeSectionKey.applicationStatus);
+  // retryDocuments: handles retry documents for the Dashboard flow.
   Future<void> retryDocuments() =>
       _requestSection(ApplicantHomeSectionKey.documents);
+  // retryOpenings: handles retry openings for the Dashboard flow.
   Future<void> retryOpenings() =>
       _requestSection(ApplicantHomeSectionKey.openings);
+  // retryLatestUpdate: handles retry latest update for the Dashboard flow.
   Future<void> retryLatestUpdate() =>
       _requestSection(ApplicantHomeSectionKey.latestUpdate);
 
+  // retrySection: handles retry section for the Dashboard flow.
   Future<void> retrySection(ApplicantHomeSectionKey section) =>
       _requestSection(section);
 
+  // _requestSection: handles request section for the Dashboard flow.
   Future<void> _requestSection(
     ApplicantHomeSectionKey section, {
     bool queueIfInFlight = false,
@@ -199,6 +209,7 @@ class ApplicantHomeController extends ChangeNotifier {
     return request;
   }
 
+  // _runSection: handles run section for the Dashboard flow.
   Future<void> _runSection(
     ApplicantHomeSectionKey section,
     int generation,
@@ -271,6 +282,7 @@ class ApplicantHomeController extends ChangeNotifier {
     }
   }
 
+  // _markLoading: handles mark loading for the Dashboard flow.
   void _markLoading(ApplicantHomeSectionKey section) {
     if (_disposed) return;
 
@@ -305,6 +317,7 @@ class ApplicantHomeController extends ChangeNotifier {
     _publish();
   }
 
+  // _markFailure: handles mark failure for the Dashboard flow.
   void _markFailure(ApplicantHomeSectionKey section) {
     if (_disposed) return;
     const failure = ApplicantHomeSectionFailure.unavailable;
@@ -354,6 +367,7 @@ class ApplicantHomeController extends ChangeNotifier {
     _publish();
   }
 
+  // _rebuildApplicationPresentation: handles rebuild application presentation for the Dashboard flow.
   void _rebuildApplicationPresentation() {
     final status = _statusSource;
     if (status == null) return;
@@ -370,9 +384,11 @@ class ApplicantHomeController extends ChangeNotifier {
     );
   }
 
+  // _isCurrent: handles is current for the Dashboard flow.
   bool _isCurrent(ApplicantHomeSectionKey section, int generation) =>
       !_disposed && _generation[section] == generation;
 
+  // _syncRefreshFlag: handles sync refresh flag for the Dashboard flow.
   void _syncRefreshFlag() {
     if (_disposed) return;
     final hasPreviouslyLoadedContent =
@@ -387,11 +403,13 @@ class ApplicantHomeController extends ChangeNotifier {
     _publish();
   }
 
+  // _publish: handles publish for the Dashboard flow.
   void _publish() {
     if (!_disposed) notifyListeners();
   }
 
   @override
+  // dispose: handles dispose for the Dashboard flow.
   void dispose() {
     if (_disposed) return;
     _disposed = true;

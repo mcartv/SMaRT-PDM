@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — Protected Route (admin frontend component); renders reusable UI and handles local interactions.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 
@@ -159,7 +160,9 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
   useEffect(() => {
     void validate();
 
+    // retry: handles retry for the Authentication flow.
     const retry = () => void retryValidation();
+    // markOffline: marks mark offline for the Authentication flow.
     const markOffline = () => setConnectionState('offline');
     window.addEventListener('online', retry);
     window.addEventListener('offline', markOffline);
@@ -200,6 +203,7 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
   useEffect(() => {
     if (status !== 'allowed') return undefined;
 
+    // heartbeat: handles heartbeat for the Authentication flow.
     const heartbeat = () => {
       if (document.visibilityState !== 'visible') return;
       const token = getStoredItem(storageKey);
@@ -215,6 +219,7 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
       });
     };
 
+    // onVisibilityChange: handles on visibility change for the Authentication flow.
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') heartbeat();
     };

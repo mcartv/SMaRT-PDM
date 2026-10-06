@@ -1,3 +1,4 @@
+// SMaRT-PDM: applicant access gate — applicant access gate (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,6 +12,7 @@ class ApplicantAccessGate extends StatefulWidget {
   final String? routeName;
 
   @override
+  // createState: creates create state for the applicant access gate flow.
   State<ApplicantAccessGate> createState() => _ApplicantAccessGateState();
 }
 
@@ -26,6 +28,7 @@ class _ApplicantAccessGateState extends State<ApplicantAccessGate> {
     AppRoutes.endorsement,
   };
 
+  // _shouldBlockScholar: handles should block scholar for the applicant access gate flow.
   bool _shouldBlockScholar() {
     final route = widget.routeName;
     if (route == null || route.isEmpty) return false;
@@ -33,11 +36,13 @@ class _ApplicantAccessGateState extends State<ApplicantAccessGate> {
   }
 
   @override
+  // initState: handles init state for the applicant access gate flow.
   void initState() {
     super.initState();
     _checkAccess();
   }
 
+  // _checkAccess: handles check access for the applicant access gate flow.
   Future<void> _checkAccess() async {
     final prefs = await SharedPreferences.getInstance();
     final hasScholarAccess = prefs.getBool('user_has_scholar_access') ?? false;
@@ -50,6 +55,7 @@ class _ApplicantAccessGateState extends State<ApplicantAccessGate> {
     });
   }
 
+  // _redirectScholar: handles redirect scholar for the applicant access gate flow.
   void _redirectScholar() {
     if (_redirectScheduled || !mounted) return;
     _redirectScheduled = true;
@@ -64,6 +70,7 @@ class _ApplicantAccessGateState extends State<ApplicantAccessGate> {
   }
 
   @override
+  // build: builds build for the applicant access gate flow.
   Widget build(BuildContext context) {
     final provider = context.watch<NotificationProvider>();
     final hasScholarAccess = provider.scholarAccessRevision > 0

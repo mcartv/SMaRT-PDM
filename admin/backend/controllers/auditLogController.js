@@ -1,9 +1,12 @@
+// SMaRT-PDM: audit Log Controller — audit Log Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const auditLogService = require('../services/auditLogService');
 
+// getActorUserId: reads and returns get actor user id for the audit Log Controller flow.
 function getActorUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.sub || null;
 }
 
+// sendError: sends send error for the audit Log Controller flow.
 function sendError(res, err, fallbackMessage) {
     const message = err.message || fallbackMessage;
 

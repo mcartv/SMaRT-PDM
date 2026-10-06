@@ -1,3 +1,4 @@
+// SMaRT-PDM: Support Tickets — Support Tickets (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSocketEvent } from '@/hooks/useSocket';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
@@ -31,6 +32,7 @@ const STATUS_STYLES = {
   Closed: { bg: '#F5F5F4', color: '#57534E' },
 };
 
+// formatDate: formats format date for the Support Tickets flow.
 function formatDate(value) {
   if (!value) return 'N/A';
   const parsed = new Date(value);
@@ -45,6 +47,7 @@ function formatDate(value) {
   });
 }
 
+// getAuthHeaders: reads and returns get auth headers for the Support Tickets flow.
 function getAuthHeaders() {
   const token = sessionStorage.getItem('adminToken') || sessionStorage.getItem('sdoToken');
   return {
@@ -53,6 +56,7 @@ function getAuthHeaders() {
   };
 }
 
+// StatusBadge: handles status badge for the Support Tickets flow.
 function StatusBadge({ status }) {
   const style = STATUS_STYLES[status] || STATUS_STYLES.Open;
 
@@ -66,6 +70,7 @@ function StatusBadge({ status }) {
   );
 }
 
+// Meta: handles meta for the Support Tickets flow.
 function Meta({ label, value }) {
   return (
     <div>
@@ -83,6 +88,7 @@ export default function SupportTickets() {
   const [status, setStatus] = useState('All');
   const [savingTicketId, setSavingTicketId] = useState('');
 
+  // loadTickets: loads and returns load tickets for the Support Tickets flow.
   const loadTickets = async () => {
     try {
       setLoading(true);
@@ -153,6 +159,7 @@ export default function SupportTickets() {
     });
   }, [tickets, search, status]);
 
+  // patchTicket: handles patch ticket for the Support Tickets flow.
   const patchTicket = async (id, body) => {
     try {
       setSavingTicketId(id);

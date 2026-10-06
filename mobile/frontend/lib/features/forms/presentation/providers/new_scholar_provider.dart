@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — new scholar provider (mobile state provider); owns state and coordinates updates for the UI.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -27,21 +28,25 @@ class NewScholarProvider extends ChangeNotifier {
   String? get successMessage => _successMessage;
   Map<String, dynamic>? get lastSubmissionResponse => _lastSubmissionResponse;
 
+  // setScholarName: sets set scholar name for the Scholars flow.
   void setScholarName(String name) {
     _scholarName = name;
     notifyListeners();
   }
 
+  // setEmail: sets set email for the Scholars flow.
   void setEmail(String emailAddress) {
     _email = emailAddress;
     notifyListeners();
   }
 
+  // setPhone: sets set phone for the Scholars flow.
   void setPhone(String phoneNumber) {
     _phone = phoneNumber;
     notifyListeners();
   }
 
+  // clearProvider: clears clear provider for the Scholars flow.
   void clearProvider() {
     _scholarName = null;
     _email = null;
@@ -49,6 +54,7 @@ class NewScholarProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // goToNextStep: handles go to next step for the Scholars flow.
   void goToNextStep() {
     if (_currentStep < 4) {
       _currentStep++;
@@ -56,6 +62,7 @@ class NewScholarProvider extends ChangeNotifier {
     }
   }
 
+  // goToPreviousStep: handles go to previous step for the Scholars flow.
   void goToPreviousStep() {
     if (_currentStep > 0) {
       _currentStep--;
@@ -63,6 +70,7 @@ class NewScholarProvider extends ChangeNotifier {
     }
   }
 
+  // resetApplication: resets reset application for the Scholars flow.
   void resetApplication() {
     _currentStep = 0;
     _isLoading = false;
@@ -72,6 +80,7 @@ class NewScholarProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // submitApplication: handles submit application for the Scholars flow.
   Future<bool> submitApplication(
     ApplicationData applicationData, {
     required String openingId,

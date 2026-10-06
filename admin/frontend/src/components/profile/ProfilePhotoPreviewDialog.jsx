@@ -1,3 +1,4 @@
+// SMaRT-PDM: Profile — Profile Photo Preview Dialog (admin frontend component); renders reusable UI and handles local interactions.
 import { X } from 'lucide-react';
 import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog';
 

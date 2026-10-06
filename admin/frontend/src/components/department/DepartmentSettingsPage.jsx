@@ -1,3 +1,4 @@
+// SMaRT-PDM: Department Settings Page — Department Settings Page (admin frontend component); renders reusable UI and handles local interactions.
 import { createElement, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Eye,
@@ -23,6 +24,7 @@ const SETTINGS_TABS = [
   { key: 'security', label: 'Security', icon: ShieldCheck },
 ];
 
+// SettingsNav: sets settings nav for the Department Settings Page flow.
 function SettingsNav({ activeTab, onChange }) {
   return (
     <div className="sticky top-0 z-20 overflow-hidden rounded-2xl border border-stone-200 bg-white">
@@ -51,6 +53,7 @@ function SettingsNav({ activeTab, onChange }) {
   );
 }
 
+// SectionHeader: handles section header for the Department Settings Page flow.
 function SectionHeader({ icon, title, description }) {
   return (
     <div className="border-b border-stone-100 bg-stone-50/70 px-5 py-4">
@@ -127,6 +130,7 @@ export default function DepartmentSettingsPage({
     loadAccount();
   }, [loadAccount]);
 
+  // verifyCurrentPassword: verifies verify current password for the Department Settings Page flow.
   const verifyCurrentPassword = async () => {
     try {
       setVerifyingCurrentPassword(true);
@@ -169,6 +173,7 @@ export default function DepartmentSettingsPage({
     }
   };
 
+  // changePassword: handles change password for the Department Settings Page flow.
   const changePassword = async (event) => {
     event.preventDefault();
     try {
@@ -201,6 +206,7 @@ export default function DepartmentSettingsPage({
     }
   };
 
+  // renderAccount: handles render account for the Department Settings Page flow.
   const renderAccount = () => (
     <Card className="overflow-hidden border-stone-200 shadow-none">
       <SectionHeader
@@ -260,6 +266,7 @@ export default function DepartmentSettingsPage({
     </Card>
   );
 
+  // renderTheme: handles render theme for the Department Settings Page flow.
   const renderTheme = () => (
     <Card className="overflow-hidden border-stone-200 shadow-none">
       <SectionHeader
@@ -279,6 +286,7 @@ export default function DepartmentSettingsPage({
     </Card>
   );
 
+  // renderSecurity: handles render security for the Department Settings Page flow.
   const renderSecurity = () => (
     <Card className="overflow-hidden border-stone-200 shadow-none">
       <SectionHeader

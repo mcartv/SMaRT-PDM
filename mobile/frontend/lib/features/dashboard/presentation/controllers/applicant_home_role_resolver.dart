@@ -1,7 +1,9 @@
+// SMaRT-PDM: Dashboard — applicant home role resolver (mobile frontend); supports mobile UI behavior.
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
 
 typedef ApplicantHomeRoleProfileLoader =
+    // Function: handles function for the Dashboard flow.
     Future<Map<String, dynamic>> Function();
 
 /// Resolves the dashboard branch without coupling Home availability to the
@@ -18,6 +20,7 @@ class ApplicantHomeRoleResolver {
   final SessionService _sessionService;
   final ApplicantHomeRoleProfileLoader _loadProfile;
 
+  // resolve: resolves resolve for the Dashboard flow.
   Future<bool> resolve({bool liveScholarAccess = false}) async {
     if (liveScholarAccess) return true;
 

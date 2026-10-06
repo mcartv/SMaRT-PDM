@@ -1,3 +1,4 @@
+// SMaRT-PDM: smart pdm page scaffold — smart pdm page scaffold (mobile widget); renders reusable mobile UI behavior.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -29,6 +30,7 @@ class SmartPdmPageScaffold extends StatefulWidget {
   });
 
   @override
+  // createState: creates create state for the smart pdm page scaffold flow.
   State<SmartPdmPageScaffold> createState() => _SmartPdmPageScaffoldState();
 }
 
@@ -45,6 +47,7 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
   bool _loggingOut = false;
 
   @override
+  // initState: handles init state for the smart pdm page scaffold flow.
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
@@ -53,6 +56,7 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
   }
 
   @override
+  // dispose: handles dispose for the smart pdm page scaffold flow.
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _idleTimer?.cancel();
@@ -60,12 +64,14 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
   }
 
   @override
+  // didUpdateWidget: handles did update widget for the smart pdm page scaffold flow.
   void didUpdateWidget(covariant SmartPdmPageScaffold oldWidget) {
     super.didUpdateWidget(oldWidget);
     _loadUserInfo();
   }
 
   @override
+  // didChangeAppLifecycleState: handles did change app lifecycle state for the smart pdm page scaffold flow.
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (_loggingOut) return;
 
@@ -93,6 +99,7 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
     }
   }
 
+  // _loadUserInfo: handles load user info for the smart pdm page scaffold flow.
   Future<void> _loadUserInfo() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -103,16 +110,19 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
     });
   }
 
+  // _startIdleTimer: handles start idle timer for the smart pdm page scaffold flow.
   void _startIdleTimer() {
     _idleTimer?.cancel();
     _idleTimer = Timer(_idleLimit, _handleAutoLogout);
   }
 
+  // _resetIdleTimer: handles reset idle timer for the smart pdm page scaffold flow.
   void _resetIdleTimer() {
     if (_loggingOut) return;
     _startIdleTimer();
   }
 
+  // _handleAutoLogout: handles handle auto logout for the smart pdm page scaffold flow.
   Future<void> _handleAutoLogout() async {
     if (_loggingOut) return;
     _loggingOut = true;
@@ -140,6 +150,7 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
   }
 
   @override
+  // build: builds build for the smart pdm page scaffold flow.
   Widget build(BuildContext context) {
     final notificationProvider = context.watch<NotificationProvider>();
     final hasScholarAccess = notificationProvider.scholarAccessRevision > 0

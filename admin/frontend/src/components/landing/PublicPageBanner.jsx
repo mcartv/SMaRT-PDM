@@ -1,3 +1,4 @@
+// SMaRT-PDM: Public Page Banner — Public Page Banner (admin frontend component); renders reusable UI and handles local interactions.
 import React from 'react';
 import pdmFacade from '@/assets/PDM-Facade-optimized.jpg';
 

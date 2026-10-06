@@ -1,4 +1,5 @@
-﻿const ONLINE_TTL_MS = Math.max(
+﻿// SMaRT-PDM: OCR — iot Ocr Presence Service (admin backend service); contains business logic and data operations.
+const ONLINE_TTL_MS = Math.max(
     5000,
     Number(process.env.IOT_OCR_PI_ONLINE_TTL_MS || 12000)
 );
@@ -9,6 +10,7 @@ let availabilityListener = null;
 let expiryTimer = null;
 let lastPublishedSignature = null;
 
+// pruneExpiredDevices: handles prune expired devices for the OCR flow.
 function pruneExpiredDevices(now = Date.now()) {
     for (const [deviceId, seenAt] of devices.entries()) {
         if (now - seenAt > ONLINE_TTL_MS) {
@@ -17,6 +19,7 @@ function pruneExpiredDevices(now = Date.now()) {
     }
 }
 
+// buildAvailability: builds build availability for the OCR flow.
 function buildAvailability(now = Date.now()) {
     pruneExpiredDevices(now);
 
@@ -33,6 +36,7 @@ function buildAvailability(now = Date.now()) {
     };
 }
 
+// availabilitySignature: handles availability signature for the OCR flow.
 function availabilitySignature(availability) {
     return JSON.stringify({
         online: availability.online === true,
@@ -40,6 +44,7 @@ function availabilitySignature(availability) {
     });
 }
 
+// publishIfChanged: handles publish if changed for the OCR flow.
 function publishIfChanged() {
     const availability = buildAvailability();
     const signature = availabilitySignature(availability);
@@ -64,6 +69,7 @@ function publishIfChanged() {
     return availability;
 }
 
+// scheduleExpiryCheck: handles schedule expiry check for the OCR flow.
 function scheduleExpiryCheck() {
     if (expiryTimer) {
         clearTimeout(expiryTimer);
@@ -88,6 +94,7 @@ function scheduleExpiryCheck() {
     expiryTimer.unref?.();
 }
 
+// checkIn: checks check in for the OCR flow.
 function checkIn(deviceId) {
     if (!deviceId) return getAvailability();
 
@@ -99,10 +106,12 @@ function checkIn(deviceId) {
     return availability;
 }
 
+// getAvailability: reads and returns get availability for the OCR flow.
 function getAvailability() {
     return publishIfChanged();
 }
 
+// setAvailabilityListener: sets set availability listener for the OCR flow.
 function setAvailabilityListener(listener) {
     availabilityListener =
         typeof listener === 'function' ? listener : null;

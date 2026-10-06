@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — scholarship form pdf service (mobile service); calls APIs or shared services and returns processed results.
 import 'dart:io';
 import 'dart:ui' show Offset, Rect, Size;
 
@@ -20,6 +21,7 @@ class ScholarshipFormPdfService {
         : clean;
   }
 
+  // _resolveOutputDirectory: handles resolve output directory for the Scholars flow.
   Future<Directory> _resolveOutputDirectory() async {
     try {
       return await getTemporaryDirectory();
@@ -28,6 +30,7 @@ class ScholarshipFormPdfService {
     }
   }
 
+  // generateBytesFromSavedApplication: handles generate bytes from saved application for the Scholars flow.
   Future<Uint8List> generateBytesFromSavedApplication(
     SavedApplicationPrintModel model,
   ) async {
@@ -58,6 +61,7 @@ class ScholarshipFormPdfService {
     final pageWidth = page.size.width;
     final pageHeight = page.size.height;
 
+    // r: handles r for the Scholars flow.
     Rect r(double x, double y, double w, double h) {
       return Rect.fromLTWH(
         x * pageWidth / _imageWidth,
@@ -67,6 +71,7 @@ class ScholarshipFormPdfService {
       );
     }
 
+    // drawText: handles draw text for the Scholars flow.
     void drawText(
       String value,
       Rect bounds, {
@@ -112,6 +117,7 @@ class ScholarshipFormPdfService {
       );
     }
 
+    // drawDateDigits: handles draw date digits for the Scholars flow.
     void drawDateDigits(String value, Rect bounds) {
       final clean = _printableValue(value);
       final digits = clean.replaceAll(RegExp(r'[^0-9]'), '');
@@ -143,6 +149,7 @@ class ScholarshipFormPdfService {
       }
     }
 
+    // drawFittingText: handles draw fitting text for the Scholars flow.
     void drawFittingText(
       String value,
       Rect bounds, {
@@ -181,6 +188,7 @@ class ScholarshipFormPdfService {
       );
     }
 
+    // drawMultiLine: handles draw multi line for the Scholars flow.
     void drawMultiLine(String value, Rect bounds, {PdfFont? textFont}) {
       final clean = _printableValue(value);
 
@@ -220,6 +228,7 @@ class ScholarshipFormPdfService {
       );
     }
 
+    // drawCheck: handles draw check for the Scholars flow.
     void drawCheck(bool checked, Rect bounds) {
       if (!checked) return;
       final pen = PdfPen(blueColor, width: 1.2);
@@ -768,6 +777,7 @@ class ScholarshipFormPdfService {
     return bytes;
   }
 
+  // generateFromSavedApplication: handles generate from saved application for the Scholars flow.
   Future<File> generateFromSavedApplication(
     SavedApplicationPrintModel model,
   ) async {
@@ -778,6 +788,7 @@ class ScholarshipFormPdfService {
     return file;
   }
 
+  // openGeneratedPdf: handles open generated pdf for the Scholars flow.
   Future<void> openGeneratedPdf(File file) async {
     if (kIsWeb) {
       throw Exception(
@@ -799,6 +810,7 @@ class ScholarshipFormPdfService {
     }
   }
 
+  // _generateFallbackPdfBytes: handles generate fallback pdf bytes for the Scholars flow.
   Future<Uint8List> _generateFallbackPdfBytes(
     SavedApplicationPrintModel model,
   ) async {

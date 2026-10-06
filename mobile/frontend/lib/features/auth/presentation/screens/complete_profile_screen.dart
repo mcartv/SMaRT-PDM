@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — complete profile screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
@@ -10,6 +11,7 @@ class CompleteProfileScreen extends StatefulWidget {
   const CompleteProfileScreen({super.key});
 
   @override
+  // createState: creates create state for the Authentication flow.
   State<CompleteProfileScreen> createState() => _CompleteProfileScreenState();
 }
 
@@ -33,12 +35,14 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   static const List<int> _yearLevels = [1, 2, 3, 4];
 
   @override
+  // initState: handles init state for the Authentication flow.
   void initState() {
     super.initState();
     _loadCourses();
   }
 
   @override
+  // dispose: handles dispose for the Authentication flow.
   void dispose() {
     _firstNameController.dispose();
     _middleNameController.dispose();
@@ -48,6 +52,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     super.dispose();
   }
 
+  // _loadCourses: handles load courses for the Authentication flow.
   Future<void> _loadCourses() async {
     try {
       final courses = await _authService.fetchCourses();
@@ -73,6 +78,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     }
   }
 
+  // _showMessage: handles show message for the Authentication flow.
   void _showMessage(String text, {bool isError = false}) {
     if (!mounted) return;
 
@@ -84,6 +90,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     );
   }
 
+  // _saveProfile: handles save profile for the Authentication flow.
   Future<void> _saveProfile() async {
     FocusScope.of(context).unfocus();
 
@@ -137,6 +144,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     }
   }
 
+  // _inputDecoration: handles input decoration for the Authentication flow.
   InputDecoration _inputDecoration(String label, {String? hintText}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final fillColor = isDark
@@ -184,6 +192,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     );
   }
 
+  // _buildTextField: handles build text field for the Authentication flow.
   Widget _buildTextField({
     required String label,
     required TextEditingController controller,
@@ -206,6 +215,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     );
   }
 
+  // _buildCourseDropdown: handles build course dropdown for the Authentication flow.
   Widget _buildCourseDropdown() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -240,6 +250,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     );
   }
 
+  // _buildYearLevelDropdown: handles build year level dropdown for the Authentication flow.
   Widget _buildYearLevelDropdown() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -266,6 +277,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   }
 
   @override
+  // build: builds build for the Authentication flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 

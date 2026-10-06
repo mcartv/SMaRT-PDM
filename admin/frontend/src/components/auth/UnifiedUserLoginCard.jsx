@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — Unified User Login Card (admin frontend component); renders reusable UI and handles local interactions.
 import { useEffect, useRef, useState } from 'react';
 import {
   Eye,
@@ -21,6 +22,7 @@ import {
 
 const TURNSTILE_SITE_KEY = String(import.meta.env.VITE_TURNSTILE_SITE_KEY || '').trim();
 
+// consumeAnyPortalFeedback: handles consume any portal feedback for the Authentication flow.
 function consumeAnyPortalFeedback() {
   for (const portalName of Object.keys(PORTAL_CONFIG)) {
     const feedback = consumePortalSessionFeedback(portalName);
@@ -73,6 +75,7 @@ export default function UnifiedUserLoginCard({ theme }) {
     return undefined;
   }, [navigate]);
 
+  // handleLogin: handles handle login for the Authentication flow.
   const handleLogin = async (event) => {
     event.preventDefault();
     if (loginRequestRef.current || isLoading) return;
@@ -127,6 +130,7 @@ export default function UnifiedUserLoginCard({ theme }) {
     }
   };
 
+  // updateCapsLockState: updates update caps lock state for the Authentication flow.
   const updateCapsLockState = (event) => {
     setCapsLockOn(Boolean(event?.getModifierState?.('CapsLock')));
   };

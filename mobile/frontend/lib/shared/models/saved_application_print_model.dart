@@ -1,3 +1,4 @@
+// SMaRT-PDM: Applications — saved application print model (mobile frontend); supports mobile UI behavior.
 import 'package:intl/intl.dart';
 
 class SavedApplicationPrintModel {

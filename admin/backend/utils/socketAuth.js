@@ -1,11 +1,14 @@
+// SMaRT-PDM: Authentication — socket Auth (admin backend); supports backend application behavior.
 const jwt = require('jsonwebtoken');
 const adminSessionService = require('../services/adminSessionService');
 const staffSessionService = require('../services/staffSessionService');
 
+// stripBearerToken: handles strip bearer token for the Authentication flow.
 function stripBearerToken(value) {
     return String(value || '').replace(/^Bearer\s+/i, '').trim();
 }
 
+// extractSocketToken: handles extract socket token for the Authentication flow.
 function extractSocketToken(socket) {
     const auth = socket?.handshake?.auth || {};
     const query = socket?.handshake?.query || {};
@@ -20,6 +23,7 @@ function extractSocketToken(socket) {
     );
 }
 
+// requireJwtSecret: handles require jwt secret for the Authentication flow.
 function requireJwtSecret() {
     const secret = String(process.env.JWT_SECRET || '').trim();
 
@@ -30,6 +34,7 @@ function requireJwtSecret() {
     return secret;
 }
 
+// socketAuthError: handles socket auth error for the Authentication flow.
 function socketAuthError(message, code = 'SOCKET_AUTH_FAILED', statusCode = 401) {
     const error = new Error(message);
     error.data = {
@@ -39,6 +44,7 @@ function socketAuthError(message, code = 'SOCKET_AUTH_FAILED', statusCode = 401)
     return error;
 }
 
+// authenticateStaffSocket: handles authenticate staff socket for the Authentication flow.
 async function authenticateStaffSocket(socket) {
     const rawToken = extractSocketToken(socket);
 
@@ -106,6 +112,7 @@ async function authenticateStaffSocket(socket) {
     };
 }
 
+// createStaffSocketAuthMiddleware: creates create staff socket auth middleware for the Authentication flow.
 function createStaffSocketAuthMiddleware() {
     return async (socket, next) => {
         try {

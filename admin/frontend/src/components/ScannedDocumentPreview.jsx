@@ -1,3 +1,4 @@
+// SMaRT-PDM: Document Verification — Scanned Document Preview (admin frontend component); renders reusable UI and handles local interactions.
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { X } from 'lucide-react';
@@ -14,6 +15,7 @@ export default function ScannedDocumentPreview({ candidate, request, documentKey
   const dragStateRef = useRef({ pointerId: null, startX: 0, startY: 0, panX: 0, panY: 0 });
 
   const supportedDocument = ['student_grade_forms', 'certificate_of_indigency'].includes(documentKey);
+  // isPreviewableScan: checks whether is previewable scan for the Document Verification flow.
   const isPreviewableScan = (scan) => Boolean(
     scan?.request_id
     && scan?.document_key === documentKey
@@ -28,6 +30,7 @@ export default function ScannedDocumentPreview({ candidate, request, documentKey
   const identity = `${id}/${documentKey}/${requestId}/${retry}`;
   const supported = supportedDocument && isPreviewableScan(scan);
 
+  // resetPreviewTransform: resets reset preview transform for the Document Verification flow.
   const resetPreviewTransform = () => {
     setPreviewZoom(1);
     setPreviewPan({ x: 0, y: 0 });
@@ -35,6 +38,7 @@ export default function ScannedDocumentPreview({ candidate, request, documentKey
     dragStateRef.current = { pointerId: null, startX: 0, startY: 0, panX: 0, panY: 0 };
   };
 
+  // closePreview: handles close preview for the Document Verification flow.
   const closePreview = () => {
     setPreviewOpen(false);
     resetPreviewTransform();
@@ -42,6 +46,7 @@ export default function ScannedDocumentPreview({ candidate, request, documentKey
 
   useEffect(() => {
     if (!previewOpen) return undefined;
+    // handleKeyDown: handles handle key down for the Document Verification flow.
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') closePreview();
     };

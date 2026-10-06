@@ -1,3 +1,4 @@
+// SMaRT-PDM: backfill Student Intake — backfill Student Intake (admin backend); supports backend application behavior.
 const path = require('path');
 const ExcelJS = require('exceljs');
 const supabase = require('../config/supabase');
@@ -8,6 +9,7 @@ const PROFILE_TABLE = 'student_profiles';
 const FAMILY_TABLE = 'student_family';
 const EDUCATION_TABLE = 'student_education';
 
+// safeText: handles safe text for the backfill Student Intake flow.
 function safeText(value) {
     if (value === null || value === undefined) return '';
     if (value instanceof Date) return value.toISOString().slice(0, 10);
@@ -16,14 +18,17 @@ function safeText(value) {
     return String(value).trim();
 }
 
+// normalizeKey: normalizes normalize key for the backfill Student Intake flow.
 function normalizeKey(value) {
     return safeText(value).toLowerCase();
 }
 
+// normalizeStudentNumber: normalizes normalize student number for the backfill Student Intake flow.
 function normalizeStudentNumber(value) {
     return safeText(value).toUpperCase();
 }
 
+// normalizeBoolean: normalizes normalize boolean for the backfill Student Intake flow.
 function normalizeBoolean(value) {
     const text = safeText(value).toLowerCase();
     if (text === 'yes' || text === 'true' || text === '1') return true;
@@ -31,10 +36,12 @@ function normalizeBoolean(value) {
     return null;
 }
 
+// normalizePhone: normalizes normalize phone for the backfill Student Intake flow.
 function normalizePhone(value) {
     return safeText(value).replace(/\s+/g, '').replace(/-/g, '');
 }
 
+// normalizeEducationAttainment: normalizes normalize education attainment for the backfill Student Intake flow.
 function normalizeEducationAttainment(value) {
     const text = safeText(value);
     const normalized = text.toLowerCase();
@@ -53,12 +60,14 @@ function normalizeEducationAttainment(value) {
     return text;
 }
 
+// normalizeAddressForCompare: normalizes normalize address for compare for the backfill Student Intake flow.
 function normalizeAddressForCompare(value) {
     return safeText(value)
         .toLowerCase()
         .replace(/[^a-z0-9]/g, '');
 }
 
+// parseDateValue: parses parse date value for the backfill Student Intake flow.
 function parseDateValue(value) {
     if (!value) return null;
 
@@ -82,6 +91,7 @@ function parseDateValue(value) {
     return parsed.toISOString().slice(0, 10);
 }
 
+// splitFullName: handles split full name for the backfill Student Intake flow.
 function splitFullName(fullName) {
     const tokens = safeText(fullName).split(/\s+/).filter(Boolean);
 
@@ -116,6 +126,7 @@ function splitFullName(fullName) {
     };
 }
 
+// parseAddress: parses parse address for the backfill Student Intake flow.
 function parseAddress(value, zipCode = '') {
     const raw = safeText(value);
     const parsed = {
@@ -166,6 +177,7 @@ function parseAddress(value, zipCode = '') {
     return parsed;
 }
 
+// chooseText: handles choose text for the backfill Student Intake flow.
 function chooseText(existingValue, incomingValue) {
     const existing = safeText(existingValue);
     if (existing) return existing;
@@ -174,12 +186,14 @@ function chooseText(existingValue, incomingValue) {
     return incoming || null;
 }
 
+// chooseBool: handles choose bool for the backfill Student Intake flow.
 function chooseBool(existingValue, incomingValue) {
     if (existingValue === true || existingValue === false) return existingValue;
     if (incomingValue === true || incomingValue === false) return incomingValue;
     return null;
 }
 
+// buildHeaderMap: builds build header map for the backfill Student Intake flow.
 function buildHeaderMap(worksheet) {
     const headers = worksheet.getRow(1).values.slice(1);
     const map = new Map();
@@ -191,16 +205,19 @@ function buildHeaderMap(worksheet) {
     return map;
 }
 
+// getCellValue: reads and returns get cell value for the backfill Student Intake flow.
 function getCellValue(row, headerMap, header) {
     const columnIndex = headerMap.get(header);
     if (!columnIndex) return null;
     return row.getCell(columnIndex).value;
 }
 
+// getCellText: reads and returns get cell text for the backfill Student Intake flow.
 function getCellText(row, headerMap, header) {
     return safeText(getCellValue(row, headerMap, header));
 }
 
+// parseFinancialSupport: parses parse financial support for the backfill Student Intake flow.
 function parseFinancialSupport(row, headerMap) {
     const supportFlags = [
         ['Parents', 'Financial Support - Parents'],
@@ -229,6 +246,7 @@ function parseFinancialSupport(row, headerMap) {
     };
 }
 
+// parseWorkbookRecord: parses parse workbook record for the backfill Student Intake flow.
 function parseWorkbookRecord(row, headerMap) {
     const studentNumber = normalizeStudentNumber(
         getCellValue(row, headerMap, 'Student Number')
@@ -371,6 +389,7 @@ function parseWorkbookRecord(row, headerMap) {
     };
 }
 
+// readWorkbook: handles read workbook for the backfill Student Intake flow.
 async function readWorkbook(filePath) {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(filePath);
@@ -394,6 +413,7 @@ async function readWorkbook(filePath) {
     return records;
 }
 
+// fetchAllStudents: fetches and returns fetch all students for the backfill Student Intake flow.
 async function fetchAllStudents() {
     const { data, error } = await supabase
         .from('students')
@@ -403,6 +423,7 @@ async function fetchAllStudents() {
     return data || [];
 }
 
+// fetchMasters: fetches and returns fetch masters for the backfill Student Intake flow.
 async function fetchMasters() {
     const { data, error } = await supabase
         .from('student_master_records')
@@ -412,6 +433,7 @@ async function fetchMasters() {
     return data || [];
 }
 
+// buildStudentMatcher: builds build student matcher for the backfill Student Intake flow.
 function buildStudentMatcher(students, masterMap) {
     const matcher = new Map();
 
@@ -429,6 +451,7 @@ function buildStudentMatcher(students, masterMap) {
     return matcher;
 }
 
+// fetchByStudentIds: fetches and returns fetch by student ids for the backfill Student Intake flow.
 async function fetchByStudentIds(table, studentIds) {
     const rows = [];
 
@@ -446,6 +469,7 @@ async function fetchByStudentIds(table, studentIds) {
     return rows;
 }
 
+// profileHasData: handles profile has data for the backfill Student Intake flow.
 function profileHasData(profile) {
     return [
         'date_of_birth',
@@ -471,6 +495,7 @@ function profileHasData(profile) {
         profile.has_disciplinary_record === true;
 }
 
+// familyHasData: handles family has data for the backfill Student Intake flow.
 function familyHasData(row) {
     return [
         'first_name',
@@ -484,12 +509,14 @@ function familyHasData(row) {
     ].some((key) => safeText(row[key]));
 }
 
+// educationHasData: handles education has data for the backfill Student Intake flow.
 function educationHasData(row) {
     return ['school_name', 'school_address', 'year_graduated'].some((key) =>
         safeText(row[key])
     );
 }
 
+// buildExistingMaps: builds build existing maps for the backfill Student Intake flow.
 function buildExistingMaps(profiles, familyRows, educationRows) {
     return {
         profiles: new Map(profiles.map((row) => [row.student_id, row])),
@@ -504,6 +531,7 @@ function buildExistingMaps(profiles, familyRows, educationRows) {
     };
 }
 
+// mergeProfile: handles merge profile for the backfill Student Intake flow.
 function mergeProfile(studentId, source, existing = null) {
     const merged = {
         student_id: studentId,
@@ -550,6 +578,7 @@ function mergeProfile(studentId, source, existing = null) {
     return merged;
 }
 
+// mergeFamily: handles merge family for the backfill Student Intake flow.
 function mergeFamily(studentId, source, existing = null) {
     return {
         student_id: studentId,
@@ -571,6 +600,7 @@ function mergeFamily(studentId, source, existing = null) {
     };
 }
 
+// mergeEducation: handles merge education for the backfill Student Intake flow.
 function mergeEducation(studentId, source, existing = null) {
     return {
         student_id: studentId,
@@ -589,6 +619,7 @@ function mergeEducation(studentId, source, existing = null) {
     };
 }
 
+// summarizeChange: handles summarize change for the backfill Student Intake flow.
 function summarizeChange(existing, merged, keys) {
     if (!existing) return 'created';
 
@@ -601,6 +632,7 @@ function summarizeChange(existing, merged, keys) {
     return changed ? 'updated' : 'unchanged';
 }
 
+// upsertInChunks: handles upsert in chunks for the backfill Student Intake flow.
 async function upsertInChunks(table, rows, conflict) {
     for (let index = 0; index < rows.length; index += 200) {
         const batch = rows.slice(index, index + 200).map((row) => ({
@@ -616,6 +648,7 @@ async function upsertInChunks(table, rows, conflict) {
     }
 }
 
+// parseArgs: parses parse args for the backfill Student Intake flow.
 function parseArgs(argv) {
     const args = {
         apply: false,
@@ -636,6 +669,7 @@ function parseArgs(argv) {
     return args;
 }
 
+// main: handles main for the backfill Student Intake flow.
 async function main() {
     const args = parseArgs(process.argv.slice(2));
     const workbookPath = path.resolve(args.file);

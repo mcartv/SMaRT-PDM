@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — Scholar Monitoring (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -84,6 +85,7 @@ const REMOVAL_REASONS = [
   'Other',
 ];
 
+// getAuthHeaders: reads and returns get auth headers for the Scholars flow.
 function getAuthHeaders() {
   const token = sessionStorage.getItem('adminToken');
 
@@ -93,10 +95,12 @@ function getAuthHeaders() {
   };
 }
 
+// normalizeText: normalizes normalize text for the Scholars flow.
 function normalizeText(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+// normalizeRenewalStatus: normalizes normalize renewal status for the Scholars flow.
 function normalizeRenewalStatus(value) {
   return String(value || '')
     .trim()
@@ -104,6 +108,7 @@ function normalizeRenewalStatus(value) {
     .replace(/[\s-]+/g, '_');
 }
 
+// getInitials: reads and returns get initials for the Scholars flow.
 function getInitials(name = '') {
   return (name || 'NA')
     .split(' ')
@@ -114,6 +119,7 @@ function getInitials(name = '') {
     .toUpperCase();
 }
 
+// formatDate: formats format date for the Scholars flow.
 function formatDate(value, fallback = 'Not available') {
   if (!value) return fallback;
 
@@ -127,6 +133,7 @@ function formatDate(value, fallback = 'Not available') {
   });
 }
 
+// formatDateTime: formats format date time for the Scholars flow.
 function formatDateTime(value, fallback = 'N/A') {
   if (!value) return fallback;
 
@@ -142,6 +149,7 @@ function formatDateTime(value, fallback = 'N/A') {
   });
 }
 
+// formatMinutes: formats format minutes for the Scholars flow.
 function formatMinutes(value) {
   const minutes = Math.max(0, Number(value || 0));
   const hours = Math.floor(minutes / 60);
@@ -152,10 +160,12 @@ function formatMinutes(value) {
   return `${hours}h ${mins}m`;
 }
 
+// clampPercent: handles clamp percent for the Scholars flow.
 function clampPercent(value) {
   return Math.min(100, Math.max(0, Math.round(Number(value || 0))));
 }
 
+// getScholarshipStatusMeta: reads and returns get scholarship status meta for the Scholars flow.
 function getScholarshipStatusMeta(value) {
   const normalized = normalizeText(value);
 
@@ -208,6 +218,7 @@ function getScholarshipStatusMeta(value) {
   };
 }
 
+// getRoHistoryStatusMeta: reads and returns get ro history status meta for the Scholars flow.
 function getRoHistoryStatusMeta(item = {}) {
   const assignment = normalizeText(
     item.assignment_status || item.assignmentStatus
@@ -279,6 +290,7 @@ function getRoHistoryStatusMeta(item = {}) {
   };
 }
 
+// getRenewalStatusMeta: reads and returns get renewal status meta for the Scholars flow.
 function getRenewalStatusMeta(raw) {
   const key = normalizeRenewalStatus(raw);
 
@@ -302,6 +314,7 @@ function getRenewalStatusMeta(raw) {
   );
 }
 
+// getRenewalDocumentStatusMeta: reads and returns get renewal document status meta for the Scholars flow.
 function getRenewalDocumentStatusMeta(raw) {
   const value = normalizeText(raw);
 
@@ -328,6 +341,7 @@ function getRenewalDocumentStatusMeta(raw) {
   return { color: C.muted, bg: '#f5f5f4' };
 }
 
+// StatusPill: handles status pill for the Scholars flow.
 function StatusPill({ meta, compact = false }) {
   return (
     <span
@@ -344,6 +358,7 @@ function StatusPill({ meta, compact = false }) {
   );
 }
 
+// InfoItem: handles info item for the Scholars flow.
 function InfoItem({ icon: Icon, label, value, wide = false }) {
   return (
     <div
@@ -363,6 +378,7 @@ function InfoItem({ icon: Icon, label, value, wide = false }) {
   );
 }
 
+// MetricCard: handles metric card for the Scholars flow.
 function MetricCard({ label, value, helper, meta, icon: Icon }) {
   return (
     <div className="rounded-xl border border-stone-200 bg-white p-3.5">
@@ -399,6 +415,7 @@ function MetricCard({ label, value, helper, meta, icon: Icon }) {
   );
 }
 
+// FilterModal: handles filter modal for the Scholars flow.
 function FilterModal({
   open,
   onClose,
@@ -568,6 +585,7 @@ function FilterModal({
   );
 }
 
+// ProgramHistoryPanel: handles program history panel for the Scholars flow.
 function ProgramHistoryPanel({
   history = [],
   currentApplicationId = null,
@@ -706,6 +724,7 @@ function ObligationHistoryPanel({ studentId }) {
 
     let cancelled = false;
 
+    // loadHistory: loads and returns load history for the Scholars flow.
     const loadHistory = async () => {
       try {
         setLoading(true);
@@ -1026,6 +1045,7 @@ function ObligationHistoryPanel({ studentId }) {
   );
 }
 
+// HistoryMetric: handles history metric for the Scholars flow.
 function HistoryMetric({ label, value }) {
   return (
     <div className="min-w-0 rounded-lg border border-stone-200 bg-white px-3.5 py-3">
@@ -1037,6 +1057,7 @@ function HistoryMetric({ label, value }) {
   );
 }
 
+// ScholarProfileModal: handles scholar profile modal for the Scholars flow.
 function ScholarProfileModal({ scholar, loading, onClose }) {
   const s = useMemo(() => scholar || {}, [scholar]);
   const scholarshipMeta = getScholarshipStatusMeta(s.status);
@@ -1047,6 +1068,7 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
     const scrollArea = profileScrollRef.current;
     if (!scrollArea) return;
 
+    // measure: handles measure for the Scholars flow.
     const measure = () => {
       scrollArea.style.setProperty('--profile-scroll-height', `${scrollArea.clientHeight}px`);
     };
@@ -1136,6 +1158,7 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
+    // handleKeyDown: handles handle key down for the Scholars flow.
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') onClose();
       };
@@ -1345,6 +1368,7 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
   );
 }
 
+// ArchiveScholarModal: archives archive scholar modal for the Scholars flow.
 function ArchiveScholarModal({ scholar, onClose, onConfirm, saving }) {
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
@@ -1717,6 +1741,7 @@ export default function ScholarMonitoring() {
     void handleViewScholar(requestedStudentId);
   }, [handleViewScholar, location.search]);
 
+  // handleArchiveScholar: handles handle archive scholar for the Scholars flow.
   const handleArchiveScholar = async (payload) => {
     if (!archiveModalScholar) return;
 
@@ -1775,6 +1800,7 @@ export default function ScholarMonitoring() {
     }
   };
 
+  // handleSectionModeChange: handles handle section mode change for the Scholars flow.
   const handleSectionModeChange = (nextMode) => {
     const mode = ['registry', 'renewals', 'removed'].includes(nextMode)
       ? nextMode
@@ -2073,6 +2099,7 @@ export default function ScholarMonitoring() {
     status !== 'All Statuses' ||
     sortBy !== 'Name A-Z';
 
+  // openFilterModal: handles open filter modal for the Scholars flow.
   const openFilterModal = () => {
     setDraftProgram(program);
     setDraftYear(academicYear);
@@ -2082,6 +2109,7 @@ export default function ScholarMonitoring() {
     setFilterOpen(true);
   };
 
+  // applyFilters: handles apply filters for the Scholars flow.
   const applyFilters = () => {
     setProgram(draftProgram);
     setAcademicYear(draftYear);
@@ -2092,6 +2120,7 @@ export default function ScholarMonitoring() {
     setPage(1);
   };
 
+  // clearFilters: clears clear filters for the Scholars flow.
   const clearFilters = () => {
     setDraftProgram('All Programs');
     setDraftYear('All Years');
@@ -2383,6 +2412,7 @@ export default function ScholarMonitoring() {
   );
 }
 
+// ScholarRegistryTable: handles scholar registry table for the Scholars flow.
 function ScholarRegistryTable({ rows, onView, onRemove, removedMode = false }) {
   return (
     <div className="w-full min-w-0 overflow-hidden">
@@ -2482,12 +2512,14 @@ function ScholarRegistryTable({ rows, onView, onRemove, removedMode = false }) {
   );
 }
 
+// cleanDisplayValue: handles clean display value for the Scholars flow.
 function cleanDisplayValue(value, fallback = '—') {
   const text = String(value ?? '').trim();
   if (!text || ['n/a', 'null', 'undefined'].includes(text.toLowerCase())) return fallback;
   return text;
 }
 
+// humanizeStatus: handles humanize status for the Scholars flow.
 function humanizeStatus(value, fallback = '—') {
   const text = cleanDisplayValue(value, '');
   if (!text) return fallback;
@@ -2496,6 +2528,7 @@ function humanizeStatus(value, fallback = '—') {
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
+// getProfileStatusTone: reads and returns get profile status tone for the Scholars flow.
 function getProfileStatusTone(value) {
   const status = normalizeText(value).replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
   if (['approved', 'cleared', 'no offense', 'good moral standing', 'good scholastic standing', 'good standing'].includes(status)) {
@@ -2516,6 +2549,7 @@ function getProfileStatusTone(value) {
   return { badge: 'border-stone-200 bg-stone-50 text-stone-600', icon: 'bg-stone-100 text-stone-500', text: 'text-stone-700' };
 }
 
+// formatCurrency: formats format currency for the Scholars flow.
 function formatCurrency(value) {
   const amount = Number(value);
   if (!Number.isFinite(amount)) return '—';
@@ -2526,12 +2560,14 @@ function formatCurrency(value) {
   }).format(amount);
 }
 
+// formatAcademicPeriod: formats format academic period for the Scholars flow.
 function formatAcademicPeriod(semester, academicYear, fallback = '—') {
   return [cleanDisplayValue(semester, ''), academicYear ? `AY ${academicYear}` : '']
     .filter(Boolean)
     .join(' · ') || fallback;
 }
 
+// formatYearLevel: formats format year level for the Scholars flow.
 function formatYearLevel(value) {
   const raw = cleanDisplayValue(value, '');
   if (!raw) return '';
@@ -2542,6 +2578,7 @@ function formatYearLevel(value) {
   return `${numeric}${suffix} Year`;
 }
 
+// ProfileField: handles profile field for the Scholars flow.
 function ProfileField({ label, value }) {
   return (
     <div className="min-w-0 rounded-xl border border-stone-200 bg-white px-3 py-2.5">
@@ -2553,6 +2590,7 @@ function ProfileField({ label, value }) {
   );
 }
 
+// ContactRow: handles contact row for the Scholars flow.
 function ContactRow({ icon: Icon, label, value, breakAnywhere = false }) {
   const iconTone = label === 'Email'
     ? 'bg-blue-100 text-blue-700'
@@ -2574,6 +2612,7 @@ function ContactRow({ icon: Icon, label, value, breakAnywhere = false }) {
   );
 }
 
+// CompactHistorySection: handles compact history section for the Scholars flow.
 function CompactHistorySection({ title, subtitle, countLabel, icon: Icon, iconClassName = 'bg-amber-100 text-amber-700', defaultOpen = false, children }) {
   const [expanded, setExpanded] = useState(defaultOpen);
 
@@ -2606,6 +2645,7 @@ function CompactHistorySection({ title, subtitle, countLabel, icon: Icon, iconCl
   );
 }
 
+// CurrentScholarshipPanel: handles current scholarship panel for the Scholars flow.
 function CurrentScholarshipPanel({ scholar, standingMeta }) {
   const programHistory = Array.isArray(scholar.program_history) ? scholar.program_history : [];
   const renewalHistory = Array.isArray(scholar.renewal_history) ? scholar.renewal_history : [];
@@ -2671,6 +2711,7 @@ function CurrentScholarshipPanel({ scholar, standingMeta }) {
   );
 }
 
+// PayoutHistoryPanel: handles payout history panel for the Scholars flow.
 function PayoutHistoryPanel({ history = [] }) {
   const rows = Array.isArray(history) ? history : [];
   return (
@@ -2705,6 +2746,7 @@ function PayoutHistoryPanel({ history = [] }) {
   );
 }
 
+// RenewalHistoryPanel: handles renewal history panel for the Scholars flow.
 function RenewalHistoryPanel({ history = [] }) {
   const rows = Array.isArray(history) ? history : [];
   return (
@@ -2736,6 +2778,7 @@ function RenewalHistoryPanel({ history = [] }) {
   );
 }
 
+// ScholarStatusHistoryPanel: handles scholar status history panel for the Scholars flow.
 function ScholarStatusHistoryPanel({ events = [] }) {
   const rows = Array.isArray(events) ? events : [];
   return (
@@ -2770,6 +2813,7 @@ function ScholarStatusHistoryPanel({ events = [] }) {
   );
 }
 
+// RenewalTable: handles renewal table for the Scholars flow.
 function RenewalTable({ rows, navigate }) {
   return (
     <div className="w-full min-w-0 overflow-hidden">
@@ -2876,6 +2920,7 @@ function RenewalTable({ rows, navigate }) {
   );
 }
 
+// itemYear: handles item year for the Scholars flow.
 function itemYear(item) {
   return item?.school_year_label || '';
 }

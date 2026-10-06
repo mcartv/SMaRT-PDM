@@ -1,3 +1,4 @@
+// SMaRT-PDM: Settings — app button styles (mobile frontend); supports mobile UI behavior.
 import 'package:flutter/material.dart';
 
 class AppButtonStyles {

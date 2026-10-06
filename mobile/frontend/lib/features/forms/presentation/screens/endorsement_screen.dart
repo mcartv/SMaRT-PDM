@@ -1,3 +1,4 @@
+// SMaRT-PDM: Endorsement — endorsement screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -20,6 +21,7 @@ class EndorsementScreen extends StatefulWidget {
   const EndorsementScreen({super.key});
 
   @override
+  // createState: creates create state for the Endorsement flow.
   State<EndorsementScreen> createState() => _EndorsementScreenState();
 }
 
@@ -38,6 +40,7 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
   bool _pendingLiveRefresh = false;
 
   @override
+  // initState: handles init state for the Endorsement flow.
   void initState() {
     super.initState();
     _loadStatus();
@@ -49,6 +52,7 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
   }
 
   @override
+  // didChangeDependencies: handles did change dependencies for the Endorsement flow.
   void didChangeDependencies() {
     super.didChangeDependencies();
 
@@ -62,6 +66,7 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
     _notificationProvider?.addListener(_handleNotificationProviderChange);
   }
 
+  // _handleNotificationProviderChange: handles handle notification provider change for the Endorsement flow.
   void _handleNotificationProviderChange() {
     final provider = _notificationProvider;
     if (provider == null) return;
@@ -76,6 +81,7 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
     _requestLiveRefresh();
   }
 
+  // _loadStatus: handles load status for the Endorsement flow.
   Future<void> _loadStatus({bool silent = false}) async {
     if (_fetchInProgress) {
       _pendingLiveRefresh = true;
@@ -120,6 +126,7 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
     }
   }
 
+  // _requestLiveRefresh: handles request live refresh for the Endorsement flow.
   void _requestLiveRefresh() {
     if (!mounted) return;
     if (_fetchInProgress) {
@@ -129,6 +136,7 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
     _loadStatus(silent: true);
   }
 
+  // _downloadEndorsementSlip: handles download endorsement slip for the Endorsement flow.
   Future<void> _downloadEndorsementSlip() async {
     setState(() => _isDownloadingSlip = true);
 
@@ -158,6 +166,7 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
   }
 
   @override
+  // dispose: handles dispose for the Endorsement flow.
   void dispose() {
     _pollingTimer?.cancel();
     _notificationProvider?.removeListener(_handleNotificationProviderChange);
@@ -165,6 +174,7 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
   }
 
   @override
+  // build: builds build for the Endorsement flow.
   Widget build(BuildContext context) {
     return SmartPdmPageScaffold(
       appBar: AppBar(title: const Text('Endorsement')),
@@ -228,6 +238,7 @@ class _EndorsementView extends StatefulWidget {
   final VoidCallback onDownloadSlip;
 
   @override
+  // createState: creates create state for the Endorsement flow.
   State<_EndorsementView> createState() => _EndorsementViewState();
 }
 
@@ -235,12 +246,14 @@ class _EndorsementViewState extends State<_EndorsementView> {
   final Set<String> _expandedOffices = <String>{};
 
   @override
+  // initState: handles init state for the Endorsement flow.
   void initState() {
     super.initState();
     _expandCurrentOffice();
   }
 
   @override
+  // didUpdateWidget: handles did update widget for the Endorsement flow.
   void didUpdateWidget(covariant _EndorsementView oldWidget) {
     super.didUpdateWidget(oldWidget);
     final oldStage = oldWidget.summary.workflow?.endorsement.currentStage;
@@ -250,6 +263,7 @@ class _EndorsementViewState extends State<_EndorsementView> {
     }
   }
 
+  // _expandCurrentOffice: handles expand current office for the Endorsement flow.
   void _expandCurrentOffice() {
     final stage = widget.summary.workflow?.endorsement.currentStage;
     final officeKey = _officeKeyForStage(stage);
@@ -258,6 +272,7 @@ class _EndorsementViewState extends State<_EndorsementView> {
     }
   }
 
+  // _officeKeyForStage: handles office key for stage for the Endorsement flow.
   String? _officeKeyForStage(String? stage) {
     return switch (stage) {
       'pending_sdo' => 'sdo',
@@ -267,6 +282,7 @@ class _EndorsementViewState extends State<_EndorsementView> {
     };
   }
 
+  // _friendlyStatusLabel: handles friendly status label for the Endorsement flow.
   String _friendlyStatusLabel(String status) {
     final normalized = status.toLowerCase();
 
@@ -289,6 +305,7 @@ class _EndorsementViewState extends State<_EndorsementView> {
     return status;
   }
 
+  // _friendlyDecisionLabel: handles friendly decision label for the Endorsement flow.
   String _friendlyDecisionLabel(String? decision) {
     final normalized = (decision ?? '').trim().toLowerCase();
     if (normalized.isEmpty) return 'Pending';
@@ -319,6 +336,7 @@ class _EndorsementViewState extends State<_EndorsementView> {
         .join(' ');
   }
 
+  // _officeDisplayName: handles office display name for the Endorsement flow.
   String _officeDisplayName(String? office) {
     final text = office?.trim() ?? '';
     if (text.isEmpty) return 'Not assigned yet';
@@ -335,6 +353,7 @@ class _EndorsementViewState extends State<_EndorsementView> {
     return text;
   }
 
+  // _statusColor: handles status color for the Endorsement flow.
   Color _statusColor(BuildContext context, String status) {
     final scheme = Theme.of(context).colorScheme;
     final normalized = status.toLowerCase();
@@ -356,6 +375,7 @@ class _EndorsementViewState extends State<_EndorsementView> {
     return scheme.onSurfaceVariant;
   }
 
+  // _statusIcon: handles status icon for the Endorsement flow.
   IconData _statusIcon(String status) {
     final normalized = status.toLowerCase();
     if (normalized.contains('rejected') ||
@@ -370,11 +390,13 @@ class _EndorsementViewState extends State<_EndorsementView> {
     return Icons.schedule_rounded;
   }
 
+  // _formatDate: handles format date for the Endorsement flow.
   String _formatDate(DateTime? value) {
     if (value == null) return 'Not available';
     return DateFormat('MMM d, yyyy').format(value.toLocal());
   }
 
+  // _nextActionMessage: handles next action message for the Endorsement flow.
   String _nextActionMessage(
     ApplicationWorkflowSummary workflow,
     EndorsementStateSummary endorsement,
@@ -396,6 +418,7 @@ class _EndorsementViewState extends State<_EndorsementView> {
   }
 
   @override
+  // build: builds build for the Endorsement flow.
   Widget build(BuildContext context) {
     final statusColors = AppStatusColors.of(context);
     final workflow = widget.summary.workflow;
@@ -572,6 +595,7 @@ class _EndorsementHero extends StatelessWidget {
   final String? openingTitle;
 
   @override
+  // build: builds build for the Endorsement flow.
   Widget build(BuildContext context) {
     final isDark = AppSurfacePalette.isDark(context);
     final titleColor = AppSurfacePalette.text(context);
@@ -672,6 +696,7 @@ class _EndorsementProgressCard extends StatelessWidget {
   final String Function(String? decision) decisionLabel;
 
   @override
+  // build: builds build for the Endorsement flow.
   Widget build(BuildContext context) {
     const steps = <_EndorsementStepDefinition>[
       _EndorsementStepDefinition(
@@ -777,6 +802,7 @@ class _EndorsementProgressStep extends StatelessWidget {
       review?.remarks?.trim().isNotEmpty == true;
 
   @override
+  // build: builds build for the Endorsement flow.
   Widget build(BuildContext context) {
     final statusColors = AppStatusColors.of(context);
     final muted = AppSurfacePalette.mutedText(context);
@@ -963,6 +989,7 @@ class _OfficeReviewDetails extends StatelessWidget {
   final OfficeReviewSummary review;
 
   @override
+  // build: builds build for the Endorsement flow.
   Widget build(BuildContext context) {
     final muted = AppSurfacePalette.mutedText(context);
 
@@ -1017,6 +1044,7 @@ class _ReviewMetaRow extends StatelessWidget {
   final String text;
 
   @override
+  // build: builds build for the Endorsement flow.
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
@@ -1050,6 +1078,7 @@ class _CompletionStep extends StatelessWidget {
   final bool completed;
 
   @override
+  // build: builds build for the Endorsement flow.
   Widget build(BuildContext context) {
     final color = completed
         ? AppStatusColors.of(context).successOutline
@@ -1115,6 +1144,7 @@ class _CompactStatusLabel extends StatelessWidget {
   final Color color;
 
   @override
+  // build: builds build for the Endorsement flow.
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1151,6 +1181,7 @@ class _EndorsementSlipCard extends StatelessWidget {
   final String Function(DateTime? value) formatDate;
 
   @override
+  // build: builds build for the Endorsement flow.
   Widget build(BuildContext context) {
     if (!slip.available) {
       return AppSurfaceCard(
@@ -1249,6 +1280,7 @@ class _SlipDetailRow extends StatelessWidget {
   final String value;
 
   @override
+  // build: builds build for the Endorsement flow.
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -1327,6 +1359,7 @@ class _EndorsementAlertCard extends StatelessWidget {
   final VoidCallback onPrimaryAction;
 
   @override
+  // build: builds build for the Endorsement flow.
   Widget build(BuildContext context) {
     return AppSurfaceCard(
       backgroundColor: color.withValues(alpha: 0.07),
@@ -1383,6 +1416,7 @@ class _EndorsementMessageCard extends StatelessWidget {
   final VoidCallback onPrimaryAction;
 
   @override
+  // build: builds build for the Endorsement flow.
   Widget build(BuildContext context) {
     return AppSurfaceCard(
       child: Column(

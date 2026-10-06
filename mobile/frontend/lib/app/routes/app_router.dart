@@ -1,3 +1,4 @@
+// SMaRT-PDM: Return of Obligations — app router (mobile frontend); supports mobile UI behavior.
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/shell/presentation/screens/top_level_shell_screen.dart';

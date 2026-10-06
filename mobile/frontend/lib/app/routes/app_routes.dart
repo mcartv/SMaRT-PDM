@@ -1,3 +1,4 @@
+// SMaRT-PDM: Return of Obligations — app routes (mobile frontend); supports mobile UI behavior.
 class AppRoutes {
   // Splash & Authentication
   static const splash = '/splash';

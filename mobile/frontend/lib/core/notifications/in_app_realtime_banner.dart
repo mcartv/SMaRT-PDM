@@ -1,3 +1,4 @@
+// SMaRT-PDM: Notifications — in app realtime banner (mobile frontend); supports mobile UI behavior.
 import 'dart:async';
 import 'dart:collection';
 
@@ -41,6 +42,7 @@ class InAppRealtimeBannerHost extends StatefulWidget {
   final Widget child;
 
   @override
+  // createState: creates create state for the Notifications flow.
   State<InAppRealtimeBannerHost> createState() =>
       _InAppRealtimeBannerHostState();
 }
@@ -61,6 +63,7 @@ class _InAppRealtimeBannerHostState extends State<InAppRealtimeBannerHost> {
   _InAppBannerItem? _activeItem;
 
   @override
+  // initState: handles init state for the Notifications flow.
   void initState() {
     super.initState();
 
@@ -74,6 +77,7 @@ class _InAppRealtimeBannerHostState extends State<InAppRealtimeBannerHost> {
   }
 
   @override
+  // dispose: handles dispose for the Notifications flow.
   void dispose() {
     _stopRealtimeListener?.call();
     _dismissTimer?.cancel();
@@ -82,6 +86,7 @@ class _InAppRealtimeBannerHostState extends State<InAppRealtimeBannerHost> {
     super.dispose();
   }
 
+  // _handleRealtimeEvent: handles handle realtime event for the Notifications flow.
   Future<void> _handleRealtimeEvent(MobileRealtimeEvent event) async {
     if (!mounted) return;
 
@@ -209,6 +214,7 @@ class _InAppRealtimeBannerHostState extends State<InAppRealtimeBannerHost> {
     );
   }
 
+  // _enqueue: handles enqueue for the Notifications flow.
   void _enqueue(_InAppBannerItem item) {
     if (!_remember(item.id)) return;
 
@@ -224,6 +230,7 @@ class _InAppRealtimeBannerHostState extends State<InAppRealtimeBannerHost> {
     _queue.addLast(item);
   }
 
+  // _remember: handles remember for the Notifications flow.
   bool _remember(String id) {
     if (_seenIds.contains(id)) return false;
 
@@ -238,6 +245,7 @@ class _InAppRealtimeBannerHostState extends State<InAppRealtimeBannerHost> {
     return true;
   }
 
+  // _show: handles show for the Notifications flow.
   void _show(_InAppBannerItem item) {
     _nextBannerTimer?.cancel();
     _dismissTimer?.cancel();
@@ -251,6 +259,7 @@ class _InAppRealtimeBannerHostState extends State<InAppRealtimeBannerHost> {
     _dismissTimer = Timer(_visibleDuration, _dismissActive);
   }
 
+  // _dismissActive: handles dismiss active for the Notifications flow.
   void _dismissActive() {
     _dismissTimer?.cancel();
     _dismissTimer = null;
@@ -268,6 +277,7 @@ class _InAppRealtimeBannerHostState extends State<InAppRealtimeBannerHost> {
     });
   }
 
+  // _handleTap: handles handle tap for the Notifications flow.
   void _handleTap(_InAppBannerItem item) {
     _dismissActive();
 
@@ -349,6 +359,7 @@ class _InAppRealtimeBannerHostState extends State<InAppRealtimeBannerHost> {
   }
 
   @override
+  // build: builds build for the Notifications flow.
   Widget build(BuildContext context) {
     final item = _activeItem;
 
@@ -424,6 +435,7 @@ class _RealtimeBannerCard extends StatelessWidget {
   final VoidCallback onDismiss;
 
   @override
+  // build: builds build for the Notifications flow.
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;

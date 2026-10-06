@@ -1,3 +1,4 @@
+// SMaRT-PDM: Student Registry — student Registry Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const studentRegistryService = require('../services/studentRegistryService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');

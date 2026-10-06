@@ -1,3 +1,4 @@
+// SMaRT-PDM: OCR — iot Ocr Request Service (admin backend service); contains business logic and data operations.
 const pool = require('../config/db');
 const documentTypes = require('../utils/documentTypes');
 const { normalizeDeviceId, normalizeUserId } = require('../utils/iotOcrIdentity');
@@ -37,12 +38,14 @@ const REVIEW_REASON_CODES = new Set([
     'DUPLICATE_SUSPECTED',
 ]);
 
+// buildHttpError: builds build http error for the OCR flow.
 function buildHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// isIotOcrDocumentEnabled: checks whether is iot ocr document enabled for the OCR flow.
 function isIotOcrDocumentEnabled(documentKey) {
     const normalized = documentTypes.normalizeDocumentType(documentKey);
     return Boolean(
@@ -50,11 +53,13 @@ function isIotOcrDocumentEnabled(documentKey) {
     );
 }
 
+// isUuid: checks whether is uuid for the OCR flow.
 function isUuid(value) {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
         .test(String(value || '').trim());
 }
 
+// assertTextOnlyPayload: handles assert text only payload for the OCR flow.
 function assertTextOnlyPayload(value) {
     if (!value || typeof value !== 'object') return;
     for (const [key, nested] of Object.entries(value)) {
@@ -65,6 +70,7 @@ function assertTextOnlyPayload(value) {
     }
 }
 
+// mapRequestRow: maps map request row for the OCR flow.
 function mapRequestRow(row) {
     if (!row) return null;
     return {
@@ -102,6 +108,7 @@ function mapRequestRow(row) {
     };
 }
 
+// mapCandidateRow: maps map candidate row for the OCR flow.
 function mapCandidateRow(row) {
     if (!row) return null;
     const storedFields = row.verified_fields || row.fields || {};
@@ -129,10 +136,12 @@ function mapCandidateRow(row) {
     };
 }
 
+// transitionAllowed: handles transition allowed for the OCR flow.
 function transitionAllowed(from, to) {
     return (ALLOWED_TRANSITIONS[from] || []).includes(to);
 }
 
+// normalizeReviewReason: normalizes normalize review reason for the OCR flow.
 function normalizeReviewReason(value, { required = false } = {}) {
     const reason = String(value || '').trim().toUpperCase();
     if (!reason && !required) return null;
@@ -142,6 +151,7 @@ function normalizeReviewReason(value, { required = false } = {}) {
     return reason;
 }
 
+// normalizeOcrVersion: normalizes normalize ocr version for the OCR flow.
 function normalizeOcrVersion(documentKey, value, defaultBirthVersion = 'v2') {
     const normalizedDocumentKey = documentTypes.normalizeDocumentType(documentKey);
     const defaultVersion = ['birth_certificate', 'certificate_of_live_birth'].includes(normalizedDocumentKey)
@@ -154,6 +164,7 @@ function normalizeOcrVersion(documentKey, value, defaultBirthVersion = 'v2') {
     return normalized;
 }
 
+// fieldValue: handles field value for the OCR flow.
 function fieldValue(value) {
     if (value && typeof value === 'object' && !Array.isArray(value)) {
         return value.normalized_value ?? value.raw_text ?? value.value ?? '';
@@ -161,11 +172,13 @@ function fieldValue(value) {
     return value;
 }
 
+// gradeField: handles grade field for the OCR flow.
 function gradeField(value) {
     const normalized = String(value || '').replace(/\s+/g, ' ').trim();
     return { raw_text: normalized, normalized_value: normalized };
 }
 
+// withDerivedGradeFields: handles with derived grade fields for the OCR flow.
 function withDerivedGradeFields(documentKey, rawText, storedFields = {}) {
     const normalizedKey = documentTypes.normalizeDocumentType(documentKey);
     const source = storedFields && typeof storedFields === 'object' && !Array.isArray(storedFields)
@@ -174,6 +187,7 @@ function withDerivedGradeFields(documentKey, rawText, storedFields = {}) {
     if (normalizedKey !== 'student_grade_forms') return source;
 
     const fields = { ...source, subjects: Array.isArray(source.subjects) ? source.subjects : [] };
+    // missing: handles missing for the OCR flow.
     const missing = (key) => !String(fieldValue(fields[key]) ?? '').trim();
     const text = String(rawText || '').replace(/\s+/g, ' ').trim();
     if (!text) return fields;
@@ -224,6 +238,7 @@ function withDerivedGradeFields(documentKey, rawText, storedFields = {}) {
     return fields;
 }
 
+// withDerivedIndigencyFields: handles with derived indigency fields for the OCR flow.
 function withDerivedIndigencyFields(documentKey, rawText, storedFields = {}) {
     const normalizedKey = documentTypes.normalizeDocumentType(documentKey);
     const source = storedFields && typeof storedFields === 'object' && !Array.isArray(storedFields)
@@ -232,6 +247,7 @@ function withDerivedIndigencyFields(documentKey, rawText, storedFields = {}) {
     if (normalizedKey !== 'certificate_of_indigency') return source;
 
     const fields = { ...source };
+    // missing: handles missing for the OCR flow.
     const missing = (key) => !String(fieldValue(fields[key]) ?? '').trim();
     const text = String(rawText || '').replace(/\s+/g, ' ').trim();
     if (!text) return fields;
@@ -255,6 +271,7 @@ function withDerivedIndigencyFields(documentKey, rawText, storedFields = {}) {
     return fields;
 }
 
+// normalizeGwa: normalizes normalize gwa for the OCR flow.
 function normalizeGwa(value) {
     const raw = String(fieldValue(value) ?? '').trim();
     const numeric = Number(raw);
@@ -264,6 +281,7 @@ function normalizeGwa(value) {
     return Number(numeric.toFixed(2));
 }
 
+// normalizeAcademicYear: normalizes normalize academic year for the OCR flow.
 function normalizeAcademicYear(value) {
     const normalized = normalizeYearLevel(value);
     if (!normalized) {
@@ -272,6 +290,7 @@ function normalizeAcademicYear(value) {
     return normalized.label;
 }
 
+// normalizeYearLevel: normalizes normalize year level for the OCR flow.
 function normalizeYearLevel(value) {
     const raw = String(fieldValue(value) ?? '').trim();
     const match = raw.match(/\b(1ST|2ND|3RD|4TH|5TH|6TH|FIRST|SECOND|THIRD|FOURTH|FIFTH|SIXTH)\b/i);
@@ -288,6 +307,7 @@ function normalizeYearLevel(value) {
     return { number, label: `${number}${suffix}` };
 }
 
+// persistVerifiedGradeSummary: handles persist verified grade summary for the OCR flow.
 async function persistVerifiedGradeSummary(client, studentId, verifiedFields) {
     const gwa = normalizeGwa(verifiedFields.gwa);
     await client.query(`
@@ -298,6 +318,7 @@ async function persistVerifiedGradeSummary(client, studentId, verifiedFields) {
     return { gwa };
 }
 
+// birthNameComponents: handles birth name components for the OCR flow.
 function birthNameComponents(value, { required = true, label = 'Name' } = {}) {
     const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
     const components = source.components && typeof source.components === 'object'
@@ -328,6 +349,7 @@ function birthNameComponents(value, { required = true, label = 'Name' } = {}) {
     };
 }
 
+// upsertVerifiedBirthParents: handles upsert verified birth parents for the OCR flow.
 async function upsertVerifiedBirthParents(client, studentId, verifiedFields) {
     const parents = [
         ['Mother', verifiedFields.mother_maiden_name],
@@ -348,6 +370,7 @@ async function upsertVerifiedBirthParents(client, studentId, verifiedFields) {
     }
 }
 
+// buildVerifiedApplicationPatch: builds build verified application patch for the OCR flow.
 function buildVerifiedApplicationPatch(documentKey, verifiedFields = {}) {
     if (documentKey === 'student_grade_forms') {
         return {
@@ -370,6 +393,7 @@ function buildVerifiedApplicationPatch(documentKey, verifiedFields = {}) {
     return null;
 }
 
+// normalizeCandidate: normalizes normalize candidate for the OCR flow.
 function normalizeCandidate(input, requestRow) {
     const source = input.candidate && typeof input.candidate === 'object'
         ? input.candidate
@@ -419,6 +443,7 @@ function normalizeCandidate(input, requestRow) {
     return candidate;
 }
 
+// insertCandidateExceptions: inserts insert candidate exceptions for the OCR flow.
 async function insertCandidateExceptions(client, requestRow, candidateRow, candidate) {
     if (!['birth_certificate', 'certificate_of_live_birth'].includes(requestRow.document_key)) return;
     const exceptions = [];
@@ -450,6 +475,7 @@ async function insertCandidateExceptions(client, requestRow, candidateRow, candi
     }
 }
 
+// validateConfirmedDocumentFields: validates validate confirmed document fields for the OCR flow.
 function validateConfirmedDocumentFields(documentKey, fields, candidateFields = null) {
     if (!fields || typeof fields !== 'object' || Array.isArray(fields)) {
         throw buildHttpError(400, 'corrected_fields must be an object');
@@ -538,6 +564,7 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
     };
 }
 
+// candidateFieldsForReviewDiff: checks whether candidate fields for review diff for the OCR flow.
 function candidateFieldsForReviewDiff(documentKey, candidateFields = {}) {
     if (['birth_certificate', 'certificate_of_live_birth'].includes(documentKey)) {
         return {
@@ -573,6 +600,7 @@ function candidateFieldsForReviewDiff(documentKey, candidateFields = {}) {
     return candidateFields;
 }
 
+// resolveRequestContext: resolves resolve request context for the OCR flow.
 async function resolveRequestContext(client, applicationId, documentKey) {
     const normalizedDocumentKey = documentTypes.normalizeDocumentType(documentKey);
     if (!applicationId || !normalizedDocumentKey) throw buildHttpError(400, 'Valid application and document are required');
@@ -811,6 +839,7 @@ exports.claimAsyncProcessing = async ({ requestId, owner } = {}) => {
         : { claimed: false };
 };
 
+// retryConfig: handles retry config for the OCR flow.
 function retryConfig() {
     const enabled = String(process.env.OCR_AUTO_RETRY_ENABLED || 'true').toLowerCase() !== 'false';
     const maxAttempts = Math.min(3, Math.max(1, Number.parseInt(process.env.OCR_AUTO_RETRY_MAX_ATTEMPTS || '3', 10) || 3));
@@ -1240,6 +1269,7 @@ exports.retryRequest = async ({ applicationId, documentKey, requestId, requested
     } finally { client.release(); }
 };
 
+// closeReviewRequest: handles close review request for the OCR flow.
 async function closeReviewRequest({
     applicationId,
     documentKey,

@@ -1,3 +1,4 @@
+// SMaRT-PDM: audit Log Service — audit Log Service (admin backend service); contains business logic and data operations.
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
@@ -29,6 +30,7 @@ const VISIBLE_SYSTEM_LOG_SQL = `
     )
 `;
 
+// getRequestPath: reads and returns get request path for the audit Log Service flow.
 function getRequestPath(req) {
     return String(req?.originalUrl || req?.url || '')
         .split('?')[0]
@@ -36,6 +38,7 @@ function getRequestPath(req) {
         .replace(/\/{2,}/g, '/');
 }
 
+// isNoiseAction: checks whether is noise action for the audit Log Service flow.
 function isNoiseAction(actionTaken) {
     const action = String(actionTaken || '').trim().toUpperCase();
     return (
@@ -45,6 +48,7 @@ function isNoiseAction(actionTaken) {
     );
 }
 
+// isQuietAuthRequest: checks whether is quiet auth request for the audit Log Service flow.
 function isQuietAuthRequest(req) {
     const pathname = getRequestPath(req).toLowerCase();
     return (
@@ -53,6 +57,7 @@ function isQuietAuthRequest(req) {
     );
 }
 
+// normalizeActionTaken: normalizes normalize action taken for the audit Log Service flow.
 function normalizeActionTaken(req, actionTaken, moduleName) {
     const action = String(actionTaken || '').trim().toUpperCase();
     const pathname = getRequestPath(req).toLowerCase();
@@ -74,6 +79,7 @@ function normalizeActionTaken(req, actionTaken, moduleName) {
     return action;
 }
 
+// shouldSuppressAudit: handles should suppress audit for the audit Log Service flow.
 function shouldSuppressAudit(req, actionTaken, moduleName) {
     if (HIDDEN_SYSTEM_LOG_MODULES.has(String(moduleName || '').trim())) {
         return true;
@@ -86,12 +92,14 @@ function shouldSuppressAudit(req, actionTaken, moduleName) {
     return isNoiseAction(actionTaken);
 }
 
+// createHttpError: creates create http error for the audit Log Service flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// getJwtSecret: reads and returns get jwt secret for the audit Log Service flow.
 function getJwtSecret() {
     const secret = process.env.JWT_SECRET || process.env.ACCESS_TOKEN_SECRET;
 
@@ -102,10 +110,12 @@ function getJwtSecret() {
     return secret;
 }
 
+// getActorUserId: reads and returns get actor user id for the audit Log Service flow.
 function getActorUserId(req) {
     return req?.user?.user_id || req?.user?.userId || null;
 }
 
+// verifyAuditPassword: verifies verify audit password for the audit Log Service flow.
 async function verifyAuditPassword({ userId, password }) {
     if (!userId) {
         throw createHttpError(401, 'Unauthorized request.');
@@ -154,6 +164,7 @@ async function verifyAuditPassword({ userId, password }) {
     };
 }
 
+// verifyAuditAccessToken: verifies verify audit access token for the audit Log Service flow.
 function verifyAuditAccessToken(token, currentUserId) {
     if (!token) {
         throw createHttpError(401, 'Audit access password is required.');
@@ -184,6 +195,7 @@ function verifyAuditAccessToken(token, currentUserId) {
     }
 }
 
+// listAuditLogs: loads a list of list audit logs for the audit Log Service flow.
 async function listAuditLogs({
     limit = 100,
     offset = 0,
@@ -275,6 +287,7 @@ async function listAuditLogs({
     };
 }
 
+// listRecentActivityForUser: loads a list of list recent activity for user for the audit Log Service flow.
 async function listRecentActivityForUser({
     userId,
     limit = 8,
@@ -308,6 +321,7 @@ async function listRecentActivityForUser({
     return result.rows;
 }
 
+// logAudit: handles log audit for the audit Log Service flow.
 async function logAudit({
     req = null,
     userId = null,

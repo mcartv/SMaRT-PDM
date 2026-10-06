@@ -1,3 +1,4 @@
+// SMaRT-PDM: Applications — application Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const applicationService = require('../services/applicationService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
@@ -20,6 +21,7 @@ exports.getIotOcrAvailability = async (_req, res) => {
     });
 };
 
+// isApprovalStateError: checks whether is approval state error for the Applications flow.
 function isApprovalStateError(message) {
     return [
         'Application not found',
@@ -30,6 +32,7 @@ function isApprovalStateError(message) {
     ].includes(message);
 }
 
+// relayApplicantApplicationEvent: handles relay applicant application event for the Applications flow.
 function relayApplicantApplicationEvent(applicationId, event, payload = {}) {
     applicationService.fetchApplicationRealtimeTarget(applicationId)
         .then((target) => studentRealtimeRelayService.relayModuleEvent({
@@ -1083,10 +1086,12 @@ exports.exportApplicationsExcel = async (req, res) => {
 
     const readOnlyPrefixes = ['get', 'fetch', 'list', 'download', 'export'];
 
+    // isReadOnlyAction: checks whether is read only action for the Applications flow.
     function isReadOnlyAction(name) {
         return readOnlyPrefixes.some((prefix) => String(name).startsWith(prefix));
     }
 
+    // resolveActionName: resolves resolve action name for the Applications flow.
     function resolveActionName(name) {
         const raw = String(name || '').toLowerCase();
 
@@ -1099,10 +1104,12 @@ exports.exportApplicationsExcel = async (req, res) => {
         return 'updated';
     }
 
+    // getActorUserId: reads and returns get actor user id for the Applications flow.
     function getActorUserId(req) {
         return req.user?.user_id || req.user?.userId || req.user?.id || null;
     }
 
+    // getEntityId: reads and returns get entity id for the Applications flow.
     function getEntityId(req, body) {
         return (
             req.params?.id ||
@@ -1122,6 +1129,7 @@ exports.exportApplicationsExcel = async (req, res) => {
         );
     }
 
+    // safeAudit: handles safe audit for the Applications flow.
     function safeAudit(req, functionName, responseBody) {
         try {
             const action = resolveActionName(functionName);

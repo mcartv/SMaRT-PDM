@@ -1,3 +1,4 @@
+// SMaRT-PDM: Realtime — socket (admin backend config); configures shared backend infrastructure.
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const db = require('./db');
@@ -12,6 +13,7 @@ const DEFAULT_ALLOWED_ORIGINS = [
 
 const DEFAULT_ALLOWED_SUFFIXES = ['.vercel.app'];
 
+// parseCsv: parses parse csv for the Realtime flow.
 function parseCsv(value) {
     return String(value || '')
         .split(',')
@@ -19,16 +21,19 @@ function parseCsv(value) {
         .filter(Boolean);
 }
 
+// getAllowedOrigins: reads and returns get allowed origins for the Realtime flow.
 function getAllowedOrigins() {
     const fromEnv = parseCsv(process.env.FRONTEND_ORIGINS);
     return fromEnv.length ? fromEnv : DEFAULT_ALLOWED_ORIGINS;
 }
 
+// getAllowedSuffixes: reads and returns get allowed suffixes for the Realtime flow.
 function getAllowedSuffixes() {
     const fromEnv = parseCsv(process.env.FRONTEND_ORIGIN_SUFFIXES);
     return fromEnv.length ? fromEnv : DEFAULT_ALLOWED_SUFFIXES;
 }
 
+// isAllowedOrigin: checks whether is allowed origin for the Realtime flow.
 function isAllowedOrigin(origin, allowedOrigins, allowedSuffixes) {
     if (!origin) return true;
 
@@ -49,6 +54,7 @@ function isAllowedOrigin(origin, allowedOrigins, allowedSuffixes) {
     }
 }
 
+// decodeSocketToken: handles decode socket token for the Realtime flow.
 function decodeSocketToken(token) {
     const cleanToken = String(token || '').replace(/^Bearer\s+/i, '').trim();
 
@@ -75,6 +81,7 @@ function decodeSocketToken(token) {
     }
 }
 
+// getUserIdFromPayload: reads and returns get user id from payload for the Realtime flow.
 function getUserIdFromPayload(payload = {}) {
     return (
         payload.user_id ||
@@ -88,6 +95,7 @@ function getUserIdFromPayload(payload = {}) {
     );
 }
 
+// getUserIdFromJoinPayload: reads and returns get user id from join payload for the Realtime flow.
 function getUserIdFromJoinPayload(payload = {}) {
     if (typeof payload === 'string') return payload;
 
@@ -103,6 +111,7 @@ function getUserIdFromJoinPayload(payload = {}) {
     );
 }
 
+// joinUserRoom: handles join user room for the Realtime flow.
 function joinUserRoom(socket, userId) {
     const normalizedUserId = String(userId || '').trim();
 
@@ -128,6 +137,7 @@ function joinUserRoom(socket, userId) {
     return true;
 }
 
+// configureSocket: handles configure socket for the Realtime flow.
 function configureSocket(server) {
     const allowedOrigins = getAllowedOrigins();
     const allowedSuffixes = getAllowedSuffixes();

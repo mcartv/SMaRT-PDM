@@ -1,6 +1,8 @@
+// SMaRT-PDM: Return of Obligations — ro Controller (mobile backend controller); handles mobile API input/output and delegates business logic.
 const roService = require('../services/roService');
 const adminRealtimeRelayService = require('../services/adminRealtimeRelayService');
 
+// getUserId: reads and returns get user id for the Return of Obligations flow.
 function getUserId(req) {
   return (
     req.user?.userId ||
@@ -11,6 +13,7 @@ function getUserId(req) {
   );
 }
 
+// getSafeStatusCode: reads and returns get safe status code for the Return of Obligations flow.
 function getSafeStatusCode(error) {
   const statusCode = Number(error?.statusCode || error?.status || 500);
 
@@ -21,6 +24,7 @@ function getSafeStatusCode(error) {
   return statusCode;
 }
 
+// emitLocalRoUpdate: handles emit local ro update for the Return of Obligations flow.
 function emitLocalRoUpdate(req, action, payload = {}) {
   const io = req.app?.get?.('io');
 
@@ -59,6 +63,7 @@ function emitLocalRoUpdate(req, action, payload = {}) {
   }
 }
 
+// relayAdminRoUpdate: handles relay admin ro update for the Return of Obligations flow.
 function relayAdminRoUpdate(action, payload = {}) {
   adminRealtimeRelayService
     .relayRoUpdated({
@@ -70,6 +75,7 @@ function relayAdminRoUpdate(action, payload = {}) {
     });
 }
 
+// emitAndRelayRoUpdate: handles emit and relay ro update for the Return of Obligations flow.
 function emitAndRelayRoUpdate(req, action, payload = {}) {
   const data = {
     action,

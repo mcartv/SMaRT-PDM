@@ -1,3 +1,4 @@
+// SMaRT-PDM: Maintenance — System Activity Panel (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Globe2, UsersRound } from 'lucide-react';
@@ -11,6 +12,7 @@ const DEFAULT_ACTIVITY = {
     active_window_minutes: 10,
 };
 
+// formatMetric: formats format metric for the Maintenance flow.
 function formatMetric(value) {
     const number = Number(value || 0);
     if (!Number.isFinite(number)) return '0';

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Dashboard — applicant progress section (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
@@ -15,6 +16,7 @@ class ApplicantProgressSection extends StatelessWidget {
   final ValueChanged<ApplicantHomeActionPresentation> onAction;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
@@ -64,6 +66,7 @@ class _ProgressRow extends StatelessWidget {
   final ValueChanged<ApplicantHomeActionPresentation> onAction;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette = _progressPaletteFor(context, item.tone);

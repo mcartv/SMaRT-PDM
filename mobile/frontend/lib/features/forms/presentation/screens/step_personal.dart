@@ -1,3 +1,4 @@
+// SMaRT-PDM: step personal — step personal (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 import 'package:smartpdm_mobileapp/shared/validation/app_field_validators.dart';
@@ -14,6 +15,7 @@ class StepPersonal extends StatefulWidget {
   });
 
   @override
+  // createState: creates create state for the step personal flow.
   State<StepPersonal> createState() => _StepPersonalState();
 }
 
@@ -319,6 +321,7 @@ class _StepPersonalState extends State<StepPersonal> {
   String? selectedCity;
   String? selectedBarangay;
 
+  // _updateAgeFromDOB: handles update age from dob for the step personal flow.
   void _updateAgeFromDOB(String value) {
     final parsed = ApplicationData.parseInputDate(value);
 
@@ -339,11 +342,13 @@ class _StepPersonalState extends State<StepPersonal> {
     widget.onChanged();
   }
 
+  // _requiredError: handles required error for the step personal flow.
   String? _requiredError(String value, String label) {
     if (!widget.showErrors) return null;
     return value.trim().isEmpty ? '$label is required.' : null;
   }
 
+  // _ageError: handles age error for the step personal flow.
   String? _ageError() {
     if (!widget.showErrors) return null;
     final value = ageController.text.trim();
@@ -359,6 +364,7 @@ class _StepPersonalState extends State<StepPersonal> {
     return null;
   }
 
+  // _dobError: handles dob error for the step personal flow.
   String? _dobError() {
     if (!widget.showErrors) return null;
     final value = dobController.text.trim();
@@ -375,6 +381,7 @@ class _StepPersonalState extends State<StepPersonal> {
     return null;
   }
 
+  // _mobileError: handles mobile error for the step personal flow.
   String? _mobileError() {
     if (!widget.showErrors) return null;
     final rawMobile = mobileController.text.trim();
@@ -393,6 +400,7 @@ class _StepPersonalState extends State<StepPersonal> {
     return null;
   }
 
+  // _emailError: handles email error for the step personal flow.
   String? _emailError() {
     final email = emailController.text.trim();
     if (!widget.showErrors) return null;
@@ -400,6 +408,7 @@ class _StepPersonalState extends State<StepPersonal> {
     return AppFieldValidators.email(email);
   }
 
+  // _initControllers: handles init controllers for the step personal flow.
   void _initControllers() {
     firstNameController = TextEditingController(text: widget.data.firstName);
     middleNameController = TextEditingController(text: widget.data.middleName);
@@ -467,6 +476,7 @@ class _StepPersonalState extends State<StepPersonal> {
     barangayController = TextEditingController(text: selectedBarangay ?? '');
   }
 
+  // _bind: handles bind for the step personal flow.
   void _bind(TextEditingController controller, void Function(String) setter) {
     controller.addListener(() {
       setter(controller.text);
@@ -475,6 +485,7 @@ class _StepPersonalState extends State<StepPersonal> {
   }
 
   @override
+  // initState: handles init state for the step personal flow.
   void initState() {
     super.initState();
     _initControllers();
@@ -504,6 +515,7 @@ class _StepPersonalState extends State<StepPersonal> {
   }
 
   @override
+  // dispose: handles dispose for the step personal flow.
   void dispose() {
     firstNameController.dispose();
     middleNameController.dispose();
@@ -528,12 +540,14 @@ class _StepPersonalState extends State<StepPersonal> {
     super.dispose();
   }
 
+  // _dec: handles dec for the step personal flow.
   InputDecoration _dec(String hint) => InputDecoration(
     hintText: hint,
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
   );
 
+  // _field: handles field for the step personal flow.
   Widget _field({required String label, required Widget child}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -550,6 +564,7 @@ class _StepPersonalState extends State<StepPersonal> {
     );
   }
 
+  // _row: handles row for the step personal flow.
   Widget _row(List<Widget> items) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -593,6 +608,7 @@ class _StepPersonalState extends State<StepPersonal> {
   }
 
   @override
+  // build: builds build for the step personal flow.
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),

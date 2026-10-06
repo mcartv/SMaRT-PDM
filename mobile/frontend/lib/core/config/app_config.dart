@@ -1,3 +1,4 @@
+// SMaRT-PDM: app config — app config (mobile frontend); supports mobile UI behavior.
 import 'package:flutter/foundation.dart';
 
 class AppConfig {

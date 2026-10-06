@@ -1,3 +1,4 @@
+// SMaRT-PDM: Portal Quick Tools — Portal Quick Tools (admin frontend component); renders reusable UI and handles local interactions.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarDays,
@@ -20,6 +21,7 @@ const MAX_NOTE_LENGTH = 2000;
 const MAX_EVENTS = 30;
 const MANILA_TIME_ZONE = 'Asia/Manila';
 
+// getManilaDateTime: reads and returns get manila date time for the Portal Quick Tools flow.
 function getManilaDateTime(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: MANILA_TIME_ZONE,
@@ -31,6 +33,7 @@ function getManilaDateTime(date = new Date()) {
     second: '2-digit',
     hourCycle: 'h23',
   }).formatToParts(date);
+  // getPart: reads and returns get part for the Portal Quick Tools flow.
   const getPart = (type) => parts.find((part) => part.type === type)?.value || '';
 
   return {
@@ -40,10 +43,12 @@ function getManilaDateTime(date = new Date()) {
   };
 }
 
+// toLocalDateInput: handles to local date input for the Portal Quick Tools flow.
 function toLocalDateInput(date = new Date()) {
   return getManilaDateTime(date).date;
 }
 
+// formatDateParts: formats format date parts for the Portal Quick Tools flow.
 function formatDateParts(now) {
   const timeParts = new Intl.DateTimeFormat('en-PH', { timeZone: MANILA_TIME_ZONE,
     hour: 'numeric',
@@ -71,6 +76,7 @@ function formatDateParts(now) {
   };
 }
 
+// formatEventDate: formats format event date for the Portal Quick Tools flow.
 function formatEventDate(value) {
   if (!value) return 'No date';
   const date = new Date(`${value}T00:00:00`);
@@ -83,6 +89,7 @@ function formatEventDate(value) {
   }).format(date);
 }
 
+// formatEventTime: formats format event time for the Portal Quick Tools flow.
 function formatEventTime(value) {
   if (!value) return 'All day';
   const [hour, minute] = String(value).split(':').map(Number);
@@ -93,6 +100,7 @@ function formatEventTime(value) {
   return `${hour12}:${String(minute).padStart(2, '0')} ${period}`;
 }
 
+// buildCalendarDays: builds build calendar days for the Portal Quick Tools flow.
 function buildCalendarDays(monthDate) {
   const year = monthDate.getFullYear();
   const month = monthDate.getMonth();
@@ -108,6 +116,7 @@ function buildCalendarDays(monthDate) {
   });
 }
 
+// requestPersonalTools: handles request personal tools for the Portal Quick Tools flow.
 async function requestPersonalTools(path, tokenStorageKey, options = {}) {
   const token = sessionStorage.getItem(tokenStorageKey);
   if (!token) {
@@ -172,6 +181,7 @@ export default function PortalQuickTools({
   useEffect(() => {
     let active = true;
 
+    // loadWorkspace: loads and returns load workspace for the Portal Quick Tools flow.
     async function loadWorkspace() {
       setWorkspaceLoading(true);
       setWorkspaceError('');
@@ -222,6 +232,7 @@ export default function PortalQuickTools({
   }, []);
 
   useEffect(() => {
+    // handleClickOutside: handles handle click outside for the Portal Quick Tools flow.
     function handleClickOutside(event) {
       if (notesRef.current && !notesRef.current.contains(event.target)) {
         setNotesOpen(false);
@@ -240,6 +251,7 @@ export default function PortalQuickTools({
   }, [calendarOpen, notesOpen]);
 
   useEffect(() => {
+    // openPlanner: handles open planner for the Portal Quick Tools flow.
     function openPlanner(event) {
       setPlannerTargetEventId(String(event.detail?.eventId || ''));
       setCalendarOpen(true);
@@ -300,6 +312,7 @@ export default function PortalQuickTools({
     day: 'numeric',
   }).format(new Date(`${selectedDate}T00:00:00`));
 
+  // persistNote: handles persist note for the Portal Quick Tools flow.
   const persistNote = async (nextValue) => {
     setNoteSaveState('saving');
     setWorkspaceError('');
@@ -320,6 +333,7 @@ export default function PortalQuickTools({
     }
   };
 
+  // handleNoteChange: handles handle note change for the Portal Quick Tools flow.
   const handleNoteChange = (event) => {
     const nextValue = event.target.value.slice(0, MAX_NOTE_LENGTH);
     currentNoteRef.current = nextValue;
@@ -335,6 +349,7 @@ export default function PortalQuickTools({
     }, 700);
   };
 
+  // handleClear: handles handle clear for the Portal Quick Tools flow.
   const handleClear = () => {
     currentNoteRef.current = '';
     setNoteValue('');
@@ -345,6 +360,7 @@ export default function PortalQuickTools({
     persistNote('');
   };
 
+  // handleAddEvent: handles handle add event for the Portal Quick Tools flow.
   const handleAddEvent = async (event) => {
     event.preventDefault();
     const title = eventTitle.trim();
@@ -378,6 +394,7 @@ export default function PortalQuickTools({
     }
   };
 
+  // handleDeleteEvent: handles handle delete event for the Portal Quick Tools flow.
   const handleDeleteEvent = async (eventId) => {
     setEventSaving(true);
     setWorkspaceError('');

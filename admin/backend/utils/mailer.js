@@ -1,5 +1,7 @@
+// SMaRT-PDM: mailer — mailer (admin backend); supports backend application behavior.
 const nodemailer = require('nodemailer');
 
+// getMailConfig: reads and returns get mail config for the mailer flow.
 function getMailConfig() {
     const host = process.env.SMTP_HOST || 'smtp.gmail.com';
     const port = Number(process.env.SMTP_PORT || 465);
@@ -31,6 +33,7 @@ function getMailConfig() {
     return { host, port, secure, user, pass, from };
 }
 
+// createTransporter: creates create transporter for the mailer flow.
 function createTransporter() {
     const config = getMailConfig();
 
@@ -48,6 +51,7 @@ function createTransporter() {
     });
 }
 
+// sendAdminResetOtp: sends send admin reset otp for the mailer flow.
 async function sendAdminResetOtp({ to, otp, expiresSeconds }) {
     try {
         return await deliverAdminResetOtp({ to, otp, expiresSeconds });
@@ -60,6 +64,7 @@ async function sendAdminResetOtp({ to, otp, expiresSeconds }) {
     }
 }
 
+// deliverAdminResetOtp: handles deliver admin reset otp for the mailer flow.
 async function deliverAdminResetOtp({ to, otp, expiresSeconds }) {
     const brevoApiKey = process.env.BREVO_API_KEY?.trim();
     const resendApiKey = process.env.RESEND_API_KEY?.trim();

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Applications — applicant application status panel (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
@@ -15,6 +16,7 @@ class ApplicantApplicationStatusPanel extends StatelessWidget {
   final ValueChanged<ApplicantHomeActionPresentation> onAction;
 
   @override
+  // build: builds build for the Applications flow.
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette = _paletteFor(context, application.tone);

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Notifications — notification provider (mobile state provider); owns state and coordinates updates for the UI.
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
@@ -127,6 +128,7 @@ class NotificationProvider extends ChangeNotifier {
   int get settingsRevision => _settingsRevision;
   int get profileRevision => _profileRevision;
 
+  // initialize: handles initialize for the Notifications flow.
   Future<void> initialize() async {
     // Register the listener synchronously before the first await. Previously,
     // push-token/profile/notification bootstrap work could delay or abort
@@ -171,6 +173,7 @@ class NotificationProvider extends ChangeNotifier {
     );
   }
 
+  // _readableError: handles readable error for the Notifications flow.
   String _readableError(Object error) {
     final text = error
         .toString()
@@ -196,6 +199,7 @@ class NotificationProvider extends ChangeNotifier {
     return 'We could not update notifications. Pull down to try again.';
   }
 
+  // refresh: refreshes refresh for the Notifications flow.
   Future<void> refresh({bool silent = false}) async {
     if (!silent) {
       _isLoading = true;
@@ -244,11 +248,13 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
+  // refreshUnreadCount: refreshes refresh unread count for the Notifications flow.
   Future<void> refreshUnreadCount() async {
     await _refreshUnreadCountFromServerOrLocal();
     notifyListeners();
   }
 
+  // markAsRead: marks mark as read for the Notifications flow.
   Future<void> markAsRead(String notificationId) async {
     try {
       final updated = await _notificationService.markAsRead(notificationId);
@@ -269,6 +275,7 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
+  // markAllAsRead: marks mark all as read for the Notifications flow.
   Future<void> markAllAsRead() async {
     if (_isLoading) return;
 
@@ -295,6 +302,7 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
+  // markPayoutNotificationsAsRead: marks mark payout notifications as read for the Notifications flow.
   Future<void> markPayoutNotificationsAsRead() async {
     try {
       final payoutNotifications = _notifications
@@ -323,6 +331,7 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
+  // deleteNotification: deletes delete notification for the Notifications flow.
   Future<void> deleteNotification(String notificationId) async {
     try {
       await _notificationService.deleteNotification(notificationId);
@@ -341,6 +350,7 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
+  // _ensureRealtimeSafetyTimer: handles ensure realtime safety timer for the Notifications flow.
   void _ensureRealtimeSafetyTimer() {
     _realtimeSafetyTimer ??= Timer.periodic(const Duration(seconds: 20), (
       _,
@@ -357,6 +367,7 @@ class NotificationProvider extends ChangeNotifier {
     });
   }
 
+  // _ensureRealtimeListener: handles ensure realtime listener for the Notifications flow.
   void _ensureRealtimeListener() {
     _stopRealtimeListener ??= MobileRealtimeService.instance.listenTo(
       MobileRealtimeEvents.notificationProviderEvents,
@@ -364,6 +375,7 @@ class NotificationProvider extends ChangeNotifier {
     );
   }
 
+  // _handleRealtimeEvent: handles handle realtime event for the Notifications flow.
   Future<void> _handleRealtimeEvent(MobileRealtimeEvent event) async {
     debugPrint('[NotificationProvider] realtime event: ${event.name}');
 
@@ -597,6 +609,7 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
+  // _reconcileAllAfterSocketRecovery: handles reconcile all after socket recovery for the Notifications flow.
   Future<void> _reconcileAllAfterSocketRecovery() async {
     try {
       await refresh(silent: true);
@@ -618,6 +631,7 @@ class NotificationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // _refreshOfficeUpdatesFromRealtime: handles refresh office updates from realtime for the Notifications flow.
   Future<void> _refreshOfficeUpdatesFromRealtime() {
     if (!_notificationsEnabled) return Future<void>.value();
     if (_isRealtimeRefreshing) {
@@ -665,6 +679,7 @@ class NotificationProvider extends ChangeNotifier {
     return completer.future;
   }
 
+  // _refreshUnreadCountFromServerOrLocal: handles refresh unread count from server or local for the Notifications flow.
   Future<void> _refreshUnreadCountFromServerOrLocal() async {
     try {
       _unreadCount = await _notificationService.fetchUnreadCount();
@@ -673,6 +688,7 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
+  // _queueUnreadCountRealtimeReconcile: handles queue unread count realtime reconcile for the Notifications flow.
   void _queueUnreadCountRealtimeReconcile() {
     _unreadCountRealtimeDebounce?.cancel();
 
@@ -689,6 +705,7 @@ class NotificationProvider extends ChangeNotifier {
     );
   }
 
+  // _refreshPublishedAnnouncements: handles refresh published announcements for the Notifications flow.
   Future<void> _refreshPublishedAnnouncements() async {
     if (!_notificationsEnabled) return;
     try {
@@ -704,6 +721,7 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
+  // _refreshLatestOpeningUpdate: handles refresh latest opening update for the Notifications flow.
   Future<void> _refreshLatestOpeningUpdate() async {
     if (!_notificationsEnabled) return;
     try {
@@ -714,6 +732,7 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
+  // _upsertNotificationFromEvent: handles upsert notification from event for the Notifications flow.
   Future<void> _upsertNotificationFromEvent(MobileRealtimeEvent event) async {
     if (!_notificationsEnabled) return;
     final payload = event.payload;
@@ -752,6 +771,7 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
+  // _bumpModuleRevisionsFromNotification: handles bump module revisions from notification for the Notifications flow.
   void _bumpModuleRevisionsFromNotification(AppNotification notification) {
     final type = notification.normalizedType;
     final title = notification.normalizedTitle;
@@ -801,6 +821,7 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
+  // _updateNotificationFromEvent: handles update notification from event for the Notifications flow.
   Future<void> _updateNotificationFromEvent(MobileRealtimeEvent event) async {
     final payload = event.payload;
     if (payload.isEmpty) return;
@@ -843,6 +864,7 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
+  // _removeNotificationFromEvent: handles remove notification from event for the Notifications flow.
   Future<void> _removeNotificationFromEvent(MobileRealtimeEvent event) async {
     final notificationId =
         event.payload['notificationId']?.toString() ??
@@ -863,6 +885,7 @@ class NotificationProvider extends ChangeNotifier {
     _queueUnreadCountRealtimeReconcile();
   }
 
+  // _markLocalNotificationsRead: handles mark local notifications read for the Notifications flow.
   void _markLocalNotificationsRead() {
     _notifications = _notifications
         .map((item) => item.copyWith(isRead: true))
@@ -873,6 +896,7 @@ class NotificationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // _removeOfficeUpdateByReference: handles remove office update by reference for the Notifications flow.
   void _removeOfficeUpdateByReference({
     required String referenceId,
     required String referenceType,
@@ -882,6 +906,7 @@ class NotificationProvider extends ChangeNotifier {
 
     if (targetReferenceId.isEmpty) return;
 
+    // shouldKeep: handles should keep for the Notifications flow.
     bool shouldKeep(AppNotification notification) {
       final itemReferenceId = (notification.referenceId ?? '').trim();
       final itemReferenceType = (notification.referenceType ?? '')
@@ -915,6 +940,7 @@ class NotificationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // _queueScholarAccessRefresh: handles queue scholar access refresh for the Notifications flow.
   Future<void> _queueScholarAccessRefresh() {
     if (_isScholarAccessRefreshing) {
       _hasQueuedScholarAccessRefresh = true;
@@ -953,6 +979,7 @@ class NotificationProvider extends ChangeNotifier {
     return completer.future;
   }
 
+  // _refreshScholarAccessFromProfile: handles refresh scholar access from profile for the Notifications flow.
   Future<bool?> _refreshScholarAccessFromProfile() async {
     try {
       final profile = await _profileService.fetchMyProfile();
@@ -966,6 +993,7 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
+  // reconcileScholarActivation: handles reconcile scholar activation for the Notifications flow.
   Future<bool> reconcileScholarActivation() async {
     final access = await _refreshScholarAccessFromProfile();
     if (access == true) {
@@ -975,11 +1003,13 @@ class NotificationProvider extends ChangeNotifier {
     return false;
   }
 
+  // deferScholarActivationUntilNextRefresh: handles defer scholar activation until next refresh for the Notifications flow.
   Future<void> deferScholarActivationUntilNextRefresh() async {
     await _applyScholarAccess(false);
     notifyListeners();
   }
 
+  // _applyScholarAccess: handles apply scholar access for the Notifications flow.
   Future<void> _applyScholarAccess(bool nextValue) async {
     if (_hasScholarAccess == nextValue) {
       await _sessionService.saveScholarAccess(hasScholarAccess: nextValue);
@@ -997,6 +1027,7 @@ class NotificationProvider extends ChangeNotifier {
     await _sessionService.saveScholarAccess(hasScholarAccess: nextValue);
   }
 
+  // _isTargetedScholarAccessGrant: handles is targeted scholar access grant for the Notifications flow.
   bool _isTargetedScholarAccessGrant(MobileRealtimeEvent event) {
     if (event.name != MobileRealtimeEvents.applicationApproved) return false;
 
@@ -1015,6 +1046,7 @@ class NotificationProvider extends ChangeNotifier {
         targetUserId == _initializedUserId;
   }
 
+  // _isScholarApprovalNotification: handles is scholar approval notification for the Notifications flow.
   bool _isScholarApprovalNotification(AppNotification notification) {
     final normalizedType = notification.type.toLowerCase();
     final normalizedTitle = notification.title.toLowerCase();
@@ -1038,10 +1070,12 @@ class NotificationProvider extends ChangeNotifier {
     return isLegacyScholarApproval || isApplicationActivation;
   }
 
+  // _recalculateUnreadCount: handles recalculate unread count for the Notifications flow.
   void _recalculateUnreadCount() {
     _unreadCount = _notifications.where((item) => !item.isRead).length;
   }
 
+  // _composeNotifications: handles compose notifications for the Notifications flow.
   List<AppNotification> _composeNotifications() {
     final liveAnnouncementReferenceIds = _notifications
         .where((item) => item.isAnnouncementNotification)
@@ -1079,6 +1113,7 @@ class NotificationProvider extends ChangeNotifier {
     return combined;
   }
 
+  // _composeOfficeUpdates: handles compose office updates for the Notifications flow.
   List<AppNotification> _composeOfficeUpdates() {
     final officeUpdates = _composeNotifications()
         .where((item) => item.isOfficeUpdate)
@@ -1110,6 +1145,7 @@ class NotificationProvider extends ChangeNotifier {
     return updates;
   }
 
+  // _resetRuntimeState: handles reset runtime state for the Notifications flow.
   void _resetRuntimeState({bool notify = true}) {
     _stopRealtimeListener?.call();
     _stopRealtimeListener = null;
@@ -1166,6 +1202,7 @@ class NotificationProvider extends ChangeNotifier {
   }
 
   @override
+  // dispose: handles dispose for the Notifications flow.
   void dispose() {
     _realtimeSafetyTimer?.cancel();
     _realtimeSafetyTimer = null;

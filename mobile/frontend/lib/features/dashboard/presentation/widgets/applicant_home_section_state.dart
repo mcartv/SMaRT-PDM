@@ -1,3 +1,4 @@
+// SMaRT-PDM: Dashboard — applicant home section state (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
@@ -38,6 +39,7 @@ class ApplicantHomeSectionStateView extends StatelessWidget {
   final VoidCallback? onRetry;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     if (!hasLoaded && !hasContent && !hasError) {
       return ApplicantHomeLoadingState(label: loadingLabel);
@@ -77,6 +79,7 @@ class ApplicantHomeLoadingState extends StatelessWidget {
   final String label;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
 
@@ -128,6 +131,7 @@ class ApplicantHomeEmptyState extends StatelessWidget {
   final String message;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final statusColors = AppStatusColors.of(context);
@@ -194,6 +198,7 @@ class ApplicantHomeFailureState extends StatelessWidget {
   final VoidCallback? onRetry;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final statusColors = AppStatusColors.of(context);
@@ -279,6 +284,7 @@ class ApplicantHomeInlineNotice extends StatelessWidget {
   final VoidCallback? onRetry;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final statusColors = AppStatusColors.of(context);
@@ -339,6 +345,7 @@ class _SkeletonBar extends StatelessWidget {
   final Color color;
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     return FractionallySizedBox(
       widthFactor: widthFactor,

@@ -1,18 +1,22 @@
+// SMaRT-PDM: Courses — pd Course Assignment Service (admin backend service); contains business logic and data operations.
 const db = require('../config/db');
 
 const TABLE = 'program_director_course_assignments';
 
+// createHttpError: creates create http error for the Courses flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// normalizeCourseIds: normalizes normalize course ids for the Courses flow.
 function normalizeCourseIds(values) {
     if (!Array.isArray(values)) return [];
     return [...new Set(values.map((value) => String(value || '').trim()).filter(Boolean))];
 }
 
+// getAssignmentsForUser: reads and returns get assignments for user for the Courses flow.
 async function getAssignmentsForUser(userId, client = db) {
     if (!userId) return [];
     const result = await client.query(
@@ -33,6 +37,7 @@ async function getAssignmentsForUser(userId, client = db) {
     return result.rows;
 }
 
+// getAssignmentsForUsers: reads and returns get assignments for users for the Courses flow.
 async function getAssignmentsForUsers(userIds, client = db) {
     const ids = [...new Set((userIds || []).filter(Boolean))];
     if (!ids.length) return new Map();
@@ -64,6 +69,7 @@ async function getAssignmentsForUsers(userIds, client = db) {
     return byUser;
 }
 
+// syncAssignments: synchronizes sync assignments for the Courses flow.
 async function syncAssignments({ userId, courseIds, assignedByUserId = null, client = db }) {
     const normalizedIds = normalizeCourseIds(courseIds);
     if (!normalizedIds.length) {
@@ -143,6 +149,7 @@ async function syncAssignments({ userId, courseIds, assignedByUserId = null, cli
     return getAssignmentsForUser(userId, client);
 }
 
+// restoreLatestReleasedAssignments: restores restore latest released assignments for the Courses flow.
 async function restoreLatestReleasedAssignments(userId, client = db) {
     if (!userId) return [];
 
@@ -183,6 +190,7 @@ async function restoreLatestReleasedAssignments(userId, client = db) {
     return getAssignmentsForUser(userId, client);
 }
 
+// releaseAssignments: handles release assignments for the Courses flow.
 async function releaseAssignments(userId, client = db) {
     if (!userId) return;
     await client.query(
@@ -191,6 +199,7 @@ async function releaseAssignments(userId, client = db) {
     );
 }
 
+// assertCourseAccess: handles assert course access for the Courses flow.
 async function assertCourseAccess({ userId, courseId, role, client = db }) {
     if (String(role || '').toLowerCase() === 'admin') return true;
     if (String(role || '').toLowerCase() !== 'pd' || !userId || !courseId) {

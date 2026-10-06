@@ -1,3 +1,4 @@
+// SMaRT-PDM: Maintenance — general Setting Service (admin backend service); contains business logic and data operations.
 const supabase = require('../config/supabase');
 const notificationPolicy = require('../config/notificationPolicy');
 
@@ -172,24 +173,28 @@ const DEFAULT_GENERAL_SETTINGS = {
   is_fallback: true,
 };
 
+// createHttpError: creates create http error for the Maintenance flow.
 function createHttpError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
 }
 
+// safeText: handles safe text for the Maintenance flow.
 function safeText(value, maxLength = 255) {
   const normalized = String(value ?? '').trim();
   if (!normalized) return '';
   return normalized.slice(0, maxLength);
 }
 
+// normalizeDate: normalizes normalize date for the Maintenance flow.
 function normalizeDate(value) {
   const normalized = String(value ?? '').trim();
   if (!normalized) return null;
   return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
 }
 
+// normalizeDateTime: normalizes normalize date time for the Maintenance flow.
 function normalizeDateTime(value) {
   const normalized = String(value ?? '').trim();
   if (!normalized) return null;
@@ -197,6 +202,7 @@ function normalizeDateTime(value) {
   return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
 }
 
+// sanitizeFeaturedNotice: handles sanitize featured notice for the Maintenance flow.
 function sanitizeFeaturedNotice(notice = {}, fallbackId = '') {
   return {
     notice_id: safeText(notice.notice_id, 80) || safeText(fallbackId, 80),
@@ -212,6 +218,7 @@ function sanitizeFeaturedNotice(notice = {}, fallbackId = '') {
   };
 }
 
+// sanitizeFeaturedNotices: handles sanitize featured notices for the Maintenance flow.
 function sanitizeFeaturedNotices(value) {
   const source = Array.isArray(value)
     ? value
@@ -225,6 +232,7 @@ function sanitizeFeaturedNotices(value) {
     .filter((notice) => notice.title || notice.message);
 }
 
+// getManilaDateValue: reads and returns get manila date value for the Maintenance flow.
 function getManilaDateValue() {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Manila',
@@ -236,6 +244,7 @@ function getManilaDateValue() {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
+// validateFeaturedNoticeDateRanges: validates validate featured notice date ranges for the Maintenance flow.
 function validateFeaturedNoticeDateRanges(value) {
   const source = Array.isArray(value)
     ? value
@@ -281,6 +290,7 @@ function validateFeaturedNoticeDateRanges(value) {
   });
 }
 
+// sanitizeLandingItems: handles sanitize landing items for the Maintenance flow.
 function sanitizeLandingItems(items, defaults) {
   if (!Array.isArray(items)) return defaults.map((item) => ({ ...item }));
   const normalized = items
@@ -293,6 +303,7 @@ function sanitizeLandingItems(items, defaults) {
   return normalized.length ? normalized : defaults.map((item) => ({ ...item }));
 }
 
+// sanitizeLandingTextItems: handles sanitize landing text items for the Maintenance flow.
 function sanitizeLandingTextItems(items, defaults, maxLength = 500) {
   if (!Array.isArray(items)) return [...defaults];
   const normalized = items
@@ -302,6 +313,7 @@ function sanitizeLandingTextItems(items, defaults, maxLength = 500) {
   return normalized.length ? normalized : [...defaults];
 }
 
+// sanitizeLandingContent: handles sanitize landing content for the Maintenance flow.
 function sanitizeLandingContent(content = {}) {
   const defaults = DEFAULT_LANDING_CONTENT;
   const heroTitle = safeText(content.hero_title, 180);
@@ -341,6 +353,7 @@ function sanitizeLandingContent(content = {}) {
 
 const POLICY_ICONS = new Set(['shield-check', 'file-text', 'database', 'lock-keyhole', 'scale', 'landmark']);
 
+// sanitizePolicySections: handles sanitize policy sections for the Maintenance flow.
 function sanitizePolicySections(items, defaults) {
   if (!Array.isArray(items)) return defaults.map((item) => ({ ...item }));
   const normalized = items
@@ -353,6 +366,7 @@ function sanitizePolicySections(items, defaults) {
   return normalized.length ? normalized : defaults.map((item) => ({ ...item }));
 }
 
+// ensureRequiredPrivacySections: ensures ensure required privacy sections for the Maintenance flow.
 function ensureRequiredPrivacySections(sections) {
   const upgradedSections = sections.map((section) => {
     const title = section.title.toLowerCase();
@@ -378,11 +392,13 @@ function ensureRequiredPrivacySections(sections) {
     .map((section) => ({ ...section }));
 }
 
+// sanitizePolicyIcon: handles sanitize policy icon for the Maintenance flow.
 function sanitizePolicyIcon(value, fallback) {
   const icon = safeText(value, 40).toLowerCase();
   return POLICY_ICONS.has(icon) ? icon : fallback;
 }
 
+// sanitizePolicyContent: handles sanitize policy content for the Maintenance flow.
 function sanitizePolicyContent(content = {}) {
   const defaults = DEFAULT_POLICY_CONTENT;
   const effectiveDate = normalizeDate(content.effective_date);
@@ -410,6 +426,7 @@ function sanitizePolicyContent(content = {}) {
   };
 }
 
+// isFeaturedNoticePublished: checks whether is featured notice published for the Maintenance flow.
 function isFeaturedNoticePublished(notice = {}) {
   if (!notice.is_visible || !notice.title || !notice.message) return false;
   const today = getManilaDateKey();
@@ -418,6 +435,7 @@ function isFeaturedNoticePublished(notice = {}) {
   return true;
 }
 
+// getManilaDateKey: reads and returns get manila date key for the Maintenance flow.
 function getManilaDateKey(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Manila',
@@ -429,6 +447,7 @@ function getManilaDateKey(date = new Date()) {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
+// getFeaturedNoticeNextChangeAt: reads and returns get featured notice next change at for the Maintenance flow.
 function getFeaturedNoticeNextChangeAt(notice = {}) {
   if (!notice.is_visible || !notice.title || !notice.message) return null;
   const today = getManilaDateKey();
@@ -445,6 +464,7 @@ function getFeaturedNoticeNextChangeAt(notice = {}) {
   return null;
 }
 
+// sortFeaturedNoticesNewestFirst: handles sort featured notices newest first for the Maintenance flow.
 function sortFeaturedNoticesNewestFirst(notices = []) {
   return notices
     .map((notice, index) => ({ notice, index }))
@@ -462,6 +482,7 @@ function sortFeaturedNoticesNewestFirst(notices = []) {
     .map(({ notice }) => notice);
 }
 
+// getFeaturedNoticesNextChangeAt: reads and returns get featured notices next change at for the Maintenance flow.
 function getFeaturedNoticesNextChangeAt(notices = []) {
   const boundaries = notices
     .map((notice) => getFeaturedNoticeNextChangeAt(notice))
@@ -473,6 +494,7 @@ function getFeaturedNoticesNextChangeAt(notices = []) {
   return new Date(Math.min(...boundaries)).toISOString();
 }
 
+// isMissingTableError: checks whether is missing table error for the Maintenance flow.
 function isMissingTableError(error, tableName) {
   const code = String(error?.code || '').toUpperCase();
   const message = String(error?.message || '').toLowerCase();
@@ -487,6 +509,7 @@ function isMissingTableError(error, tableName) {
   );
 }
 
+// sanitizeSettings: handles sanitize settings for the Maintenance flow.
 function sanitizeSettings(payload = {}) {
   return {
     institution_name:
@@ -522,6 +545,7 @@ function sanitizeSettings(payload = {}) {
   };
 }
 
+// sanitizeFaqItem: handles sanitize faq item for the Maintenance flow.
 function sanitizeFaqItem(item = {}, fallback = {}) {
   const faqId = safeText(item.faq_id, 80) || safeText(fallback.faq_id, 80);
   const question = safeText(item.question, 180);
@@ -537,6 +561,7 @@ function sanitizeFaqItem(item = {}, fallback = {}) {
   };
 }
 
+// sanitizeFaqs: handles sanitize faqs for the Maintenance flow.
 function sanitizeFaqs(faqs) {
   const source = Array.isArray(faqs) ? faqs : DEFAULT_GENERAL_SETTINGS.landing_faqs;
   const normalized = source
@@ -555,6 +580,7 @@ function sanitizeFaqs(faqs) {
   return normalized.length ? normalized : DEFAULT_GENERAL_SETTINGS.landing_faqs;
 }
 
+// buildFallbackSettings: builds build fallback settings for the Maintenance flow.
 function buildFallbackSettings() {
   return {
     ...DEFAULT_GENERAL_SETTINGS,
@@ -565,10 +591,12 @@ function buildFallbackSettings() {
   };
 }
 
+// canManage: checks whether can manage for the Maintenance flow.
 function canManage(actor = {}) {
   return String(actor.role || '').trim().toLowerCase() === 'admin';
 }
 
+// getGeneralSettings: reads and returns get general settings for the Maintenance flow.
 async function getGeneralSettings() {
   const { data, error } = await supabase
     .from(TABLE_NAME)
@@ -595,6 +623,7 @@ async function getGeneralSettings() {
   };
 }
 
+// getPublicGeneralSettings: reads and returns get public general settings for the Maintenance flow.
 async function getPublicGeneralSettings() {
   const settings = await getGeneralSettings();
   const featuredNotices = sanitizeFeaturedNotices(settings.featured_notice);
@@ -615,6 +644,7 @@ async function getPublicGeneralSettings() {
   };
 }
 
+// updateGeneralSettings: updates update general settings for the Maintenance flow.
 async function updateGeneralSettings(payload = {}, actor = {}) {
   if (!canManage(actor)) {
     throw createHttpError(403, 'Access denied for general settings.');

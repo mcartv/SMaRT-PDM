@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — recovery service (mobile service); calls APIs or shared services and returns processed results.
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 import 'package:smartpdm_mobileapp/features/auth/data/models/recovery_models.dart';
 
@@ -35,6 +36,7 @@ class RecoveryService {
     return RegExp(r'^09\d{9}$').hasMatch(normalized);
   }
 
+  // lookupRecoveryAccounts: handles lookup recovery accounts for the Authentication flow.
   Future<List<RecoveryAccount>> lookupRecoveryAccounts(
     String identifier,
   ) async {
@@ -54,6 +56,7 @@ class RecoveryService {
         .toList();
   }
 
+  // startRecovery: handles start recovery for the Authentication flow.
   Future<RecoverySession> startRecovery({required String userId}) async {
     final response = await _apiClient.postJson(
       '/api/auth/recovery/start',
@@ -63,6 +66,7 @@ class RecoveryService {
     return RecoverySession.fromJson(response);
   }
 
+  // resendRecoveryCode: handles resend recovery code for the Authentication flow.
   Future<RecoverySession> resendRecoveryCode(String sessionId) async {
     final response = await _apiClient.postJson(
       '/api/auth/recovery/resend-code',
@@ -72,6 +76,7 @@ class RecoveryService {
     return RecoverySession.fromJson(response);
   }
 
+  // verifyRecoveryCode: verifies verify recovery code for the Authentication flow.
   Future<PasswordResetGrant> verifyRecoveryCode({
     required String sessionId,
     required String code,
@@ -84,6 +89,7 @@ class RecoveryService {
     return PasswordResetGrant.fromJson(response);
   }
 
+  // resetRecoveredPassword: resets reset recovered password for the Authentication flow.
   Future<void> resetRecoveredPassword({
     required String resetToken,
     required String newPassword,

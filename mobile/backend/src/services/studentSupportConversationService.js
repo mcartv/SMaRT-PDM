@@ -1,3 +1,4 @@
+// SMaRT-PDM: student Support Conversation Service — student Support Conversation Service (mobile backend service); contains mobile-facing business logic and data operations.
 'use strict';
 
 const db = require('../config/db');
@@ -12,22 +13,26 @@ const SUPPORT_ROLES = new Set([
   'ro_coordinator',
 ]);
 
+// safeText: handles safe text for the student Support Conversation Service flow.
 function safeText(value) {
   return value == null ? '' : String(value).trim();
 }
 
+// isUuid: checks whether is uuid for the student Support Conversation Service flow.
 function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     safeText(value)
   );
 }
 
+// createHttpError: creates create http error for the student Support Conversation Service flow.
 function createHttpError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
 }
 
+// supportTitle: handles support title for the student Support Conversation Service flow.
 function supportTitle(row, fixedOsfaUserId) {
   if (row.user_id === fixedOsfaUserId) return 'OSFA Administrator';
 
@@ -52,6 +57,7 @@ function supportTitle(row, fixedOsfaUserId) {
   }
 }
 
+// roleLabel: handles role label for the student Support Conversation Service flow.
 function roleLabel(role) {
   switch (safeText(role).toLowerCase()) {
     case 'sdo':
@@ -70,6 +76,7 @@ function roleLabel(role) {
   }
 }
 
+// ensureStudentUser: ensures ensure student user for the student Support Conversation Service flow.
 async function ensureStudentUser(userId) {
   const normalizedUserId = safeText(userId);
   if (!isUuid(normalizedUserId)) {
@@ -94,6 +101,7 @@ async function ensureStudentUser(userId) {
   return normalizedUserId;
 }
 
+// loadSupportProfile: loads and returns load support profile for the student Support Conversation Service flow.
 async function loadSupportProfile(counterpartyId) {
   const result = await db.query(
     `
@@ -118,6 +126,7 @@ async function loadSupportProfile(counterpartyId) {
   return result.rows[0] || null;
 }
 
+// isSupportProfile: checks whether is support profile for the student Support Conversation Service flow.
 function isSupportProfile(row) {
   if (!row || row.is_archived === true) return false;
   if (SUPPORT_ROLES.has(safeText(row.role).toLowerCase())) return true;
@@ -134,6 +143,7 @@ function isSupportProfile(row) {
   );
 }
 
+// hasPrivateThread: checks whether has private thread for the student Support Conversation Service flow.
 async function hasPrivateThread(studentUserId, counterpartyId) {
   const result = await db.query(
     `
@@ -152,6 +162,7 @@ async function hasPrivateThread(studentUserId, counterpartyId) {
   return result.rows.length > 0;
 }
 
+// resolveStudentSupportCounterparty: resolves resolve student support counterparty for the student Support Conversation Service flow.
 async function resolveStudentSupportCounterparty(
   currentUserId,
   requestedCounterpartyId = null
@@ -181,6 +192,7 @@ async function resolveStudentSupportCounterparty(
   return requested;
 }
 
+// listSupportRows: loads a list of list support rows for the student Support Conversation Service flow.
 async function listSupportRows(studentUserId, { archived = false } = {}) {
   const fixedOsfaUserId = safeText(await messageService.resolveFixedAdminUserId());
 
@@ -279,6 +291,7 @@ async function listSupportRows(studentUserId, { archived = false } = {}) {
   return { rows: result.rows, fixedOsfaUserId };
 }
 
+// toConversation: handles to conversation for the student Support Conversation Service flow.
 function toConversation(row, fixedOsfaUserId) {
   const personName =
     [safeText(row.first_name), safeText(row.last_name)].filter(Boolean).join(' ') ||
@@ -317,12 +330,14 @@ function toConversation(row, fixedOsfaUserId) {
   };
 }
 
+// listSupportConversations: loads a list of list support conversations for the student Support Conversation Service flow.
 async function listSupportConversations(currentUserId) {
   const studentUserId = await ensureStudentUser(currentUserId);
   const { rows, fixedOsfaUserId } = await listSupportRows(studentUserId);
   return rows.map((row) => toConversation(row, fixedOsfaUserId));
 }
 
+// listArchivedSupportConversations: loads a list of list archived support conversations for the student Support Conversation Service flow.
 async function listArchivedSupportConversations(currentUserId) {
   const studentUserId = await ensureStudentUser(currentUserId);
   const { rows, fixedOsfaUserId } = await listSupportRows(studentUserId, {
@@ -331,6 +346,7 @@ async function listArchivedSupportConversations(currentUserId) {
   return rows.map((row) => toConversation(row, fixedOsfaUserId));
 }
 
+// resolveSupportConversation: resolves resolve support conversation for the student Support Conversation Service flow.
 async function resolveSupportConversation(currentUserId, referenceId) {
   const studentUserId = await ensureStudentUser(currentUserId);
   const normalizedReferenceId = safeText(referenceId);
@@ -377,6 +393,7 @@ async function resolveSupportConversation(currentUserId, referenceId) {
   return toConversation(profile, fixedOsfaUserId);
 }
 
+// archiveSupportConversation: archives archive support conversation for the student Support Conversation Service flow.
 async function archiveSupportConversation(currentUserId, requestedCounterpartyId) {
   const studentUserId = await ensureStudentUser(currentUserId);
   const counterpartyId = await resolveStudentSupportCounterparty(
@@ -419,6 +436,7 @@ async function archiveSupportConversation(currentUserId, requestedCounterpartyId
   };
 }
 
+// restoreSupportConversation: restores restore support conversation for the student Support Conversation Service flow.
 async function restoreSupportConversation(currentUserId, requestedCounterpartyId) {
   const studentUserId = await ensureStudentUser(currentUserId);
   const counterpartyId = safeText(requestedCounterpartyId);

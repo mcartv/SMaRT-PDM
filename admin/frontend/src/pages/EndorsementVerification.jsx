@@ -1,3 +1,4 @@
+// SMaRT-PDM: Endorsement — Endorsement Verification (admin frontend page); loads data, handles page actions, and renders the admin view.
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 import { CheckCircle2, Loader2, ShieldAlert, XCircle } from 'lucide-react';
@@ -7,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useSocketEvent } from '@/hooks/useSocket';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
+// formatDate: formats format date for the Endorsement flow.
 function formatDate(value) {
   if (!value) return 'N/A';
   const date = new Date(value);

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Maintenance — system Maintenance Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const fs = require('fs');
 const socketEvents = require('../utils/socketEvents');
 const auditLogService = require('../services/auditLogService');
@@ -5,15 +6,18 @@ const systemMaintenanceService = require('../services/systemMaintenanceService')
 const systemActivityService = require('../services/systemActivityService');
 const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 
+// actorUserId: handles actor user id for the Maintenance flow.
 function actorUserId(req) {
   return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+// statusCode: handles status code for the Maintenance flow.
 function statusCode(error) {
   const parsed = Number.parseInt(error?.statusCode, 10);
   return Number.isInteger(parsed) && parsed >= 400 && parsed <= 599 ? parsed : 500;
 }
 
+// audit: handles audit for the Maintenance flow.
 async function audit(req, payload) {
   try {
     if (typeof auditLogService?.logAudit !== 'function') return;
@@ -27,6 +31,7 @@ async function audit(req, payload) {
   }
 }
 
+// getPublicState: reads and returns get public state for the Maintenance flow.
 async function getPublicState(_req, res) {
   try {
     const result = await systemMaintenanceService.getMaintenanceState();
@@ -39,6 +44,7 @@ async function getPublicState(_req, res) {
   }
 }
 
+// getState: reads and returns get state for the Maintenance flow.
 async function getState(_req, res) {
   try {
     const result = await systemMaintenanceService.getMaintenanceState();
@@ -51,6 +57,7 @@ async function getState(_req, res) {
   }
 }
 
+// updateState: updates update state for the Maintenance flow.
 async function updateState(req, res) {
   try {
     if (typeof req.body?.maintenance_mode !== 'boolean') {
@@ -113,6 +120,7 @@ async function updateState(req, res) {
   }
 }
 
+// getStatus: reads and returns get status for the Maintenance flow.
 async function getStatus(_req, res) {
   try {
     const result = await systemMaintenanceService.getSystemStatus();
@@ -125,6 +133,7 @@ async function getStatus(_req, res) {
   }
 }
 
+// recordPublicVisit: handles record public visit for the Maintenance flow.
 async function recordPublicVisit(req, res) {
   try {
     await systemActivityService.recordPublicVisit({
@@ -143,6 +152,7 @@ async function recordPublicVisit(req, res) {
   }
 }
 
+// getPublicVisitorCounts: reads and returns get public visitor counts for the Maintenance flow.
 async function getPublicVisitorCounts(_req, res) {
   try {
     const result = await systemActivityService.getPublicVisitorCounts();
@@ -156,10 +166,12 @@ async function getPublicVisitorCounts(_req, res) {
   }
 }
 
+// heartbeatActivity: handles heartbeat activity for the Maintenance flow.
 async function heartbeatActivity(_req, res) {
   return res.sendStatus(204);
 }
 
+// downloadBackup: downloads download backup for the Maintenance flow.
 async function downloadBackup(req, res) {
   let backup = null;
 

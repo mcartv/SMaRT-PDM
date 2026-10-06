@@ -1,3 +1,4 @@
+// SMaRT-PDM: Return of Obligations — account Routes (admin backend route); maps API endpoints to middleware and controllers.
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');

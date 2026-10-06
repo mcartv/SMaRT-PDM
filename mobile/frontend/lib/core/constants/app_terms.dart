@@ -1,3 +1,4 @@
+// SMaRT-PDM: app terms — app terms (mobile frontend); supports mobile UI behavior.
 abstract final class AppTerms {
   static const availableScholarships = 'Available Scholarships';
   static const scholarship = 'Scholarship';

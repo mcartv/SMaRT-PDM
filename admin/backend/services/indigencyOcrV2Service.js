@@ -1,8 +1,10 @@
+// SMaRT-PDM: OCR — indigency Ocr V2 Service (admin backend service); contains business logic and data operations.
 const crypto = require('crypto');
 const pool = require('../config/db');
 const supabase = require('../config/supabase');
 const iotOcrRequestService = require('./iotOcrRequestService');
 
+// getEnhancedOcrProvider: reads and returns get enhanced ocr provider for the OCR flow.
 function getEnhancedOcrProvider() {
     try {
         return require('./indigencyEnhancedOcrProvider');
@@ -38,12 +40,14 @@ const INDIGENCY_SCHEMA = {
     required: ['raw_text', 'fields'],
 };
 
+// httpError: handles http error for the OCR flow.
 function httpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// validateManifest: validates validate manifest for the OCR flow.
 function validateManifest(artifacts) {
     if (!Array.isArray(artifacts) || artifacts.length !== 1) {
         throw httpError(400, 'Indigency Enhanced OCR requires one original capture');
@@ -59,6 +63,7 @@ function validateManifest(artifacts) {
     return artifact;
 }
 
+// lockRequest: handles lock request for the OCR flow.
 async function lockRequest(client, requestId, deviceId) {
     const result = await client.query(
         'SELECT * FROM public.iot_ocr_requests WHERE request_id = $1::uuid FOR UPDATE',
@@ -110,6 +115,7 @@ exports.authorizeUploads = async ({ requestId, deviceId, artifacts }) => {
     }
 };
 
+// getCachedOriginal: reads and returns get cached original for the OCR flow.
 function getCachedOriginal(requestId) {
     const key = String(requestId || '');
     const cached = verifiedCaptureCache.get(key);
@@ -121,14 +127,17 @@ function getCachedOriginal(requestId) {
     return cached.original;
 }
 
+// rememberVerifiedOriginal: handles remember verified original for the OCR flow.
 function rememberVerifiedOriginal(requestId, original) {
     verifiedCaptureCache.set(String(requestId || ''), { verifiedAt: Date.now(), original });
 }
 
+// clearVerifiedOriginal: clears clear verified original for the OCR flow.
 function clearVerifiedOriginal(requestId) {
     verifiedCaptureCache.delete(String(requestId || ''));
 }
 
+// markOriginalAvailable: marks mark original available for the OCR flow.
 async function markOriginalAvailable(requestId) {
     await pool.query(`
         UPDATE public.iot_ocr_capture_artifacts SET upload_status = 'available', uploaded_at = COALESCE(uploaded_at, NOW()), updated_at = NOW()
@@ -136,6 +145,7 @@ async function markOriginalAvailable(requestId) {
     `, [requestId]);
 }
 
+// downloadOriginal: downloads download original for the OCR flow.
 async function downloadOriginal(requestId) {
     const result = await pool.query(`
         SELECT * FROM public.iot_ocr_capture_artifacts
@@ -154,11 +164,13 @@ async function downloadOriginal(requestId) {
     return { ...row, bytes };
 }
 
+// toField: handles to field for the OCR flow.
 function toField(value) {
     const normalized = String(value || '').replace(/\s+/g, ' ').trim();
     return { raw_text: normalized, normalized_value: normalized, confidence: null };
 }
 
+// normalizeFields: normalizes normalize fields for the OCR flow.
 function normalizeFields(value) {
     const fields = value && typeof value === 'object' ? value : {};
     return Object.fromEntries(FIELD_KEYS.map((key) => [key, toField(fields[key])]));

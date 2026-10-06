@@ -1,3 +1,4 @@
+// SMaRT-PDM: password strength indicator — password strength indicator (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/shared/validation/app_field_validators.dart';
@@ -78,6 +79,7 @@ class PasswordStrengthIndicator extends StatelessWidget {
 
   final String password;
 
+  // _strengthColor: handles strength color for the password strength indicator flow.
   Color _strengthColor(PasswordStrength strength) {
     switch (strength) {
       case PasswordStrength.weak:
@@ -91,6 +93,7 @@ class PasswordStrengthIndicator extends StatelessWidget {
     }
   }
 
+  // _strengthLabel: handles strength label for the password strength indicator flow.
   String _strengthLabel(PasswordStrength strength) {
     switch (strength) {
       case PasswordStrength.weak:
@@ -105,6 +108,7 @@ class PasswordStrengthIndicator extends StatelessWidget {
   }
 
   @override
+  // build: builds build for the password strength indicator flow.
   Widget build(BuildContext context) {
     final result = PasswordStrengthResult.evaluate(password);
     final color = _strengthColor(result.strength);
@@ -165,6 +169,7 @@ class _RequirementRow extends StatelessWidget {
   final bool met;
 
   @override
+  // build: builds build for the password strength indicator flow.
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),

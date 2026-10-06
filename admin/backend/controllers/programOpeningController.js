@@ -1,7 +1,9 @@
+// SMaRT-PDM: Scholarship Openings — program Opening Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const programOpeningService = require('../services/programOpeningService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 
+// sendError: sends send error for the Scholarship Openings flow.
 function sendError(res, err, fallbackMessage) {
     const message = err?.message || fallbackMessage || 'Unknown backend error';
 
@@ -34,10 +36,12 @@ function sendError(res, err, fallbackMessage) {
     });
 }
 
+// getActorUserId: reads and returns get actor user id for the Scholarship Openings flow.
 function getActorUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+// buildOpeningPayload: builds build opening payload for the Scholarship Openings flow.
 function buildOpeningPayload(opening = {}, action = 'updated') {
     return {
         module: 'scholarship_openings',
@@ -62,6 +66,7 @@ function buildOpeningPayload(opening = {}, action = 'updated') {
     };
 }
 
+// emitOpeningRealtime: handles emit opening realtime for the Scholarship Openings flow.
 function emitOpeningRealtime(req, eventName, opening, action = 'updated') {
     const io = req.app.get('io');
 
@@ -118,6 +123,7 @@ function emitOpeningRealtime(req, eventName, opening, action = 'updated') {
     }
 }
 
+// writeOpeningAudit: handles write opening audit for the Scholarship Openings flow.
 async function writeOpeningAudit(req, actionTaken, description, opening = null, metadata = {}) {
     try {
         if (typeof auditLogService?.logAudit !== 'function') {
@@ -191,6 +197,7 @@ async function writeOpeningAudit(req, actionTaken, description, opening = null, 
     }
 }
 
+// resolveAuditAction: resolves resolve audit action for the Scholarship Openings flow.
 function resolveAuditAction(updated, body = {}) {
     const status = String(updated?.posting_status || updated?.status || '').toLowerCase();
     const isArchived = updated?.is_archived === true || status === 'archived';
@@ -242,6 +249,7 @@ function resolveAuditAction(updated, body = {}) {
     };
 }
 
+// getAllProgramOpenings: reads and returns get all program openings for the Scholarship Openings flow.
 const getAllProgramOpenings = async (req, res) => {
     try {
         const rows = await programOpeningService.fetchAllProgramOpenings();
@@ -252,6 +260,7 @@ const getAllProgramOpenings = async (req, res) => {
     }
 };
 
+// getMobileOpenings: reads and returns get mobile openings for the Scholarship Openings flow.
 const getMobileOpenings = async (req, res) => {
     try {
         res.setHeader('Cache-Control', 'private, no-store, max-age=0');
@@ -264,6 +273,7 @@ const getMobileOpenings = async (req, res) => {
     }
 };
 
+// getOpeningsApplicationSummary: reads and returns get openings application summary for the Scholarship Openings flow.
 const getOpeningsApplicationSummary = async (req, res) => {
     try {
         const rows = await programOpeningService.fetchOpeningsApplicationSummary();
@@ -274,6 +284,7 @@ const getOpeningsApplicationSummary = async (req, res) => {
     }
 };
 
+// getProgramOpeningById: reads and returns get program opening by id for the Scholarship Openings flow.
 const getProgramOpeningById = async (req, res) => {
     try {
         const { openingId } = req.params;
@@ -293,6 +304,7 @@ const getProgramOpeningById = async (req, res) => {
     }
 };
 
+// getApplicationsByOpeningId: reads and returns get applications by opening id for the Scholarship Openings flow.
 const getApplicationsByOpeningId = async (req, res) => {
     try {
         const { openingId } = req.params;
@@ -304,6 +316,7 @@ const getApplicationsByOpeningId = async (req, res) => {
     }
 };
 
+// createProgramOpening: creates create program opening for the Scholarship Openings flow.
 const createProgramOpening = async (req, res) => {
     try {
         const created = await programOpeningService.createProgramOpening(req.body);
@@ -340,6 +353,7 @@ const createProgramOpening = async (req, res) => {
     }
 };
 
+// updateProgramOpening: updates update program opening for the Scholarship Openings flow.
 const updateProgramOpening = async (req, res) => {
     try {
         const { openingId } = req.params;
@@ -380,6 +394,7 @@ const updateProgramOpening = async (req, res) => {
     }
 };
 
+// closeProgramOpening: handles close program opening for the Scholarship Openings flow.
 const closeProgramOpening = async (req, res) => {
     try {
         const { openingId } = req.params;

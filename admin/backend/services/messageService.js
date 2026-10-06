@@ -1,9 +1,11 @@
+// SMaRT-PDM: Messaging — message Service (admin backend service); contains business logic and data operations.
 const db = require('../config/db');
 const { resolveAvatarUrl } = require('./avatarService');
 const { resolveStaffRole } = require('../utils/staffRoles');
 
 let adminProfilePhotoColumnPromise = null;
 
+// hasAdminProfilePhotoColumn: checks whether has admin profile photo column for the Messaging flow.
 async function hasAdminProfilePhotoColumn() {
   if (!adminProfilePhotoColumnPromise) {
     adminProfilePhotoColumnPromise = db.query(
@@ -27,6 +29,7 @@ async function hasAdminProfilePhotoColumn() {
   return adminProfilePhotoColumnPromise;
 }
 
+// getUserSummary: reads and returns get user summary for the Messaging flow.
 async function getUserSummary(userId) {
   const adminPhotoEnabled = await hasAdminProfilePhotoColumn();
   const adminPhotoExpression = adminPhotoEnabled
@@ -114,6 +117,7 @@ async function getUserSummary(userId) {
   };
 }
 
+// getUserSummarySafe: reads and returns get user summary safe for the Messaging flow.
 async function getUserSummarySafe(userId) {
   try {
     return await getUserSummary(userId);
@@ -152,6 +156,7 @@ async function getUserSummarySafe(userId) {
   }
 }
 
+// ensureRoomMembership: ensures ensure room membership for the Messaging flow.
 async function ensureRoomMembership(userId, roomId) {
   const result = await db.query(
     `
@@ -173,6 +178,7 @@ async function ensureRoomMembership(userId, roomId) {
   return result.rows[0];
 }
 
+// ensureRoomAdmin: ensures ensure room admin for the Messaging flow.
 async function ensureRoomAdmin(userId, roomId) {
   const membership = await ensureRoomMembership(userId, roomId);
 
@@ -185,6 +191,7 @@ async function ensureRoomAdmin(userId, roomId) {
   return membership;
 }
 
+// createPrivateReadStates: creates create private read states for the Messaging flow.
 async function createPrivateReadStates(messageId, senderId, receiverId) {
   await db.query(
     `
@@ -205,6 +212,7 @@ async function createPrivateReadStates(messageId, senderId, receiverId) {
   );
 }
 
+// createRoomReadStates: creates create room read states for the Messaging flow.
 async function createRoomReadStates(messageId, roomId, senderId) {
   await db.query(
     `
@@ -228,6 +236,7 @@ async function createRoomReadStates(messageId, roomId, senderId) {
   );
 }
 
+// enrichMessageRows: handles enrich message rows for the Messaging flow.
 async function enrichMessageRows(rows = []) {
   const userIds = [
     ...new Set(
@@ -253,6 +262,7 @@ async function enrichMessageRows(rows = []) {
   }));
 }
 
+// enrichRoomMessageReadReceipts: handles enrich room message read receipts for the Messaging flow.
 async function enrichRoomMessageReadReceipts(rows = []) {
   const readerIds = [
     ...new Set(
@@ -284,6 +294,7 @@ async function enrichRoomMessageReadReceipts(rows = []) {
   }));
 }
 
+// ensurePrivateReplyTarget: ensures ensure private reply target for the Messaging flow.
 async function ensurePrivateReplyTarget(replyToMessageId, leftUserId, rightUserId) {
   if (!replyToMessageId) return null;
 
@@ -313,6 +324,7 @@ async function ensurePrivateReplyTarget(replyToMessageId, leftUserId, rightUserI
   return replyToMessageId;
 }
 
+// ensureRoomReplyTarget: ensures ensure room reply target for the Messaging flow.
 async function ensureRoomReplyTarget(replyToMessageId, roomId) {
   if (!replyToMessageId) return null;
 
@@ -337,6 +349,7 @@ async function ensureRoomReplyTarget(replyToMessageId, roomId) {
   return replyToMessageId;
 }
 
+// fetchMessageWithReply: fetches and returns fetch message with reply for the Messaging flow.
 async function fetchMessageWithReply(messageId, viewerId = null, counterpartyId = null) {
   const result = await db.query(
     `
@@ -1141,6 +1154,7 @@ exports.sendRoomMessage = async ({
   };
 };
 
+// createRoomSystemMessage: creates create room system message for the Messaging flow.
 async function createRoomSystemMessage({ roomId, senderId, body }) {
   const result = await db.query(
     `INSERT INTO messages (sender_id, receiver_id, room_id, subject, message_body, is_read)

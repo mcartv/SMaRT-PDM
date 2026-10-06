@@ -1,3 +1,4 @@
+// SMaRT-PDM: system Audit Coverage Middleware — system Audit Coverage Middleware (admin backend middleware); validates or transforms requests before controller handling.
 'use strict';
 
 const auditLogService = require('../services/auditLogService');
@@ -95,6 +96,7 @@ const ENTITY_PARAM_KEYS = [
     'id',
 ];
 
+// requestPath: handles request path for the system Audit Coverage Middleware flow.
 function requestPath(req) {
     return String(req?.originalUrl || req?.url || '')
         .split('?')[0]
@@ -102,15 +104,18 @@ function requestPath(req) {
         .replace(/\/{2,}/g, '/');
 }
 
+// isQuietPath: checks whether is quiet path for the system Audit Coverage Middleware flow.
 function isQuietPath(pathname) {
     return QUIET_PATHS.some((pattern) => pattern.test(pathname));
 }
 
+// resolveModule: resolves resolve module for the system Audit Coverage Middleware flow.
 function resolveModule(pathname) {
     const match = MODULE_RULES.find(([pattern]) => pattern.test(pathname));
     return match?.[1] || { name: 'System', key: 'SYSTEM', entityType: 'system' };
 }
 
+// resolveAction: resolves resolve action for the system Audit Coverage Middleware flow.
 function resolveAction(method, pathname, moduleKey) {
     const match = ACTION_RULES.find(([pattern]) => pattern.test(pathname));
     const verb = match?.[1] || (
@@ -124,6 +129,7 @@ function resolveAction(method, pathname, moduleKey) {
     return `${verb}_${moduleKey}`;
 }
 
+// resolveEntityId: resolves resolve entity id for the system Audit Coverage Middleware flow.
 function resolveEntityId(req, pathname) {
     for (const key of ENTITY_PARAM_KEYS) {
         const value = req?.params?.[key];
@@ -142,6 +148,7 @@ function resolveEntityId(req, pathname) {
     );
 }
 
+// humanizeAction: handles humanize action for the system Audit Coverage Middleware flow.
 function humanizeAction(actionTaken) {
     return String(actionTaken || '')
         .toLowerCase()
@@ -151,6 +158,7 @@ function humanizeAction(actionTaken) {
         .join(' ');
 }
 
+// attachSystemAuditCoverage: handles attach system audit coverage for the system Audit Coverage Middleware flow.
 function attachSystemAuditCoverage(req, res) {
     if (req.__systemAuditCoverageAttached === true) return;
 

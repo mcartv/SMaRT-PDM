@@ -1,19 +1,24 @@
+// SMaRT-PDM: Accounts — student Account Service (mobile backend service); contains mobile-facing business logic and data operations.
 const supabase = require('../config/supabase');
 
+// createHttpError: creates create http error for the Accounts flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// normalizeStudentNumber: normalizes normalize student number for the Accounts flow.
 function normalizeStudentNumber(value = '') {
     return String(value || '').trim().toUpperCase();
 }
 
+// safeText: handles safe text for the Accounts flow.
 function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
 }
 
+// resolveStudentByUserId: resolves resolve student by user id for the Accounts flow.
 async function resolveStudentByUserId(userId) {
     if (!userId) {
         throw createHttpError(401, 'User ID is required.');
@@ -43,6 +48,7 @@ async function resolveStudentByUserId(userId) {
     return data || null;
 }
 
+// resolveRegistrarStudentByStudentNumber: resolves resolve registrar student by student number for the Accounts flow.
 async function resolveRegistrarStudentByStudentNumber(studentNumber) {
     const normalizedStudentNumber = normalizeStudentNumber(studentNumber);
 
@@ -75,6 +81,7 @@ async function resolveRegistrarStudentByStudentNumber(studentNumber) {
     return data || null;
 }
 
+// ensureStudentFromMasterRecord: ensures ensure student from master record for the Accounts flow.
 async function ensureStudentFromMasterRecord({
     userId,
     studentNumber,
@@ -172,6 +179,7 @@ async function ensureStudentFromMasterRecord({
     return data;
 }
 
+// ensureStudentForUser: ensures ensure student for user for the Accounts flow.
 async function ensureStudentForUser(userId) {
     if (!userId) {
         throw createHttpError(401, 'Authentication required.');

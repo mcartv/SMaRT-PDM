@@ -1,3 +1,4 @@
+// SMaRT-PDM: Realtime — use Socket (admin frontend); supports admin-side UI behavior.
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { io } from 'socket.io-client';
 import { buildApiUrl } from '@/api';
@@ -44,6 +45,7 @@ const ACCOUNT_WIDE_INVALID_CODES = new Set([
 let globalSocket = null;
 let joinedUserId = '';
 
+// getPortalFromPathname: reads and returns get portal from pathname for the Realtime flow.
 function getPortalFromPathname() {
   if (typeof window === 'undefined') return null;
 
@@ -58,6 +60,7 @@ function getPortalFromPathname() {
   return null;
 }
 
+// getStoredSocketToken: reads and returns get stored socket token for the Realtime flow.
 function getStoredSocketToken() {
   const portalName = getPortalFromPathname();
   const portal = portalName ? PORTAL_CONFIG[portalName] : null;
@@ -77,6 +80,7 @@ function getStoredSocketToken() {
   );
 }
 
+// decodeJwtPayload: handles decode jwt payload for the Realtime flow.
 function decodeJwtPayload(token) {
   try {
     if (!token) return {};
@@ -97,6 +101,7 @@ function decodeJwtPayload(token) {
   }
 }
 
+// getSocketIdentity: reads and returns get socket identity for the Realtime flow.
 function getSocketIdentity(token = getStoredSocketToken()) {
   const decoded = decodeJwtPayload(token);
 
@@ -115,11 +120,13 @@ function getSocketIdentity(token = getStoredSocketToken()) {
   };
 }
 
+// resolvePortalNameFromIdentity: resolves resolve portal name from identity for the Realtime flow.
 function resolvePortalNameFromIdentity(role) {
   const normalizedRole = String(role || '').trim().toLowerCase();
   return PORTAL_CONFIG[normalizedRole] ? normalizedRole : getPortalFromPathname();
 }
 
+// stopSocket: handles stop socket for the Realtime flow.
 function stopSocket(socket = globalSocket) {
   if (!socket) return;
 
@@ -132,6 +139,7 @@ function stopSocket(socket = globalSocket) {
   socket.disconnect();
 }
 
+// recoverSocketWithCurrentSession: handles recover socket with current session for the Realtime flow.
 function recoverSocketWithCurrentSession(socket) {
   if (!socket) return false;
   if (!refreshSocketAuthFromStorage(socket)) return false;
@@ -151,6 +159,7 @@ function recoverSocketWithCurrentSession(socket) {
   }
 }
 
+// invalidatePortalSession: handles invalidate portal session for the Realtime flow.
 function invalidatePortalSession(error, socket = globalSocket) {
   const socketToken = socket?.auth?.token || '';
   const currentToken = getStoredSocketToken();
@@ -206,6 +215,7 @@ function invalidatePortalSession(error, socket = globalSocket) {
   return invalidation;
 }
 
+// emitUserJoin: handles emit user join for the Realtime flow.
 function emitUserJoin(socket) {
   if (!socket || !socket.connected) return;
 
@@ -233,6 +243,7 @@ function emitUserJoin(socket) {
   socket.emit('joinUserRoom', payload);
 }
 
+// refreshSocketAuthFromStorage: refreshes refresh socket auth from storage for the Realtime flow.
 function refreshSocketAuthFromStorage(socket) {
   if (!socket) return false;
 
@@ -260,6 +271,7 @@ function refreshSocketAuthFromStorage(socket) {
 let socketRecoveryHooksInstalled = false;
 let _socketRecoveryTimer = null;
 
+// recoverSocketConnection: handles recover socket connection for the Realtime flow.
 function recoverSocketConnection() {
   if (!globalSocket) {
     initializeSocket();
@@ -285,6 +297,7 @@ function recoverSocketConnection() {
   }
 }
 
+// installSocketRecoveryHooks: handles install socket recovery hooks for the Realtime flow.
 function installSocketRecoveryHooks() {
   if (
     socketRecoveryHooksInstalled ||
@@ -312,6 +325,7 @@ function installSocketRecoveryHooks() {
   }, 15000);
 }
 
+// attachSocketLifecycle: handles attach socket lifecycle for the Realtime flow.
 function attachSocketLifecycle(socket) {
   socket.on('connect', () => {
     console.log('[Socket] Connected:', socket.id);
@@ -390,6 +404,7 @@ function attachSocketLifecycle(socket) {
   });
 }
 
+// initializeSocket: handles initialize socket for the Realtime flow.
 export const initializeSocket = () => {
   installSocketRecoveryHooks();
   const token = getStoredSocketToken();
@@ -452,6 +467,7 @@ export const initializeSocket = () => {
   return globalSocket;
 };
 
+// reconnectSocketWithLatestToken: handles reconnect socket with latest token for the Realtime flow.
 export const reconnectSocketWithLatestToken = () => {
   const token = getStoredSocketToken();
 
@@ -484,6 +500,7 @@ export const reconnectSocketWithLatestToken = () => {
   return globalSocket;
 };
 
+// disconnectSocket: handles disconnect socket for the Realtime flow.
 export const disconnectSocket = () => {
   if (globalSocket) {
     stopSocket(globalSocket);
@@ -510,9 +527,13 @@ export const useSocketConnectionState = () => {
       return undefined;
     }
 
+    // handleConnect: handles handle connect for the Realtime flow.
     const handleConnect = () => setStatus('connected');
+    // handleDisconnect: handles handle disconnect for the Realtime flow.
     const handleDisconnect = () => setStatus('reconnecting');
+    // handleReconnectAttempt: handles handle reconnect attempt for the Realtime flow.
     const handleReconnectAttempt = () => setStatus('reconnecting');
+    // handleConnectError: handles handle connect error for the Realtime flow.
     const handleConnectError = () => setStatus('reconnecting');
 
     setStatus(socket.connected ? 'connected' : 'connecting');
@@ -557,6 +578,7 @@ export const useSocketEvent = (event, callback, deps = []) => {
 
     emitUserJoin(socket);
 
+    // handler: handles handler for the Realtime flow.
     const handler = (...args) => {
       callbackRef.current?.(...args);
     };
@@ -617,6 +639,7 @@ export const useSocketListener = (events = {}) => {
     emitUserJoin(socket);
 
     const handlers = Object.entries(eventsRef.current).map(([event, callback]) => {
+      // handler: handles handler for the Realtime flow.
       const handler = (...args) => {
         callback?.(...args);
       };

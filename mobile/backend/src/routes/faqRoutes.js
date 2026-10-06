@@ -1,3 +1,4 @@
+// SMaRT-PDM: Return of Obligations — faq Routes (mobile backend route); maps mobile API endpoints to middleware and controllers.
 const express = require('express');
 const faqController = require('../controllers/faqController');
 const { cacheJsonResponse } = require('../middleware/appCacheMiddleware');

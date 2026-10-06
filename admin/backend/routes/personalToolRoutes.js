@@ -1,3 +1,4 @@
+// SMaRT-PDM: Return of Obligations — personal Tool Routes (admin backend route); maps API endpoints to middleware and controllers.
 const express = require('express');
 const { protect } = require('../middleware/authMiddleware');
 const { authorizeRoleGroup } = require('../middleware/rbacMiddleware');

@@ -1,9 +1,12 @@
+// SMaRT-PDM: Applications — application Controller (mobile backend controller); handles mobile API input/output and delegates business logic.
 const applicationService = require('../services/applicationService');
 
+// getRequestUserId: reads and returns get request user id for the Applications flow.
 function getRequestUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+// getSafeStatusCode: reads and returns get safe status code for the Applications flow.
 function getSafeStatusCode(error) {
     const parsed = Number.parseInt(error?.statusCode, 10);
 
@@ -14,6 +17,7 @@ function getSafeStatusCode(error) {
     return 500;
 }
 
+// getMyFormData: reads and returns get my form data for the Applications flow.
 async function getMyFormData(req, res) {
     try {
         const userId = getRequestUserId(req);
@@ -33,6 +37,7 @@ async function getMyFormData(req, res) {
     }
 }
 
+// getMySubmittedFormData: reads and returns get my submitted form data for the Applications flow.
 async function getMySubmittedFormData(req, res) {
     try {
         const userId = getRequestUserId(req);
@@ -54,6 +59,7 @@ async function getMySubmittedFormData(req, res) {
     }
 }
 
+// getMyApplicationById: reads and returns get my application by id for the Applications flow.
 async function getMyApplicationById(req, res) {
     try {
         const userId = getRequestUserId(req);
@@ -76,6 +82,7 @@ async function getMyApplicationById(req, res) {
     }
 }
 
+// saveMyFormData: validates and saves save my form data for the Applications flow.
 async function saveMyFormData(req, res) {
     try {
         const userId = getRequestUserId(req);
@@ -99,6 +106,7 @@ async function saveMyFormData(req, res) {
     }
 }
 
+// getMyDocuments: reads and returns get my documents for the Applications flow.
 async function getMyDocuments(req, res) {
     try {
         const userId = getRequestUserId(req);
@@ -118,6 +126,7 @@ async function getMyDocuments(req, res) {
     }
 }
 
+// getMyApplicationStatusSummary: reads and returns get my application status summary for the Applications flow.
 async function getMyApplicationStatusSummary(req, res) {
     try {
         const userId = getRequestUserId(req);
@@ -137,6 +146,7 @@ async function getMyApplicationStatusSummary(req, res) {
     }
 }
 
+// downloadMyEndorsementSlipPdf: downloads download my endorsement slip pdf for the Applications flow.
 async function downloadMyEndorsementSlipPdf(req, res) {
     try {
         const userId = getRequestUserId(req);
@@ -158,6 +168,7 @@ async function downloadMyEndorsementSlipPdf(req, res) {
     }
 }
 
+// uploadMyDocument: uploads upload my document for the Applications flow.
 async function uploadMyDocument(req, res) {
     try {
         const userId = getRequestUserId(req);
@@ -187,6 +198,7 @@ async function uploadMyDocument(req, res) {
     }
 }
 
+// submitMyApplicationForm: handles submit my application form for the Applications flow.
 async function submitMyApplicationForm(req, res) {
     try {
         const userId = getRequestUserId(req);

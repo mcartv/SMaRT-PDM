@@ -1,3 +1,4 @@
+// SMaRT-PDM: live Migration Service — live Migration Service (admin backend service); contains business logic and data operations.
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
@@ -33,6 +34,7 @@ const MIGRATIONS = Object.freeze([
 const MIGRATION_KEY = MIGRATIONS.at(-1).key;
 const MIGRATION_PATH = MIGRATIONS.at(-1).path;
 
+// migrationConnectionString: handles migration connection string for the live Migration Service flow.
 function migrationConnectionString() {
   const dedicated = String(process.env.MIGRATION_DATABASE_URL || '').trim();
   if (dedicated) return dedicated;
@@ -47,6 +49,7 @@ function migrationConnectionString() {
   return fallback;
 }
 
+// migrationBody: handles migration body for the live Migration Service flow.
 function migrationBody(sql) {
   return String(sql || '')
     .replace(/^\s*begin\s*;\s*/i, '')
@@ -54,6 +57,7 @@ function migrationBody(sql) {
     .trim();
 }
 
+// createPool: creates create pool for the live Migration Service flow.
 function createPool() {
   return new Pool({
     connectionString: migrationConnectionString(),
@@ -64,6 +68,7 @@ function createPool() {
   });
 }
 
+// verifySchema: verifies verify schema for the live Migration Service flow.
 async function verifySchema(client) {
   const objects = await client.query(`
     SELECT
@@ -142,6 +147,7 @@ async function verifySchema(client) {
   if (missing.length) throw new Error(`Missing canonical OCR statuses: ${missing.join(', ')}`);
 }
 
+// ensureRuntimeRolePermissions: ensures ensure runtime role permissions for the live Migration Service flow.
 async function ensureRuntimeRolePermissions(client) {
   const role = await client.query(`
     SELECT rolname, rolsuper FROM pg_roles
@@ -180,6 +186,7 @@ async function ensureRuntimeRolePermissions(client) {
   await client.query('REVOKE UPDATE, DELETE, TRUNCATE ON public.iot_ocr_review_events FROM smart_pdm_runtime');
 }
 
+// ensureCanonicalIotOcrMigration: ensures ensure canonical iot ocr migration for the live Migration Service flow.
 async function ensureCanonicalIotOcrMigration() {
   for (const migration of MIGRATIONS) {
     if (!fs.existsSync(migration.path)) {

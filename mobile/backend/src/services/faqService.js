@@ -1,8 +1,10 @@
+// SMaRT-PDM: FAQs — faq Service (mobile backend service); contains mobile-facing business logic and data operations.
 const supabase = require('../config/supabase');
 
 const GENERAL_SETTINGS_ID = 1;
 const MAX_FAQS = 20;
 
+// normalizeFaqItem: normalizes normalize faq item for the FAQs flow.
 function normalizeFaqItem(item, index) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) {
         return null;
@@ -30,6 +32,7 @@ function normalizeFaqItem(item, index) {
     };
 }
 
+// getActiveFaqs: reads and returns get active faqs for the FAQs flow.
 async function getActiveFaqs() {
     const { data, error } = await supabase
         .from('general_settings')

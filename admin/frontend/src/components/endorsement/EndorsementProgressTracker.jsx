@@ -1,3 +1,4 @@
+// SMaRT-PDM: Endorsement — Endorsement Progress Tracker (admin frontend component); renders reusable UI and handles local interactions.
 import { formatSystemLabel } from '@/utils/profileDisplay';
 
 const STEP_TONES = {
@@ -23,10 +24,12 @@ const STEP_TONES = {
   },
 };
 
+// resolveTone: resolves resolve tone for the Endorsement flow.
 function resolveTone(state) {
   return STEP_TONES[state] || STEP_TONES.pending;
 }
 
+// getOfficeLabel: reads and returns get office label for the Endorsement flow.
 function getOfficeLabel(step = {}) {
   const key = String(step.key || '').trim().toLowerCase();
   if (key === 'sdo') return 'SDO';
@@ -35,6 +38,7 @@ function getOfficeLabel(step = {}) {
   return step.label || 'Office';
 }
 
+// formatWorkflowLabel: formats format workflow label for the Endorsement flow.
 function formatWorkflowLabel(value = '') {
   return formatSystemLabel(value)
     .replace(/Guidance/g, 'GCO')

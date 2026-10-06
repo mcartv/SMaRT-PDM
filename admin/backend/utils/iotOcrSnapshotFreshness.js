@@ -1,5 +1,7 @@
+// SMaRT-PDM: OCR — iot Ocr Snapshot Freshness (admin backend); supports backend application behavior.
 'use strict';
 
+// toTimestamp: handles to timestamp for the OCR flow.
 function toTimestamp(value) {
     if (!value) return null;
 
@@ -7,6 +9,7 @@ function toTimestamp(value) {
     return Number.isFinite(timestamp) ? timestamp : null;
 }
 
+// isRequestBoundSnapshotFresh: checks whether is request bound snapshot fresh for the OCR flow.
 function isRequestBoundSnapshotFresh({
     request = null,
     ocrRow = null,

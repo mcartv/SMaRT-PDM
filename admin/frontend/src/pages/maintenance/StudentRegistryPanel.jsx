@@ -1,3 +1,4 @@
+// SMaRT-PDM: Student Registry — Student Registry Panel (admin frontend page); loads data, handles page actions, and renders the admin view.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -109,11 +110,13 @@ const EXCEL_HEADERS_FALLBACK = [
   'Previous Address',
 ];
 
+// getAuthHeaders: reads and returns get auth headers for the Student Registry flow.
 function getAuthHeaders() {
   const token = sessionStorage.getItem('adminToken');
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+// formatFileSize: formats format file size for the Student Registry flow.
 function formatFileSize(bytes) {
   if (!bytes && bytes !== 0) return '';
   if (bytes < 1024) return `${bytes} B`;
@@ -121,10 +124,12 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
+// normalizeText: normalizes normalize text for the Student Registry flow.
 function normalizeText(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+// normalizeHeaderKey: normalizes normalize header key for the Student Registry flow.
 function normalizeHeaderKey(header) {
   return String(header || '')
     .trim()
@@ -132,6 +137,7 @@ function normalizeHeaderKey(header) {
     .replace(/\s+/g, ' ');
 }
 
+// downloadRegistryTemplate: downloads download registry template for the Student Registry flow.
 async function downloadRegistryTemplate() {
   const response = await fetch(
     '/templates/student-registry-import-template.xlsx?v=accepted-dummy-v2',
@@ -165,6 +171,7 @@ const REGISTRY_HEADER_ALIASES = {
   sex: ['sex', 'sex at birth'],
 };
 
+// formatWorkbookCellValue: formats format workbook cell value for the Student Registry flow.
 function formatWorkbookCellValue(value) {
   if (value === null || value === undefined) return '';
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
@@ -187,6 +194,7 @@ function formatWorkbookCellValue(value) {
   }
 }
 
+// formatRegistryDate: formats format registry date for the Student Registry flow.
 function formatRegistryDate(value) {
   const text = formatWorkbookCellValue(value).trim();
   if (!text) return '';
@@ -195,6 +203,7 @@ function formatRegistryDate(value) {
   return `${match[2]}/${match[3]}/${match[1]}`;
 }
 
+// formatRegistryPhone: formats format registry phone for the Student Registry flow.
 function formatRegistryPhone(value) {
   const text = formatWorkbookCellValue(value).trim();
   if (!text) return '';
@@ -204,6 +213,7 @@ function formatRegistryPhone(value) {
   return text;
 }
 
+// formatRegistryCellValue: formats format registry cell value for the Student Registry flow.
 function formatRegistryCellValue(header, value) {
   const normalizedHeader = normalizeHeaderKey(header);
   if (normalizedHeader.includes('email')) {
@@ -236,6 +246,7 @@ function formatRegistryCellValue(header, value) {
   return text.toLowerCase() === '[object object]' ? '' : text;
 }
 
+// buildDisplayColumns: builds build display columns for the Student Registry flow.
 function buildDisplayColumns(headerRow = [], bodyRows = []) {
   const maxColumns = Math.max(
     headerRow.length,
@@ -267,11 +278,13 @@ function buildDisplayColumns(headerRow = [], bodyRows = []) {
   return columns;
 }
 
+// findHeaderByAliases: finds and returns find header by aliases for the Student Registry flow.
 function findHeaderByAliases(headers = [], aliases = []) {
   const wanted = new Set(aliases.map(normalizeHeaderKey));
   return headers.find((header) => wanted.has(normalizeHeaderKey(header))) || null;
 }
 
+// getSnapshotHeaders: reads and returns get snapshot headers for the Student Registry flow.
 function getSnapshotHeaders(row = {}) {
   const snapshot = row?.raw_snapshot;
   if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return [];
@@ -286,9 +299,11 @@ function getSnapshotHeaders(row = {}) {
   return Object.keys(snapshot).filter((key) => key !== REGISTRY_HEADER_ORDER_KEY);
 }
 
+// buildImportedHeaders: builds build imported headers for the Student Registry flow.
 function buildImportedHeaders(rows = [], preferredHeaders = []) {
   const headers = [];
   const seen = new Set();
+  // append: handles append for the Student Registry flow.
   const append = (header) => {
     const label = String(header || '').trim();
     const normalized = normalizeHeaderKey(label);
@@ -310,6 +325,7 @@ function buildImportedHeaders(rows = [], preferredHeaders = []) {
   return headers.length ? headers : EXCEL_HEADERS_FALLBACK;
 }
 
+// buildImportedDisplayRow: builds build imported display row for the Student Registry flow.
 function buildImportedDisplayRow(row, headers) {
   const snapshot = row?.raw_snapshot;
   const hasSnapshot =
@@ -336,6 +352,7 @@ function buildImportedDisplayRow(row, headers) {
   );
 }
 
+// parseCsvLine: parses parse csv line for the Student Registry flow.
 function parseCsvLine(line) {
   const cells = [];
   let current = '';
@@ -369,6 +386,7 @@ function parseCsvLine(line) {
   return cells;
 }
 
+// parseCsvRows: parses parse csv rows for the Student Registry flow.
 function parseCsvRows(text) {
   const normalized = String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   const rows = [];
@@ -411,10 +429,12 @@ function parseCsvRows(text) {
   return rows;
 }
 
+// parseExcelDate: parses parse excel date for the Student Registry flow.
 function parseExcelDate(value) {
   return formatRegistryDate(value);
 }
 
+// buildBackendRowForExcelShape: builds build backend row for excel shape for the Student Registry flow.
 function buildBackendRowForExcelShape(row) {
   return {
     'Student Number': row.student_number || '',
@@ -488,6 +508,7 @@ function buildBackendRowForExcelShape(row) {
   };
 }
 
+// FilterModal: handles filter modal for the Student Registry flow.
 function FilterModal({
   open,
   onClose,
@@ -614,6 +635,7 @@ function FilterModal({
   );
 }
 
+// ImportRegistryModal: handles import registry modal for the Student Registry flow.
 function ImportRegistryModal({
   open,
   onClose,
@@ -631,6 +653,7 @@ function ImportRegistryModal({
 
   if (!open) return null;
 
+  // handleDrop: handles handle drop for the Student Registry flow.
   const handleDrop = (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -640,12 +663,14 @@ function ImportRegistryModal({
     if (droppedFile) onFileSelect(droppedFile);
   };
 
+  // handleDragOver: handles handle drag over for the Student Registry flow.
   const handleDragOver = (event) => {
     event.preventDefault();
     event.stopPropagation();
     setIsDragging(true);
   };
 
+  // handleDragLeave: handles handle drag leave for the Student Registry flow.
   const handleDragLeave = (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -792,6 +817,7 @@ function ImportRegistryModal({
   );
 }
 
+// PaginationBar: handles pagination bar for the Student Registry flow.
 function PaginationBar({ page, totalPages, totalRows, onPrev, onNext, onGoToPage }) {
   return (
     <div className="flex flex-col gap-3 border-t bg-stone-50 px-4 py-3 text-[11px] text-stone-500 md:flex-row md:items-center md:justify-between">
@@ -842,6 +868,7 @@ function PaginationBar({ page, totalPages, totalRows, onPrev, onNext, onGoToPage
   );
 }
 
+// ImportResultSummary: handles import result summary for the Student Registry flow.
 function ImportResultSummary({ result, onDismiss, onReviewFailure }) {
   const [showFailures, setShowFailures] = useState(false);
   if (!result) return null;
@@ -951,6 +978,7 @@ function ImportResultSummary({ result, onDismiss, onReviewFailure }) {
   );
 }
 
+// IdentityConflictModal: handles identity conflict modal for the Student Registry flow.
 function IdentityConflictModal({ failure, onClose }) {
   if (!failure) return null;
 
@@ -1101,6 +1129,7 @@ export default function StudentRegistryPanel() {
     [loadRegistry]
   );
 
+  // parseWorkbookPreview: parses parse workbook preview for the Student Registry flow.
   const parseWorkbookPreview = async (selectedFile) => {
     const lowerName = selectedFile.name.toLowerCase();
     let rows = [];
@@ -1167,6 +1196,7 @@ export default function StudentRegistryPanel() {
     setPage(1);
   };
 
+  // handleFileSelect: handles handle file select for the Student Registry flow.
   const handleFileSelect = async (selectedFile) => {
     if (!selectedFile) return;
 
@@ -1188,6 +1218,7 @@ export default function StudentRegistryPanel() {
     }
   };
 
+  // clearSelectedFile: clears clear selected file for the Student Registry flow.
   const clearSelectedFile = () => {
     setFile(null);
     setExcelRows([]);
@@ -1197,6 +1228,7 @@ export default function StudentRegistryPanel() {
     setPage(1);
   };
 
+  // handleImport: handles handle import for the Student Registry flow.
   const handleImport = async () => {
     if (!file) return;
 
@@ -1362,6 +1394,7 @@ export default function StudentRegistryPanel() {
 
   const hasActiveFilters = courseFilter !== 'all' || yearFilter !== 'all' || sexFilter !== 'all';
 
+  // openFilterModal: handles open filter modal for the Student Registry flow.
   const openFilterModal = () => {
     setDraftCourseFilter(courseFilter);
     setDraftYearFilter(yearFilter);
@@ -1369,6 +1402,7 @@ export default function StudentRegistryPanel() {
     setFilterOpen(true);
   };
 
+  // applyFilters: handles apply filters for the Student Registry flow.
   const applyFilters = () => {
     setCourseFilter(draftCourseFilter);
     setYearFilter(draftYearFilter);
@@ -1377,6 +1411,7 @@ export default function StudentRegistryPanel() {
     setFilterOpen(false);
   };
 
+  // clearFilters: clears clear filters for the Student Registry flow.
   const clearFilters = () => {
     setDraftCourseFilter('all');
     setDraftYearFilter('all');

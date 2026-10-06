@@ -1,7 +1,9 @@
+// SMaRT-PDM: Caching — app Cache Middleware (mobile backend middleware); validates or transforms mobile API requests.
 'use strict';
 
 const appCache = require('../config/appCache');
 
+// normalizedQuery: normalizes normalized query for the Caching flow.
 function normalizedQuery(query = {}) {
     return Object.keys(query || {})
         .filter((key) => !['refresh', 'fresh', '_', 'cacheBust'].includes(key))
@@ -10,6 +12,7 @@ function normalizedQuery(query = {}) {
         .join('&');
 }
 
+// getUserId: reads and returns get user id for the Caching flow.
 function getUserId(req) {
     return String(
         req.user?.user_id ||
@@ -19,15 +22,18 @@ function getUserId(req) {
     ).trim();
 }
 
+// getRole: reads and returns get role for the Caching flow.
 function getRole(req) {
     return String(req.user?.role || '').trim().toLowerCase();
 }
 
+// scopeKey: handles scope key for the Caching flow.
 function scopeKey(req, scope) {
     if (scope === 'public') return 'public';
     return `user:${getUserId(req) || 'unknown'}:${getRole(req) || 'unknown'}`;
 }
 
+// shouldRefresh: handles should refresh for the Caching flow.
 function shouldRefresh(req) {
     return ['1', 'true', 'yes', 'on'].includes(
         String(req.query?.refresh || req.query?.fresh || '')
@@ -36,12 +42,14 @@ function shouldRefresh(req) {
     );
 }
 
+// setHeaders: sets set headers for the Caching flow.
 function setHeaders(res, status) {
     res.setHeader('Cache-Control', 'private, no-store, max-age=0');
     res.setHeader('X-SMaRT-Cache', status);
     res.vary('Authorization');
 }
 
+// cacheJsonResponse: handles cache json response for the Caching flow.
 function cacheJsonResponse({ namespace, ttlMs = 5000, scope = 'user' } = {}) {
     if (!namespace) throw new Error('cacheJsonResponse requires a namespace.');
 
@@ -92,6 +100,7 @@ function cacheJsonResponse({ namespace, ttlMs = 5000, scope = 'user' } = {}) {
     };
 }
 
+// invalidateCacheOnSuccess: handles invalidate cache on success for the Caching flow.
 function invalidateCacheOnSuccess(namespaces = []) {
     const selected = Array.isArray(namespaces) ? namespaces : [namespaces];
 

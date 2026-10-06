@@ -1,12 +1,15 @@
+// SMaRT-PDM: Return of Obligations — ro Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const roService = require('../services/roService');
 const auditLogService = require('../services/auditLogService');
 const notificationService = require('../services/notificationService');
 const socketEvents = require('../utils/socketEvents');
 
+// getRequestUserId: reads and returns get request user id for the Return of Obligations flow.
 function getRequestUserId(req) {
   return req.user?.user_id || req.user?.userId || req.user?.id || req.user?.sub || null;
 }
 
+// getSafeStatusCode: reads and returns get safe status code for the Return of Obligations flow.
 function getSafeStatusCode(error) {
   const parsed = Number.parseInt(error?.statusCode, 10);
 
@@ -15,6 +18,7 @@ function getSafeStatusCode(error) {
     : 500;
 }
 
+// emitRoUpdated: handles emit ro updated for the Return of Obligations flow.
 function emitRoUpdated(req, action, payload = {}) {
   try {
     const io = req.app?.get?.('io');
@@ -59,6 +63,7 @@ function emitRoUpdated(req, action, payload = {}) {
   }
 }
 
+// writeAudit: handles write audit for the Return of Obligations flow.
 function writeAudit(req, actionTaken, entityId, description, metadata = {}) {
   try {
     if (typeof auditLogService?.logAudit !== 'function') return;
@@ -82,6 +87,7 @@ function writeAudit(req, actionTaken, entityId, description, metadata = {}) {
   }
 }
 
+// emitAssignmentNotifications: handles emit assignment notifications for the Return of Obligations flow.
 function emitAssignmentNotifications(req, entries = []) {
   const io = req.app?.get?.('io');
   if (!io) return;

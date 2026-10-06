@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — password reset service (mobile service); calls APIs or shared services and returns processed results.
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 
 class PasswordResetService {
@@ -14,6 +15,7 @@ class PasswordResetService {
     return studentIdRegex.hasMatch(normalizeStudentId(value));
   }
 
+  // forgotPassword: handles forgot password for the Authentication flow.
   Future<String> forgotPassword(String studentId) async {
     final response = await _apiClient.postJson(
       '/api/auth/forgot-password',
@@ -24,6 +26,7 @@ class PasswordResetService {
         'If an account exists, password reset instructions have been sent.';
   }
 
+  // verifyResetOtp: verifies verify reset otp for the Authentication flow.
   Future<String> verifyResetOtp({
     required String studentId,
     required String otp,
@@ -36,6 +39,7 @@ class PasswordResetService {
     return response['message']?.toString() ?? 'Verification successful.';
   }
 
+  // resetPassword: resets reset password for the Authentication flow.
   Future<String> resetPassword({
     required String studentId,
     required String otp,

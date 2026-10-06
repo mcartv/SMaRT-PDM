@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — recovery models (mobile frontend); supports mobile UI behavior.
 class RecoveryAccount {
   const RecoveryAccount({
     required this.userId,

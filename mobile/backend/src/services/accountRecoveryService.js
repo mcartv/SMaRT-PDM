@@ -1,3 +1,4 @@
+// SMaRT-PDM: Accounts — account Recovery Service (mobile backend service); contains mobile-facing business logic and data operations.
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -24,6 +25,7 @@ const COMMON_PASSWORDS = new Set([
   'p@ssw0rd',
 ]);
 
+// createAccountRecoveryService: creates create account recovery service for the Accounts flow.
 function createAccountRecoveryService({
   supabase,
   resolveStudentByUserId,
@@ -40,10 +42,12 @@ function createAccountRecoveryService({
     throw new Error('Account recovery service is missing required dependencies.');
   }
 
+  // normalizeEmail: normalizes normalize email for the Accounts flow.
   function normalizeEmail(value = '') {
     return String(value || '').trim().toLowerCase();
   }
 
+  // normalizePhilippineMobile: normalizes normalize philippine mobile for the Accounts flow.
   function normalizePhilippineMobile(value = '') {
     const raw = String(value || '').trim();
     if (!raw) {
@@ -64,14 +68,17 @@ function createAccountRecoveryService({
     return cleaned;
   }
 
+  // isValidEmail: checks whether is valid email for the Accounts flow.
   function isValidEmail(value = '') {
     return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizeEmail(value));
   }
 
+  // isValidPhilippineMobile: checks whether is valid philippine mobile for the Accounts flow.
   function isValidPhilippineMobile(value = '') {
     return /^09\d{9}$/.test(normalizePhilippineMobile(value));
   }
 
+  // detectIdentifier: handles detect identifier for the Accounts flow.
   function detectIdentifier(identifier = '') {
     const normalizedEmail = normalizeEmail(identifier);
     if (isValidEmail(normalizedEmail)) {
@@ -92,6 +99,7 @@ function createAccountRecoveryService({
     throw createHttpError(400, 'Enter a valid mobile number or email address.');
   }
 
+  // maskEmail: handles mask email for the Accounts flow.
   function maskEmail(email = '') {
     const normalized = normalizeEmail(email);
     if (!isValidEmail(normalized)) {
@@ -106,6 +114,7 @@ function createAccountRecoveryService({
     return `${maskedLocal}@${maskedDomain}`;
   }
 
+  // buildDisplayName: builds build display name for the Accounts flow.
   function buildDisplayName(user = {}, student = null) {
     const candidate = [student?.first_name, student?.last_name]
       .filter((value) => String(value || '').trim().length > 0)
@@ -121,6 +130,7 @@ function createAccountRecoveryService({
     );
   }
 
+  // buildRecoveryAccount: builds build recovery account for the Accounts flow.
   function buildRecoveryAccount(user = {}, student = null, avatarUrl = null) {
     return {
       user_id: user.user_id,
@@ -132,6 +142,7 @@ function createAccountRecoveryService({
     };
   }
 
+  // ensurePasswordPolicy: ensures ensure password policy for the Accounts flow.
   function ensurePasswordPolicy(password = '') {
     const safePassword = String(password || '');
     if (!safePassword) {
@@ -159,6 +170,7 @@ function createAccountRecoveryService({
     }
   }
 
+  // generateRecoveryCode: handles generate recovery code for the Accounts flow.
   function generateRecoveryCode() {
     let code = '';
     for (let index = 0; index < RECOVERY_CODE_LENGTH; index += 1) {
@@ -167,6 +179,7 @@ function createAccountRecoveryService({
     return code;
   }
 
+  // hashRecoveryCode: checks whether hash recovery code for the Accounts flow.
   function hashRecoveryCode(sessionId, code) {
     return crypto
       .createHash('sha256')
@@ -174,6 +187,7 @@ function createAccountRecoveryService({
       .digest('hex');
   }
 
+  // buildRecoverySessionResponse: builds build recovery session response for the Accounts flow.
   function buildRecoverySessionResponse(row = {}) {
     const snapshot = row.destination_snapshot || {};
 
@@ -186,6 +200,7 @@ function createAccountRecoveryService({
     };
   }
 
+  // fetchUsersByPhone: fetches and returns fetch users by phone for the Accounts flow.
   async function fetchUsersByPhone(normalizedPhone) {
     const candidates = new Map();
     const internationalDigits = `63${normalizedPhone.slice(1)}`;
@@ -226,6 +241,7 @@ function createAccountRecoveryService({
     return Array.from(candidates.values());
   }
 
+  // fetchLookupRows: fetches and returns fetch lookup rows for the Accounts flow.
   async function fetchLookupRows(identifier = '') {
     const detected = detectIdentifier(identifier);
 
@@ -245,6 +261,7 @@ function createAccountRecoveryService({
     return fetchUsersByPhone(detected.normalizedValue);
   }
 
+  // fetchRecoverySession: fetches and returns fetch recovery session for the Accounts flow.
   async function fetchRecoverySession(sessionId, { includeConsumed = false } = {}) {
     if (!sessionId) {
       throw createHttpError(400, 'session_id is required.');
@@ -276,6 +293,7 @@ function createAccountRecoveryService({
     return data;
   }
 
+  // markSessionConsumed: marks mark session consumed for the Accounts flow.
   async function markSessionConsumed(sessionId) {
     if (!sessionId) return;
 
@@ -286,6 +304,7 @@ function createAccountRecoveryService({
       .is('consumed_at', null);
   }
 
+  // invalidateOpenSessionsForUser: handles invalidate open sessions for user for the Accounts flow.
   async function invalidateOpenSessionsForUser(userId) {
     if (!userId) return;
 
@@ -301,6 +320,7 @@ function createAccountRecoveryService({
     }
   }
 
+  // sendRecoveryEmail: sends send recovery email for the Accounts flow.
   async function sendRecoveryEmail(email, code, displayName) {
     const mailOptions = {
       from: mailFrom,
@@ -320,10 +340,12 @@ function createAccountRecoveryService({
     return null;
   }
 
+  // deliverRecoveryCode: handles deliver recovery code for the Accounts flow.
   async function deliverRecoveryCode({ destination, code, displayName }) {
     return sendRecoveryEmail(destination, code, displayName);
   }
 
+  // createRecoverySession: creates create recovery session for the Accounts flow.
   async function createRecoverySession({
     user,
     student,
@@ -397,6 +419,7 @@ function createAccountRecoveryService({
     }
   }
 
+  // lookupAccounts: handles lookup accounts for the Accounts flow.
   async function lookupAccounts(identifier = '') {
     const users = await fetchLookupRows(identifier);
     const uniqueUsers = new Map();
@@ -418,6 +441,7 @@ function createAccountRecoveryService({
       .sort((left, right) => left.display_name.localeCompare(right.display_name));
   }
 
+  // startRecovery: handles start recovery for the Accounts flow.
   async function startRecovery({ userId }) {
     const { data: user, error: userError } = await supabase
       .from('users')
@@ -441,6 +465,7 @@ function createAccountRecoveryService({
     });
   }
 
+  // resendRecoveryCode: handles resend recovery code for the Accounts flow.
   async function resendRecoveryCode(sessionId) {
     const session = await fetchRecoverySession(sessionId);
 
@@ -514,6 +539,7 @@ function createAccountRecoveryService({
     }
   }
 
+  // verifyRecoveryCode: verifies verify recovery code for the Accounts flow.
   async function verifyRecoveryCode({ sessionId, code }) {
     const safeCode = String(code || '').trim();
     if (!/^\d{6}$/.test(safeCode)) {
@@ -580,6 +606,7 @@ function createAccountRecoveryService({
     };
   }
 
+  // resetPassword: resets reset password for the Accounts flow.
   async function resetPassword({ resetToken, newPassword }) {
     if (!resetToken) {
       throw createHttpError(400, 'reset_token is required.');

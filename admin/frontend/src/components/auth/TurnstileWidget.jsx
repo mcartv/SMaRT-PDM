@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — Turnstile Widget (admin frontend component); renders reusable UI and handles local interactions.
 import { useEffect, useRef } from 'react';
 
 const TURNSTILE_SCRIPT_ID = 'smartpdm-cloudflare-turnstile';
@@ -6,6 +7,7 @@ const TURNSTILE_SCRIPT_SRC =
 
 let scriptPromise = null;
 
+// loadTurnstile: loads and returns load turnstile for the Authentication flow.
 function loadTurnstile() {
   if (typeof window === 'undefined') {
     return Promise.reject(new Error('Turnstile requires a browser environment.'));
@@ -18,6 +20,7 @@ function loadTurnstile() {
   if (scriptPromise) return scriptPromise;
 
   scriptPromise = new Promise((resolve, reject) => {
+    // finish: handles finish for the Authentication flow.
     const finish = () => {
       if (window.turnstile) {
         resolve(window.turnstile);

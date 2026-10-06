@@ -1,3 +1,4 @@
+// SMaRT-PDM: Document Verification — Document Review Issue Modal (admin frontend component); renders reusable UI and handles local interactions.
 import React, { useState } from 'react';
 import { AlertTriangle, X, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,7 @@ export default function DocumentReviewIssueModal({
     (option) => option.code === reasonCode
   );
 
+  // handleConfirm: handles handle confirm for the Document Verification flow.
   const handleConfirm = () => {
     if (!selectedReason) return;
 

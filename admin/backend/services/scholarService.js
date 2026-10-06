@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — scholar Service (admin backend service); contains business logic and data operations.
 const db = require('../config/db');
 const supabase = require('../config/supabase');
 
@@ -7,18 +8,21 @@ const SDO_STATUS_MAP = {
   major: 'Major Offense',
 };
 
+// mapSdoLevelFromStudentStatus: maps map sdo level from student status for the Scholars flow.
 function mapSdoLevelFromStudentStatus(studentStatus) {
   if (studentStatus === 'Minor Offense') return 'minor';
   if (studentStatus === 'Major Offense') return 'major';
   return 'none';
 }
 
+// mapStudentStatusFromLevel: maps map student status from level for the Scholars flow.
 function mapStudentStatusFromLevel(level) {
   if (level === 'minor') return SDO_STATUS_MAP.minor;
   if (level === 'major') return SDO_STATUS_MAP.major;
   return SDO_STATUS_MAP.clear;
 }
 
+// extractAvatarStoragePath: handles extract avatar storage path for the Scholars flow.
 function extractAvatarStoragePath(value) {
   const rawValue = String(value || '').trim();
 
@@ -49,6 +53,7 @@ function extractAvatarStoragePath(value) {
   return null;
 }
 
+// resolveAvatarUrl: resolves resolve avatar url for the Scholars flow.
 async function resolveAvatarUrl(value) {
   const rawValue = String(value || '').trim();
 
@@ -81,6 +86,7 @@ async function resolveAvatarUrl(value) {
   return data?.signedUrl || rawValue;
 }
 
+// normalizeScholarRow: normalizes normalize scholar row for the Scholars flow.
 function normalizeScholarRow(row) {
   return {
     scholar_id: row.student_id,
@@ -499,6 +505,7 @@ exports.fetchRemovedScholars = async () => {
 };
 
 
+// fetchScholarProgramHistory: fetches and returns fetch scholar program history for the Scholars flow.
 async function fetchScholarProgramHistory(studentId) {
   const result = await db.query(
     `
@@ -631,6 +638,7 @@ async function fetchScholarProgramHistory(studentId) {
   return result.rows || [];
 }
 
+// fetchScholarPayoutHistory: fetches and returns fetch scholar payout history for the Scholars flow.
 async function fetchScholarPayoutHistory(studentId) {
   const result = await db.query(
     `
@@ -676,6 +684,7 @@ async function fetchScholarPayoutHistory(studentId) {
   return result.rows || [];
 }
 
+// fetchScholarRenewalHistory: fetches and returns fetch scholar renewal history for the Scholars flow.
 async function fetchScholarRenewalHistory(studentId) {
   const result = await db.query(
     `
@@ -1615,6 +1624,7 @@ exports.updateScholarSdoStatus =
     };
   };
 
+// getLatestRenewalByStudentId: reads and returns get latest renewal by student id for the Scholars flow.
 async function getLatestRenewalByStudentId(
   studentId
 ) {

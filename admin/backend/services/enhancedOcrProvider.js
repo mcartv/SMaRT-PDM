@@ -1,9 +1,11 @@
+// SMaRT-PDM: OCR — enhanced Ocr Provider (admin backend service); contains business logic and data operations.
 const { GoogleGenAI } = require('@google/genai');
 const { normalizeEnhancedOcrError } = require('./enhancedOcrErrors');
 
 const MODEL = String(process.env.ENHANCED_OCR_MODEL || process.env.GEMINI_MODEL || 'gemini-3.6-flash').trim();
 const API_KEY = String(process.env.ENHANCED_OCR_API_KEY || process.env.GEMINI_API_KEY || '').trim();
 
+// extract: handles extract for the OCR flow.
 async function extract({ documentType, image, schema, instruction, timeoutMs, maxOutputTokens }) {
     try {
         if (!API_KEY) throw Object.assign(new Error('Enhanced OCR provider is not configured'), { code: 'ENHANCED_OCR_NOT_CONFIGURED' });

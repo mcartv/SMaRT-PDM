@@ -1,3 +1,4 @@
+// SMaRT-PDM: app motion — app motion (mobile frontend); supports mobile UI behavior.
 import 'package:flutter/material.dart';
 
 /// Shared, restrained motion for SMaRT-PDM.
@@ -60,6 +61,7 @@ class AppMotionReveal extends StatefulWidget {
   final Duration delay;
 
   @override
+  // createState: creates create state for the app motion flow.
   State<AppMotionReveal> createState() => _AppMotionRevealState();
 }
 
@@ -70,6 +72,7 @@ class _AppMotionRevealState extends State<AppMotionReveal>
   late final Animation<Offset> _offset;
 
   @override
+  // initState: handles init state for the app motion flow.
   void initState() {
     super.initState();
 
@@ -103,6 +106,7 @@ class _AppMotionRevealState extends State<AppMotionReveal>
   }
 
   @override
+  // build: builds build for the app motion flow.
   Widget build(BuildContext context) {
     if (MediaQuery.maybeOf(context)?.disableAnimations == true) {
       return widget.child;
@@ -118,6 +122,7 @@ class _AppMotionRevealState extends State<AppMotionReveal>
   }
 
   @override
+  // dispose: handles dispose for the app motion flow.
   void dispose() {
     _controller.dispose();
     super.dispose();

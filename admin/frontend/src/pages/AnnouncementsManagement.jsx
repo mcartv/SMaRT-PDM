@@ -1,3 +1,4 @@
+// SMaRT-PDM: Announcements — Announcements Management (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
@@ -68,6 +69,7 @@ const ANNOUNCEMENT_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
   minute: '2-digit',
 });
 
+// formatAnnouncementDate: formats format announcement date for the Announcements flow.
 function formatAnnouncementDate(value) {
   if (!value) return 'No date';
   const date = new Date(value);
@@ -85,10 +87,12 @@ const LEGACY_AUDIENCE_LABEL = {
   tdp: 'TDP Recipients (Legacy)',
 };
 
+// programAudienceValue: handles program audience value for the Announcements flow.
 function programAudienceValue(programId) {
   return programId ? `program:${programId}` : '';
 }
 
+// parseAudienceSelection: parses parse audience selection for the Announcements flow.
 function parseAudienceSelection(value) {
   const raw = String(value || '').trim();
   if (raw.startsWith('program:')) {
@@ -104,6 +108,7 @@ function parseAudienceSelection(value) {
   };
 }
 
+// buildAudienceOptions: builds build audience options for the Announcements flow.
 function buildAudienceOptions(programs = [], currentValue = '') {
   const options = Object.entries(GENERAL_AUDIENCE_LABEL).map(([value, label]) => ({
     value,
@@ -208,6 +213,7 @@ const ANNOUNCEMENT_TEMPLATES = {
   },
 };
 
+// resolveAnnouncementTemplate: resolves resolve announcement template for the Announcements flow.
 function resolveAnnouncementTemplate(announcement = {}) {
   const savedTemplateKey = String(
     announcement.templateKey || announcement.template_key || ''
@@ -230,12 +236,14 @@ function resolveAnnouncementTemplate(announcement = {}) {
   return matchedTemplate?.[0] || 'blank';
 }
 
+// toUtcIsoFromLocalInput: handles to utc iso from local input for the Announcements flow.
 function toUtcIsoFromLocalInput(value) {
   if (!value) return null;
 
   return new Date(value).toISOString();
 }
 
+// toLocalDateTimeInputValue: handles to local date time input value for the Announcements flow.
 function toLocalDateTimeInputValue(value) {
   if (!value) return '';
 
@@ -245,6 +253,7 @@ function toLocalDateTimeInputValue(value) {
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
 }
 
+// nextSchedulableLocalDateTimeInputValue: handles next schedulable local date time input value for the Announcements flow.
 function nextSchedulableLocalDateTimeInputValue(baseDate = new Date()) {
   const date = new Date(baseDate);
   date.setSeconds(0, 0);
@@ -253,6 +262,7 @@ function nextSchedulableLocalDateTimeInputValue(baseDate = new Date()) {
   return toLocalDateTimeInputValue(date);
 }
 
+// getLocalScheduleParts: reads and returns get local schedule parts for the Announcements flow.
 function getLocalScheduleParts(value = '') {
   const [date = '', time = ''] = String(value || '').split('T');
   const [hour = '', minute = ''] = time.split(':');
@@ -264,6 +274,7 @@ function getLocalScheduleParts(value = '') {
   };
 }
 
+// formatScheduleHour: formats format schedule hour for the Announcements flow.
 function formatScheduleHour(hourValue) {
   const hour = Number(hourValue);
   const period = hour >= 12 ? 'PM' : 'AM';
@@ -272,10 +283,12 @@ function formatScheduleHour(hourValue) {
   return `${String(displayHour).padStart(2, '0')}:00 ${period}`;
 }
 
+// formatScheduleMinute: formats format schedule minute for the Announcements flow.
 function formatScheduleMinute(minuteValue) {
   return String(minuteValue).padStart(2, '0');
 }
 
+// StatusPill: handles status pill for the Announcements flow.
 function StatusPill({ status }) {
   const s = STATUS[status] || { bg: '#f4f4f5', color: '#71717a' };
 
@@ -294,6 +307,7 @@ function StatusPill({ status }) {
   );
 }
 
+// ComposeAnnouncementModal: handles compose announcement modal for the Announcements flow.
 function ComposeAnnouncementModal({
   open,
   onRequestClose,
@@ -493,6 +507,7 @@ function ComposeAnnouncementModal({
                       return minute >= Number(minimumMinute || 0);
                     });
 
+                    // handleDateChange: handles handle date change for the Announcements flow.
                     const handleDateChange = (event) => {
                       const nextDate = event.target.value;
 
@@ -538,6 +553,7 @@ function ComposeAnnouncementModal({
                       );
                     };
 
+                    // handleHourChange: handles handle hour change for the Announcements flow.
                     const handleHourChange = (value) => {
                       if (!selectedDate) return;
 
@@ -561,6 +577,7 @@ function ComposeAnnouncementModal({
                       );
                     };
 
+                    // handleMinuteChange: handles handle minute change for the Announcements flow.
                     const handleMinuteChange = (value) => {
                       if (!selectedDate || selectedHour === '') return;
 
@@ -779,6 +796,7 @@ function ComposeAnnouncementModal({
   );
 }
 
+// DiscardAnnouncementModal: handles discard announcement modal for the Announcements flow.
 function DiscardAnnouncementModal({
   open,
   onKeepEditing,
@@ -837,6 +855,7 @@ function DiscardAnnouncementModal({
   );
 }
 
+// ConfirmTemplateApplyModal: handles confirm template apply modal for the Announcements flow.
 function ConfirmTemplateApplyModal({
   open,
   onCancel,
@@ -885,6 +904,7 @@ function ConfirmTemplateApplyModal({
   );
 }
 
+// EmptyList: handles empty list for the Announcements flow.
 function EmptyList({ archived }) {
   return (
     <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-6 py-12 text-center">
@@ -900,6 +920,7 @@ function EmptyList({ archived }) {
   );
 }
 
+// AnnouncementRow: handles announcement row for the Announcements flow.
 function AnnouncementRow({
   announcement,
   tab,
@@ -1039,6 +1060,7 @@ function AnnouncementRow({
   );
 }
 
+// normalizePrefillAudience: normalizes normalize prefill audience for the Announcements flow.
 function normalizePrefillAudience(value) {
   const raw = String(value || '').trim().toLowerCase();
 
@@ -1070,6 +1092,7 @@ function normalizePrefillAudience(value) {
   return 'all';
 }
 
+// buildOpeningPrefillContent: builds build opening prefill content for the Announcements flow.
 function buildOpeningPrefillContent(params) {
   const openingTitle = params.get('opening_title') || 'Scholarship Opening';
   const openingText = params.get('announcement_text') || '';
@@ -1086,6 +1109,7 @@ function buildOpeningPrefillContent(params) {
   return lines.filter(Boolean).join('\n');
 }
 
+// buildPayoutPrefillContent: builds build payout prefill content for the Announcements flow.
 function buildPayoutPrefillContent(params) {
   const payoutTitle = params.get('title') || params.get('subject') || 'Scholarship Payout Announcement';
   const content = params.get('content');
@@ -1261,6 +1285,7 @@ export default function AnnouncementsManagement() {
   useEffect(() => {
     if (!showForm) return undefined;
 
+    // refreshMinimumSchedule: refreshes refresh minimum schedule for the Announcements flow.
     const refreshMinimumSchedule = () => {
       setMinScheduleDateTime(nextSchedulableLocalDateTimeInputValue());
     };
@@ -1438,6 +1463,7 @@ export default function AnnouncementsManagement() {
     setPage(1);
   }, [tab, search, statusFilter]);
 
+  // resetForm: resets reset form for the Announcements flow.
   const resetForm = () => {
     setTitle('');
     setContent('');
@@ -1449,12 +1475,14 @@ export default function AnnouncementsManagement() {
     setEditingAnnouncementId(null);
   };
 
+  // handleOpenModal: handles handle open modal for the Announcements flow.
   const handleOpenModal = () => {
     resetForm();
     setMinScheduleDateTime(nextSchedulableLocalDateTimeInputValue());
     setShowForm(true);
   };
 
+  // handleRequestCloseModal: handles handle request close modal for the Announcements flow.
   const handleRequestCloseModal = () => {
     if (hasUnsavedChanges) {
       setShowDiscardModal(true);
@@ -1465,12 +1493,14 @@ export default function AnnouncementsManagement() {
     setShowForm(false);
   };
 
+  // handleCancelAnnouncement: handles handle cancel announcement for the Announcements flow.
   const handleCancelAnnouncement = () => {
     resetForm();
     setShowDiscardModal(false);
     setShowForm(false);
   };
 
+  // handleEdit: handles handle edit for the Announcements flow.
   const handleEdit = (announcement) => {
     setEditingAnnouncementId(announcement.id);
     setTitle(announcement.title || '');
@@ -1492,6 +1522,7 @@ export default function AnnouncementsManagement() {
     setShowForm(true);
   };
 
+  // validateForPublish: validates validate for publish for the Announcements flow.
   const validateForPublish = () => {
     const errors = {};
 
@@ -1514,6 +1545,7 @@ export default function AnnouncementsManagement() {
     return Object.keys(errors).length === 0;
   };
 
+  // applyTemplateNow: handles apply template now for the Announcements flow.
   const applyTemplateNow = () => {
     const template = ANNOUNCEMENT_TEMPLATES[selectedTemplate];
     if (!template) return;
@@ -1531,6 +1563,7 @@ export default function AnnouncementsManagement() {
     setShowTemplateConfirmModal(false);
   };
 
+  // handleApplyTemplate: handles handle apply template for the Announcements flow.
   const handleApplyTemplate = () => {
     const hasCurrentFormValues =
       title.trim() ||
@@ -1547,6 +1580,7 @@ export default function AnnouncementsManagement() {
     applyTemplateNow();
   };
 
+  // saveAnnouncementRequest: validates and saves save announcement request for the Announcements flow.
   const saveAnnouncementRequest = async ({ forceDraft = false }) => {
     const token = sessionStorage.getItem('adminToken');
     const isEditing = !!editingAnnouncementId;
@@ -1586,6 +1620,7 @@ export default function AnnouncementsManagement() {
     return data;
   };
 
+  // handlePost: handles handle post for the Announcements flow.
   const handlePost = async () => {
     const operationKey = 'compose:publish';
     if (operationGuards.current.has(operationKey)) return;
@@ -1636,6 +1671,7 @@ export default function AnnouncementsManagement() {
     }
   };
 
+  // handleSaveDraft: handles handle save draft for the Announcements flow.
   const handleSaveDraft = async () => {
     const operationKey = 'compose:draft';
     if (operationGuards.current.has(operationKey)) return;
@@ -1701,6 +1737,7 @@ export default function AnnouncementsManagement() {
     }
   };
 
+  // handleArchive: handles handle archive for the Announcements flow.
   const handleArchive = async (id) => {
     const operationKey = `archive:${id}`;
     if (operationGuards.current.has(operationKey)) return;
@@ -1762,6 +1799,7 @@ export default function AnnouncementsManagement() {
     }
   };
 
+  // handleRestore: handles handle restore for the Announcements flow.
   const handleRestore = async (id) => {
     const operationKey = `restore:${id}`;
     if (operationGuards.current.has(operationKey)) return;
@@ -1809,6 +1847,7 @@ export default function AnnouncementsManagement() {
     }
   };
 
+  // handlePublish: handles handle publish for the Announcements flow.
   const handlePublish = async (id) => {
     const operationKey = `publish:${id}`;
     if (operationGuards.current.has(operationKey)) return;

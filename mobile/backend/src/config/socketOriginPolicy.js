@@ -1,7 +1,9 @@
+// SMaRT-PDM: Realtime — socket Origin Policy (mobile backend config); configures shared mobile backend infrastructure.
 function normalizeOrigin(value) {
     return String(value || '').trim().replace(/\/+$/, '');
 }
 
+// configuredOrigins: handles configured origins for the Realtime flow.
 function configuredOrigins() {
     return new Set(
         String(
@@ -15,6 +17,7 @@ function configuredOrigins() {
     );
 }
 
+// configuredSuffixes: handles configured suffixes for the Realtime flow.
 function configuredSuffixes() {
     return [
         ...new Set([
@@ -28,6 +31,7 @@ function configuredSuffixes() {
     ];
 }
 
+// isPrivateIpv4: checks whether is private ipv4 for the Realtime flow.
 function isPrivateIpv4(hostname) {
     const parts = String(hostname || '')
         .split('.')
@@ -58,6 +62,7 @@ function isPrivateIpv4(hostname) {
     return false;
 }
 
+// isAllowedSocketOrigin: checks whether is allowed socket origin for the Realtime flow.
 function isAllowedSocketOrigin(origin) {
     if (!origin) return true;
 

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — Scholarship Openings (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
@@ -69,6 +70,7 @@ const STATUS_META = {
     archived: { label: 'Archived', color: '#57534e', bg: '#f5f5f4' },
 };
 
+// getBenefactorInitials: reads and returns get benefactor initials for the Scholars flow.
 function getBenefactorInitials(name) {
     const initials = String(name || '')
         .trim()
@@ -96,6 +98,7 @@ const INITIAL_FORM = {
     target_audience: 'Applicants',
 };
 
+// normalizeAudience: normalizes normalize audience for the Scholars flow.
 function normalizeAudience(value) {
     if (!value) return '';
 
@@ -115,6 +118,7 @@ function normalizeAudience(value) {
     return raw;
 }
 
+// deriveTargetAudience: derives derive target audience for the Scholars flow.
 function deriveTargetAudience(source) {
     const normalized = normalizeAudience(source?.target_audience);
     if (normalized) return normalized;
@@ -133,6 +137,7 @@ function deriveTargetAudience(source) {
     return isTES ? 'Both' : 'Applicants';
 }
 
+// targetAudienceLabel: handles target audience label for the Scholars flow.
 function targetAudienceLabel(value) {
     const normalized = normalizeAudience(value);
 
@@ -143,6 +148,7 @@ function targetAudienceLabel(value) {
     return normalized || 'Applicants';
 }
 
+// formatPesoAmount: formats format peso amount for the Scholars flow.
 function formatPesoAmount(value) {
     const amount = Number(value);
     if (!Number.isFinite(amount)) return '—';
@@ -155,6 +161,7 @@ function formatPesoAmount(value) {
     }).format(amount);
 }
 
+// getCurrentSchoolYearLabel: reads and returns get current school year label for the Scholars flow.
 function getCurrentSchoolYearLabel(date = new Date()) {
     const year = date.getFullYear();
     const month = date.getMonth() + 1;
@@ -165,6 +172,7 @@ function getCurrentSchoolYearLabel(date = new Date()) {
     return `${startYear}-${endYear}`;
 }
 
+// getVisibleAcademicYears: reads and returns get visible academic years for the Scholars flow.
 function getVisibleAcademicYears(rows = []) {
     return (Array.isArray(rows) ? rows : []).filter((year) => {
         const isArchived =
@@ -177,6 +185,7 @@ function getVisibleAcademicYears(rows = []) {
     });
 }
 
+// getDefaultAcademicYear: reads and returns get default academic year for the Scholars flow.
 function getDefaultAcademicYear(academicYears = []) {
     const currentLabel = getCurrentSchoolYearLabel();
 
@@ -188,6 +197,7 @@ function getDefaultAcademicYear(academicYears = []) {
     );
 }
 
+// getFilledSlots: reads and returns get filled slots for the Scholars flow.
 function getFilledSlots(openingLike = {}) {
     return Number(
         openingLike.filled_slots ??
@@ -197,14 +207,17 @@ function getFilledSlots(openingLike = {}) {
     );
 }
 
+// getAllocatedSlots: reads and returns get allocated slots for the Scholars flow.
 function getAllocatedSlots(openingLike = {}) {
     return Number(openingLike.allocated_slots || 0);
 }
 
+// getAvailableSlots: reads and returns get available slots for the Scholars flow.
 function getAvailableSlots(openingLike = {}) {
     return Math.max(0, getAllocatedSlots(openingLike) - getFilledSlots(openingLike));
 }
 
+// getComputedDisplayStatus: reads and returns get computed display status for the Scholars flow.
 function getComputedDisplayStatus(openingLike = {}) {
     const rawStatus = String(openingLike.posting_status || 'draft').toLowerCase();
     const isArchived = !!openingLike.is_archived;
@@ -216,6 +229,7 @@ function getComputedDisplayStatus(openingLike = {}) {
     return 'open';
 }
 
+// derivePersistedOpeningStatus: derives derive persisted opening status for the Scholars flow.
 function derivePersistedOpeningStatus(payload, existingStatus = '') {
     const normalizedExisting = String(existingStatus || '').toLowerCase();
 
@@ -234,6 +248,7 @@ function derivePersistedOpeningStatus(payload, existingStatus = '') {
     return 'open';
 }
 
+// canOpeningBeOpened: checks whether can opening be opened for the Scholars flow.
 function canOpeningBeOpened(openingLike = {}) {
     // SMART-PDM_OPENINGS_STATUS_WORKFLOW_V3
     const status = String(openingLike.posting_status || '').trim().toLowerCase();
@@ -251,6 +266,7 @@ function canOpeningBeOpened(openingLike = {}) {
     );
 }
 
+// EmptyState: handles empty state for the Scholars flow.
 function EmptyState({ icon: Icon, title, subtitle }) {
     return (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-stone-300 bg-stone-50 px-6 py-12 text-center">
@@ -261,6 +277,7 @@ function EmptyState({ icon: Icon, title, subtitle }) {
     );
 }
 
+// FilterModal: handles filter modal for the Scholars flow.
 function FilterModal({
     open,
     onClose,
@@ -359,6 +376,7 @@ function FilterModal({
     );
 }
 
+// OpeningModal: handles opening modal for the Scholars flow.
 function OpeningModal({
     open,
     mode,
@@ -788,6 +806,7 @@ function OpeningModal({
     );
 }
 
+// CreateOpeningConfirmModal: creates create opening confirm modal for the Scholars flow.
 function CreateOpeningConfirmModal({
     open,
     onClose,
@@ -903,6 +922,7 @@ const OPENING_ACTION_META = {
     },
 };
 
+// getApplicantStatusMeta: reads and returns get applicant status meta for the Scholars flow.
 function getApplicantStatusMeta(value) {
     const status = String(value || 'pending').trim().toLowerCase().replace(/[_-]+/g, ' ');
     if (['pending', 'pending review'].includes(status)) {
@@ -924,6 +944,7 @@ function getApplicantStatusMeta(value) {
     };
 }
 
+// OpeningActionConfirmModal: handles opening action confirm modal for the Scholars flow.
 function OpeningActionConfirmModal({ action, working, error, buttonColor, onCancel, onConfirm }) {
     const meta = action ? OPENING_ACTION_META[action.type] : null;
     const openingName = action?.opening?.opening_title || 'This scholarship opening';
@@ -984,6 +1005,7 @@ function OpeningActionConfirmModal({ action, working, error, buttonColor, onCanc
     );
 }
 
+// OpeningNoticeModal: handles opening notice modal for the Scholars flow.
 function OpeningNoticeModal({ notice, buttonColor, onClose }) {
     return (
         <AlertDialog open={Boolean(notice)} onOpenChange={(open) => !open && onClose()}>
@@ -1011,6 +1033,7 @@ function OpeningNoticeModal({ notice, buttonColor, onClose }) {
     );
 }
 
+// PostCreatePrompt: handles post create prompt for the Scholars flow.
 function PostCreatePrompt({ open, opening, onClose, onCreateAnnouncement }) {
     if (!open || !opening) return null;
 
@@ -1065,6 +1088,7 @@ function PostCreatePrompt({ open, opening, onClose, onCreateAnnouncement }) {
     );
 }
 
+// TemplateCard: handles template card for the Scholars flow.
 function TemplateCard({ template, onOpen }) {
     const templateLogoUrl = template.admin_logo_url || template.benefactor_admin_logo_url || null;
     const templateInitials = getBenefactorInitials(template.program_name || template.benefactor_name);
@@ -1132,6 +1156,7 @@ function TemplateCard({ template, onOpen }) {
     );
 }
 
+// OpeningCard: handles opening card for the Scholars flow.
 function OpeningCard({
     opening,
     actionLoadingId,
@@ -1156,6 +1181,7 @@ function OpeningCard({
         if (!showApplicants) return undefined;
 
         let active = true;
+        // loadApplicants: loads and returns load applicants for the Scholars flow.
         const loadApplicants = async () => {
             setApplicantsLoading(true);
             setApplicantsError('');
@@ -1809,18 +1835,21 @@ export default function ScholarshipOpenings() {
         audienceFilter !== 'All Audiences' ||
         programFilter !== 'All Programs';
 
+    // openFilterModal: handles open filter modal for the Scholars flow.
     const openFilterModal = () => {
         setDraftAudienceFilter(audienceFilter);
         setDraftProgramFilter(programFilter);
         setFilterOpen(true);
     };
 
+    // applyFilters: handles apply filters for the Scholars flow.
     const applyFilters = () => {
         setAudienceFilter(draftAudienceFilter);
         setProgramFilter(draftProgramFilter);
         setFilterOpen(false);
     };
 
+    // clearFilters: clears clear filters for the Scholars flow.
     const clearFilters = () => {
         setAudienceFilter('All Audiences');
         setProgramFilter('All Programs');
@@ -1829,6 +1858,7 @@ export default function ScholarshipOpenings() {
         setFilterOpen(false);
     };
 
+    // openCreateFromTemplate: handles open create from template for the Scholars flow.
     const openCreateFromTemplate = (template) => {
         setOpenedFromTemplate(true);
         const currentYear = new Date().getFullYear();
@@ -1897,6 +1927,7 @@ export default function ScholarshipOpenings() {
         setModalOpen(true);
     };
 
+    // openEditModal: handles open edit modal for the Scholars flow.
     const openEditModal = (opening) => {
         setOpenedFromTemplate(false);
         setModalMode('edit');
@@ -1926,6 +1957,7 @@ export default function ScholarshipOpenings() {
         setModalOpen(true);
     };
 
+    // handleSaveOpening: handles handle save opening for the Scholars flow.
     const handleSaveOpening = async (forcedStatus = null) => {
         try {
             if (!form.program_id) {
@@ -2062,6 +2094,7 @@ export default function ScholarshipOpenings() {
         }
     };
 
+    // requestSaveOpening: handles request save opening for the Scholars flow.
     const requestSaveOpening = () => {
         const isEdit = modalMode === 'edit' && editingOpeningId;
         const isTemplateLaunch = openedFromTemplate;
@@ -2074,6 +2107,7 @@ export default function ScholarshipOpenings() {
         setCreateConfirmOpen(true);
     };
 
+    // updateOpeningStatus: updates update opening status for the Scholars flow.
     const updateOpeningStatus = async (openingId, nextStatus, extraPayload = {}) => {
         try {
             setActionLoadingId(openingId);
@@ -2111,16 +2145,19 @@ export default function ScholarshipOpenings() {
         }
     };
 
+    // requestStatusAction: handles request status action for the Scholars flow.
     const requestStatusAction = (type, opening, nextStatus = null) => {
         setStatusActionError('');
         setPendingStatusAction({ type, opening, nextStatus });
     };
 
+    // handleArchiveOpening: handles handle archive opening for the Scholars flow.
     const handleArchiveOpening = (openingId) => {
         const opening = openings.find((item) => item.opening_id === openingId);
         if (opening) requestStatusAction('archive', opening, 'archived');
     };
 
+    // handleRestoreOpening: handles handle restore opening for the Scholars flow.
     const handleRestoreOpening = (opening) => {
         const restoredCandidate = {
             ...opening,
@@ -2137,6 +2174,7 @@ export default function ScholarshipOpenings() {
         requestStatusAction('restore', opening, nextStatus);
     };
 
+    // handleOpenDraftOpening: handles handle open draft opening for the Scholars flow.
     const handleOpenDraftOpening = (opening) => {
         if (!canOpeningBeOpened(opening)) {
             setNotice({
@@ -2149,10 +2187,12 @@ export default function ScholarshipOpenings() {
         requestStatusAction('open', opening, 'open');
     };
 
+    // handleCloseOpening: handles handle close opening for the Scholars flow.
     const handleCloseOpening = (opening) => {
         requestStatusAction('close', opening, 'closed');
     };
 
+    // handleMoveToDraft: handles handle move to draft for the Scholars flow.
     const handleMoveToDraft = (opening) => {
         if (getFilledSlots(opening) > 0) {
             setNotice({
@@ -2165,6 +2205,7 @@ export default function ScholarshipOpenings() {
         requestStatusAction('draft', opening, 'draft');
     };
 
+    // handleReopenOpening: handles handle reopen opening for the Scholars flow.
     const handleReopenOpening = (opening) => {
         const reopenCandidate = {
             ...opening,
@@ -2183,6 +2224,7 @@ export default function ScholarshipOpenings() {
         requestStatusAction('reopen', opening, 'open');
     };
 
+    // confirmStatusAction: handles confirm status action for the Scholars flow.
     const confirmStatusAction = async () => {
         if (!pendingStatusAction?.opening?.opening_id) return;
 
@@ -2199,6 +2241,7 @@ export default function ScholarshipOpenings() {
         }
     };
 
+    // handleCreateAnnouncementRedirect: handles handle create announcement redirect for the Scholars flow.
     const handleCreateAnnouncementRedirect = () => {
         if (!newOpeningForPrompt) return;
 

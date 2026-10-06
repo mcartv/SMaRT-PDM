@@ -1,3 +1,4 @@
+// SMaRT-PDM: Maintenance — Landing Theme Panel (admin frontend page); loads data, handles page actions, and renders the admin view.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, Loader2, Palette, Plus, RotateCcw, Save, X } from 'lucide-react';
 import { buildApiUrl } from '@/api';
@@ -16,6 +17,7 @@ import {
 
 const LANDING_THEME_CACHE_KEY = 'smartpdm-theme-landing';
 
+// readLandingThemeCache: handles read landing theme cache for the Maintenance flow.
 function readLandingThemeCache() {
   try {
     const raw = localStorage.getItem(LANDING_THEME_CACHE_KEY);
@@ -31,6 +33,7 @@ function readLandingThemeCache() {
   }
 }
 
+// writeLandingThemeCache: handles write landing theme cache for the Maintenance flow.
 function writeLandingThemeCache(presetKey, customColors) {
   try {
     localStorage.setItem(
@@ -42,6 +45,7 @@ function writeLandingThemeCache(presetKey, customColors) {
   }
 }
 
+// ColorInput: handles color input for the Maintenance flow.
 function ColorInput({ label, value, onChange }) {
   return (
     <label className="rounded-2xl border border-stone-200 bg-white p-3">
@@ -61,6 +65,7 @@ function ColorInput({ label, value, onChange }) {
   );
 }
 
+// LandingThemePreview: handles landing theme preview for the Maintenance flow.
 function LandingThemePreview({ theme }) {
   return (
     <div className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
@@ -98,6 +103,7 @@ function LandingThemePreview({ theme }) {
   );
 }
 
+// LandingCustomThemeModal: handles landing custom theme modal for the Maintenance flow.
 function LandingCustomThemeModal({ open, colors, saving, onChange, onClose, onSave }) {
   if (!open) return null;
 
@@ -207,6 +213,7 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
     return () => window.clearTimeout(timer);
   }, [feedback]);
 
+  // saveLandingTheme: validates and saves save landing theme for the Maintenance flow.
   const saveLandingTheme = async (nextPresetKey, nextCustomColors = null) => {
     try {
       setSaving(true);
@@ -244,6 +251,7 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
     }
   };
 
+  // handlePresetApply: handles handle preset apply for the Maintenance flow.
   const handlePresetApply = (nextPresetKey) => {
     const resolved = resolveLandingTheme(nextPresetKey);
     const nextColors = Object.fromEntries(LANDING_COLOR_FIELDS.map((field) => [field.key, resolved[field.key]]));
@@ -252,17 +260,20 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
     saveLandingTheme(nextPresetKey, null);
   };
 
+  // openCustomTheme: handles open custom theme for the Maintenance flow.
   const openCustomTheme = () => {
     const current = resolveLandingTheme(presetKey, presetKey === 'custom' ? customColors : null);
     setCustomDraft(Object.fromEntries(LANDING_COLOR_FIELDS.map((field) => [field.key, current[field.key]])));
     setCustomOpen(true);
   };
 
+  // handleSaveCustom: handles handle save custom for the Maintenance flow.
   const handleSaveCustom = async () => {
     const saved = await saveLandingTheme('custom', customDraft);
     if (saved) setCustomOpen(false);
   };
 
+  // handleRestoreDefault: handles handle restore default for the Maintenance flow.
   const handleRestoreDefault = () => {
     const resolved = resolveLandingTheme('default');
     setPresetKey('default');

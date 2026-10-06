@@ -1,3 +1,4 @@
+// SMaRT-PDM: turnstile Middleware — turnstile Middleware (admin backend middleware); validates or transforms requests before controller handling.
 const https = require('https');
 
 const SITEVERIFY_HOST = 'challenges.cloudflare.com';
@@ -12,6 +13,7 @@ const CLOUDFLARE_TEST_SECRETS = new Set([
     '3x0000000000000000000000000000000AA',
 ]);
 
+// verifyWithCloudflare: verifies verify with cloudflare for the turnstile Middleware flow.
 function verifyWithCloudflare({ secret, token, remoteIp }) {
     const form = new URLSearchParams({
         secret,
@@ -65,6 +67,7 @@ function verifyWithCloudflare({ secret, token, remoteIp }) {
     });
 }
 
+// requireTurnstile: handles require turnstile for the turnstile Middleware flow.
 async function requireTurnstile(req, res, next) {
     const secret = String(
         process.env.TURNSTILE_SECRET_KEY || process.env.TURNSTILE_SECRET || ''

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Profile — SDOProfile (admin frontend page); loads data, handles page actions, and renders the admin view.
 import OfficeProfilePage from '@/components/profile/OfficeProfilePage';
 import usePortalTheme from '@/hooks/usePortalTheme';
 import { buildMaintenancePalette, getPortalDefaultTheme } from '@/config/portalThemes';

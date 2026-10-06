@@ -1,3 +1,4 @@
+// SMaRT-PDM: Messaging — message History Service (admin backend service); contains business logic and data operations.
 'use strict';
 
 const db = require('../config/db');
@@ -6,12 +7,14 @@ const messageService = require('./messageService');
 const DEFAULT_BATCH_SIZE = 30;
 const MAX_BATCH_SIZE = 50;
 
+// normalizeLimit: normalizes normalize limit for the Messaging flow.
 function normalizeLimit(value) {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_BATCH_SIZE;
   return Math.min(parsed, MAX_BATCH_SIZE);
 }
 
+// encodeCursor: handles encode cursor for the Messaging flow.
 function encodeCursor(row) {
   if (!row?.sent_at || !row?.message_id) return null;
   return Buffer.from(
@@ -24,6 +27,7 @@ function encodeCursor(row) {
     .replace(/=+$/g, '');
 }
 
+// decodeCursor: handles decode cursor for the Messaging flow.
 function decodeCursor(value) {
   const raw = String(value || '').trim();
   if (!raw) return null;
@@ -47,6 +51,7 @@ function decodeCursor(value) {
   }
 }
 
+// enrichMessageRows: handles enrich message rows for the Messaging flow.
 async function enrichMessageRows(rows = []) {
   const userIds = [
     ...new Set(
@@ -79,6 +84,7 @@ async function enrichMessageRows(rows = []) {
   }));
 }
 
+// enrichRoomReadReceipts: handles enrich room read receipts for the Messaging flow.
 async function enrichRoomReadReceipts(rows = []) {
   const readerIds = [
     ...new Set(
@@ -114,6 +120,7 @@ async function enrichRoomReadReceipts(rows = []) {
   }));
 }
 
+// finishWindow: handles finish window for the Messaging flow.
 function finishWindow(rows, limit) {
   const hasMore = rows.length > limit;
   const descendingPage = hasMore ? rows.slice(0, limit) : rows;
@@ -134,6 +141,7 @@ function finishWindow(rows, limit) {
   };
 }
 
+// fetchPrivateWindow: fetches and returns fetch private window for the Messaging flow.
 async function fetchPrivateWindow(currentUserId, counterpartyId, options = {}) {
   const limit = normalizeLimit(options.limit);
   const cursor = decodeCursor(options.before);
@@ -215,6 +223,7 @@ async function fetchPrivateWindow(currentUserId, counterpartyId, options = {}) {
   return { items: window.rows, pagination: window.pagination };
 }
 
+// ensureRoomMembership: ensures ensure room membership for the Messaging flow.
 async function ensureRoomMembership(currentUserId, roomId) {
   const result = await db.query(
     `
@@ -234,6 +243,7 @@ async function ensureRoomMembership(currentUserId, roomId) {
   }
 }
 
+// fetchRoomWindow: fetches and returns fetch room window for the Messaging flow.
 async function fetchRoomWindow(currentUserId, roomId, options = {}) {
   await ensureRoomMembership(currentUserId, roomId);
 

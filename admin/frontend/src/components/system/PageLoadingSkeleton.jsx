@@ -1,5 +1,7 @@
+// SMaRT-PDM: Page Loading Skeleton — Page Loading Skeleton (admin frontend component); renders reusable UI and handles local interactions.
 import { Skeleton } from '@/components/ui/skeleton';
 
+// PageHeaderSkeleton: handles page header skeleton for the Page Loading Skeleton flow.
 function PageHeaderSkeleton() {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -13,6 +15,7 @@ function PageHeaderSkeleton() {
   );
 }
 
+// StatCardsSkeleton: handles stat cards skeleton for the Page Loading Skeleton flow.
 function StatCardsSkeleton() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -27,6 +30,7 @@ function StatCardsSkeleton() {
   );
 }
 
+// TableSkeleton: handles table skeleton for the Page Loading Skeleton flow.
 function TableSkeleton() {
   return (
     <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
@@ -46,6 +50,7 @@ function TableSkeleton() {
   );
 }
 
+// CardsSkeleton: handles cards skeleton for the Page Loading Skeleton flow.
 function CardsSkeleton() {
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -65,6 +70,7 @@ function CardsSkeleton() {
   );
 }
 
+// SectionLoadingSkeleton: handles section loading skeleton for the Page Loading Skeleton flow.
 export function SectionLoadingSkeleton({ label = 'Loading content', rows = 4 }) {
   return (
     <div className="space-y-3 py-3" role="status" aria-live="polite" aria-busy="true">

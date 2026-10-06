@@ -1,3 +1,4 @@
+// SMaRT-PDM: Accounts — account Service (admin backend service); contains business logic and data operations.
 const bcrypt = require('bcryptjs');
 const { z } = require('zod');
 const db = require('../config/db');
@@ -141,12 +142,14 @@ const adminAccountSchema = z
         message: 'Passwords do not match.',
     });
 
+// createHttpError: creates create http error for the Accounts flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// accountUniqueViolation: handles account unique violation for the Accounts flow.
 function accountUniqueViolation(error) {
     if (error?.code !== '23505') return null;
     if (error.constraint === 'admin_profiles_normalized_full_name_key') {
@@ -158,10 +161,12 @@ function accountUniqueViolation(error) {
     return createHttpError(409, 'An account with this email or username already exists.');
 }
 
+// safeText: handles safe text for the Accounts flow.
 function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
 }
 
+// assertUniqueStaffIdentity: handles assert unique staff identity for the Accounts flow.
 async function assertUniqueStaffIdentity({ firstName, lastName, email, username = '', excludedUserId = null, client = db }) {
     const result = await client.query(
         `SELECT
@@ -202,6 +207,7 @@ async function assertUniqueStaffIdentity({ firstName, lastName, email, username 
     }
 }
 
+// validateOptionalPhoneNumber: validates validate optional phone number for the Accounts flow.
 function validateOptionalPhoneNumber(value) {
     const phoneNumber = safeText(value);
 
@@ -216,6 +222,7 @@ function validateOptionalPhoneNumber(value) {
     return phoneNumber || null;
 }
 
+// validateDepartment: validates validate department for the Accounts flow.
 function validateDepartment(role, value) {
     const department = safeText(value);
     const allowedDepartments = DEPARTMENTS_BY_ROLE[role] || [];
@@ -235,6 +242,7 @@ function validateDepartment(role, value) {
     return department;
 }
 
+// validateRoCoordinatorDepartment: validates validate ro coordinator department for the Accounts flow.
 async function validateRoCoordinatorDepartment(department, client = db) {
     const result = await client.query(
         `SELECT department_name FROM ro_departments WHERE department_name = $1 AND is_active = true LIMIT 1`,
@@ -248,6 +256,7 @@ async function validateRoCoordinatorDepartment(department, client = db) {
     return result.rows[0].department_name;
 }
 
+// assertRoCoordinatorAreaAvailable: handles assert ro coordinator area available for the Accounts flow.
 async function assertRoCoordinatorAreaAvailable(department, excludedUserId = null, client = db) {
     const result = await client.query(
         `
@@ -267,6 +276,7 @@ async function assertRoCoordinatorAreaAvailable(department, excludedUserId = nul
     }
 }
 
+// syncStandaloneRoCoordinatorAssignment: synchronizes sync standalone ro coordinator assignment for the Accounts flow.
 async function syncStandaloneRoCoordinatorAssignment({
     userId,
     department,
@@ -327,6 +337,7 @@ async function syncStandaloneRoCoordinatorAssignment({
     }
 }
 
+// assertNoPendingRoRequests: handles assert no pending ro requests for the Accounts flow.
 async function assertNoPendingRoRequests(department, client = db) {
     const result = await client.query(
         `
@@ -348,6 +359,7 @@ async function assertNoPendingRoRequests(department, client = db) {
     }
 }
 
+// validatePassword: validates validate password for the Accounts flow.
 function validatePassword(password, confirmPassword) {
     if (!password) return null;
 
@@ -374,6 +386,7 @@ function validatePassword(password, confirmPassword) {
     return password;
 }
 
+// hasAdminProfilePhotoColumn: checks whether has admin profile photo column for the Accounts flow.
 async function hasAdminProfilePhotoColumn(client = db) {
     const result = await client.query(
         `
@@ -389,12 +402,14 @@ async function hasAdminProfilePhotoColumn(client = db) {
     return result.rows.length > 0;
 }
 
+// buildProfilePhotoSelect: builds build profile photo select for the Accounts flow.
 function buildProfilePhotoSelect(alias = 'a', enabled = false) {
     return enabled
         ? `${alias}.profile_photo_url AS profile_photo_url`
         : `NULL::text AS profile_photo_url`;
 }
 
+// mapStaffAccount: maps map staff account for the Accounts flow.
 function mapStaffAccount(row) {
     const role = resolveStaffRole(row);
     const name = [row.first_name, row.last_name].filter(Boolean).join(' ');
@@ -418,6 +433,7 @@ function mapStaffAccount(row) {
     };
 }
 
+// hasActiveRoCoordinatorAssignment: checks whether has active ro coordinator assignment for the Accounts flow.
 async function hasActiveRoCoordinatorAssignment(userId, client = db) {
     if (!userId) return false;
 
@@ -436,6 +452,7 @@ async function hasActiveRoCoordinatorAssignment(userId, client = db) {
     return result.rows.length > 0;
 }
 
+// decorateStaffAccount: handles decorate staff account for the Accounts flow.
 async function decorateStaffAccount(row, client = db) {
     const account = mapStaffAccount(row);
     const canHoldRoCoordinatorAssignment = ['pd', 'sdo', 'guidance', 'ro_coordinator'].includes(account.role);
@@ -457,6 +474,7 @@ async function decorateStaffAccount(row, client = db) {
     };
 }
 
+// sanitizeFileName: handles sanitize file name for the Accounts flow.
 function sanitizeFileName(value) {
     return String(value || 'profile-photo')
         .toLowerCase()
@@ -465,6 +483,7 @@ function sanitizeFileName(value) {
         .replace(/^-|-$/g, '') || 'profile-photo';
 }
 
+// buildUniqueUsername: builds build unique username for the Accounts flow.
 async function buildUniqueUsername(client, email) {
     const localPart = email.split('@')[0] || 'staff';
     const base = localPart
@@ -488,6 +507,7 @@ async function buildUniqueUsername(client, email) {
     throw createHttpError(500, 'Unable to generate a unique username.');
 }
 
+// fetchStaffAccountRow: fetches and returns fetch staff account row for the Accounts flow.
 async function fetchStaffAccountRow(userId, client = db, includeArchived = true) {
     const photoEnabled = await hasAdminProfilePhotoColumn(client);
 
@@ -519,11 +539,13 @@ async function fetchStaffAccountRow(userId, client = db, includeArchived = true)
     return result.rows[0] || null;
 }
 
+// getStaffAccountById: reads and returns get staff account by id for the Accounts flow.
 async function getStaffAccountById(userId, includeArchived = true) {
     const row = await fetchStaffAccountRow(userId, db, includeArchived);
     return row ? decorateStaffAccount(row) : null;
 }
 
+// listStaffAccounts: loads a list of list staff accounts for the Accounts flow.
 async function listStaffAccounts() {
     const photoEnabled = await hasAdminProfilePhotoColumn();
 
@@ -578,6 +600,7 @@ async function listStaffAccounts() {
     }));
 }
 
+// getCurrentStaffProfile: reads and returns get current staff profile for the Accounts flow.
 async function getCurrentStaffProfile(userId) {
     if (!userId) {
         throw createHttpError(400, 'User ID is required.');
@@ -592,6 +615,7 @@ async function getCurrentStaffProfile(userId) {
     return decorateStaffAccount(row);
 }
 
+// createAccountFromParsedData: creates create account from parsed data for the Accounts flow.
 async function createAccountFromParsedData(parsedData, rawPayload = {}, actorUserId = null) {
     const {
         first_name: firstName,
@@ -722,6 +746,7 @@ async function createAccountFromParsedData(parsedData, rawPayload = {}, actorUse
     }
 }
 
+// createStaffAccount: creates create staff account for the Accounts flow.
 async function createStaffAccount(payload, actorUserId = null) {
     if (safeText(payload?.role).toLowerCase() === 'admin') {
         throw createHttpError(
@@ -740,6 +765,7 @@ async function createStaffAccount(payload, actorUserId = null) {
     return createAccountFromParsedData(parsed.data, payload, actorUserId);
 }
 
+// createAdminAccount: creates create admin account for the Accounts flow.
 async function createAdminAccount(payload, actorUserId = null) {
     const parsed = adminAccountSchema.safeParse(payload);
 
@@ -768,6 +794,7 @@ async function createAdminAccount(payload, actorUserId = null) {
     );
 }
 
+// revokeStaffSessionVersion: handles revoke staff session version for the Accounts flow.
 async function revokeStaffSessionVersion(client, userId) {
     await client.query(
         `UPDATE users
@@ -782,6 +809,7 @@ async function revokeStaffSessionVersion(client, userId) {
     await adminSessionService.revokeAllAdminSessionsForUser(client, userId);
 }
 
+// updateStaffAccount: updates update staff account for the Accounts flow.
 async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
     if (!userId) {
         throw createHttpError(400, 'User ID is required.');
@@ -1060,6 +1088,7 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
     }
 }
 
+// archiveStaffAccount: archives archive staff account for the Accounts flow.
 async function archiveStaffAccount(userId, actorUserId = null) {
     if (!userId) {
         throw createHttpError(400, 'User ID is required.');
@@ -1117,6 +1146,7 @@ async function archiveStaffAccount(userId, actorUserId = null) {
     return getStaffAccountById(userId, true);
 }
 
+// restoreStaffAccount: restores restore staff account for the Accounts flow.
 async function restoreStaffAccount(userId) {
     if (!userId) {
         throw createHttpError(400, 'User ID is required.');
@@ -1167,6 +1197,7 @@ async function restoreStaffAccount(userId) {
     return getStaffAccountById(userId, true);
 }
 
+// updateCurrentStaffProfile: updates update current staff profile for the Accounts flow.
 async function updateCurrentStaffProfile(userId, payload = {}) {
     if (!userId) {
         throw createHttpError(400, 'User ID is required.');
@@ -1260,6 +1291,7 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
 }
 
 
+// verifyCurrentStaffPassword: verifies verify current staff password for the Accounts flow.
 async function verifyCurrentStaffPassword(userId, payload = {}) {
     if (!userId) {
         throw createHttpError(400, 'User ID is required.');
@@ -1289,6 +1321,7 @@ async function verifyCurrentStaffPassword(userId, payload = {}) {
 }
 
 
+// changeCurrentStaffPassword: handles change current staff password for the Accounts flow.
 async function changeCurrentStaffPassword(userId, payload = {}) {
     if (!userId) {
         throw createHttpError(400, 'User ID is required.');
@@ -1347,6 +1380,7 @@ async function changeCurrentStaffPassword(userId, payload = {}) {
     }
 }
 
+// uploadCurrentStaffProfilePhoto: uploads upload current staff profile photo for the Accounts flow.
 async function uploadCurrentStaffProfilePhoto(userId, file) {
     if (!userId) {
         throw createHttpError(400, 'User ID is required.');
@@ -1403,6 +1437,7 @@ async function uploadCurrentStaffProfilePhoto(userId, file) {
     return getCurrentStaffProfile(userId);
 }
 
+// removeCurrentStaffProfilePhoto: removes remove current staff profile photo for the Accounts flow.
 async function removeCurrentStaffProfilePhoto(userId) {
     if (!userId) {
         throw createHttpError(400, 'User ID is required.');

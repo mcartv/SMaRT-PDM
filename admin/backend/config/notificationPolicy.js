@@ -1,11 +1,14 @@
+// SMaRT-PDM: Notifications — notification Policy (admin backend config); configures shared backend infrastructure.
 'use strict';
 
+// createNotificationPolicy: creates create notification policy for the Notifications flow.
 function createNotificationPolicy({ load, now = Date.now, ttlMs = 60000, warn = console.warn }) {
     let enabled = true;
     let expiresAt = 0;
     let pending = null;
     let revision = 0;
 
+    // setNotificationsEnabled: sets set notifications enabled for the Notifications flow.
     function setNotificationsEnabled(value) {
         if (typeof value !== 'boolean') return;
         revision += 1;
@@ -13,11 +16,13 @@ function createNotificationPolicy({ load, now = Date.now, ttlMs = 60000, warn = 
         expiresAt = now() + ttlMs;
     }
 
+    // invalidate: handles invalidate for the Notifications flow.
     function invalidate() {
         revision += 1;
         expiresAt = 0;
     }
 
+    // notificationsEnabled: handles notifications enabled for the Notifications flow.
     async function notificationsEnabled() {
         if (pending) await pending;
         if (now() < expiresAt) return enabled;

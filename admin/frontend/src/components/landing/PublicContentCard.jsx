@@ -1,3 +1,4 @@
+// SMaRT-PDM: Public Content Card — Public Content Card (admin frontend component); renders reusable UI and handles local interactions.
 import React from 'react';
 
 export default function PublicContentCard({
@@ -18,6 +19,7 @@ export default function PublicContentCard({
   );
 }
 
+// PublicCardHeading: handles public card heading for the Public Content Card flow.
 export function PublicCardHeading({
   theme,
   icon: Icon,

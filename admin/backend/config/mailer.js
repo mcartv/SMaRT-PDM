@@ -1,3 +1,4 @@
+// SMaRT-PDM: mailer — mailer (admin backend config); configures shared backend infrastructure.
 let nodemailer = null;
 
 try {

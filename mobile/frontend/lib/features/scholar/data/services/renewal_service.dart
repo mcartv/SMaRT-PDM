@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — renewal service (mobile service); calls APIs or shared services and returns processed results.
 import 'dart:typed_data';
 
 import 'package:smartpdm_mobileapp/shared/models/scholar_renewal.dart';
@@ -9,11 +10,13 @@ class RenewalService {
 
   final ApiClient _apiClient;
 
+  // fetchCurrentRenewal: fetches and returns fetch current renewal for the Scholars flow.
   Future<ScholarRenewalPackage> fetchCurrentRenewal() async {
     final response = await _apiClient.getObject('/api/renewals/me/current');
     return ScholarRenewalPackage.fromJson(response);
   }
 
+  // uploadDocument: uploads upload document for the Scholars flow.
   Future<ScholarRenewalPackage> uploadDocument({
     required String routeParam,
     required String fileName,
@@ -56,6 +59,7 @@ class RenewalService {
     return ScholarRenewalPackage.fromJson(response);
   }
 
+  // submitRenewal: handles submit renewal for the Scholars flow.
   Future<ScholarRenewalPackage> submitRenewal() async {
     final response = await _apiClient.postJson(
       '/api/renewals/me/submit',

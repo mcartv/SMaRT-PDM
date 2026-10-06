@@ -1,7 +1,9 @@
+// SMaRT-PDM: Document Verification — legal document sheet (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
 
+// showLegalDocumentSheet: handles show legal document sheet for the Document Verification flow.
 Future<void> showLegalDocumentSheet(
   BuildContext context, {
   required String title,

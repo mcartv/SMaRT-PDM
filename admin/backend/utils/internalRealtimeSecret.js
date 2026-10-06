@@ -1,7 +1,9 @@
+// SMaRT-PDM: internal Realtime Secret — internal Realtime Secret (admin backend); supports backend application behavior.
 const crypto = require('crypto');
 
 const DERIVATION_NAMESPACE = 'smart-pdm-internal-realtime-v1';
 
+// resolveInternalRealtimeSecret: resolves resolve internal realtime secret for the internal Realtime Secret flow.
 function resolveInternalRealtimeSecret() {
   const explicit = String(process.env.INTERNAL_REALTIME_SECRET || '').trim();
   if (explicit) return explicit;

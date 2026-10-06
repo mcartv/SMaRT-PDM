@@ -1,9 +1,11 @@
+// SMaRT-PDM: Scholars — scholarship Program Service (admin backend service); contains business logic and data operations.
 const supabase = require('../config/supabase');
 
 const ALLOWED_TARGET_AUDIENCES = ['Applicants', 'Scholars', 'Both'];
 const ALLOWED_RENEWAL_CYCLES = ['Semester', 'Annual', 'None'];
 const ALLOWED_VISIBILITY = ['Published', 'Draft'];
 
+// normalizeNullableText: normalizes normalize nullable text for the Scholars flow.
 function normalizeNullableText(value) {
     if (value === undefined) return undefined;
     if (value === null) return null;
@@ -12,6 +14,7 @@ function normalizeNullableText(value) {
     return trimmed ? trimmed : null;
 }
 
+// normalizeRequiredText: normalizes normalize required text for the Scholars flow.
 function normalizeRequiredText(value, fieldName) {
     const trimmed = String(value || '').trim();
     if (!trimmed) {
@@ -20,6 +23,7 @@ function normalizeRequiredText(value, fieldName) {
     return trimmed;
 }
 
+// normalizeEnum: normalizes normalize enum for the Scholars flow.
 function normalizeEnum(value, allowed, fallback, fieldName) {
     const normalized = value ?? fallback;
     if (!allowed.includes(normalized)) {
@@ -28,6 +32,7 @@ function normalizeEnum(value, allowed, fallback, fieldName) {
     return normalized;
 }
 
+// normalizeGwaThreshold: normalizes normalize gwa threshold for the Scholars flow.
 function normalizeGwaThreshold(value) {
     if (value === undefined) return undefined;
     if (value === null || value === '') return null;
@@ -45,6 +50,7 @@ function normalizeGwaThreshold(value) {
     return numericValue;
 }
 
+// normalizeUuid: normalizes normalize uuid for the Scholars flow.
 function normalizeUuid(value, fieldName) {
     const trimmed = String(value || '').trim();
     if (!trimmed) {
@@ -53,6 +59,7 @@ function normalizeUuid(value, fieldName) {
     return trimmed;
 }
 
+// ensureBenefactorExists: ensures ensure benefactor exists for the Scholars flow.
 async function ensureBenefactorExists(benefactorId) {
     const { data, error } = await supabase
         .from('benefactors')
@@ -76,6 +83,7 @@ async function ensureBenefactorExists(benefactorId) {
     return data;
 }
 
+// mapProgramRow: maps map program row for the Scholars flow.
 function mapProgramRow(row) {
     return {
         program_id: row.program_id,

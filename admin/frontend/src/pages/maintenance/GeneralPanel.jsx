@@ -1,3 +1,4 @@
+// SMaRT-PDM: Maintenance — General Panel (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -113,6 +114,7 @@ const DEFAULT_FEATURED_NOTICE = {
     created_at: '',
 };
 
+// normalizeFeaturedNotice: normalizes normalize featured notice for the Maintenance flow.
 function normalizeFeaturedNotice(notice, index = 0) {
     return {
         ...DEFAULT_FEATURED_NOTICE,
@@ -126,6 +128,7 @@ function normalizeFeaturedNotice(notice, index = 0) {
     };
 }
 
+// normalizeFeaturedNotices: normalizes normalize featured notices for the Maintenance flow.
 function normalizeFeaturedNotices(value) {
     const source = Array.isArray(value)
         ? value
@@ -135,6 +138,7 @@ function normalizeFeaturedNotices(value) {
     return source.slice(0, 20).map((notice, index) => normalizeFeaturedNotice(notice, index));
 }
 
+// getManilaDateInputValue: reads and returns get manila date input value for the Maintenance flow.
 function getManilaDateInputValue() {
     const parts = new Intl.DateTimeFormat('en-US', {
         timeZone: 'Asia/Manila',
@@ -146,6 +150,7 @@ function getManilaDateInputValue() {
     return `${values.year}-${values.month}-${values.day}`;
 }
 
+// createFeaturedNotice: creates create featured notice for the Maintenance flow.
 function createFeaturedNotice() {
     return {
         ...DEFAULT_FEATURED_NOTICE,
@@ -159,6 +164,7 @@ function createFeaturedNotice() {
     };
 }
 
+// getFeaturedNoticeValidationError: reads and returns get featured notice validation error for the Maintenance flow.
 function getFeaturedNoticeValidationError(notice = {}) {
     const title = String(notice?.title || '').trim();
     const message = String(notice?.message || '').trim();
@@ -184,6 +190,7 @@ const DEFAULT_FAQ_FORM = {
     answer: '',
 };
 
+// normalizeFaqs: normalizes normalize faqs for the Maintenance flow.
 function normalizeFaqs(faqs) {
     const source = Array.isArray(faqs) && faqs.length ? faqs : DEFAULT_FAQS;
     return source
@@ -197,10 +204,12 @@ function normalizeFaqs(faqs) {
         .filter((item) => item.question && item.answer);
 }
 
+// createFaqId: creates create faq id for the Maintenance flow.
 function createFaqId() {
     return `faq-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// SectionFrame: handles section frame for the Maintenance flow.
 function SectionFrame({ title, description, children, actions }) {
     return (
         <div className="group rounded-2xl border border-stone-200 bg-white p-4">
@@ -216,6 +225,7 @@ function SectionFrame({ title, description, children, actions }) {
     );
 }
 
+// EditableRegion: updates editable region for the Maintenance flow.
 function EditableRegion({ editing, className = '', children }) {
     return (
         <fieldset
@@ -227,6 +237,7 @@ function EditableRegion({ editing, className = '', children }) {
     );
 }
 
+// LandingContentAccordion: handles landing content accordion for the Maintenance flow.
 function LandingContentAccordion({ title, description, summary, open, onToggle, editing, children }) {
     return (
         <section
@@ -267,6 +278,7 @@ function LandingContentAccordion({ title, description, summary, open, onToggle, 
     );
 }
 
+// FaqEditorDialog: handles faq editor dialog for the Maintenance flow.
 function FaqEditorDialog({
     open,
     onOpenChange,
@@ -541,6 +553,7 @@ export default function GeneralPanel() {
         [generalEditing, showSuccess]
     );
 
+    // saveOfficeSettings: validates and saves save office settings for the Maintenance flow.
     const saveOfficeSettings = async () => {
         const saved = await updateGeneralSettings(
             {
@@ -557,6 +570,7 @@ export default function GeneralPanel() {
         return saved;
     };
 
+    // saveEligibilitySummary: validates and saves save eligibility summary for the Maintenance flow.
     const saveEligibilitySummary = async () => {
         await updateGeneralSettings(
             { eligibility_summary: eligibilitySummary },
@@ -565,6 +579,7 @@ export default function GeneralPanel() {
         );
     };
 
+    // saveFeaturedNotice: validates and saves save featured notice for the Maintenance flow.
     const saveFeaturedNotice = async () => {
         const invalidNotice = featuredNotices.find(
             (notice) => notice.is_archived !== true && getFeaturedNoticeValidationError(notice)
@@ -585,6 +600,7 @@ export default function GeneralPanel() {
         );
     };
 
+    // saveLandingCopyGroup: validates and saves save landing copy group for the Maintenance flow.
     const saveLandingCopyGroup = async (group) => {
         const fieldsByGroup = {
             about: ['about_title', 'about_description', 'about_items'],
@@ -606,6 +622,7 @@ export default function GeneralPanel() {
         }
     };
 
+    // savePolicyGroup: validates and saves save policy group for the Maintenance flow.
     const savePolicyGroup = async (group) => {
         const fieldsByGroup = {
             shared: ['effective_date'],
@@ -627,6 +644,7 @@ export default function GeneralPanel() {
         }
     };
 
+    // saveApplicationSettings: validates and saves save application settings for the Maintenance flow.
     const saveApplicationSettings = async () => {
         await updateGeneralSettings(
             {
@@ -639,6 +657,7 @@ export default function GeneralPanel() {
         );
     };
 
+    // restoreOfficeDefaults: restores restore office defaults for the Maintenance flow.
     const restoreOfficeDefaults = () => {
         setInstName(DEFAULT_OFFICE.institution_name);
         setOfficeName(DEFAULT_OFFICE.office_name);
@@ -649,11 +668,13 @@ export default function GeneralPanel() {
         showSuccess('Office and contact fields restored locally. Save to apply.');
     };
 
+    // restoreEligibilityDefault: restores restore eligibility default for the Maintenance flow.
     const restoreEligibilityDefault = () => {
         setEligibilitySummary(DEFAULT_ELIGIBILITY_SUMMARY);
         showSuccess('Eligibility summary restored locally. Save to apply.');
     };
 
+    // restoreLandingGroupDefaults: restores restore landing group defaults for the Maintenance flow.
     const restoreLandingGroupDefaults = (group) => {
         const fieldsByGroup = {
             about: ['about_title', 'about_description', 'about_items'],
@@ -671,6 +692,7 @@ export default function GeneralPanel() {
         showSuccess(`${group} landing content restored locally. Save to apply.`);
     };
 
+    // restorePolicyGroupDefaults: restores restore policy group defaults for the Maintenance flow.
     const restorePolicyGroupDefaults = (group) => {
         const fieldsByGroup = {
             shared: ['effective_date'],
@@ -688,10 +710,12 @@ export default function GeneralPanel() {
         showSuccess(`${group} policy content restored locally. Save to apply.`);
     };
 
+    // updateLandingField: updates update landing field for the Maintenance flow.
     const updateLandingField = (field, value) => {
         setLandingContent((current) => ({ ...current, [field]: value }));
     };
 
+    // updateLandingItem: updates update landing item for the Maintenance flow.
     const updateLandingItem = (collection, index, field, value) => {
         setLandingContent((current) => ({
             ...current,
@@ -701,6 +725,7 @@ export default function GeneralPanel() {
         }));
     };
 
+    // updateLandingTextItem: updates update landing text item for the Maintenance flow.
     const updateLandingTextItem = (collection, index, value) => {
         setLandingContent((current) => ({
             ...current,
@@ -710,6 +735,7 @@ export default function GeneralPanel() {
         }));
     };
 
+    // addLandingTextItem: adds add landing text item for the Maintenance flow.
     const addLandingTextItem = (collection, label) => {
         setLandingContent((current) => {
             if (current[collection].length >= 12) {
@@ -720,6 +746,7 @@ export default function GeneralPanel() {
         });
     };
 
+    // removeLandingTextItem: removes remove landing text item for the Maintenance flow.
     const removeLandingTextItem = (collection, index, label) => {
         setLandingContent((current) => {
             if (current[collection].length <= 1) {
@@ -733,6 +760,7 @@ export default function GeneralPanel() {
         });
     };
 
+    // addLandingObjectItem: adds add landing object item for the Maintenance flow.
     const addLandingObjectItem = (collection, template, label) => {
         setLandingContent((current) => {
             if (current[collection].length >= 12) {
@@ -743,6 +771,7 @@ export default function GeneralPanel() {
         });
     };
 
+    // removeLandingObjectItem: removes remove landing object item for the Maintenance flow.
     const removeLandingObjectItem = (collection, index, label) => {
         setLandingContent((current) => {
             if (current[collection].length <= 1) {
@@ -756,6 +785,7 @@ export default function GeneralPanel() {
         });
     };
 
+    // addPolicySection: adds add policy section for the Maintenance flow.
     const addPolicySection = (collection, label) => {
         setPolicyContent((current) => {
             if (current[collection].length >= 12) {
@@ -769,6 +799,7 @@ export default function GeneralPanel() {
         });
     };
 
+    // removePolicySection: removes remove policy section for the Maintenance flow.
     const removePolicySection = (collection, index, label) => {
         setPolicyContent((current) => {
             if (current[collection].length <= 1) {
@@ -782,10 +813,12 @@ export default function GeneralPanel() {
         });
     };
 
+    // updatePolicyField: updates update policy field for the Maintenance flow.
     const updatePolicyField = (field, value) => {
         setPolicyContent((current) => ({ ...current, [field]: value }));
     };
 
+    // updatePolicySection: updates update policy section for the Maintenance flow.
     const updatePolicySection = (collection, index, field, value) => {
         setPolicyContent((current) => ({
             ...current,
@@ -795,6 +828,7 @@ export default function GeneralPanel() {
         }));
     };
 
+    // addFeaturedNotice: adds add featured notice for the Maintenance flow.
     const addFeaturedNotice = () => {
         setFeaturedNotices((current) => {
             if (current.length >= 20) {
@@ -805,6 +839,7 @@ export default function GeneralPanel() {
         });
     };
 
+    // updateFeaturedNotice: updates update featured notice for the Maintenance flow.
     const updateFeaturedNotice = (noticeId, field, value) => {
         setFeaturedNotices((current) => current.map((notice) =>
             notice.notice_id === noticeId ? { ...notice, [field]: value } : notice
@@ -815,6 +850,7 @@ export default function GeneralPanel() {
     const archivedNotices = featuredNotices.filter((notice) => notice.is_archived === true);
     const visibleNotices = activeNoticeTab === 'archived' ? archivedNotices : currentNotices;
 
+    // handleNoticeArchiveRestore: handles handle notice archive restore for the Maintenance flow.
     const handleNoticeArchiveRestore = async (noticeId) => {
         const target = featuredNotices.find((notice) => notice.notice_id === noticeId);
         if (!target) return;
@@ -836,6 +872,7 @@ export default function GeneralPanel() {
         if (target.is_archived) setActiveNoticeTab('current');
     };
 
+    // removeFeaturedNotice: removes remove featured notice for the Maintenance flow.
     const removeFeaturedNotice = (noticeId) => {
         setPendingNoticeRemovalId(noticeId);
     };
@@ -844,6 +881,7 @@ export default function GeneralPanel() {
         ? featuredNotices.find((notice) => notice.notice_id === pendingNoticeRemovalId) || null
         : null;
 
+    // confirmFeaturedNoticeRemoval: handles confirm featured notice removal for the Maintenance flow.
     const confirmFeaturedNoticeRemoval = () => {
         if (!pendingNoticeRemovalId) return;
         setFeaturedNotices((current) =>
@@ -852,6 +890,7 @@ export default function GeneralPanel() {
         setPendingNoticeRemovalId(null);
     };
 
+    // restoreApplicationDefaults: restores restore application defaults for the Maintenance flow.
     const restoreApplicationDefaults = () => {
         setGlobalDeadline(DEFAULT_APPLICATION.global_deadline);
         setAppOpen(DEFAULT_APPLICATION.applications_open);
@@ -869,12 +908,14 @@ export default function GeneralPanel() {
     );
     const visibleFaqs = activeFaqTab === 'archived' ? archivedFaqs : currentFaqs;
 
+    // openCreateFaq: handles open create faq for the Maintenance flow.
     const openCreateFaq = () => {
         setEditingFaqId(null);
         setFaqForm(DEFAULT_FAQ_FORM);
         setFaqDialogOpen(true);
     };
 
+    // openEditFaq: handles open edit faq for the Maintenance flow.
     const openEditFaq = (faq) => {
         setEditingFaqId(faq.faq_id);
         setFaqForm({
@@ -885,6 +926,7 @@ export default function GeneralPanel() {
         setFaqDialogOpen(true);
     };
 
+    // closeFaqDialog: handles close faq dialog for the Maintenance flow.
     const closeFaqDialog = (open) => {
         setFaqDialogOpen(open);
         if (!open) {
@@ -893,6 +935,7 @@ export default function GeneralPanel() {
         }
     };
 
+    // submitFaq: handles submit faq for the Maintenance flow.
     const submitFaq = async () => {
         const question = String(faqForm.question || '').trim();
         const answer = String(faqForm.answer || '').trim();
@@ -930,6 +973,7 @@ export default function GeneralPanel() {
         }
     };
 
+    // handleFaqArchiveRestore: handles handle faq archive restore for the Maintenance flow.
     const handleFaqArchiveRestore = async (faq) => {
         if (
             !faq.is_archived &&
@@ -962,6 +1006,7 @@ export default function GeneralPanel() {
         }
     };
 
+    // renderSectionActions: handles render section actions for the Maintenance flow.
     const renderSectionActions = (onRestore, onSave, key) => (
         <>
             <Button
@@ -992,13 +1037,16 @@ export default function GeneralPanel() {
         </>
     );
 
+    // renderContentGroupActions: handles render content group actions for the Maintenance flow.
     const renderContentGroupActions = (type, group) => {
         const isLanding = type === 'copy';
+        // restore: restores restore for the Maintenance flow.
         const restore = () => (
             isLanding
                 ? restoreLandingGroupDefaults(group)
                 : restorePolicyGroupDefaults(group)
         );
+        // save: validates and saves save for the Maintenance flow.
         const save = () => (
             isLanding
                 ? saveLandingCopyGroup(group)

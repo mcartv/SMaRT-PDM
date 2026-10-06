@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — ro assignment screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -32,6 +33,7 @@ class ROAssignmentScreen extends StatefulWidget {
   });
 
   @override
+  // createState: creates create state for the Scholars flow.
   State<ROAssignmentScreen> createState() => _ROAssignmentScreenState();
 }
 
@@ -103,6 +105,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
   String _captureAction = 'RO ATTENDANCE';
 
   @override
+  // initState: handles init state for the Scholars flow.
   void initState() {
     super.initState();
 
@@ -123,6 +126,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
   }
 
   @override
+  // didChangeDependencies: handles did change dependencies for the Scholars flow.
   void didChangeDependencies() {
     super.didChangeDependencies();
 
@@ -137,6 +141,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     provider.addListener(_handleRealtimeRoUpdates);
   }
 
+  // _handleRealtimeRoUpdates: handles handle realtime ro updates for the Scholars flow.
   void _handleRealtimeRoUpdates() {
     final provider = _notificationProvider;
     if (provider == null || provider.roRevision == _lastRoRevision) {
@@ -148,6 +153,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
   }
 
   @override
+  // dispose: handles dispose for the Scholars flow.
   void dispose() {
     _notificationProvider?.removeListener(_handleRealtimeRoUpdates);
     _activeTimer?.cancel();
@@ -159,6 +165,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
 
   List<RoAssignment> get _activeItems {
     final items = _items.where((item) => !item.isCleared).toList();
+    // priority: handles priority for the Scholars flow.
     int priority(RoAssignment item) {
       if (item.activeLog != null) return 0;
       if (!item.isAcknowledged && !item.hasConflict) return 1;
@@ -178,6 +185,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     return _items.any((item) => item.activeLog != null);
   }
 
+  // _loadRo: handles load ro for the Scholars flow.
   Future<void> _loadRo({bool silent = false}) async {
     if (_roFetchInProgress) {
       _pendingRealtimeReload = true;
@@ -231,6 +239,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     }
   }
 
+  // _requestRoRefresh: handles request ro refresh for the Scholars flow.
   void _requestRoRefresh() {
     if (!mounted) return;
     if (_roFetchInProgress || _isSubmitting || _isConcernSheetOpen) {
@@ -240,6 +249,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     _loadRo(silent: true);
   }
 
+  // _guessImageMimeType: handles guess image mime type for the Scholars flow.
   String _guessImageMimeType({required XFile file, required Uint8List bytes}) {
     final providedMime = (file.mimeType ?? '').trim().toLowerCase();
 
@@ -287,6 +297,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     return 'image/jpeg';
   }
 
+  // _extensionFromMimeType: handles extension from mime type for the Scholars flow.
   String _extensionFromMimeType(String mimeType) {
     final value = mimeType.trim().toLowerCase();
 
@@ -296,6 +307,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     return 'jpg';
   }
 
+  // _safeRoPhotoFileName: handles safe ro photo file name for the Scholars flow.
   String _safeRoPhotoFileName({required XFile file, required String mimeType}) {
     final rawName = file.name.trim();
     final lowerName = rawName.toLowerCase();
@@ -311,6 +323,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     return 'ro-proof-${DateTime.now().millisecondsSinceEpoch}.$extension';
   }
 
+  // _pickRoProofPhoto: handles pick ro proof photo for the Scholars flow.
   Future<RoPickedPhoto?> _pickRoProofPhoto(ImageSource source) async {
     if (source != ImageSource.camera) {
       throw Exception('RO attendance requires a live camera photo.');
@@ -405,6 +418,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     );
   }
 
+  // _buildMultipartHeaders: handles build multipart headers for the Scholars flow.
   Future<Map<String, String>> _buildMultipartHeaders() async {
     final session = await _sessionService.getCurrentUser();
     final headers = <String, String>{'Accept': 'application/json'};
@@ -416,6 +430,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     return headers;
   }
 
+  // _decodeMultipartResponse: handles decode multipart response for the Scholars flow.
   Map<String, dynamic> _decodeMultipartResponse(http.Response response) {
     final body = response.body.trim();
     final fallbackMessage =
@@ -452,6 +467,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     );
   }
 
+  // _sendRoMultipart: handles send ro multipart for the Scholars flow.
   Future<Map<String, dynamic>> _sendRoMultipart({
     required String path,
     required Map<String, String> fields,
@@ -493,6 +509,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     }
   }
 
+  // _showRoActionDialog: handles show ro action dialog for the Scholars flow.
   Future<RoActionInput?> _showRoActionDialog({
     required String title,
     required String hint,
@@ -510,6 +527,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
             final isDark = Theme.of(context).brightness == Brightness.dark;
             final scheme = Theme.of(context).colorScheme;
 
+            // choosePhoto: handles choose photo for the Scholars flow.
             Future<void> choosePhoto(ImageSource source) async {
               try {
                 final photo = await _pickRoProofPhoto(source);
@@ -923,6 +941,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     );
   }
 
+  // _buildProofFields: handles build proof fields for the Scholars flow.
   Future<Map<String, String>> _buildProofFields({
     String? studentNote,
     RoPickedPhoto? photo,
@@ -994,6 +1013,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     return fields;
   }
 
+  // _confirmPreparedRoAction: handles confirm prepared ro action for the Scholars flow.
   Future<bool> _confirmPreparedRoAction({
     required String actionLabel,
     required RoAssignment item,
@@ -1034,6 +1054,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
         true;
   }
 
+  // _acknowledge: handles acknowledge for the Scholars flow.
   Future<void> _acknowledge(RoAssignment item) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -1090,6 +1111,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     }
   }
 
+  // _reportConcern: handles report concern for the Scholars flow.
   Future<void> _reportConcern(RoAssignment item) async {
     if (_isSubmitting || _isConcernSheetOpen || item.hasConflict) {
       if (item.hasConflict) {
@@ -1154,6 +1176,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     }
   }
 
+  // _timeIn: handles time in for the Scholars flow.
   Future<void> _timeIn(RoAssignment item) async {
     final approvedPlacements = item.placements
         .where((placement) => placement.isApproved)
@@ -1244,6 +1267,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     }
   }
 
+  // _timeOut: handles time out for the Scholars flow.
   Future<void> _timeOut(RoAssignment item) async {
     _captureArea = item.assignedArea;
     _captureAction = 'TIME OUT';
@@ -1299,6 +1323,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     }
   }
 
+  // _applyResponse: handles apply response for the Scholars flow.
   void _applyResponse(Map<String, dynamic> response) {
     final items = (response['items'] as List<dynamic>? ?? [])
         .whereType<Map<String, dynamic>>()
@@ -1313,6 +1338,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     });
   }
 
+  // _showConcernSheet: handles show concern sheet for the Scholars flow.
   Future<RoConcernInput?> _showConcernSheet({
     required String title,
     required String hint,
@@ -1342,6 +1368,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
             final isDark = Theme.of(context).brightness == Brightness.dark;
             final scheme = Theme.of(context).colorScheme;
 
+            // submit: handles submit for the Scholars flow.
             void submit() {
               final text = _noteController.text.trim();
 
@@ -1476,6 +1503,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     );
   }
 
+  // _showNoteSheet: handles show note sheet for the Scholars flow.
   Future<String?> _showNoteSheet({
     required String title,
     required String hint,
@@ -1558,6 +1586,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     );
   }
 
+  // _showSnack: handles show snack for the Scholars flow.
   void _showSnack(String message) {
     if (!mounted) return;
 
@@ -1566,10 +1595,12 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  // _cleanError: handles clean error for the Scholars flow.
   String _cleanError(Object error) {
     return error.toString().replaceFirst('Exception: ', '').trim();
   }
 
+  // _studentSafeError: handles student safe error for the Scholars flow.
   String _studentSafeError(
     Object error, {
     required String fallback,
@@ -1585,6 +1616,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     return technicalPattern.hasMatch(message) ? fallback : message;
   }
 
+  // _formatMinutes: handles format minutes for the Scholars flow.
   String _formatMinutes(int minutes) {
     final safe = minutes < 0 ? 0 : minutes;
     final hours = safe ~/ 60;
@@ -1595,6 +1627,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     return '${hours}h ${mins}m';
   }
 
+  // _formatElapsed: handles format elapsed for the Scholars flow.
   String _formatElapsed(int seconds) {
     final safe = seconds < 0 ? 0 : seconds;
     final hours = safe ~/ 3600;
@@ -1608,6 +1641,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     ].join(':');
   }
 
+  // _formatDateTime: handles format date time for the Scholars flow.
   String _formatDateTime(DateTime? value) {
     if (value == null) return '—';
 
@@ -1619,6 +1653,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
   }
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     return SmartPdmPageScaffold(
       selectedIndex: 2,
@@ -1637,6 +1672,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     );
   }
 
+  // _buildContent: handles build content for the Scholars flow.
   Widget _buildContent() {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -1791,6 +1827,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     );
   }
 
+  // _showObligationDetails: handles show obligation details for the Scholars flow.
   Future<void> _showObligationDetails(RoAssignment item) async {
     await showModalBottomSheet<void>(
       context: context,
@@ -1826,6 +1863,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     );
   }
 
+  // _buildAssignmentList: handles build assignment list for the Scholars flow.
   Widget _buildAssignmentList(
     List<RoAssignment> items, {
     required bool completed,
@@ -2177,6 +2215,7 @@ class _AssignmentCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final progress = item.validatedProgress.clamp(0, 100);
@@ -2301,6 +2340,7 @@ class _ObligationDetailsSheet extends StatefulWidget {
   final Future<void> Function() onTimeOut;
 
   @override
+  // createState: creates create state for the Scholars flow.
   State<_ObligationDetailsSheet> createState() =>
       _ObligationDetailsSheetState();
 }
@@ -2311,6 +2351,7 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
   RoAssignment get item => widget.item;
 
   @override
+  // initState: handles init state for the Scholars flow.
   void initState() {
     super.initState();
     if (item.activeLog != null) {
@@ -2321,12 +2362,14 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
   }
 
   @override
+  // dispose: handles dispose for the Scholars flow.
   void dispose() {
     _timer?.cancel();
     super.dispose();
   }
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     final activeLog = item.activeLog;
     final isTimedIn = activeLog != null;
@@ -2711,6 +2754,7 @@ class _ObligationActionFooter extends StatelessWidget {
   final Future<void> Function() onReportConcern;
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final scheme = Theme.of(context).colorScheme;
@@ -2865,6 +2909,7 @@ class _ProofPreviewCard extends StatelessWidget {
   final _ProofEntry entry;
   final String Function(DateTime? value) formatDateTime;
 
+  // _openPreview: handles open preview for the Scholars flow.
   void _openPreview(BuildContext context) {
     if (entry.proof.fileUrl.trim().isEmpty) return;
 
@@ -2910,6 +2955,7 @@ class _ProofPreviewCard extends StatelessWidget {
   }
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     final proof = entry.proof;
     final capturedAt =
@@ -3026,6 +3072,7 @@ class _NoticeHeader extends StatelessWidget {
   final RoAssignment item;
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final scheme = Theme.of(context).colorScheme;
@@ -3089,6 +3136,7 @@ class _NoticeDetails extends StatelessWidget {
   final String Function(int minutes) formatMinutes;
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final scheme = Theme.of(context).colorScheme;
@@ -3158,6 +3206,7 @@ class _DetailRow extends StatelessWidget {
   final String value;
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final scheme = Theme.of(context).colorScheme;
@@ -3214,6 +3263,7 @@ class _ProgressLine extends StatelessWidget {
   final Color color;
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final scheme = Theme.of(context).colorScheme;
@@ -3287,6 +3337,7 @@ class _ActiveSessionBox extends StatelessWidget {
   final String Function(DateTime? value) formatDateTime;
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final scheme = Theme.of(context).colorScheme;
@@ -3413,6 +3464,7 @@ class _LogsSection extends StatelessWidget {
   final bool initiallyExpanded;
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     if (logs.isEmpty) {
       return const SizedBox.shrink();
@@ -3490,6 +3542,7 @@ class _InfoBox extends StatelessWidget {
   final Color color;
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final readableColor = isDark
@@ -3543,6 +3596,7 @@ class _StatusPill extends StatelessWidget {
   final Color color;
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final readableColor = isDark
@@ -3584,6 +3638,7 @@ class _StateCard extends StatelessWidget {
   final VoidCallback? onAction;
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final scheme = Theme.of(context).colorScheme;
@@ -3629,6 +3684,7 @@ class _StateCard extends StatelessWidget {
   }
 }
 
+// _studentReviewStatusLabel: handles student review status label for the Scholars flow.
 String _studentReviewStatusLabel(String value) {
   switch (value.trim().toLowerCase()) {
     case 'approved':
@@ -3642,6 +3698,7 @@ String _studentReviewStatusLabel(String value) {
   }
 }
 
+// _normalizeValidationStatus: handles normalize validation status for the Scholars flow.
 String _normalizeValidationStatus(dynamic value) {
   final normalized = value?.toString().trim().toLowerCase() ?? '';
   if (normalized == 'approved') return 'Approved';
@@ -3656,6 +3713,7 @@ double? _toDouble(dynamic value) {
   return double.tryParse(value.toString());
 }
 
+// _toInt: handles to int for the Scholars flow.
 int _toInt(dynamic value) {
   if (value is int) return value;
   if (value is double) return value.round();
@@ -3664,6 +3722,7 @@ int _toInt(dynamic value) {
   return int.tryParse(value?.toString() ?? '') ?? 0;
 }
 
+// _toDate: handles to date for the Scholars flow.
 DateTime? _toDate(dynamic value) {
   if (value == null) return null;
   return DateTime.tryParse(value.toString());

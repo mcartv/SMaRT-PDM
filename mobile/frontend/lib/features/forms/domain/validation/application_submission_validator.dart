@@ -1,3 +1,4 @@
+// SMaRT-PDM: Applications — application submission validator (mobile frontend); supports mobile UI behavior.
 import 'package:smartpdm_mobileapp/shared/formatters/student_id_input_formatter.dart';
 import 'package:smartpdm_mobileapp/features/forms/domain/validation/application_field_limits.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
@@ -35,6 +36,7 @@ class ApplicationSubmissionValidationResult {
 
   bool get isValid => issues.isEmpty;
 
+  // issueForField: checks whether issue for field for the Applications flow.
   ApplicationSubmissionIssue? issueForField(String field) {
     for (final issue in issues) {
       if (issue.field == field) return issue;
@@ -51,24 +53,28 @@ class ApplicationSubmissionValidationResult {
 class ApplicationSubmissionValidator {
   const ApplicationSubmissionValidator();
 
+  // validatePersonalProgression: validates validate personal progression for the Applications flow.
   ApplicationSubmissionValidationResult validatePersonalProgression(
     ApplicationData data,
   ) {
     return ApplicationSubmissionValidationResult(_validatePersonalFields(data));
   }
 
+  // validateFamilyProgression: validates validate family progression for the Applications flow.
   ApplicationSubmissionValidationResult validateFamilyProgression(
     ApplicationData data,
   ) {
     return ApplicationSubmissionValidationResult(_validateFamilyFields(data));
   }
 
+  // validateAcademicProgression: validates validate academic progression for the Applications flow.
   ApplicationSubmissionValidationResult validateAcademicProgression(
     ApplicationData data,
   ) {
     return ApplicationSubmissionValidationResult(_validateAcademicFields(data));
   }
 
+  // validateEssayProgression: validates validate essay progression for the Applications flow.
   ApplicationSubmissionValidationResult validateEssayProgression(
     ApplicationData data,
   ) {
@@ -86,6 +92,7 @@ class ApplicationSubmissionValidator {
     ]);
   }
 
+  // validateReviewReadiness: validates validate review readiness for the Applications flow.
   ApplicationSubmissionValidationResult validateReviewReadiness(
     ApplicationData data,
   ) {
@@ -108,6 +115,7 @@ class ApplicationSubmissionValidator {
     ]);
   }
 
+  // validateSubmissionPreflight: validates validate submission preflight for the Applications flow.
   ApplicationSubmissionValidationResult validateSubmissionPreflight(
     ApplicationData data,
   ) {
@@ -120,6 +128,7 @@ class ApplicationSubmissionValidator {
     return text.split(RegExp(r'\s+')).length;
   }
 
+  // _validateAccountFields: handles validate account fields for the Applications flow.
   List<ApplicationSubmissionIssue> _validateAccountFields(
     ApplicationData data,
   ) {
@@ -165,11 +174,13 @@ class ApplicationSubmissionValidator {
     return issues;
   }
 
+  // _validatePersonalFields: handles validate personal fields for the Applications flow.
   List<ApplicationSubmissionIssue> _validatePersonalFields(
     ApplicationData data,
   ) {
     final issues = <ApplicationSubmissionIssue>[];
 
+    // requireText: handles require text for the Applications flow.
     void requireText({required String field, required String label}) {
       if (_isBlank(_valueForField(data, field))) {
         issues.add(
@@ -378,6 +389,7 @@ class ApplicationSubmissionValidator {
     return issues;
   }
 
+  // _validateFamilyFields: handles validate family fields for the Applications flow.
   List<ApplicationSubmissionIssue> _validateFamilyFields(ApplicationData data) {
     final issues = <ApplicationSubmissionIssue>[];
 
@@ -506,6 +518,7 @@ class ApplicationSubmissionValidator {
       );
     }
 
+    // validateFamilyMobile: validates validate family mobile for the Applications flow.
     void validateFamilyMobile({
       required String field,
       required String label,
@@ -633,11 +646,13 @@ class ApplicationSubmissionValidator {
     return issues;
   }
 
+  // _validateAcademicFields: handles validate academic fields for the Applications flow.
   List<ApplicationSubmissionIssue> _validateAcademicFields(
     ApplicationData data,
   ) {
     final issues = <ApplicationSubmissionIssue>[];
 
+    // requireText: handles require text for the Applications flow.
     void requireText({required String field, required String label}) {
       if (_isBlank(_valueForField(data, field))) {
         issues.add(
@@ -904,6 +919,7 @@ class ApplicationSubmissionValidator {
     return issues;
   }
 
+  // _validateEssayField: handles validate essay field for the Applications flow.
   List<ApplicationSubmissionIssue> _validateEssayField({
     required String field,
     required String label,
@@ -938,6 +954,7 @@ class ApplicationSubmissionValidator {
     return const <ApplicationSubmissionIssue>[];
   }
 
+  // _validateCertificationFields: handles validate certification fields for the Applications flow.
   List<ApplicationSubmissionIssue> _validateCertificationFields(
     ApplicationData data,
   ) {

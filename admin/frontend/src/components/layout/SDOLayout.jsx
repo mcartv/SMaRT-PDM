@@ -1,3 +1,4 @@
+// SMaRT-PDM: SDOLayout — SDOLayout (admin frontend component); renders reusable UI and handles local interactions.
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router';
 import {
@@ -26,6 +27,7 @@ import { authService } from '../../services/authService';
 import { clearPortalSession } from '../../utils/authStorage';
 import ProfilePhotoPreviewDialog from '../profile/ProfilePhotoPreviewDialog';
 
+// resolveProfileImage: resolves resolve profile image for the SDOLayout flow.
 function resolveProfileImage(profile) {
   const candidates = [
     profile?.avatar_url,
@@ -130,6 +132,7 @@ export default function SDOLayout() {
   });
 
   useEffect(() => {
+    // handleProfileUpdated: handles handle profile updated for the SDOLayout flow.
     const handleProfileUpdated = (event) => {
       if (event.detail?.profileStorageKey !== 'sdoProfile') return;
       if (event.detail?.profile) {
@@ -149,6 +152,7 @@ export default function SDOLayout() {
   }, []);
 
   useEffect(() => {
+    // handleSessionInvalidated: handles handle session invalidated for the SDOLayout flow.
     const handleSessionInvalidated = (event) => {
       if (event.detail?.portalName && event.detail.portalName !== 'sdo') return;
       clearPortalSession('sdo');
@@ -160,6 +164,7 @@ export default function SDOLayout() {
   }, [navigate]);
 
   useEffect(() => {
+    // handleMessageUnread: handles handle message unread for the SDOLayout flow.
     const handleMessageUnread = (event) => {
       if (event.detail?.portalKey === 'sdo') {
         setMessageUnreadCount(Number(event.detail?.count || 0));
@@ -205,6 +210,7 @@ export default function SDOLayout() {
   }, []);
 
   useEffect(() => {
+    // handleClickOutside: handles handle click outside for the SDOLayout flow.
     function handleClickOutside(e) {
       if (notifRef.current && !notifRef.current.contains(e.target)) {
         setNotifOpen(false);
@@ -235,10 +241,12 @@ export default function SDOLayout() {
     []
   );
 
+  // handleLogout: handles handle logout for the SDOLayout flow.
   const handleLogout = async () => {
     await authService.logout();
   };
 
+  // getInitials: reads and returns get initials for the SDOLayout flow.
   const getInitials = () => {
     const name =
       profile?.name ||
@@ -252,6 +260,7 @@ export default function SDOLayout() {
     return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
   };
 
+  // getDisplayName: reads and returns get display name for the SDOLayout flow.
   const getDisplayName = () => {
     if (profile?.name) return profile.name;
 
@@ -259,12 +268,14 @@ export default function SDOLayout() {
     return combined || 'SDO User';
   };
 
+  // getDisplayPosition: reads and returns get display position for the SDOLayout flow.
   const getDisplayPosition = () => {
     return 'Student Discipline Officer';
   };
 
   const profileImage = resolveProfileImage(profile);
 
+  // handleProfileClick: handles handle profile click for the SDOLayout flow.
   const handleProfileClick = (event) => {
     if (profileImage && event?.target?.closest?.('[data-profile-preview-target="true"]')) {
       setProfilePhotoPreviewOpen(true);
@@ -274,11 +285,13 @@ export default function SDOLayout() {
     navigate('/sdo/profile');
   };
 
+  // handleNotificationClick: handles handle notification click for the SDOLayout flow.
   const handleNotificationClick = (notif) => {
     setNotifOpen(false);
     openNotification(notif, navigate);
   };
 
+  // handleNavRefresh: handles handle nav refresh for the SDOLayout flow.
   const handleNavRefresh = (event, path) => {
     if (location.pathname !== path) return;
 

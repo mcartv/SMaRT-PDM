@@ -1,3 +1,4 @@
+// SMaRT-PDM: support ticket — support ticket (mobile frontend); supports mobile UI behavior.
 class SupportTicket {
   const SupportTicket({
     required this.ticketId,
@@ -20,6 +21,7 @@ class SupportTicket {
   final DateTime? resolvedAt;
 
   factory SupportTicket.fromJson(Map<String, dynamic> json) {
+    // parseDate: parses parse date for the support ticket flow.
     DateTime? parseDate(dynamic value) {
       final raw = value?.toString().trim() ?? '';
       if (raw.isEmpty) return null;

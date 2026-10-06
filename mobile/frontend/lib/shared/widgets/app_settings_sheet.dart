@@ -1,3 +1,4 @@
+// SMaRT-PDM: app settings sheet — app settings sheet (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/motion/app_motion.dart';
@@ -28,6 +29,7 @@ class _AppearanceSheet extends StatelessWidget {
   const _AppearanceSheet();
 
   @override
+  // build: builds build for the app settings sheet flow.
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
     final textScale = MediaQuery.textScalerOf(context).scale(1);

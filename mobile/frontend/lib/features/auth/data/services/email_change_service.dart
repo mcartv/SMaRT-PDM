@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — email change service (mobile service); calls APIs or shared services and returns processed results.
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 
 class EmailChangeRequest {
@@ -22,6 +23,7 @@ class EmailChangeService {
 
   final ApiClient _apiClient;
 
+  // requestEmailChange: handles request email change for the Authentication flow.
   Future<EmailChangeRequest> requestEmailChange(String newEmail) async {
     final response = await _apiClient.postJson(
       '/api/auth/request-email-change',
@@ -43,6 +45,7 @@ class EmailChangeService {
     );
   }
 
+  // verifyEmailChange: verifies verify email change for the Authentication flow.
   Future<String> verifyEmailChange({
     required String requestId,
     required String otp,

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Maintenance — Audit Panel (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useState } from 'react';
 import {
     AlertTriangle,
@@ -37,6 +38,7 @@ import {
 
 const PAGE_SIZE = 25;
 
+// getAuthHeaders: reads and returns get auth headers for the Maintenance flow.
 function getAuthHeaders(extra = {}) {
     return {
         Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
@@ -45,6 +47,7 @@ function getAuthHeaders(extra = {}) {
     };
 }
 
+// formatDateTime: formats format date time for the Maintenance flow.
 function formatDateTime(value) {
     if (!value) return '-';
 
@@ -62,10 +65,12 @@ function formatDateTime(value) {
 }
 
 
+// formatActionLabel: formats format action label for the Maintenance flow.
 function formatActionLabel(action = '') {
     return formatSystemLogActionLabel(action);
 }
 
+// actionTone: handles action tone for the Maintenance flow.
 function actionTone(action = '') {
     const text = String(action).toLowerCase();
 
@@ -196,6 +201,7 @@ export default function AuditPanel() {
         [unlocked, auditToken, loadLogs]
     );
 
+    // handleUnlock: handles handle unlock for the Maintenance flow.
     const handleUnlock = async (event) => {
         event.preventDefault();
 
@@ -237,6 +243,7 @@ export default function AuditPanel() {
         }
     };
 
+    // lockAuditPanel: handles lock audit panel for the Maintenance flow.
     const lockAuditPanel = () => {
         setUnlocked(false);
         setAuditToken('');

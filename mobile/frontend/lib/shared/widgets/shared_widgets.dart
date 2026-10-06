@@ -1,3 +1,4 @@
+// SMaRT-PDM: shared widgets — shared widgets (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
@@ -10,6 +11,7 @@ class AppHeader extends StatelessWidget {
   const AppHeader({super.key, required this.subtitle, this.onBack});
 
   @override
+  // build: builds build for the shared widgets flow.
   Widget build(BuildContext context) {
     final textColor = AppSurfacePalette.text(context);
     final backSurface = AppSurfacePalette.surfaceMuted(context);
@@ -71,6 +73,7 @@ class StepIndicator extends StatelessWidget {
   });
 
   @override
+  // build: builds build for the shared widgets flow.
   Widget build(BuildContext context) {
     final inactiveColor = AppSurfacePalette.mutedText(context).withValues(alpha: 0.58);
     final inactiveSurface = AppSurfacePalette.surfaceMuted(context);
@@ -175,6 +178,7 @@ class GhostButton extends StatelessWidget {
   });
 
   @override
+  // build: builds build for the shared widgets flow.
   Widget build(BuildContext context) {
     final outlineColor = AppSurfacePalette.outline(context);
     return OutlinedButton(
@@ -218,6 +222,7 @@ class NavyButton extends StatelessWidget {
   const NavyButton({super.key, required this.label, required this.onTap});
 
   @override
+  // build: builds build for the shared widgets flow.
   Widget build(BuildContext context) {
     return ElevatedButton(
       onPressed: onTap,
@@ -246,6 +251,7 @@ class GoldButton extends StatelessWidget {
   const GoldButton({super.key, required this.label, required this.onTap});
 
   @override
+  // build: builds build for the shared widgets flow.
   Widget build(BuildContext context) {
     return ElevatedButton(
       onPressed: onTap,

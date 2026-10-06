@@ -1,3 +1,4 @@
+// SMaRT-PDM: Return of Obligations — ro Service (mobile backend service); contains mobile-facing business logic and data operations.
 const supabase = require('../config/supabase');
 const notificationService = require('./notificationService');
 const crypto = require('crypto');
@@ -26,18 +27,21 @@ const RO_CHECKOUT_GRACE_MINUTES = Math.max(
 
 let autoTimeoutTimer = null;
 
+// createHttpError: creates create http error for the Return of Obligations flow.
 function createHttpError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
 }
 
+// normalizeValue: normalizes normalize value for the Return of Obligations flow.
 function normalizeValue(value) {
   return value == null
     ? ''
     : String(value).trim();
 }
 
+// toNumber: handles to number for the Return of Obligations flow.
 function toNumber(value, fallback = 0) {
   const parsed = Number(value);
 
@@ -46,6 +50,7 @@ function toNumber(value, fallback = 0) {
     : fallback;
 }
 
+// percentFromMinutes: handles percent from minutes for the Return of Obligations flow.
 function percentFromMinutes(doneMinutes, requiredMinutes) {
   const done = toNumber(doneMinutes);
   const required = toNumber(requiredMinutes);
@@ -63,6 +68,7 @@ function percentFromMinutes(doneMinutes, requiredMinutes) {
   );
 }
 
+// minutesBetween: handles minutes between for the Return of Obligations flow.
 function minutesBetween(startValue, endValue) {
   const startDate = new Date(startValue);
   const endDate = new Date(endValue);
@@ -85,6 +91,7 @@ function minutesBetween(startValue, endValue) {
   );
 }
 
+// addMinutesToDate: adds add minutes to date for the Return of Obligations flow.
 function addMinutesToDate(value, minutes) {
   const date = new Date(value);
 
@@ -98,6 +105,7 @@ function addMinutesToDate(value, minutes) {
   );
 }
 
+// extractAvatarStoragePath: handles extract avatar storage path for the Return of Obligations flow.
 function extractAvatarStoragePath(value) {
   const rawValue = normalizeValue(value);
 
@@ -132,6 +140,7 @@ function extractAvatarStoragePath(value) {
   return null;
 }
 
+// parseJsonField: parses parse json field for the Return of Obligations flow.
 function parseJsonField(value, fallback = {}) {
   if (!value) {
     return fallback;
@@ -148,6 +157,7 @@ function parseJsonField(value, fallback = {}) {
   }
 }
 
+// cleanNumericOrNull: handles clean numeric or null for the Return of Obligations flow.
 function cleanNumericOrNull(value) {
   const parsed = Number(value);
 
@@ -164,6 +174,7 @@ const SUPPORTED_RO_PROOF_MIME_TYPES =
     'image/webp',
   ]);
 
+// detectMimeTypeFromFileName: handles detect mime type from file name for the Return of Obligations flow.
 function detectMimeTypeFromFileName(originalName = '') {
   const name = String(originalName)
     .trim()
@@ -187,6 +198,7 @@ function detectMimeTypeFromFileName(originalName = '') {
   return null;
 }
 
+// detectMimeTypeFromBuffer: handles detect mime type from buffer for the Return of Obligations flow.
 function detectMimeTypeFromBuffer(buffer) {
   if (
     !Buffer.isBuffer(buffer) ||
@@ -235,6 +247,7 @@ function detectMimeTypeFromBuffer(buffer) {
   return null;
 }
 
+// normalizeRoProofMimeType: normalizes normalize ro proof mime type for the Return of Obligations flow.
 function normalizeRoProofMimeType(file = {}) {
   const rawMime = String(file.mimetype || '')
     .trim()
@@ -276,6 +289,7 @@ function normalizeRoProofMimeType(file = {}) {
   );
 }
 
+// getRoProofExtensionFromMimeType: reads and returns get ro proof extension from mime type for the Return of Obligations flow.
 function getRoProofExtensionFromMimeType(mimeType) {
   if (mimeType === 'image/png') {
     return 'png';
@@ -288,6 +302,7 @@ function getRoProofExtensionFromMimeType(mimeType) {
   return 'jpg';
 }
 
+// sanitizeFileName: handles sanitize file name for the Return of Obligations flow.
 function sanitizeFileName(fileName = '') {
   return String(fileName)
     .trim()
@@ -295,6 +310,7 @@ function sanitizeFileName(fileName = '') {
     .slice(0, 180);
 }
 
+// removeStorageObjectQuietly: removes remove storage object quietly for the Return of Obligations flow.
 async function removeStorageObjectQuietly(filePath) {
   if (!filePath) {
     return;
@@ -319,6 +335,7 @@ async function removeStorageObjectQuietly(filePath) {
   }
 }
 
+// saveRoTimeLogProof: validates and saves save ro time log proof for the Return of Obligations flow.
 async function saveRoTimeLogProof({
   logId,
   roId,
@@ -568,6 +585,7 @@ async function saveRoTimeLogProof({
   return data;
 }
 
+// resolveAvatarUrl: resolves resolve avatar url for the Return of Obligations flow.
 async function resolveAvatarUrl(value) {
   const rawValue =
     normalizeValue(value);
@@ -601,6 +619,7 @@ async function resolveAvatarUrl(value) {
 }
 
 
+// resolveRoProofUrl: resolves resolve ro proof url for the Return of Obligations flow.
 async function resolveRoProofUrl(proof = {}) {
   const filePath = normalizeValue(proof.file_path);
   const fallbackUrl = normalizeValue(proof.file_url);
@@ -628,6 +647,7 @@ async function resolveRoProofUrl(proof = {}) {
   return fallbackUrl || filePath;
 }
 
+// getStudentByUserId: reads and returns get student by user id for the Return of Obligations flow.
 async function getStudentByUserId(userId) {
   if (!userId) {
     throw createHttpError(
@@ -668,6 +688,7 @@ async function getStudentByUserId(userId) {
   return data;
 }
 
+// ensureApprovedScholar: ensures ensure approved scholar for the Return of Obligations flow.
 function ensureApprovedScholar(student) {
   if (
     student?.is_active_scholar !== true
@@ -679,6 +700,7 @@ function ensureApprovedScholar(student) {
   }
 }
 
+// getActiveSetting: reads and returns get active setting for the Return of Obligations flow.
 async function getActiveSetting() {
   const { data, error } =
     await supabase
@@ -784,6 +806,7 @@ const LOG_SELECT = `
   updated_at
 `;
 
+// getRoRowsForStudent: reads and returns get ro rows for student for the Return of Obligations flow.
 async function getRoRowsForStudent(studentId) {
   const { data, error } =
     await supabase
@@ -802,6 +825,7 @@ async function getRoRowsForStudent(studentId) {
   return data || [];
 }
 
+// getRoRowForStudent: reads and returns get ro row for student for the Return of Obligations flow.
 async function getRoRowForStudent(studentId, roId) {
   const { data, error } =
     await supabase
@@ -818,6 +842,7 @@ async function getRoRowForStudent(studentId, roId) {
   return data || null;
 }
 
+// getAcademicPeriodMap: reads and returns get academic period map for the Return of Obligations flow.
 async function getAcademicPeriodMap(periodIds) {
   const ids = [
     ...new Set(
@@ -907,6 +932,7 @@ async function getAcademicPeriodMap(periodIds) {
   );
 }
 
+// getProgramMap: reads and returns get program map for the Return of Obligations flow.
 async function getProgramMap(programIds) {
   const ids = [
     ...new Set(
@@ -938,6 +964,7 @@ async function getProgramMap(programIds) {
   );
 }
 
+// getOpeningMap: reads and returns get opening map for the Return of Obligations flow.
 async function getOpeningMap(openingIds) {
   const ids = [
     ...new Set(
@@ -969,6 +996,7 @@ async function getOpeningMap(openingIds) {
   );
 }
 
+// getActiveLogByStudent: reads and returns get active log by student for the Return of Obligations flow.
 async function getActiveLogByStudent(studentId) {
   const { data, error } =
     await supabase
@@ -991,6 +1019,7 @@ async function getActiveLogByStudent(studentId) {
   return data || null;
 }
 
+// getActiveLogForRo: reads and returns get active log for ro for the Return of Obligations flow.
 async function getActiveLogForRo(studentId, roId) {
   const { data, error } =
     await supabase
@@ -1011,6 +1040,7 @@ async function getActiveLogForRo(studentId, roId) {
   return data || null;
 }
 
+// getLatestLogForRo: reads and returns get latest log for ro for the Return of Obligations flow.
 async function getLatestLogForRo(studentId, roId) {
   const { data, error } =
     await supabase
@@ -1029,6 +1059,7 @@ async function getLatestLogForRo(studentId, roId) {
   return data || null;
 }
 
+// syncRoTotalsQuietly: synchronizes sync ro totals quietly for the Return of Obligations flow.
 async function syncRoTotalsQuietly(roId) {
   try {
     if (!roId) return null;
@@ -1039,6 +1070,7 @@ async function syncRoTotalsQuietly(roId) {
   }
 }
 
+// getLogsForRo: reads and returns get logs for ro for the Return of Obligations flow.
 async function getLogsForRo(roId, studentId) {
   const { data, error } =
     await supabase
@@ -1118,6 +1150,7 @@ async function getLogsForRo(roId, studentId) {
   }));
 }
 
+// getPlacementsForRo: reads and returns get placements for ro for the Return of Obligations flow.
 async function getPlacementsForRo(roId) {
   const { data, error } = await supabase
     .from('ro_placements')
@@ -1158,6 +1191,7 @@ async function getPlacementsForRo(roId) {
   }));
 }
 
+// syncScholarRequestForRo: synchronizes sync scholar request for ro for the Return of Obligations flow.
 async function syncScholarRequestForRo(roId) {
   if (!roId) return null;
 
@@ -1230,6 +1264,7 @@ async function syncScholarRequestForRo(roId) {
   return results;
 }
 
+// resolveApprovedPlacement: resolves resolve approved placement for the Return of Obligations flow.
 async function resolveApprovedPlacement(roId, placementId = null) {
   let query = supabase
     .from('ro_placements')
@@ -1257,6 +1292,7 @@ async function resolveApprovedPlacement(roId, placementId = null) {
   return placements[0];
 }
 
+// sendPicTimeInNotification: sends send pic time in notification for the Return of Obligations flow.
 async function sendPicTimeInNotification({
   placement,
   student,
@@ -1319,6 +1355,7 @@ async function sendPicTimeInNotification({
   }
 }
 
+// sendRoActivityNotifications: sends send ro activity notifications for the Return of Obligations flow.
 async function sendRoActivityNotifications({
   action,
   student,
@@ -1518,6 +1555,7 @@ async function sendRoActivityNotifications({
   }
 }
 
+// mapLog: maps map log for the Return of Obligations flow.
 function mapLog(row = {}) {
   return {
     logId:
@@ -1639,6 +1677,7 @@ function mapLog(row = {}) {
   };
 }
 
+// mapRO: maps map ro for the Return of Obligations flow.
 async function mapRO(
   row = {},
   student = {},
@@ -1897,6 +1936,7 @@ async function mapRO(
   };
 }
 
+// getSubmittedMinutesForRo: reads and returns get submitted minutes for ro for the Return of Obligations flow.
 async function getSubmittedMinutesForRo(roId, excludeLogId = null) {
   const { data, error } =
     await supabase
@@ -1938,6 +1978,7 @@ async function getSubmittedMinutesForRo(roId, excludeLogId = null) {
     );
 }
 
+// getRemainingMinutesForRo: reads and returns get remaining minutes for ro for the Return of Obligations flow.
 async function getRemainingMinutesForRo(ro, excludeLogId = null) {
   const requiredMinutes =
     Math.max(
@@ -1957,6 +1998,7 @@ async function getRemainingMinutesForRo(ro, excludeLogId = null) {
   );
 }
 
+// syncRoTotals: synchronizes sync ro totals for the Return of Obligations flow.
 async function syncRoTotals(roId) {
   const { data: ro, error: roError } =
     await supabase
@@ -2068,6 +2110,7 @@ async function syncRoTotals(roId) {
   return data;
 }
 
+// sendAutoTimeoutNotification: sends send auto timeout notification for the Return of Obligations flow.
 async function sendAutoTimeoutNotification({
   studentId,
   roId,
@@ -2112,6 +2155,7 @@ async function sendAutoTimeoutNotification({
   }
 }
 
+// getMyAssignments: reads and returns get my assignments for the Return of Obligations flow.
 async function getMyAssignments(userId) {
   const student =
     await getStudentByUserId(
@@ -2208,6 +2252,7 @@ async function getMyAssignments(userId) {
   };
 }
 
+// getOwnedRoOrThrow: reads and returns get owned ro or throw for the Return of Obligations flow.
 async function getOwnedRoOrThrow(
   userId,
   roId
@@ -2252,6 +2297,7 @@ async function getOwnedRoOrThrow(
   };
 }
 
+// acknowledgeMyRo: handles acknowledge my ro for the Return of Obligations flow.
 async function acknowledgeMyRo(
   userId,
   roId
@@ -2376,6 +2422,7 @@ const result =
   };
 }
 
+// reportMyRoConflict: handles report my ro conflict for the Return of Obligations flow.
 async function reportMyRoConflict(
   userId,
   roId,
@@ -2561,6 +2608,7 @@ async function reportMyRoConflict(
   };
 }
 
+// requireLiveCameraProof: handles require live camera proof for the Return of Obligations flow.
 function requireLiveCameraProof(body = {}, file = null, actionLabel = 'RO attendance') {
   if (!file || !Buffer.isBuffer(file.buffer) || file.buffer.length === 0) {
     throw createHttpError(400, `A live camera photo is required for ${actionLabel}.`);
@@ -2584,6 +2632,7 @@ function requireLiveCameraProof(body = {}, file = null, actionLabel = 'RO attend
   }
 }
 
+// timeInMyRo: handles time in my ro for the Return of Obligations flow.
 async function timeInMyRo(
   userId,
   roId,
@@ -2876,6 +2925,7 @@ const result =
   };
 }
 
+// timeOutMyRo: handles time out my ro for the Return of Obligations flow.
 async function timeOutMyRo(
   userId,
   roId,
@@ -3146,6 +3196,7 @@ const result =
   };
 }
 
+// submitMyCompletion: handles submit my completion for the Return of Obligations flow.
 async function submitMyCompletion(
   userId,
   roId,
@@ -3342,6 +3393,7 @@ async function submitMyCompletion(
   };
 }
 
+// autoTimeoutSingleActiveLog: handles auto timeout single active log for the Return of Obligations flow.
 async function autoTimeoutSingleActiveLog(activeLog, ro, io = null) {
   const remainingMinutes =
     await getRemainingMinutesForRo(
@@ -3505,6 +3557,7 @@ async function autoTimeoutSingleActiveLog(activeLog, ro, io = null) {
   };
 }
 
+// autoTimeoutActiveLogsForStudent: handles auto timeout active logs for student for the Return of Obligations flow.
 async function autoTimeoutActiveLogsForStudent(studentId, io = null) {
   const { data: activeLogs, error } =
     await supabase
@@ -3560,6 +3613,7 @@ async function autoTimeoutActiveLogsForStudent(studentId, io = null) {
   return results;
 }
 
+// runAutoTimeoutSweep: handles run auto timeout sweep for the Return of Obligations flow.
 async function runAutoTimeoutSweep(io = null) {
   const { data: activeLogs, error } =
     await supabase
@@ -3636,6 +3690,7 @@ async function runAutoTimeoutSweep(io = null) {
   };
 }
 
+// startAutoTimeoutWorker: handles start auto timeout worker for the Return of Obligations flow.
 function startAutoTimeoutWorker(io = null) {
   if (autoTimeoutTimer) {
     return autoTimeoutTimer;
@@ -3664,6 +3719,7 @@ function startAutoTimeoutWorker(io = null) {
   return autoTimeoutTimer;
 }
 
+// stopAutoTimeoutWorker: handles stop auto timeout worker for the Return of Obligations flow.
 function stopAutoTimeoutWorker() {
   if (!autoTimeoutTimer) {
     return;

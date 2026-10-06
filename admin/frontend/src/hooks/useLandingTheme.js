@@ -1,3 +1,4 @@
+// SMaRT-PDM: Settings — use Landing Theme (admin frontend); supports admin-side UI behavior.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import { buildApiUrl } from '@/api';
@@ -7,10 +8,12 @@ const STORAGE_KEY = 'smartpdm-theme-landing';
 const PUBLIC_SOCKET_NAMESPACE = '/public';
 let inFlightLandingThemeRequest = null;
 
+// getPublicSocketUrl: reads and returns get public socket url for the Settings flow.
 function getPublicSocketUrl() {
   return `${buildApiUrl('').replace(/\/+$/, '')}${PUBLIC_SOCKET_NAMESPACE}`;
 }
 
+// writeCachedLandingTheme: handles write cached landing theme for the Settings flow.
 function writeCachedLandingTheme(nextState) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
@@ -19,6 +22,7 @@ function writeCachedLandingTheme(nextState) {
   }
 }
 
+// requestLandingTheme: handles request landing theme for the Settings flow.
 async function requestLandingTheme() {
   if (inFlightLandingThemeRequest) return inFlightLandingThemeRequest;
 
@@ -79,6 +83,7 @@ export default function useLandingTheme() {
       transports: ['websocket', 'polling'],
     });
 
+    // handleThemeUpdated: handles handle theme updated for the Settings flow.
     const handleThemeUpdated = (payload = {}) => {
       if (String(payload?.portal_key || '').trim().toLowerCase() !== 'landing') return;
       if (payload?.preset_key) {

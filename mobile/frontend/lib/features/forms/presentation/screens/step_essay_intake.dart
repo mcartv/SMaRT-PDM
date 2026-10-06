@@ -1,3 +1,4 @@
+// SMaRT-PDM: step essay intake — step essay intake (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:smartpdm_mobileapp/features/forms/domain/validation/application_submission_validator.dart';
@@ -18,6 +19,7 @@ class StepEssay extends StatefulWidget {
   final bool showErrors;
 
   @override
+  // createState: creates create state for the step essay intake flow.
   State<StepEssay> createState() => _StepEssayState();
 }
 
@@ -29,6 +31,7 @@ class _StepEssayState extends State<StepEssay> {
   late final TextEditingController aimsAndAmbitionController;
 
   @override
+  // initState: handles init state for the step essay intake flow.
   void initState() {
     super.initState();
 
@@ -52,6 +55,7 @@ class _StepEssayState extends State<StepEssay> {
     });
   }
 
+  // _essayError: handles essay error for the step essay intake flow.
   String? _essayError(String field) {
     if (!widget.showErrors) return null;
     return _validator
@@ -60,6 +64,7 @@ class _StepEssayState extends State<StepEssay> {
         ?.message;
   }
 
+  // _essayCard: handles essay card for the step essay intake flow.
   Widget _essayCard({
     required int number,
     required String title,
@@ -130,6 +135,7 @@ class _StepEssayState extends State<StepEssay> {
   }
 
   @override
+  // dispose: handles dispose for the step essay intake flow.
   void dispose() {
     describeYourselfController.dispose();
     aimsAndAmbitionController.dispose();
@@ -137,6 +143,7 @@ class _StepEssayState extends State<StepEssay> {
   }
 
   @override
+  // build: builds build for the step essay intake flow.
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

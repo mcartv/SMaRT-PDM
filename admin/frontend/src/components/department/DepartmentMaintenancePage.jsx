@@ -1,3 +1,4 @@
+// SMaRT-PDM: Maintenance — Department Maintenance Page (admin frontend component); renders reusable UI and handles local interactions.
 import { getProfileDisplay } from '@/utils/profileDisplay';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buildApiUrl } from '@/api';
@@ -31,6 +32,7 @@ import ProfilePhotoPreviewDialog from '@/components/profile/ProfilePhotoPreviewD
 
 const PORTAL_PROFILE_UPDATED_EVENT = 'portal-profile:updated';
 
+// publishPortalProfile: handles publish portal profile for the Maintenance flow.
 function publishPortalProfile(profileStorageKey, profile) {
   sessionStorage.setItem(profileStorageKey, JSON.stringify(profile));
   window.dispatchEvent(new CustomEvent(PORTAL_PROFILE_UPDATED_EVENT, {
@@ -38,6 +40,7 @@ function publishPortalProfile(profileStorageKey, profile) {
   }));
 }
 
+// resolveProfileImage: resolves resolve profile image for the Maintenance flow.
 function resolveProfileImage(profile) {
   const candidates = [
     profile?.avatar_url,
@@ -49,6 +52,7 @@ function resolveProfileImage(profile) {
   return candidates.find((value) => typeof value === 'string' && value.trim())?.trim() || '';
 }
 
+// FieldLabel: handles field label for the Maintenance flow.
 function FieldLabel({ children }) {
   return (
     <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-stone-400">
@@ -57,6 +61,7 @@ function FieldLabel({ children }) {
   );
 }
 
+// GroupCard: handles group card for the Maintenance flow.
 function GroupCard({ title, icon, children }) {
   return (
     <Card className="overflow-hidden border-stone-200 bg-white shadow-none">
@@ -71,6 +76,7 @@ function GroupCard({ title, icon, children }) {
   );
 }
 
+// Toggle: handles toggle for the Maintenance flow.
 function Toggle({ value, onChange, labels = ['Enabled', 'Disabled'], activeColorClass = 'text-green-600' }) {
   return (
     <button type="button" onClick={() => onChange(!value)} className="flex items-center gap-2">
@@ -86,6 +92,7 @@ function Toggle({ value, onChange, labels = ['Enabled', 'Disabled'], activeColor
   );
 }
 
+// useDepartmentAccountManager: handles use department account manager for the Maintenance flow.
 function useDepartmentAccountManager({
   config,
   tokenStorageKey,
@@ -177,6 +184,7 @@ function useDepartmentAccountManager({
   useEffect(() => {
     let cleanup = () => { };
 
+    // run: handles run for the Maintenance flow.
     const run = async () => {
       cleanup = (await loadProfile()) || (() => { });
     };
@@ -218,6 +226,7 @@ function useDepartmentAccountManager({
     return () => window.clearTimeout(timer);
   }, [accountFeedback]);
 
+  // resetAccount: resets reset account for the Maintenance flow.
   const resetAccount = () => {
     setAccount(initialAccount || {
       first_name: config.account.first_name,
@@ -233,6 +242,7 @@ function useDepartmentAccountManager({
     setAccountFeedback('');
   };
 
+  // handleFieldChange: handles handle field change for the Maintenance flow.
   const handleFieldChange = (field, value) => {
     setAccount((prev) => ({
       ...prev,
@@ -247,6 +257,7 @@ function useDepartmentAccountManager({
     if (accountFeedback) setAccountFeedback('');
   };
 
+  // validateAccount: validates validate account for the Maintenance flow.
   const validateAccount = () => {
     const errors = {};
     const firstName = String(account.first_name || '').trim();
@@ -287,6 +298,7 @@ function useDepartmentAccountManager({
     return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
   }, [config.shortName, displayName]);
 
+  // handlePhotoSelection: handles handle photo selection for the Maintenance flow.
   const handlePhotoSelection = (event) => {
     const nextFile = event.target.files?.[0];
     if (!nextFile) return;
@@ -305,6 +317,7 @@ function useDepartmentAccountManager({
     setAccountFeedback('Profile photo selected. Click upload to save it.');
   };
 
+  // storeProfile: handles store profile for the Maintenance flow.
   const storeProfile = (savedProfile, accountValues = account) => {
     const mergedProfile = {
       ...(JSON.parse(sessionStorage.getItem(profileStorageKey) || '{}')),
@@ -320,6 +333,7 @@ function useDepartmentAccountManager({
     return mergedProfile;
   };
 
+  // handleUploadPhoto: handles handle upload photo for the Maintenance flow.
   const handleUploadPhoto = async () => {
     if (!photoFile) {
       setAccountFeedback('Please choose a profile photo first.');
@@ -375,6 +389,7 @@ function useDepartmentAccountManager({
     }
   };
 
+  // handleRemovePhoto: handles handle remove photo for the Maintenance flow.
   const handleRemovePhoto = async () => {
     try {
       setRemovingPhoto(true);
@@ -421,6 +436,7 @@ function useDepartmentAccountManager({
     }
   };
 
+  // handleSaveAccount: handles handle save account for the Maintenance flow.
   const handleSaveAccount = async () => {
     if (config.shortName === 'Admin' && !hasAccountChanges) {
       showAppToast('info', 'No changes to save', 'Update at least one profile field first.');
@@ -513,6 +529,7 @@ function useDepartmentAccountManager({
   };
 }
 
+// GeneralPanel: handles general panel for the Maintenance flow.
 function GeneralPanel({
   config,
   palette,
@@ -521,6 +538,7 @@ function GeneralPanel({
   const [featureOpen, setFeatureOpen] = useState(true);
   const [instName, setInstName] = useState('Pambayang Dalubhasaan ng Marilao');
 
+  // handleSaveGeneral: handles handle save general for the Maintenance flow.
   const handleSaveGeneral = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -604,6 +622,7 @@ function GeneralPanel({
   );
 }
 
+// DepartmentAccountPanel: handles department account panel for the Maintenance flow.
 export function DepartmentAccountPanel({
   config,
   palette,
@@ -857,6 +876,7 @@ export function DepartmentAccountPanel({
   );
 }
 
+// AuditPanel: handles audit panel for the Maintenance flow.
 function AuditPanel({ config }) {
   const auditEntries = config.auditEntries;
 

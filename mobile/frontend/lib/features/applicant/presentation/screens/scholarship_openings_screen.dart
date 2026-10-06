@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — scholarship openings screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -16,6 +17,7 @@ class ScholarshipOpeningsScreen extends StatefulWidget {
   const ScholarshipOpeningsScreen({super.key});
 
   @override
+  // createState: creates create state for the Scholars flow.
   State<ScholarshipOpeningsScreen> createState() =>
       _ScholarshipOpeningsScreenState();
 }
@@ -34,6 +36,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
   bool _pendingLiveRefresh = false;
 
   @override
+  // initState: handles init state for the Scholars flow.
   void initState() {
     super.initState();
     _loadOpenings();
@@ -44,6 +47,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
   }
 
   @override
+  // didChangeDependencies: handles did change dependencies for the Scholars flow.
   void didChangeDependencies() {
     super.didChangeDependencies();
 
@@ -56,6 +60,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     _notificationProvider?.addListener(_handleRealtimeOpenings);
   }
 
+  // _handleRealtimeOpenings: handles handle realtime openings for the Scholars flow.
   void _handleRealtimeOpenings() {
     final provider = _notificationProvider;
     if (provider == null || provider.openingRevision == _lastOpeningRevision) {
@@ -66,6 +71,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     _requestLiveRefresh();
   }
 
+  // _loadOpenings: handles load openings for the Scholars flow.
   Future<void> _loadOpenings({bool silent = false}) async {
     if (_fetchInProgress) {
       _pendingLiveRefresh = true;
@@ -110,6 +116,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     }
   }
 
+  // _requestLiveRefresh: handles request live refresh for the Scholars flow.
   void _requestLiveRefresh() {
     if (!mounted) return;
     if (_fetchInProgress) {
@@ -120,12 +127,14 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
   }
 
   @override
+  // dispose: handles dispose for the Scholars flow.
   void dispose() {
     _liveSyncTimer?.cancel();
     _notificationProvider?.removeListener(_handleRealtimeOpenings);
     super.dispose();
   }
 
+  // _applicationPeriodLabel: handles application period label for the Scholars flow.
   String _applicationPeriodLabel(ProgramOpening opening) {
     final databaseLabel = opening.applicationPeriodLabel.trim();
     if (databaseLabel.isNotEmpty) return databaseLabel;
@@ -137,6 +146,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
 
     if (databaseParts.isNotEmpty) return databaseParts.join(' · ');
 
+    // format: formats format for the Scholars flow.
     String format(String value) {
       if (value.trim().isEmpty) return '';
       final parsed = DateTime.tryParse(value);
@@ -152,6 +162,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     return 'Not specified';
   }
 
+  // _displayScholarshipTitle: handles display scholarship title for the Scholars flow.
   String _displayScholarshipTitle(ProgramOpening opening) {
     const fallback = 'Scholarship';
     final cleaned = opening.openingTitle
@@ -165,6 +176,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     return cleaned.isEmpty ? fallback : cleaned;
   }
 
+  // _normalizeOpeningCopy: handles normalize opening copy for the Scholars flow.
   String _normalizeOpeningCopy(String value) {
     return value
         .trim()
@@ -176,6 +188,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
         .trim();
   }
 
+  // _isRedundantOpeningCopy: handles is redundant opening copy for the Scholars flow.
   bool _isRedundantOpeningCopy(
     ProgramOpening opening,
     String value, {
@@ -194,6 +207,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     return knownLabels.contains(normalized);
   }
 
+  // _formatGwa: handles format gwa for the Scholars flow.
   String _formatGwa(double value) {
     if (value == value.roundToDouble()) return value.toStringAsFixed(0);
     return value
@@ -202,6 +216,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
         .replaceFirst(RegExp(r'\.$'), '');
   }
 
+  // _displayApplyLabel: handles display apply label for the Scholars flow.
   String _displayApplyLabel(ProgramOpening opening) {
     final label = opening.applyLabel.trim();
     final normalized = label.toLowerCase();
@@ -214,6 +229,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     return label;
   }
 
+  // _isDraftOpening: handles is draft opening for the Scholars flow.
   bool _isDraftOpening(ProgramOpening opening) {
     final result = _result;
     return result?.hasSavedDraft == true &&
@@ -221,6 +237,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
         result.draftOpeningId == opening.openingId;
   }
 
+  // _openApplicationForm: handles open application form for the Scholars flow.
   Future<void> _openApplicationForm({
     ProgramOpening? opening,
     bool replaceExistingDraft = false,
@@ -242,6 +259,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     await _loadOpenings();
   }
 
+  // _confirmDraftChoice: handles confirm draft choice for the Scholars flow.
   Future<bool?> _confirmDraftChoice(
     ProgramOpeningsResult result,
     ProgramOpening opening,
@@ -286,6 +304,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     );
   }
 
+  // _handleApply: handles handle apply for the Scholars flow.
   Future<void> _handleApply(ProgramOpening opening) async {
     final result = _result;
 
@@ -323,6 +342,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     await _openApplicationForm(opening: opening);
   }
 
+  // _buildUploadProgress: handles build upload progress for the Scholars flow.
   Widget _buildUploadProgress({
     required ProgramOpening opening,
     required Color accentColor,
@@ -410,6 +430,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     );
   }
 
+  // _buildOpeningCard: handles build opening card for the Scholars flow.
   Widget _buildOpeningCard(
     ProgramOpening opening, {
     required Color titleColor,
@@ -601,6 +622,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
   }
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     final titleColor = AppSurfacePalette.text(context);
     final subtitleColor = AppSurfacePalette.mutedText(context);

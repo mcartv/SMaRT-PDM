@@ -1,3 +1,4 @@
+// SMaRT-PDM: FAQs — faqs screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -16,6 +17,7 @@ class FaqsScreen extends StatefulWidget {
   const FaqsScreen({super.key});
 
   @override
+  // createState: creates create state for the FAQs flow.
   State<FaqsScreen> createState() => _FaqsScreenState();
 }
 
@@ -33,6 +35,7 @@ class _FaqsScreenState extends State<FaqsScreen> {
   bool _pendingLiveRefresh = false;
 
   @override
+  // initState: handles init state for the FAQs flow.
   void initState() {
     super.initState();
     _loadFaqs();
@@ -49,6 +52,7 @@ class _FaqsScreenState extends State<FaqsScreen> {
   }
 
   @override
+  // dispose: handles dispose for the FAQs flow.
   void dispose() {
     _liveSyncTimer?.cancel();
     _stopRealtimeListener?.call();
@@ -57,6 +61,7 @@ class _FaqsScreenState extends State<FaqsScreen> {
     super.dispose();
   }
 
+  // _loadFaqs: handles load faqs for the FAQs flow.
   Future<void> _loadFaqs({bool silent = false}) async {
     if (_fetchInProgress) {
       _pendingLiveRefresh = true;
@@ -96,6 +101,7 @@ class _FaqsScreenState extends State<FaqsScreen> {
     }
   }
 
+  // _requestLiveRefresh: handles request live refresh for the FAQs flow.
   void _requestLiveRefresh() {
     if (!mounted) return;
     if (_fetchInProgress) {
@@ -118,6 +124,7 @@ class _FaqsScreenState extends State<FaqsScreen> {
   }
 
   @override
+  // build: builds build for the FAQs flow.
   Widget build(BuildContext context) {
     final titleColor = AppSurfacePalette.text(context);
     final subtitleColor = AppSurfacePalette.mutedText(context);
@@ -224,6 +231,7 @@ class _FaqCard extends StatelessWidget {
   final FaqItem item;
 
   @override
+  // build: builds build for the FAQs flow.
   Widget build(BuildContext context) {
     final titleColor = AppSurfacePalette.text(context);
     final bodyColor = AppSurfacePalette.mutedText(context);
@@ -273,6 +281,7 @@ class _FaqsEmptyState extends StatelessWidget {
   final VoidCallback onClearSearch;
 
   @override
+  // build: builds build for the FAQs flow.
   Widget build(BuildContext context) {
     return SizedBox(
       height: MediaQuery.of(context).size.height * 0.45,
@@ -322,6 +331,7 @@ class _FaqsErrorState extends StatelessWidget {
   final Future<void> Function() onRetry;
 
   @override
+  // build: builds build for the FAQs flow.
   Widget build(BuildContext context) {
     return SizedBox(
       height: MediaQuery.of(context).size.height * 0.5,

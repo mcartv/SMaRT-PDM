@@ -1,3 +1,4 @@
+// SMaRT-PDM: Benefactors — benefactor Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const benefactorService = require('../services/benefactorService');
 const scholarshipProgramService = require('../services/scholarshipProgramService');
 const auditLogService = require('../services/auditLogService');
@@ -5,6 +6,7 @@ const socketEvents = require('../utils/socketEvents');
 const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 const scholarshipBrandingService = require('../services/scholarshipBrandingService');
 
+// sendError: sends send error for the Benefactors flow.
 function sendError(res, err, fallbackMessage) {
     const message = err?.message || fallbackMessage;
     const statusCode = Number(err?.statusCode || err?.status || 500);
@@ -15,6 +17,7 @@ function sendError(res, err, fallbackMessage) {
     });
 }
 
+// safeAudit: handles safe audit for the Benefactors flow.
 async function safeAudit(payload) {
     try {
         await auditLogService.logAudit(payload);
@@ -23,6 +26,7 @@ async function safeAudit(payload) {
     }
 }
 
+// emitMaintenanceUpdated: handles emit maintenance updated for the Benefactors flow.
 function emitMaintenanceUpdated(req, payload) {
     const io = req.app.get('io');
     const updatedAt = new Date().toISOString();

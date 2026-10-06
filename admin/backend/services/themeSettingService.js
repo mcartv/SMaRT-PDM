@@ -1,3 +1,4 @@
+// SMaRT-PDM: Settings — theme Setting Service (admin backend service); contains business logic and data operations.
 const supabase = require('../config/supabase');
 
 const PORTAL_KEYS = ['admin', 'sdo', 'guidance', 'pd', 'ro_coordinator', 'landing'];
@@ -7,20 +8,24 @@ const PERSONAL_TABLE_NAME = 'staff_portal_theme_settings';
 const LANDING_COLOR_KEYS = ['dark', 'base', 'heroEnd', 'accent', 'danger', 'soft', 'border', 'pageBg'];
 const STAFF_COLOR_KEYS = ['base', 'active', 'mainBg', 'accent', 'accentSoft', 'chartPrimary', 'chartSecondary', 'chartTertiary', 'chartQuaternary'];
 
+// createHttpError: creates create http error for the Settings flow.
 function createHttpError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
 }
 
+// normalizePortalKey: normalizes normalize portal key for the Settings flow.
 function normalizePortalKey(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+// normalizePresetKey: normalizes normalize preset key for the Settings flow.
 function normalizePresetKey(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+// validatePortalKey: validates validate portal key for the Settings flow.
 function validatePortalKey(portalKey) {
   const normalized = normalizePortalKey(portalKey);
   if (!PORTAL_KEYS.includes(normalized)) {
@@ -29,6 +34,7 @@ function validatePortalKey(portalKey) {
   return normalized;
 }
 
+// validatePresetKey: validates validate preset key for the Settings flow.
 function validatePresetKey(presetKey) {
   const normalized = normalizePresetKey(presetKey);
   if (!PRESET_KEYS.includes(normalized)) {
@@ -37,6 +43,7 @@ function validatePresetKey(presetKey) {
   return normalized;
 }
 
+// buildFallbackSetting: builds build fallback setting for the Settings flow.
 function buildFallbackSetting(portalKey, extra = {}) {
   return {
     portal_key: portalKey,
@@ -51,10 +58,12 @@ function buildFallbackSetting(portalKey, extra = {}) {
   };
 }
 
+// isValidHexColor: checks whether is valid hex color for the Settings flow.
 function isValidHexColor(value) {
   return /^#[0-9a-f]{6}$/i.test(String(value || '').trim());
 }
 
+// sanitizeCustomColors: handles sanitize custom colors for the Settings flow.
 function sanitizeCustomColors(customColors = null) {
   if (!customColors || typeof customColors !== 'object' || Array.isArray(customColors)) {
     return null;
@@ -72,6 +81,7 @@ function sanitizeCustomColors(customColors = null) {
   return Object.keys(nextColors).length ? nextColors : null;
 }
 
+// sanitizeStaffCustomColors: handles sanitize staff custom colors for the Settings flow.
 function sanitizeStaffCustomColors(customColors = null) {
   if (!customColors || typeof customColors !== 'object' || Array.isArray(customColors)) {
     return null;
@@ -88,6 +98,7 @@ function sanitizeStaffCustomColors(customColors = null) {
   return STAFF_COLOR_KEYS.every((key) => nextColors[key]) ? nextColors : null;
 }
 
+// isMissingTableError: checks whether is missing table error for the Settings flow.
 function isMissingTableError(error, tableName) {
   const code = String(error?.code || '').toUpperCase();
   const message = String(error?.message || '').toLowerCase();
@@ -101,6 +112,7 @@ function isMissingTableError(error, tableName) {
   );
 }
 
+// isMissingForceDarkColumnError: checks whether is missing force dark column error for the Settings flow.
 function isMissingForceDarkColumnError(error) {
   const code = String(error?.code || '').toUpperCase();
   const message = String(error?.message || '').toLowerCase();
@@ -110,6 +122,7 @@ function isMissingForceDarkColumnError(error) {
   );
 }
 
+// getPublicThemeSetting: reads and returns get public theme setting for the Settings flow.
 async function getPublicThemeSetting(portalKey) {
   const normalizedPortal = validatePortalKey(portalKey);
 
@@ -137,14 +150,17 @@ async function getPublicThemeSetting(portalKey) {
     : buildFallbackSetting(normalizedPortal);
 }
 
+// getActorUserId: reads and returns get actor user id for the Settings flow.
 function getActorUserId(actor = {}) {
   return actor.userId || actor.user_id || actor.id || null;
 }
 
+// canAccessPersonalPortal: checks whether can access personal portal for the Settings flow.
 function canAccessPersonalPortal(actorRole, portalKey) {
   return portalKey !== 'landing' && actorRole === portalKey;
 }
 
+// getPersonalThemeSetting: reads and returns get personal theme setting for the Settings flow.
 async function getPersonalThemeSetting(portalKey, actor = {}) {
   const normalizedPortal = validatePortalKey(portalKey);
   const actorRole = normalizePortalKey(actor.role);
@@ -197,6 +213,7 @@ async function getPersonalThemeSetting(portalKey, actor = {}) {
     : { ...fallback, user_id: actorUserId };
 }
 
+// getThemeSettings: reads and returns get theme settings for the Settings flow.
 async function getThemeSettings(actor = {}) {
   const actorRole = normalizePortalKey(actor.role);
   const byPortal = new Map();
@@ -221,11 +238,13 @@ async function getThemeSettings(actor = {}) {
   };
 }
 
+// canManagePortal: checks whether can manage portal for the Settings flow.
 function canManagePortal(actorRole, portalKey) {
   if (portalKey === 'landing') return actorRole === 'admin';
   return actorRole === portalKey;
 }
 
+// updateThemeSetting: updates update theme setting for the Settings flow.
 async function updateThemeSetting(portalKey, presetKey, actor = {}, customColors = null) {
   const normalizedPortal = validatePortalKey(portalKey);
   const normalizedPreset = validatePresetKey(presetKey);
@@ -322,6 +341,7 @@ async function updateThemeSetting(portalKey, presetKey, actor = {}, customColors
   return { ...data, is_personal: true };
 }
 
+// updateForceDarkMode: updates update force dark mode for the Settings flow.
 async function updateForceDarkMode(portalKey, enabled, actor = {}) {
   const normalizedPortal = validatePortalKey(portalKey);
   const actorRole = normalizePortalKey(actor.role);

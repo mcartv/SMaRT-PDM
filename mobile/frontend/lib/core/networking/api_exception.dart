@@ -1,3 +1,4 @@
+// SMaRT-PDM: api exception — api exception (mobile frontend); supports mobile UI behavior.
 class ApiException implements Exception {
   final String message;
   final int? statusCode;
@@ -14,5 +15,6 @@ class ApiException implements Exception {
   }
 
   @override
+  // toString: handles to string for the api exception flow.
   String toString() => message;
 }

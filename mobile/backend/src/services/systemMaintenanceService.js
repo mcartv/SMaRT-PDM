@@ -1,8 +1,10 @@
+// SMaRT-PDM: Maintenance — system Maintenance Service (mobile backend service); contains mobile-facing business logic and data operations.
 const pool = require('../config/db');
 
 const DEFAULT_MAINTENANCE_MESSAGE =
   'SMaRT-PDM is temporarily unavailable while system maintenance is in progress. Please try again later.';
 
+// getPublicState: reads and returns get public state for the Maintenance flow.
 async function getPublicState() {
   const result = await pool.query(
     `SELECT

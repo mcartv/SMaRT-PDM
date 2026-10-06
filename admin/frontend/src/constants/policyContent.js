@@ -1,3 +1,4 @@
+// SMaRT-PDM: policy Content — policy Content (admin frontend); supports admin-side UI behavior.
 export const POLICY_ICON_OPTIONS = [
   { value: 'shield-check', label: 'Shield' },
   { value: 'file-text', label: 'Document' },
@@ -50,11 +51,13 @@ export const DEFAULT_POLICY_CONTENT = {
 };
 
 
+// normalizeUserTerminology: normalizes normalize user terminology for the policy Content flow.
 function normalizeUserTerminology(value) {
   if (typeof value !== 'string') return value;
   return value.replace(/\bstaff\b/gi, 'authorized users');
 }
 
+// mergePolicyContent: handles merge policy content for the policy Content flow.
 export function mergePolicyContent(content) {
   const source = content && typeof content === 'object' ? content : {};
   const normalizedSource = Object.fromEntries(
@@ -63,6 +66,7 @@ export function mergePolicyContent(content) {
       typeof value === 'string' ? normalizeUserTerminology(value) : value,
     ])
   );
+  // normalizeSections: normalizes normalize sections for the policy Content flow.
   const normalizeSections = (items, defaults) => {
     if (!Array.isArray(items)) return defaults;
     const normalized = items
@@ -74,6 +78,7 @@ export function mergePolicyContent(content) {
       .slice(0, 12);
     return normalized.length ? normalized : defaults;
   };
+  // ensureRequiredPrivacySections: ensures ensure required privacy sections for the policy Content flow.
   const ensureRequiredPrivacySections = (sections) => {
     const upgradedSections = sections.map((section) => {
       const title = section.title.toLowerCase();

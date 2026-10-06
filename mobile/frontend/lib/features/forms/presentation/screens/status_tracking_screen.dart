@@ -1,3 +1,4 @@
+// SMaRT-PDM: status tracking screen — status tracking screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -20,6 +21,7 @@ class StatusTrackingScreen extends StatefulWidget {
   const StatusTrackingScreen({super.key});
 
   @override
+  // createState: creates create state for the status tracking screen flow.
   State<StatusTrackingScreen> createState() => _StatusTrackingScreenState();
 }
 
@@ -38,6 +40,7 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
   bool _pendingLiveRefresh = false;
 
   @override
+  // initState: handles init state for the status tracking screen flow.
   void initState() {
     super.initState();
     _loadStatus();
@@ -49,6 +52,7 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
   }
 
   @override
+  // didChangeDependencies: handles did change dependencies for the status tracking screen flow.
   void didChangeDependencies() {
     super.didChangeDependencies();
 
@@ -62,6 +66,7 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
     provider.addListener(_handleNotificationProviderChange);
   }
 
+  // _handleNotificationProviderChange: handles handle notification provider change for the status tracking screen flow.
   void _handleNotificationProviderChange() {
     final provider = _notificationProvider;
     if (provider == null) return;
@@ -76,6 +81,7 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
     _requestLiveRefresh();
   }
 
+  // _loadStatus: handles load status for the status tracking screen flow.
   Future<void> _loadStatus({bool silent = false}) async {
     if (_fetchInProgress) {
       _pendingLiveRefresh = true;
@@ -120,6 +126,7 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
     }
   }
 
+  // _requestLiveRefresh: handles request live refresh for the status tracking screen flow.
   void _requestLiveRefresh() {
     if (!mounted) return;
     if (_fetchInProgress) {
@@ -129,6 +136,7 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
     _loadStatus(silent: true);
   }
 
+  // _downloadEndorsementSlip: handles download endorsement slip for the status tracking screen flow.
   Future<void> _downloadEndorsementSlip() async {
     setState(() => _isDownloadingSlip = true);
 
@@ -158,6 +166,7 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
   }
 
   @override
+  // build: builds build for the status tracking screen flow.
   Widget build(BuildContext context) {
     final baseTheme = Theme.of(context);
     final contentTheme = baseTheme.copyWith(
@@ -231,6 +240,7 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
   }
 
   @override
+  // dispose: handles dispose for the status tracking screen flow.
   void dispose() {
     _pollingTimer?.cancel();
     _notificationProvider?.removeListener(_handleNotificationProviderChange);
@@ -249,6 +259,7 @@ class _StatusSummaryView extends StatelessWidget {
   final bool isDownloadingSlip;
   final VoidCallback onDownloadSlip;
 
+  // _statusColor: handles status color for the status tracking screen flow.
   Color _statusColor(BuildContext context, String status) {
     final colors = AppStatusColors.of(context);
     final normalized = status.toLowerCase();
@@ -278,6 +289,7 @@ class _StatusSummaryView extends StatelessWidget {
     return colors.neutralOutline;
   }
 
+  // _statusIcon: handles status icon for the status tracking screen flow.
   IconData _statusIcon(String status) {
     final normalized = status.toLowerCase();
     if (normalized.contains('rejected') ||
@@ -299,11 +311,13 @@ class _StatusSummaryView extends StatelessWidget {
     return Icons.access_time_rounded;
   }
 
+  // _formatDate: handles format date for the status tracking screen flow.
   String _formatDate(DateTime? value) {
     if (value == null) return 'Not available';
     return DateFormat('MMM d, yyyy').format(value.toLocal());
   }
 
+  // _programTitle: handles program title for the status tracking screen flow.
   String _programTitle() {
     if (summary.programName?.trim().isNotEmpty == true) {
       return summary.programName!.trim();
@@ -314,6 +328,7 @@ class _StatusSummaryView extends StatelessWidget {
     return 'Scholarship Application';
   }
 
+  // _statusDescription: handles status description for the status tracking screen flow.
   String _statusDescription() {
     final workflow = summary.workflow;
     if (workflow?.primaryBlocker != null) {
@@ -335,6 +350,7 @@ class _StatusSummaryView extends StatelessWidget {
     return 'Your scholarship application is currently being processed.';
   }
 
+  // _nextStepTitle: handles next step title for the status tracking screen flow.
   String _nextStepTitle() {
     final workflow = summary.workflow;
     final blockerCode = workflow?.primaryBlocker?.code ?? '';
@@ -378,6 +394,7 @@ class _StatusSummaryView extends StatelessWidget {
     return 'Monitor your application';
   }
 
+  // _nextStepMessage: handles next step message for the status tracking screen flow.
   String _nextStepMessage() {
     final workflow = summary.workflow;
     final blocker = workflow?.primaryBlocker;
@@ -442,6 +459,7 @@ class _StatusSummaryView extends StatelessWidget {
     return null;
   }
 
+  // _fallbackStage: handles fallback stage for the status tracking screen flow.
   String _fallbackStage() {
     final appStatus = (summary.applicationStatus ?? '').toLowerCase();
     final documentStatus = (summary.documentStatus ?? '').toLowerCase();
@@ -456,6 +474,7 @@ class _StatusSummaryView extends StatelessWidget {
   }
 
   @override
+  // build: builds build for the status tracking screen flow.
   Widget build(BuildContext context) {
     final workflow = summary.workflow;
     final stageLabel =
@@ -553,6 +572,7 @@ class _CurrentStatusHero extends StatelessWidget {
   final IconData statusIcon;
 
   @override
+  // build: builds build for the status tracking screen flow.
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : AppColors.darkBrown;
@@ -683,6 +703,7 @@ class _VerticalWorkflowTracker extends StatelessWidget {
       blockerCode == 'requirements.reupload_required' ||
       blockerCode == 'requirements.missing';
 
+  // _activeIndex: handles active index for the status tracking screen flow.
   int _activeIndex() {
     if (const {
       'ready_for_selection',
@@ -699,6 +720,7 @@ class _VerticalWorkflowTracker extends StatelessWidget {
   }
 
   @override
+  // build: builds build for the status tracking screen flow.
   Widget build(BuildContext context) {
     final colors = AppStatusColors.of(context);
     final activeColor = _isStopped
@@ -773,6 +795,7 @@ class _VerticalWorkflowStep extends StatelessWidget {
   final Color activeColor;
 
   @override
+  // build: builds build for the status tracking screen flow.
   Widget build(BuildContext context) {
     final colors = AppStatusColors.of(context);
     final scheme = Theme.of(context).colorScheme;
@@ -898,6 +921,7 @@ class _NextStepCard extends StatelessWidget {
   final _NextAction? action;
 
   @override
+  // build: builds build for the status tracking screen flow.
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
 
@@ -997,6 +1021,7 @@ class _ApplicationDetailsCard extends StatefulWidget {
   final String? applicationId;
 
   @override
+  // createState: creates create state for the status tracking screen flow.
   State<_ApplicationDetailsCard> createState() =>
       _ApplicationDetailsCardState();
 }
@@ -1005,6 +1030,7 @@ class _ApplicationDetailsCardState extends State<_ApplicationDetailsCard> {
   bool _showMore = false;
 
   @override
+  // build: builds build for the status tracking screen flow.
   Widget build(BuildContext context) {
     final hasApplicationId = widget.applicationId?.trim().isNotEmpty == true;
 
@@ -1099,6 +1125,7 @@ class _ReadinessTimeline extends StatelessWidget {
   final String Function(DateTime? value) formatDate;
 
   @override
+  // build: builds build for the status tracking screen flow.
   Widget build(BuildContext context) {
     return AppSurfaceCard(
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
@@ -1160,6 +1187,7 @@ class _ReadinessStep extends StatelessWidget {
   final bool isLast;
 
   @override
+  // build: builds build for the status tracking screen flow.
   Widget build(BuildContext context) {
     return IntrinsicHeight(
       child: Row(
@@ -1250,6 +1278,7 @@ class _EndorsementSlipCard extends StatelessWidget {
   final Color statusColor;
 
   @override
+  // build: builds build for the status tracking screen flow.
   Widget build(BuildContext context) {
     final slip = endorsement.slip;
 
@@ -1372,6 +1401,7 @@ class _OfficeReviewList extends StatelessWidget {
   final Map<String, OfficeReviewSummary> reviews;
 
   @override
+  // build: builds build for the status tracking screen flow.
   Widget build(BuildContext context) {
     return AppSurfaceCard(
       padding: EdgeInsets.zero,
@@ -1394,6 +1424,7 @@ class _OfficeReviewTile extends StatelessWidget {
   final String label;
   final OfficeReviewSummary? review;
 
+  // _formatDecision: handles format decision for the status tracking screen flow.
   String _formatDecision() {
     final decision = review?.decision;
     if (decision == null || decision.trim().isEmpty) return 'Pending';
@@ -1426,6 +1457,7 @@ class _OfficeReviewTile extends StatelessWidget {
         .join(' ');
   }
 
+  // _decisionColor: handles decision color for the status tracking screen flow.
   Color _decisionColor(BuildContext context) {
     final colors = AppStatusColors.of(context);
     final normalized = (review?.decision ?? '').toLowerCase();
@@ -1447,6 +1479,7 @@ class _OfficeReviewTile extends StatelessWidget {
   }
 
   @override
+  // build: builds build for the status tracking screen flow.
   Widget build(BuildContext context) {
     final decision = _formatDecision();
     final color = _decisionColor(context);
@@ -1552,6 +1585,7 @@ class _AdaptiveStatusLabel extends StatelessWidget {
   }
 
   @override
+  // build: builds build for the status tracking screen flow.
   Widget build(BuildContext context) {
     if (_canUseCapsule) {
       return Align(
@@ -1579,6 +1613,7 @@ class _ShortStatusBadge extends StatelessWidget {
   final Color color;
 
   @override
+  // build: builds build for the status tracking screen flow.
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -1606,6 +1641,7 @@ class _SectionHeading extends StatelessWidget {
   final String subtitle;
 
   @override
+  // build: builds build for the status tracking screen flow.
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1637,6 +1673,7 @@ class _StatusDetailRow extends StatelessWidget {
   final String value;
 
   @override
+  // build: builds build for the status tracking screen flow.
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1702,6 +1739,7 @@ class _StatusMessageCard extends StatelessWidget {
   final VoidCallback onPrimaryAction;
 
   @override
+  // build: builds build for the status tracking screen flow.
   Widget build(BuildContext context) {
     return AppSurfaceCard(
       padding: const EdgeInsets.all(20),

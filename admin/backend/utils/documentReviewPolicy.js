@@ -1,6 +1,8 @@
+// SMaRT-PDM: Document Verification — document Review Policy (admin backend); supports backend application behavior.
 const MINOR_REVIEW_STATUS = 'reupload_required';
 const MAJOR_REVIEW_STATUS = 'rejected';
 
+// normalizeDocumentReviewStatus: normalizes normalize document review status for the Document Verification flow.
 function normalizeDocumentReviewStatus(value = 'pending') {
   const normalized = String(value || '')
     .trim()
@@ -34,6 +36,7 @@ function normalizeDocumentReviewStatus(value = 'pending') {
   return 'pending';
 }
 
+// normalizeIssueSeverity: normalizes normalize issue severity for the Document Verification flow.
 function normalizeIssueSeverity(value, reviewStatus) {
   const normalized = String(value || '').trim().toLowerCase();
 
@@ -47,6 +50,7 @@ function normalizeIssueSeverity(value, reviewStatus) {
   return null;
 }
 
+// normalizeReasonCode: normalizes normalize reason code for the Document Verification flow.
 function normalizeReasonCode(value) {
   const normalized = String(value || '')
     .trim()
@@ -57,6 +61,7 @@ function normalizeReasonCode(value) {
   return normalized || null;
 }
 
+// deriveVerificationOutcome: derives derive verification outcome for the Document Verification flow.
 function deriveVerificationOutcome(reviews = []) {
   const hasMajor = reviews.some(
     (review) =>
@@ -81,6 +86,7 @@ function deriveVerificationOutcome(reviews = []) {
   return 'pending';
 }
 
+// buildReplacementNotification: builds build replacement notification for the Document Verification flow.
 function buildReplacementNotification(applicationId) {
   return {
     type: 'Application',

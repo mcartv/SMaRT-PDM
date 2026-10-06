@@ -1,3 +1,4 @@
+// SMaRT-PDM: Dashboard — applicant home coordinator (mobile frontend); supports mobile UI behavior.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -36,6 +37,7 @@ class ApplicantHomeCoordinator extends StatefulWidget {
   final VoidCallback onViewAllUpdates;
 
   @override
+  // createState: creates create state for the Dashboard flow.
   State<ApplicantHomeCoordinator> createState() =>
       _ApplicantHomeCoordinatorState();
 }
@@ -54,6 +56,7 @@ class _ApplicantHomeCoordinatorState extends State<ApplicantHomeCoordinator> {
   String _lastUpdateFingerprint = '';
 
   @override
+  // initState: handles init state for the Dashboard flow.
   void initState() {
     super.initState();
     _documentsService = ApplicantDocumentsService();
@@ -66,6 +69,7 @@ class _ApplicantHomeCoordinatorState extends State<ApplicantHomeCoordinator> {
     unawaited(_controller.start());
   }
 
+  // _createController: handles create controller for the Dashboard flow.
   ApplicantHomeController _createController() {
     return ApplicantHomeController(
       loadIdentity: widget.sessionService.getCurrentUser,
@@ -76,6 +80,7 @@ class _ApplicantHomeCoordinatorState extends State<ApplicantHomeCoordinator> {
     );
   }
 
+  // _loadDocuments: handles load documents for the Dashboard flow.
   Future<ApplicantDocumentsPackage> _loadDocuments() async {
     try {
       return await _documentsService.fetchMyDocuments();
@@ -93,6 +98,7 @@ class _ApplicantHomeCoordinatorState extends State<ApplicantHomeCoordinator> {
     }
   }
 
+  // _loadLatestUpdate: handles load latest update for the Dashboard flow.
   Future<AppNotification?> _loadLatestUpdate() async {
     final provider = widget.notificationProvider;
     if (provider.errorMessage != null) {
@@ -102,6 +108,7 @@ class _ApplicantHomeCoordinatorState extends State<ApplicantHomeCoordinator> {
     return updates.isEmpty ? null : updates.first;
   }
 
+  // _captureProviderState: handles capture provider state for the Dashboard flow.
   void _captureProviderState(NotificationProvider provider) {
     _lastApplicationRevision = provider.applicationRevision;
     _lastOpeningRevision = provider.openingRevision;
@@ -110,6 +117,7 @@ class _ApplicantHomeCoordinatorState extends State<ApplicantHomeCoordinator> {
     _lastUpdateFingerprint = _updateFingerprint(provider);
   }
 
+  // _updateFingerprint: handles update fingerprint for the Dashboard flow.
   String _updateFingerprint(NotificationProvider provider) {
     final updates = provider.officeUpdatesItems;
     if (updates.isEmpty) return '';
@@ -117,6 +125,7 @@ class _ApplicantHomeCoordinatorState extends State<ApplicantHomeCoordinator> {
     return '${update.notificationId}|${update.createdAt.microsecondsSinceEpoch}|${update.isRead}';
   }
 
+  // _handleProviderChange: handles handle provider change for the Dashboard flow.
   void _handleProviderChange() {
     final provider = widget.notificationProvider;
     final sections = <ApplicantHomeSectionKey>{};
@@ -151,12 +160,14 @@ class _ApplicantHomeCoordinatorState extends State<ApplicantHomeCoordinator> {
     }
   }
 
+  // _refresh: handles refresh for the Dashboard flow.
   Future<void> _refresh() async {
     await widget.notificationProvider.refresh();
     await _controller.refresh();
   }
 
   @override
+  // didUpdateWidget: handles did update widget for the Dashboard flow.
   void didUpdateWidget(covariant ApplicantHomeCoordinator oldWidget) {
     super.didUpdateWidget(oldWidget);
     assert(
@@ -176,6 +187,7 @@ class _ApplicantHomeCoordinatorState extends State<ApplicantHomeCoordinator> {
   }
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     return ApplicantHomeThemeScope(
       child: ListenableBuilder(
@@ -201,6 +213,7 @@ class _ApplicantHomeCoordinatorState extends State<ApplicantHomeCoordinator> {
   }
 
   @override
+  // dispose: handles dispose for the Dashboard flow.
   void dispose() {
     widget.notificationProvider.removeListener(_handleProviderChange);
     if (_ownsController) _controller.dispose();

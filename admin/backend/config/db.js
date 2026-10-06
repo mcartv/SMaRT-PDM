@@ -1,3 +1,4 @@
+// SMaRT-PDM: db — db (admin backend config); configures shared backend infrastructure.
 const { Pool } = require('pg');
 require('dotenv').config();
 

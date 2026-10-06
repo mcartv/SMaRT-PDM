@@ -1,3 +1,4 @@
+// SMaRT-PDM: app data — app data (mobile frontend); supports mobile UI behavior.
 class ApplicationData {
   String userId = '';
   String accountStudentId = '';
@@ -247,14 +248,17 @@ class ApplicationData {
 
   int? _parseInt(String value) => parseAgeValue(value);
 
+  // _toIsoDate: handles to iso date for the app data flow.
   String? _toIsoDate(String value) {
     final parsed = parseInputDate(value);
     return parsed?.toIso8601String().split('T').first;
   }
 
+  // _title: handles title for the app data flow.
   String _title(String value) =>
       value.trim().toUpperCase() == 'N/A' ? 'N/A' : toTitleCase(value);
 
+  // applyOpeningSelection: handles apply opening selection for the app data flow.
   void applyOpeningSelection({
     required String openingId,
     required String openingTitle,
@@ -305,16 +309,20 @@ class ApplicationData {
     return '$month/$day/$year';
   }
 
+  // _setIfPresent: handles set if present for the app data flow.
   void _setIfPresent(void Function(String value) setter, String value) {
     if (value.trim().isNotEmpty) setter(value.trim());
   }
 
+  // _setBoolIfPresent: handles set bool if present for the app data flow.
   void _setBoolIfPresent(void Function(bool value) setter, dynamic value) {
     final parsed = _savedBool(value);
     if (parsed != null) setter(parsed);
   }
 
+  // _setEducationalAttainment: handles set educational attainment for the app data flow.
   void _setEducationalAttainment(
+    // Function: handles function for the app data flow.
     void Function(String value) setter,
     String value,
   ) {
@@ -324,6 +332,7 @@ class ApplicationData {
     setter(normalizeEducationalAttainment(trimmed) ?? trimmed);
   }
 
+  // applySavedForm: handles apply saved form for the app data flow.
   void applySavedForm(Map<String, dynamic> payload) {
     final opening = _mapValue(payload['opening']);
     final account = _mapValue(payload['account']);
@@ -787,14 +796,18 @@ class ApplicationData {
     _setBoolIfPresent((value) => agree = value, certification['agree']);
   }
 
+  // _applyFamilyMember: handles apply family member for the app data flow.
   void _applyFamilyMember(
     Map<String, dynamic> member, {
     required void Function(String value) setLastName,
     required void Function(String value) setFirstName,
     required void Function(String value) setMiddleName,
     required void Function(String value) setMobile,
+    // Function: handles function for the app data flow.
     void Function(String value)? setEducation,
+    // Function: handles function for the app data flow.
     void Function(String value)? setOccupation,
+    // Function: handles function for the app data flow.
     void Function(String value)? setCompany,
   }) {
     _setIfPresent(setLastName, _savedString(member['last_name']));
@@ -827,6 +840,7 @@ class ApplicationData {
     }
   }
 
+  // toSubmissionPayload: handles to submission payload for the app data flow.
   Map<String, dynamic> toSubmissionPayload() {
     final normalizedMobile = normalizeMobileNumber(mobileNumber);
     return {
@@ -992,6 +1006,7 @@ class ApplicationData {
     };
   }
 
+  // toDraftPayload: handles to draft payload for the app data flow.
   Map<String, dynamic> toDraftPayload() {
     final payload = toSubmissionPayload();
     payload['opening'] = {

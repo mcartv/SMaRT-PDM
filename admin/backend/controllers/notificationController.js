@@ -1,11 +1,14 @@
+// SMaRT-PDM: Notifications — notification Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const notificationService = require('../services/notificationService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 
+// getRequestUserId: reads and returns get request user id for the Notifications flow.
 function getRequestUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+// writeNotificationAudit: handles write notification audit for the Notifications flow.
 async function writeNotificationAudit(req, actionTaken, description, metadata = {}) {
     try {
         if (typeof auditLogService?.logAudit !== 'function') return;

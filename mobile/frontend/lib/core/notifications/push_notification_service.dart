@@ -1,3 +1,4 @@
+// SMaRT-PDM: Notifications — push notification service (mobile frontend); supports mobile UI behavior.
 import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -11,6 +12,7 @@ import 'package:smartpdm_mobileapp/features/notifications/data/services/notifica
 import 'package:smartpdm_mobileapp/firebase_options.dart';
 
 @pragma('vm:entry-point')
+// firebaseMessagingBackgroundHandler: handles firebase messaging background handler for the Notifications flow.
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
@@ -44,6 +46,7 @@ class PushNotificationService {
 
   StreamSubscription<RemoteMessage>? _messageOpenedSubscription;
 
+  // initialize: handles initialize for the Notifications flow.
   Future<void> initialize() async {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
       return;
@@ -79,6 +82,7 @@ class PushNotificationService {
     }
   }
 
+  // _initializeLocalNotifications: handles initialize local notifications for the Notifications flow.
   Future<void> _initializeLocalNotifications() async {
     const initializationSettings = InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
@@ -102,6 +106,7 @@ class PushNotificationService {
     await androidPlugin?.createNotificationChannel(_channel);
   }
 
+  // _requestPermission: handles request permission for the Notifications flow.
   Future<void> _requestPermission() async {
     final settings = await _messaging.requestPermission(
       alert: true,
@@ -115,6 +120,7 @@ class PushNotificationService {
     );
   }
 
+  // _refreshDeviceToken: handles refresh device token for the Notifications flow.
   Future<void> _refreshDeviceToken() async {
     try {
       final token = await _messaging.getToken();
@@ -136,6 +142,7 @@ class PushNotificationService {
     }
   }
 
+  // _saveAndRegisterToken: handles save and register token for the Notifications flow.
   Future<void> _saveAndRegisterToken(String token) async {
     final cleanToken = token.trim();
 
@@ -169,6 +176,7 @@ class PushNotificationService {
     }
   }
 
+  // _handleForegroundMessage: handles handle foreground message for the Notifications flow.
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
     debugPrint(
       '[FCM] Foreground message: '
@@ -220,6 +228,7 @@ class PushNotificationService {
     );
   }
 
+  // _handleNotificationTap: handles handle notification tap for the Notifications flow.
   void _handleNotificationTap(RemoteMessage message) {
     debugPrint(
       '[FCM] Notification opened: '
@@ -232,6 +241,7 @@ class PushNotificationService {
     // is confirmed working.
   }
 
+  // dispose: handles dispose for the Notifications flow.
   Future<void> dispose() async {
     await _tokenRefreshSubscription?.cancel();
 

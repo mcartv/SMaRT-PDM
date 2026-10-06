@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — auth service (mobile service); calls APIs or shared services and returns processed results.
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 
@@ -71,6 +72,7 @@ class AuthService {
   final ApiClient _apiClient;
   final SessionService _sessionService;
 
+  // checkStudentId: checks check student id for the Authentication flow.
   Future<Map<String, dynamic>> checkStudentId(String studentId) async {
     return _apiClient.postJson(
       '/api/auth/check-student-id',
@@ -78,6 +80,7 @@ class AuthService {
     );
   }
 
+  // register: handles register for the Authentication flow.
   Future<RegistrationResult> register({
     required String email,
     required String password,
@@ -103,6 +106,7 @@ class AuthService {
     );
   }
 
+  // verifyOtp: verifies verify otp for the Authentication flow.
   Future<AuthResult> verifyOtp({
     required String email,
     required String otp,
@@ -115,6 +119,7 @@ class AuthService {
     return _saveAndBuildAuthResult(response);
   }
 
+  // login: handles login for the Authentication flow.
   Future<AuthResult> login({
     required String studentId,
     required String password,
@@ -130,6 +135,7 @@ class AuthService {
     return _saveAndBuildAuthResult(response);
   }
 
+  // resendOtp: handles resend otp for the Authentication flow.
   Future<void> resendOtp(String email) async {
     await _apiClient.postJson(
       '/api/auth/resend-otp',
@@ -137,6 +143,7 @@ class AuthService {
     );
   }
 
+  // cancelRegistration: checks whether cancel registration for the Authentication flow.
   Future<void> cancelRegistration(String email) async {
     await _apiClient.postJson(
       '/api/auth/cancel-registration',
@@ -144,6 +151,7 @@ class AuthService {
     );
   }
 
+  // fetchCourses: fetches and returns fetch courses for the Authentication flow.
   Future<List<CourseOption>> fetchCourses() async {
     final response = await _apiClient.getObject('/api/courses');
     final items = response['items'] as List<dynamic>? ?? [];
@@ -153,6 +161,7 @@ class AuthService {
         .toList();
   }
 
+  // setupProfile: sets setup profile for the Authentication flow.
   Future<void> setupProfile({
     required String firstName,
     required String middleName,
@@ -197,6 +206,7 @@ class AuthService {
     );
   }
 
+  // _saveAndBuildAuthResult: handles save and build auth result for the Authentication flow.
   Future<AuthResult> _saveAndBuildAuthResult(
     Map<String, dynamic> response,
   ) async {

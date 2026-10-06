@@ -1,3 +1,4 @@
+// SMaRT-PDM: mobile realtime service — mobile realtime service (mobile frontend); supports mobile UI behavior.
 import 'dart:async';
 import 'dart:convert';
 
@@ -8,6 +9,7 @@ import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_events.dart';
 
 typedef MobileRealtimeCallback =
+    // Function: handles function for the mobile realtime service flow.
     FutureOr<void> Function(MobileRealtimeEvent event);
 
 class MobileRealtimeEvent {
@@ -42,6 +44,7 @@ class MobileRealtimeEvent {
   }
 
   @override
+  // toString: handles to string for the mobile realtime service flow.
   String toString() {
     return 'MobileRealtimeEvent(name: $name, payload: $payload)';
   }
@@ -96,6 +99,7 @@ class MobileRealtimeService extends ChangeNotifier {
 
   static final Set<String> defaultEventNames = MobileRealtimeEvents.all;
 
+  // connectFromPrefs: handles connect from prefs for the mobile realtime service flow.
   Future<void> connectFromPrefs({
     required String backendBaseUrl,
     bool forceReconnect = false,
@@ -133,6 +137,7 @@ class MobileRealtimeService extends ChangeNotifier {
     );
   }
 
+  // connect: handles connect for the mobile realtime service flow.
   Future<void> connect({
     required String backendBaseUrl,
     String? token,
@@ -199,6 +204,7 @@ class MobileRealtimeService extends ChangeNotifier {
     }
   }
 
+  // disconnect: handles disconnect for the mobile realtime service flow.
   Future<void> disconnect({bool silent = false}) async {
     final socket = _socket;
 
@@ -220,6 +226,7 @@ class MobileRealtimeService extends ChangeNotifier {
     if (!silent) notifyListeners();
   }
 
+  // reconnect: handles reconnect for the mobile realtime service flow.
   void reconnect() {
     final socket = _socket;
     if (socket == null) return;
@@ -232,6 +239,7 @@ class MobileRealtimeService extends ChangeNotifier {
     }
   }
 
+  // emitClientEvent: handles emit client event for the mobile realtime service flow.
   void emitClientEvent(String eventName, [Map<String, dynamic>? payload]) {
     final socket = _socket;
     if (socket == null || !_isConnected) return;
@@ -239,6 +247,7 @@ class MobileRealtimeService extends ChangeNotifier {
     socket.emit(eventName, payload ?? {});
   }
 
+  // listenTo: loads a list of listen to for the mobile realtime service flow.
   VoidCallback listenTo(
     Iterable<String> eventNames,
     MobileRealtimeCallback callback,
@@ -261,10 +270,12 @@ class MobileRealtimeService extends ChangeNotifier {
     };
   }
 
+  // listenToAll: loads a list of listen to all for the mobile realtime service flow.
   VoidCallback listenToAll(MobileRealtimeCallback callback) {
     return listenTo(defaultEventNames, callback);
   }
 
+  // _registerCoreHandlers: handles register core handlers for the mobile realtime service flow.
   void _registerCoreHandlers(IO.Socket socket) {
     socket.onConnect((_) {
       _isConnected = true;
@@ -328,6 +339,7 @@ class MobileRealtimeService extends ChangeNotifier {
     });
   }
 
+  // _registerAppEventHandlers: handles register app event handlers for the mobile realtime service flow.
   void _registerAppEventHandlers(IO.Socket socket) {
     for (final eventName in defaultEventNames) {
       socket.on(eventName, (data) {
@@ -336,6 +348,7 @@ class MobileRealtimeService extends ChangeNotifier {
     }
   }
 
+  // _joinUserRoom: handles join user room for the mobile realtime service flow.
   void _joinUserRoom() {
     final socket = _socket;
     if (socket == null) return;
@@ -349,6 +362,7 @@ class MobileRealtimeService extends ChangeNotifier {
     }
   }
 
+  // _handleServerEvent: handles handle server event for the mobile realtime service flow.
   void _handleServerEvent(String eventName, dynamic data) {
     final payload = _payloadToMap(data);
 
@@ -374,6 +388,7 @@ class MobileRealtimeService extends ChangeNotifier {
     _dispatchEvent(event);
   }
 
+  // _isDuplicateServerEvent: handles is duplicate server event for the mobile realtime service flow.
   bool _isDuplicateServerEvent(String eventName, Map<String, dynamic> payload) {
     if (eventName == MobileRealtimeEvents.bridgeStatus) return false;
 
@@ -421,6 +436,7 @@ class MobileRealtimeService extends ChangeNotifier {
     return false;
   }
 
+  // _emitLocalEvent: handles emit local event for the mobile realtime service flow.
   void _emitLocalEvent(String eventName, Map<String, dynamic> payload) {
     _dispatchEvent(
       MobileRealtimeEvent(
@@ -431,6 +447,7 @@ class MobileRealtimeService extends ChangeNotifier {
     );
   }
 
+  // _dispatchEvent: handles dispatch event for the mobile realtime service flow.
   void _dispatchEvent(MobileRealtimeEvent event) {
     _lastEvent = event;
     _revision += 1;
@@ -547,6 +564,7 @@ class MobileRealtimeService extends ChangeNotifier {
   }
 
   @override
+  // dispose: handles dispose for the mobile realtime service flow.
   void dispose() {
     disconnect(silent: true);
     _eventController.close();

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Notifications — notification Service (mobile backend service); contains mobile-facing business logic and data operations.
 const crypto = require('crypto');
 const supabase = require('../config/supabase');
 const { notificationsEnabled } = require('../config/notificationPolicy');
@@ -6,29 +7,35 @@ const pushNotificationService = require('./pushNotificationService');
 
 let ioInstance = null;
 
+// configureNotificationService: handles configure notification service for the Notifications flow.
 function configureNotificationService(config = {}) {
   ioInstance = config.io || null;
 }
 
+// createHttpError: creates create http error for the Notifications flow.
 function createHttpError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
 }
 
+// safeText: handles safe text for the Notifications flow.
 function safeText(value) {
   return value === null || value === undefined ? '' : String(value).trim();
 }
 
+// normalizeText: normalizes normalize text for the Notifications flow.
 function normalizeText(value) {
   return safeText(value).toLowerCase();
 }
 
+// safeInteger: handles safe integer for the Notifications flow.
 function safeInteger(value, fallback) {
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
+// safeCompareSecrets: handles safe compare secrets for the Notifications flow.
 function safeCompareSecrets(left, right) {
   const leftBuffer = Buffer.from(left || '');
   const rightBuffer = Buffer.from(right || '');
@@ -38,6 +45,7 @@ function safeCompareSecrets(left, right) {
   return crypto.timingSafeEqual(leftBuffer, rightBuffer);
 }
 
+// isLoopbackAddress: checks whether is loopback address for the Notifications flow.
 function isLoopbackAddress(value) {
   const normalized = String(value || '').trim().replace(/^::ffff:/, '');
 
@@ -48,6 +56,7 @@ function isLoopbackAddress(value) {
   );
 }
 
+// isAuthorizedInternalRequest: checks whether is authorized internal request for the Notifications flow.
 function isAuthorizedInternalRequest(req) {
   const expectedSecret = safeText(process.env.INTERNAL_NOTIFICATION_SECRET);
   const providedSecret = safeText(req.get('x-internal-notification-secret'));
@@ -62,6 +71,7 @@ function isAuthorizedInternalRequest(req) {
   );
 }
 
+// normalizeNotification: normalizes normalize notification for the Notifications flow.
 function normalizeNotification(row = {}) {
   const id = row.notification_id || row.notificationId || row.id || null;
   const userId = row.user_id || row.userId || null;
@@ -98,12 +108,14 @@ function normalizeNotification(row = {}) {
   };
 }
 
+// emitToUser: handles emit to user for the Notifications flow.
 function emitToUser(userId, eventName, payload) {
   if (!ioInstance || !userId) return;
 
   ioInstance.to(`user:${userId}`).emit(eventName, payload);
 }
 
+// emitNotificationCreated: handles emit notification created for the Notifications flow.
 function emitNotificationCreated(userId, notification) {
   const payload = normalizeNotification(notification);
 
@@ -115,6 +127,7 @@ function emitNotificationCreated(userId, notification) {
   emitToUser(userId, 'notificationCreated', payload);
 }
 
+// emitNotificationUpdated: handles emit notification updated for the Notifications flow.
 function emitNotificationUpdated(userId, notification) {
   const payload = normalizeNotification(notification);
 
@@ -125,6 +138,7 @@ function emitNotificationUpdated(userId, notification) {
   emitToUser(userId, 'notificationUpdated', payload);
 }
 
+// emitNotificationReadAll: handles emit notification read all for the Notifications flow.
 function emitNotificationReadAll(userId, updatedCount = 0) {
   const payload = {
     user_id: userId,
@@ -143,6 +157,7 @@ function emitNotificationReadAll(userId, updatedCount = 0) {
   emitToUser(userId, 'notificationUpdated', payload);
 }
 
+// emitNotificationDeleted: handles emit notification deleted for the Notifications flow.
 function emitNotificationDeleted(userId, notificationId) {
   const payload = {
     notificationId,
@@ -159,6 +174,7 @@ function emitNotificationDeleted(userId, notificationId) {
   emitToUser(userId, 'notifications:updated', payload);
 }
 
+// isAnnouncementNotification: checks whether is announcement notification for the Notifications flow.
 function isAnnouncementNotification(row = {}) {
   const type = normalizeText(row.type);
   const referenceType = normalizeText(row.reference_type || row.referenceType);
@@ -166,6 +182,7 @@ function isAnnouncementNotification(row = {}) {
   return type.includes('announcement') || referenceType === 'announcement';
 }
 
+// isOpeningNotification: checks whether is opening notification for the Notifications flow.
 function isOpeningNotification(row = {}) {
   const type = normalizeText(row.type);
   const referenceType = normalizeText(row.reference_type || row.referenceType);
@@ -177,6 +194,7 @@ function isOpeningNotification(row = {}) {
   );
 }
 
+// filterLiveNotificationRows: handles filter live notification rows for the Notifications flow.
 async function filterLiveNotificationRows(rows = []) {
   const source = Array.isArray(rows) ? rows : [];
 
@@ -271,6 +289,7 @@ const NOTIFICATION_SELECT = `
   created_at
 `;
 
+// createUserNotification: creates create user notification for the Notifications flow.
 async function createUserNotification({
   userId,
   type,
@@ -378,6 +397,7 @@ async function createUserNotification({
     : data;
 }
 
+// resolveStaffRole: resolves resolve staff role for the Notifications flow.
 function resolveStaffRole(profile = {}) {
   const department = normalizeText(profile.department);
   const position = normalizeText(profile.position);
@@ -410,6 +430,7 @@ function resolveStaffRole(profile = {}) {
   return null;
 }
 
+// getStaffTargets: reads and returns get staff targets for the Notifications flow.
 async function getStaffTargets({ roles = [], courseId = null } = {}) {
   if (!(await notificationsEnabled())) return [];
   const normalizedRoles = new Set(
@@ -458,6 +479,7 @@ async function getStaffTargets({ roles = [], courseId = null } = {}) {
   return targets;
 }
 
+// createStaffNotifications: creates create staff notifications for the Notifications flow.
 async function createStaffNotifications({
   roles,
   type,
@@ -484,6 +506,7 @@ async function createStaffNotifications({
   )).filter(Boolean);
 }
 
+// getMyNotifications: reads and returns get my notifications for the Notifications flow.
 async function getMyNotifications(userId, query = {}) {
   const enabled = await notificationsEnabled();
   const limit = Math.min(safeInteger(query.limit, 50), 100);
@@ -517,6 +540,7 @@ async function getMyNotifications(userId, query = {}) {
   };
 }
 
+// getUnreadCount: reads and returns get unread count for the Notifications flow.
 async function getUnreadCount(userId) {
   const { data, error } = await supabase
     .from('notifications')
@@ -536,6 +560,7 @@ async function getUnreadCount(userId) {
   };
 }
 
+// markAsRead: marks mark as read for the Notifications flow.
 async function markAsRead(userId, notificationId) {
   if (!notificationId) {
     throw createHttpError(400, 'Notification ID is required.');
@@ -568,6 +593,7 @@ async function markAsRead(userId, notificationId) {
   };
 }
 
+// markAllAsRead: marks mark all as read for the Notifications flow.
 async function markAllAsRead(userId) {
   const { data, error } = await supabase
     .from('notifications')
@@ -591,6 +617,7 @@ async function markAllAsRead(userId) {
   };
 }
 
+// deleteNotification: deletes delete notification for the Notifications flow.
 async function deleteNotification(userId, notificationId) {
   if (!notificationId) {
     throw createHttpError(400, 'Notification ID is required.');
@@ -619,6 +646,7 @@ async function deleteNotification(userId, notificationId) {
   };
 }
 
+// registerDeviceToken: handles register device token for the Notifications flow.
 async function registerDeviceToken(userId, body = {}) {
   const deviceToken = safeText(body.deviceToken || body.device_token);
   const platform = safeText(body.platform) || 'unknown';
@@ -660,6 +688,7 @@ async function registerDeviceToken(userId, body = {}) {
   };
 }
 
+// createInternalUserNotification: creates create internal user notification for the Notifications flow.
 async function createInternalUserNotification(req) {
   if (!isAuthorizedInternalRequest(req)) {
     throw createHttpError(403, 'Unauthorized internal notification request.');

@@ -1,5 +1,7 @@
-﻿const pool = require('../config/db');
+﻿// SMaRT-PDM: readiness Queue Service — readiness Queue Service (admin backend service); contains business logic and data operations.
+const pool = require('../config/db');
 
+// safeUuid: handles safe uuid for the readiness Queue Service flow.
 function safeUuid(value) {
   const text = String(value || '').trim();
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text)
@@ -299,6 +301,7 @@ async function syncOpeningFcfsQueue(openingId) {
   }
 }
 
+// syncApplicationReadiness: synchronizes sync application readiness for the readiness Queue Service flow.
 async function syncApplicationReadiness(applicationId) {
   const normalizedApplicationId = safeUuid(applicationId);
   if (!normalizedApplicationId) return null;
@@ -315,6 +318,7 @@ async function syncApplicationReadiness(applicationId) {
   return queue.find((row) => row.application_id === normalizedApplicationId) || null;
 }
 
+// syncAllReadyApplications: synchronizes sync all ready applications for the readiness Queue Service flow.
 async function syncAllReadyApplications() {
   const { rows } = await pool.query(
     `

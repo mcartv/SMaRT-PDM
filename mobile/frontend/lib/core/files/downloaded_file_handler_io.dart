@@ -1,9 +1,11 @@
+// SMaRT-PDM: downloaded file handler io — downloaded file handler io (mobile frontend); supports mobile UI behavior.
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 
+// saveAndOpenDownloadedFileImpl: validates and saves save and open downloaded file impl for the downloaded file handler io flow.
 Future<String> saveAndOpenDownloadedFileImpl({
   required Uint8List bytes,
   required String fileName,
@@ -21,6 +23,7 @@ Future<String> saveAndOpenDownloadedFileImpl({
   return 'Saved and opened $safeName.';
 }
 
+// _safeFileName: handles safe file name for the downloaded file handler io flow.
 String _safeFileName(String value) {
   final cleaned = value
       .trim()

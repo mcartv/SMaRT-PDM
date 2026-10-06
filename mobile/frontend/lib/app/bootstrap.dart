@@ -1,3 +1,4 @@
+// SMaRT-PDM: bootstrap — bootstrap (mobile frontend); supports mobile UI behavior.
 import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -17,6 +18,7 @@ import 'package:smartpdm_mobileapp/features/notifications/presentation/providers
 import 'package:smartpdm_mobileapp/firebase_options.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/offline_gate.dart';
 
+// bootstrapApp: handles bootstrap app for the bootstrap flow.
 Future<void> bootstrapApp() async {
   WidgetsFlutterBinding.ensureInitialized();
 

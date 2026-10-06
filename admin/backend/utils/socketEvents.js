@@ -1,3 +1,4 @@
+// SMaRT-PDM: Realtime — socket Events (admin backend); supports backend application behavior.
 /**
  * Socket.io Event Emitter Utility
  * Centralized realtime event names for SMaRT-PDM.
@@ -21,11 +22,13 @@ function normalizeUserIds(userIds = []) {
     ];
 }
 
+// addMeta: adds add meta for the Realtime flow.
 const addMeta = (data = {}) => ({
     ...data,
     emitted_at: new Date().toISOString(),
 });
 
+// emitEvent: handles emit event for the Realtime flow.
 const emitEvent = (io, eventName, data = {}) => {
     if (!io) {
         console.warn(`[Socket] No io instance available for event: ${eventName}`);
@@ -37,6 +40,7 @@ const emitEvent = (io, eventName, data = {}) => {
     io.emit(eventName, payload);
 };
 
+// emitPublicEvent: handles emit public event for the Realtime flow.
 const emitPublicEvent = (io, eventName, data = {}) => {
     if (!io || typeof io.of !== 'function') {
         console.warn(`[Socket] No io instance available for public event: ${eventName}`);
@@ -48,6 +52,7 @@ const emitPublicEvent = (io, eventName, data = {}) => {
     io.of('/public').emit(eventName, payload);
 };
 
+// emitToUser: handles emit to user for the Realtime flow.
 const emitToUser = (io, userId, eventName, data = {}) => {
     if (!io) {
         console.warn(`[Socket] No io instance available for event: ${eventName}`);
@@ -66,6 +71,7 @@ const emitToUser = (io, userId, eventName, data = {}) => {
     io.to(`user:${normalizedUserId}`).emit(eventName, payload);
 };
 
+// emitToUsers: handles emit to users for the Realtime flow.
 const emitToUsers = (io, userIds = [], eventName, data = {}) => {
     if (!io) {
         console.warn(`[Socket] No io instance available for event: ${eventName}`);
@@ -87,6 +93,7 @@ const emitToUsers = (io, userIds = [], eventName, data = {}) => {
     });
 };
 
+// emitToRoom: handles emit to room for the Realtime flow.
 const emitToRoom = (io, roomName, eventName, data = {}) => {
     if (!io) {
         console.warn(`[Socket] No io instance available for event: ${eventName}`);
@@ -103,6 +110,7 @@ const emitToRoom = (io, roomName, eventName, data = {}) => {
     io.to(roomName).emit(eventName, payload);
 };
 
+// emitMessageEvent: handles emit message event for the Realtime flow.
 function emitMessageEvent(io, eventName, data = {}, options = {}) {
     const targetUserIds = normalizeUserIds(options.targetUserIds || []);
 
@@ -207,6 +215,7 @@ const socketEvents = {
     messageCreated: (io, data, options = {}) => {
         const targetUserIds = normalizeUserIds(options.targetUserIds || []);
 
+        // emitExact: handles emit exact for the Realtime flow.
         const emitExact = (eventName) => {
             if (targetUserIds.length) {
                 targetUserIds.forEach((userId) => {

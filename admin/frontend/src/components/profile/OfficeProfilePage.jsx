@@ -1,3 +1,4 @@
+// SMaRT-PDM: Profile — Office Profile Page (admin frontend component); renders reusable UI and handles local interactions.
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';

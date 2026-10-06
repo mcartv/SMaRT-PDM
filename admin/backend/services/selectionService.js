@@ -1,3 +1,4 @@
+// SMaRT-PDM: selection Service — selection Service (admin backend service); contains business logic and data operations.
 const pool = require('../config/db');
 const notificationService = require('./notificationService');
 
@@ -17,6 +18,7 @@ const REQUIRED_UPLOAD_NAMES = Object.freeze([
   'letter of request',
 ]);
 
+// httpError: handles http error for the selection Service flow.
 function httpError(statusCode, message, code = null) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -24,15 +26,18 @@ function httpError(statusCode, message, code = null) {
   return error;
 }
 
+// actorUserId: handles actor user id for the selection Service flow.
 function actorUserId(actor = {}) {
   return actor.user_id || actor.userId || actor.sub || actor.id || null;
 }
 
+// normalizeLimit: normalizes normalize limit for the selection Service flow.
 function normalizeLimit(value, fallback = 0) {
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
+// validateApplicantGwa: validates validate applicant gwa for the selection Service flow.
 function validateApplicantGwa(gwa, threshold = null) {
   const numericGwa = Number(gwa);
   if (!Number.isFinite(numericGwa) || numericGwa < 1 || numericGwa > 5) {
@@ -52,6 +57,7 @@ function validateApplicantGwa(gwa, threshold = null) {
   return numericGwa;
 }
 
+// applicationName: handles application name for the selection Service flow.
 function applicationName(row = {}) {
   return [row.first_name, row.middle_name, row.last_name]
     .filter(Boolean)
@@ -60,6 +66,7 @@ function applicationName(row = {}) {
     .trim();
 }
 
+// getOpeningForUpdate: reads and returns get opening for update for the selection Service flow.
 async function getOpeningForUpdate(client, openingId) {
   const result = await client.query(
     `
@@ -88,6 +95,7 @@ async function getOpeningForUpdate(client, openingId) {
   return result.rows[0];
 }
 
+// countOccupiedSlots: handles count occupied slots for the selection Service flow.
 async function countOccupiedSlots(client, openingId) {
   const result = await client.query(
     `
@@ -107,6 +115,7 @@ async function countOccupiedSlots(client, openingId) {
   return Number(result.rows[0]?.occupied_count || 0);
 }
 
+// getQualifiedQueue: reads and returns get qualified queue for the selection Service flow.
 async function getQualifiedQueue(client, openingId, { forUpdate = false } = {}) {
   const lockClause = forUpdate ? 'FOR UPDATE OF a' : '';
   const result = await client.query(
@@ -164,6 +173,7 @@ async function getQualifiedQueue(client, openingId, { forUpdate = false } = {}) 
   }));
 }
 
+// partitionQueue: handles partition queue for the selection Service flow.
 function partitionQueue(queue, opening, occupiedBefore) {
   const capacity = Math.max(0, Number(opening.allocated_slots || 0));
   const availableSlots = Math.max(0, capacity - occupiedBefore);
@@ -199,6 +209,7 @@ function partitionQueue(queue, opening, occupiedBefore) {
   };
 }
 
+// persistQueuePositions: handles persist queue positions for the selection Service flow.
 async function persistQueuePositions(client, entries) {
   for (const entry of entries) {
     await client.query(
@@ -224,6 +235,7 @@ async function persistQueuePositions(client, entries) {
   }
 }
 
+// getLatestFinalizedBatch: reads and returns get latest finalized batch for the selection Service flow.
 async function getLatestFinalizedBatch(client, openingId) {
   const result = await client.query(
     `
@@ -239,6 +251,7 @@ async function getLatestFinalizedBatch(client, openingId) {
   return result.rows[0] || null;
 }
 
+// getBatchEntries: reads and returns get batch entries for the selection Service flow.
 async function getBatchEntries(client, selectionBatchId) {
   const result = await client.query(
     `
@@ -267,6 +280,7 @@ async function getBatchEntries(client, selectionBatchId) {
   }));
 }
 
+// getSelectionPreview: reads and returns get selection preview for the selection Service flow.
 async function getSelectionPreview(openingId) {
   const client = await pool.connect();
   try {
@@ -323,6 +337,7 @@ async function getSelectionPreview(openingId) {
   }
 }
 
+// markApplicationQualified: marks mark application qualified for the selection Service flow.
 async function markApplicationQualified(applicationId, actor = {}) {
   const client = await pool.connect();
   try {
@@ -395,6 +410,7 @@ async function markApplicationQualified(applicationId, actor = {}) {
   }
 }
 
+// notifySelectionResults: creates or sends notify selection results for the selection Service flow.
 async function notifySelectionResults(entries, opening) {
   await Promise.allSettled(
     entries
@@ -433,6 +449,7 @@ async function notifySelectionResults(entries, opening) {
   );
 }
 
+// finalizeSelection: handles finalize selection for the selection Service flow.
 async function finalizeSelection(openingId, actor = {}, notes = '') {
   const userId = actorUserId(actor);
   if (!userId) throw httpError(401, 'Authenticated Admin account is required.');
@@ -643,6 +660,7 @@ async function finalizeSelection(openingId, actor = {}, notes = '') {
   }
 }
 
+// promoteNextWaitlisted: handles promote next waitlisted for the selection Service flow.
 async function promoteNextWaitlisted({
   openingId,
   releasedStudentId = null,
@@ -803,6 +821,7 @@ async function promoteNextWaitlisted({
   }
 }
 
+// releaseScholarSlotAndPromote: handles release scholar slot and promote for the selection Service flow.
 async function releaseScholarSlotAndPromote({ studentId, actor = {}, reason, notes = '' }) {
   const client = await pool.connect();
   let promotionResult = null;

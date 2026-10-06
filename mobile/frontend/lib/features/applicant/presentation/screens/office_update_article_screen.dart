@@ -1,3 +1,4 @@
+// SMaRT-PDM: office update article screen — office update article screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
@@ -18,6 +19,7 @@ class OfficeUpdateArticleScreen extends StatefulWidget {
   final bool showBottomNav;
 
   @override
+  // createState: creates create state for the office update article screen flow.
   State<OfficeUpdateArticleScreen> createState() =>
       _OfficeUpdateArticleScreenState();
 }
@@ -26,6 +28,7 @@ class _OfficeUpdateArticleScreenState extends State<OfficeUpdateArticleScreen> {
   final AnnouncementService _announcementService = AnnouncementService();
 
   @override
+  // initState: handles init state for the office update article screen flow.
   void initState() {
     super.initState();
     final referenceId = widget.notification.referenceId?.trim() ?? '';
@@ -38,6 +41,7 @@ class _OfficeUpdateArticleScreenState extends State<OfficeUpdateArticleScreen> {
   }
 
   @override
+  // build: builds build for the office update article screen flow.
   Widget build(BuildContext context) {
     final notification = widget.notification;
     final fullMessage = notification.message.trim();
@@ -189,6 +193,7 @@ class _OfficeUpdateArticleScreenState extends State<OfficeUpdateArticleScreen> {
   }
 }
 
+// _formatArticleTimestamp: handles format article timestamp for the office update article screen flow.
 String _formatArticleTimestamp(DateTime timestamp) {
   final local = timestamp.toLocal();
   final month = _monthLabel(local.month);
@@ -200,6 +205,7 @@ String _formatArticleTimestamp(DateTime timestamp) {
   return '$month ${local.day}, ${local.year} at $hour:$minute $period';
 }
 
+// _monthLabel: handles month label for the office update article screen flow.
 String _monthLabel(int month) {
   const labels = [
     'Jan',

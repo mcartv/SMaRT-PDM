@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — student lookup screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
@@ -11,6 +12,7 @@ class StudentLookupScreen extends StatefulWidget {
   const StudentLookupScreen({super.key, this.mode});
 
   @override
+  // createState: creates create state for the Authentication flow.
   State<StudentLookupScreen> createState() => _StudentLookupScreenState();
 }
 
@@ -24,6 +26,7 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
   bool get _isExisting => widget.mode == 'existing';
 
   @override
+  // initState: handles init state for the Authentication flow.
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -31,6 +34,7 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
     });
   }
 
+  // _checkStudent: handles check student for the Authentication flow.
   Future<void> _checkStudent() async {
     final validationError = StudentIdInputFormatter.validationMessage(
       _controller.text,
@@ -132,6 +136,7 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
     }
   }
 
+  // _registrationArguments: handles registration arguments for the Authentication flow.
   Map<String, dynamic> _registrationArguments(
     String studentId,
     Map<String, dynamic> student,
@@ -144,6 +149,7 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
     };
   }
 
+  // _showMessage: handles show message for the Authentication flow.
   void _showMessage(String message) {
     ScaffoldMessenger.of(
       context,
@@ -151,6 +157,7 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
   }
 
   @override
+  // dispose: handles dispose for the Authentication flow.
   void dispose() {
     _controller.dispose();
     _studentIdFocus.dispose();
@@ -158,6 +165,7 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
   }
 
   @override
+  // build: builds build for the Authentication flow.
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -444,6 +452,7 @@ class _DecorativeCircle extends StatelessWidget {
   final Color color;
 
   @override
+  // build: builds build for the Authentication flow.
   Widget build(BuildContext context) {
     return IgnorePointer(
       child: Container(

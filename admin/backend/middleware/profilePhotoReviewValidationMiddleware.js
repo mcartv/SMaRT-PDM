@@ -1,7 +1,9 @@
+// SMaRT-PDM: Profile — profile Photo Review Validation Middleware (admin backend middleware); validates or transforms requests before controller handling.
 function safeText(value) {
   return value === null || value === undefined ? '' : String(value).trim();
 }
 
+// validateProfilePhotoRejection: validates validate profile photo rejection for the Profile flow.
 function validateProfilePhotoRejection(req, res, next) {
   const reason = safeText(
     req.body?.rejection_reason ?? req.body?.reason

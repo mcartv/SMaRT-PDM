@@ -1,3 +1,4 @@
+// SMaRT-PDM: Dashboard — about pdm screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
@@ -5,6 +6,7 @@ class AboutPdmScreen extends StatelessWidget {
   const AboutPdmScreen({super.key});
 
   @override
+  // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     final sections = const [
       (

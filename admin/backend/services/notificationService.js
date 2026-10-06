@@ -1,13 +1,16 @@
+// SMaRT-PDM: Notifications — notification Service (admin backend service); contains business logic and data operations.
 const supabase = require('../config/supabase');
 const db = require('../config/db');
 const { notificationsEnabled } = require('../config/notificationPolicy');
 const { resolveStaffRole } = require('../utils/staffRoles');
 
 const { relayNotificationBatch } = require('./studentRealtimeRelayService');
+// normalizeAudience: normalizes normalize audience for the Notifications flow.
 function normalizeAudience(value) {
     return String(value || '').trim().toLowerCase();
 }
 
+// dedupeAudienceUsers: handles dedupe audience users for the Notifications flow.
 function dedupeAudienceUsers(users = []) {
     const seen = new Set();
     return users.filter((user) => {
@@ -19,6 +22,7 @@ function dedupeAudienceUsers(users = []) {
 }
 
 
+// getMobileAudienceStudents: reads and returns get mobile audience students for the Notifications flow.
 async function getMobileAudienceStudents() {
     const { data, error } = await supabase
         .from('students')
@@ -30,10 +34,12 @@ async function getMobileAudienceStudents() {
         return String(student.account_status || 'verified').trim().toLowerCase() !== 'disabled';
     });
 }
+// isActiveScholarAudienceStudent: checks whether is active scholar audience student for the Notifications flow.
 function isActiveScholarAudienceStudent(student) {
     return student?.is_active_scholar === true ||
         String(student?.scholarship_status || '').trim().toLowerCase() === 'active';
 }
+// resolveLegacyProgramId: resolves resolve legacy program id for the Notifications flow.
 async function resolveLegacyProgramId(audience) {
     const key = normalizeAudience(audience);
     if (!['tes','tdp'].includes(key)) return null;
@@ -49,9 +55,11 @@ async function resolveLegacyProgramId(audience) {
     });
     return match?.program_id || null;
 }
+// getAudienceUsers: reads and returns get audience users for the Notifications flow.
 async function getAudienceUsers(audience,{programId=null}={}) {
     const key=normalizeAudience(audience);
     const students=await getMobileAudienceStudents();
+    // targets: handles targets for the Notifications flow.
     const targets=(rows)=>dedupeAudienceUsers(rows.map(s=>({
         user_id:s.user_id,
         role:isActiveScholarAudienceStudent(s)?'student':'applicant'
@@ -71,6 +79,7 @@ async function getAudienceUsers(audience,{programId=null}={}) {
 }
 
 
+// relayCreatedNotifications: handles relay created notifications for the Notifications flow.
 function relayCreatedNotifications(rows = []) {
     const notifications = Array.isArray(rows)
         ? rows.filter((row) => row?.notification_id && row?.user_id)
@@ -92,6 +101,7 @@ function relayCreatedNotifications(rows = []) {
     });
 }
 
+// createNotificationsForAudience: creates create notifications for audience for the Notifications flow.
 async function createNotificationsForAudience({
     audience,title,message,referenceId=null,referenceType='announcement',
     type='Announcement',createdAt=null,programId=null,
@@ -141,6 +151,7 @@ async function createNotificationsForAudience({
 }
 
 
+// syncAnnouncementNotifications: synchronizes sync announcement notifications for the Notifications flow.
 async function syncAnnouncementNotifications({
     audience,title,message,referenceId,createdAt=null,programId=null,
 }) {
@@ -219,6 +230,7 @@ exports.getAudienceUsers = getAudienceUsers;
 exports.createNotificationsForAudience = createNotificationsForAudience;
 exports.syncAnnouncementNotifications = syncAnnouncementNotifications;
 
+// createUserNotification: creates create user notification for the Notifications flow.
 async function createUserNotification({
     userId,
     type,
@@ -259,6 +271,7 @@ async function createUserNotification({
 
 exports.createUserNotification = createUserNotification;
 
+// createUserNotificationOnce: creates create user notification once for the Notifications flow.
 async function createUserNotificationOnce({
     userId,
     type,
@@ -328,6 +341,7 @@ async function createUserNotificationOnce({
 
 exports.createUserNotificationOnce = createUserNotificationOnce;
 
+// getStaffTargets: reads and returns get staff targets for the Notifications flow.
 async function getStaffTargets({ roles = [], courseId = null, excludeUserIds = [] } = {}) {
     if (!(await notificationsEnabled())) return [];
     const normalizedRoles = new Set(
@@ -400,6 +414,7 @@ async function getStaffTargets({ roles = [], courseId = null, excludeUserIds = [
     return targets;
 }
 
+// createStaffNotifications: creates create staff notifications for the Notifications flow.
 async function createStaffNotifications({
     roles,
     type,
@@ -438,6 +453,7 @@ async function createStaffNotifications({
 exports.getStaffTargets = getStaffTargets;
 exports.createStaffNotifications = createStaffNotifications;
 
+// getMyNotifications: reads and returns get my notifications for the Notifications flow.
 async function getMyNotifications(userId, query = {}) {
     if (!userId) {
         throw new Error('User ID is required');
@@ -484,6 +500,7 @@ async function getMyNotifications(userId, query = {}) {
     };
 }
 
+// getUnreadCount: reads and returns get unread count for the Notifications flow.
 async function getUnreadCount(userId) {
     if (!userId) {
         throw new Error('User ID is required');
@@ -505,6 +522,7 @@ async function getUnreadCount(userId) {
     };
 }
 
+// markAsRead: marks mark as read for the Notifications flow.
 async function markAsRead(userId, notificationId) {
     if (!userId || !notificationId) {
         throw new Error('User ID and notification ID are required');
@@ -547,6 +565,7 @@ async function markAsRead(userId, notificationId) {
     };
 }
 
+// markAsUnread: marks mark as unread for the Notifications flow.
 async function markAsUnread(userId, notificationId) {
     if (!userId || !notificationId) {
         throw new Error('User ID and notification ID are required');
@@ -589,6 +608,7 @@ async function markAsUnread(userId, notificationId) {
     };
 }
 
+// markAllAsRead: marks mark all as read for the Notifications flow.
 async function markAllAsRead(userId) {
     if (!userId) {
         throw new Error('User ID is required');
@@ -612,6 +632,7 @@ async function markAllAsRead(userId) {
     };
 }
 
+// deleteNotification: deletes delete notification for the Notifications flow.
 async function deleteNotification(userId, notificationId) {
     if (!userId || !notificationId) {
         throw new Error('User ID and notification ID are required');

@@ -1,6 +1,8 @@
+// SMaRT-PDM: OCR — ocr Comparison (admin backend service); contains business logic and data operations.
 const EVIDENCE_STATES = Object.freeze(['confirmed', 'partial', 'conflict', 'incomplete', 'unavailable']);
 const COMPARISON_RESULTS = Object.freeze(['exact', 'normalized_match', 'different', 'missing']);
 
+// normalizeOcrComparisonValue: normalizes normalize ocr comparison value for the OCR flow.
 function normalizeOcrComparisonValue(value) {
     return String(value ?? '')
         .normalize('NFC')
@@ -12,6 +14,7 @@ function normalizeOcrComparisonValue(value) {
         .toLocaleUpperCase();
 }
 
+// compareOcrValues: handles compare ocr values for the OCR flow.
 function compareOcrValues(rawA, rawB) {
     const left = String(rawA ?? '');
     const right = String(rawB ?? '');
@@ -22,6 +25,7 @@ function compareOcrValues(rawA, rawB) {
         : 'different';
 }
 
+// evidenceState: handles evidence state for the OCR flow.
 function evidenceState({ primary, supporting, supportingAvailable = true } = {}) {
     const hasPrimary = Boolean(String(primary ?? '').trim());
     const hasSupporting = Boolean(String(supporting ?? '').trim());
@@ -34,6 +38,7 @@ function evidenceState({ primary, supporting, supportingAvailable = true } = {})
         : 'conflict';
 }
 
+// overallEvidenceState: handles overall evidence state for the OCR flow.
 function overallEvidenceState(evidence = {}) {
     const priority = ['conflict', 'incomplete', 'partial', 'unavailable', 'confirmed'];
     return priority.find((state) => Object.values(evidence).some((item) => item?.state === state)) || 'unavailable';

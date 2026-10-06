@@ -1,6 +1,8 @@
+// SMaRT-PDM: Scholars — Benefactor Logo (admin frontend component); renders reusable UI and handles local interactions.
 import React from 'react';
 import { Building2 } from 'lucide-react';
 
+// initialsFromName: handles initials from name for the Scholars flow.
 function initialsFromName(name) {
   const initials = String(name || '')
     .trim()

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Dashboard — applicant home presentation (mobile frontend); supports mobile UI behavior.
 import 'package:flutter/foundation.dart';
 
 const Object _applicantHomeUnset = Object();
@@ -47,6 +48,7 @@ class ApplicantHomeSectionState<T> {
   bool get hasData => data != null;
   bool get isStale => data != null && failure != null;
 
+  // copyWith: handles copy with for the Dashboard flow.
   ApplicantHomeSectionState<T> copyWith({
     Object? data = _applicantHomeUnset,
     bool? isLoading,
@@ -272,6 +274,7 @@ class ApplicantHomeState {
       openings.isInitialLoading ||
       latestUpdate.isInitialLoading;
 
+  // copyWith: handles copy with for the Dashboard flow.
   ApplicantHomeState copyWith({
     ApplicantHomeSectionState<ApplicantHomeIdentityPresentation>? identity,
     ApplicantHomeSectionState<ApplicantHomeApplicationPresentation>?

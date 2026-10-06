@@ -1,9 +1,11 @@
+// SMaRT-PDM: use Resizable Sidebar — use Resizable Sidebar (admin frontend); supports admin-side UI behavior.
 import { useEffect, useRef, useState } from 'react';
 
 const DEFAULT_WIDTH = 248;
 const MIN_WIDTH = 190;
 const MAX_WIDTH = 360;
 
+// clampWidth: handles clamp width for the use Resizable Sidebar flow.
 function clampWidth(value, minimum, maximum, fallback) {
   const parsed = Number(value);
   const width = Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -17,6 +19,7 @@ export default function useResizableSidebar({
   maxWidth = MAX_WIDTH,
 } = {}) {
   const resizeRef = useRef(null);
+  // clamp: handles clamp for the use Resizable Sidebar flow.
   const clamp = (value) => clampWidth(value, minWidth, maxWidth, defaultWidth);
   const [width, setWidth] = useState(() => {
     if (typeof window === 'undefined') return defaultWidth;
@@ -29,6 +32,7 @@ export default function useResizableSidebar({
   });
   const [resizing, setResizing] = useState(false);
 
+  // persistWidth: handles persist width for the use Resizable Sidebar flow.
   const persistWidth = (nextWidth) => {
     try {
       localStorage.setItem(storageKey, String(clamp(nextWidth)));
@@ -37,6 +41,7 @@ export default function useResizableSidebar({
     }
   };
 
+  // stopResize: handles stop resize for the use Resizable Sidebar flow.
   const stopResize = (event) => {
     const resize = resizeRef.current;
     if (!resize || (event && event.pointerId !== resize.pointerId)) return;
@@ -52,6 +57,7 @@ export default function useResizableSidebar({
     setResizing(false);
   };
 
+  // startResize: handles start resize for the use Resizable Sidebar flow.
   const startResize = (event) => {
     if (event.button !== 0 || window.innerWidth <= 900) return;
 
@@ -71,6 +77,7 @@ export default function useResizableSidebar({
     setResizing(true);
   };
 
+  // moveResize: handles move resize for the use Resizable Sidebar flow.
   const moveResize = (event) => {
     const resize = resizeRef.current;
     if (!resize || event.pointerId !== resize.pointerId) return;
@@ -80,6 +87,7 @@ export default function useResizableSidebar({
     setWidth(nextWidth);
   };
 
+  // resizeWithKeyboard: handles resize with keyboard for the use Resizable Sidebar flow.
   const resizeWithKeyboard = (event) => {
     let nextWidth = width;
     if (event.key === 'ArrowLeft') nextWidth -= 8;
@@ -94,6 +102,7 @@ export default function useResizableSidebar({
     persistWidth(clampedWidth);
   };
 
+  // resetWidth: resets reset width for the use Resizable Sidebar flow.
   const resetWidth = () => {
     setWidth(defaultWidth);
     persistWidth(defaultWidth);

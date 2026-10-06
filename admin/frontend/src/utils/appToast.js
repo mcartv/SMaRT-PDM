@@ -1,3 +1,4 @@
+// SMaRT-PDM: app Toast — app Toast (admin frontend); supports admin-side UI behavior.
 import { toast } from 'sonner';
 
 const DEFAULT_TITLES = Object.freeze({
@@ -7,6 +8,7 @@ const DEFAULT_TITLES = Object.freeze({
   info: 'Notice',
 });
 
+// showAppToast: handles show app toast for the app Toast flow.
 export function showAppToast(
   tone = 'info',
   title = '',

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Profile — profile service (mobile service); calls APIs or shared services and returns processed results.
 import 'dart:typed_data';
 
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
@@ -11,6 +12,7 @@ class ProfileService {
   final ApiClient _apiClient;
   final SessionService _sessionService;
 
+  // fetchMyProfile: fetches and returns fetch my profile for the Profile flow.
   Future<Map<String, dynamic>> fetchMyProfile() async {
     final response = await _apiClient.getObject('/api/profile/me');
     final profile = _extractProfile(response);
@@ -18,6 +20,7 @@ class ProfileService {
     return profile;
   }
 
+  // updateMyProfile: updates update my profile for the Profile flow.
   Future<Map<String, dynamic>> updateMyProfile({
     required Map<String, dynamic> payload,
   }) async {
@@ -30,15 +33,18 @@ class ProfileService {
     return profile;
   }
 
+  // hasSeenOnboarding: checks whether has seen onboarding for the Profile flow.
   Future<bool> hasSeenOnboarding() async {
     final response = await _apiClient.getObject('/api/profile/me/onboarding');
     return response['has_seen_onboarding'] == true;
   }
 
+  // markOnboardingSeen: marks mark onboarding seen for the Profile flow.
   Future<void> markOnboardingSeen() async {
     await _apiClient.patchJson('/api/profile/me/onboarding', body: const {});
   }
 
+  // uploadAvatar: uploads upload avatar for the Profile flow.
   Future<Map<String, dynamic>> uploadAvatar({
     String? filePath,
     Uint8List? bytes,
@@ -67,6 +73,7 @@ class ProfileService {
     return response;
   }
 
+  // _extractProfile: handles extract profile for the Profile flow.
   Map<String, dynamic> _extractProfile(Map<String, dynamic> response) {
     final rawProfile = response['profile'];
     if (rawProfile is Map<String, dynamic>) {
@@ -75,6 +82,7 @@ class ProfileService {
     return response;
   }
 
+  // _cacheProfile: handles cache profile for the Profile flow.
   Future<void> _cacheProfile(Map<String, dynamic> profile) async {
     final section =
         (profile['section'] ?? profile['current_section'])?.toString().trim() ?? '';

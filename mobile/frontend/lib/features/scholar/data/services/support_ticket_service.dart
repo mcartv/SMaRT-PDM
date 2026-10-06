@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — support ticket service (mobile service); calls APIs or shared services and returns processed results.
 import 'package:smartpdm_mobileapp/shared/models/support_ticket.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 
@@ -7,6 +8,7 @@ class SupportTicketService {
 
   final ApiClient _apiClient;
 
+  // fetchMyTickets: fetches and returns fetch my tickets for the Scholars flow.
   Future<List<SupportTicket>> fetchMyTickets() async {
     final response = await _apiClient.getObject('/api/support-tickets/me');
     final items = (response['items'] as List<dynamic>? ?? const []);
@@ -25,6 +27,7 @@ class SupportTicketService {
         .toList();
   }
 
+  // createTicket: creates create ticket for the Scholars flow.
   Future<SupportTicket> createTicket({
     required String issueCategory,
     required String description,

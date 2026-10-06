@@ -1,3 +1,4 @@
+// SMaRT-PDM: Student Registry — student Registry Service (admin backend service); contains business logic and data operations.
 const ExcelJS = require('exceljs');
 const JSZip = require('jszip');
 const crypto = require('crypto');
@@ -14,6 +15,7 @@ const SDO_RECORD_TABLE = 'sdo_student_records';
 const HEADER_ORDER_META_KEY = '__smart_pdm_header_order';
 const IMPORT_CHUNK_SIZE = 200;
 
+// buildError: builds build error for the Student Registry flow.
 function buildError(message, statusCode = 500, details = null) {
   const err = new Error(message);
   err.statusCode = statusCode;
@@ -21,10 +23,12 @@ function buildError(message, statusCode = 500, details = null) {
   return err;
 }
 
+// normalizeText: normalizes normalize text for the Student Registry flow.
 function normalizeText(value) {
   return String(value || '').trim();
 }
 
+// unwrapWorkbookCellValue: handles unwrap workbook cell value for the Student Registry flow.
 function unwrapWorkbookCellValue(value) {
   if (value === null || value === undefined) return '';
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
@@ -46,6 +50,7 @@ function unwrapWorkbookCellValue(value) {
   return '';
 }
 
+// normalizePhilippinePhone: normalizes normalize philippine phone for the Student Registry flow.
 function normalizePhilippinePhone(value) {
   const text = normalizeText(unwrapWorkbookCellValue(value));
   if (!text) return null;
@@ -55,6 +60,7 @@ function normalizePhilippinePhone(value) {
   return text;
 }
 
+// normalizeEmailAddress: normalizes normalize email address for the Student Registry flow.
 function normalizeEmailAddress(value) {
   const linkedEmail =
     value &&
@@ -68,6 +74,7 @@ function normalizeEmailAddress(value) {
   return text.replace(/^mailto:/i, '').toLowerCase();
 }
 
+// normalizeLookupValue: normalizes normalize lookup value for the Student Registry flow.
 function normalizeLookupValue(value) {
   return normalizeText(value)
     .toLowerCase()
@@ -76,6 +83,7 @@ function normalizeLookupValue(value) {
     .trim();
 }
 
+// parseCsvLine: parses parse csv line for the Student Registry flow.
 function parseCsvLine(line) {
   const cells = [];
   let current = '';
@@ -108,6 +116,7 @@ function parseCsvLine(line) {
   return cells;
 }
 
+// parseCsvRows: parses parse csv rows for the Student Registry flow.
 function parseCsvRows(text) {
   const normalized = String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   const rows = [];
@@ -142,11 +151,13 @@ function parseCsvRows(text) {
   return rows;
 }
 
+// parseNullableBoolean: parses parse nullable boolean for the Student Registry flow.
 function parseNullableBoolean(value) {
   if (value === null || value === undefined || normalizeText(value) === '') return null;
   return parseBoolean(value);
 }
 
+// normalizeYearLevel: normalizes normalize year level for the Student Registry flow.
 function normalizeYearLevel(value) {
   const text = normalizeText(value);
   if (!text) return null;
@@ -157,6 +168,7 @@ function normalizeYearLevel(value) {
   return n;
 }
 
+// parseBoolean: parses parse boolean for the Student Registry flow.
 function parseBoolean(value) {
   if (typeof value === 'boolean') return value;
   const text = normalizeLookupValue(value);
@@ -164,6 +176,7 @@ function parseBoolean(value) {
   return ['yes', 'y', 'true', '1', 'checked', 'x'].includes(text);
 }
 
+// parseInteger: parses parse integer for the Student Registry flow.
 function parseInteger(value) {
   if (value === null || value === undefined || value === '') return null;
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -175,6 +188,7 @@ function parseInteger(value) {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+// parseExcelDate: parses parse excel date for the Student Registry flow.
 function parseExcelDate(value) {
   if (!value) return null;
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
@@ -202,6 +216,7 @@ function parseExcelDate(value) {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
 }
 
+// decodeXml: handles decode xml for the Student Registry flow.
 function decodeXml(value = '') {
   return String(value)
     .replace(/&lt;/g, '<')
@@ -211,6 +226,7 @@ function decodeXml(value = '') {
     .replace(/&amp;/g, '&');
 }
 
+// columnIndexFromRef: handles column index from ref for the Student Registry flow.
 function columnIndexFromRef(ref = '') {
   const letters = String(ref).match(/[A-Z]+/)?.[0] || '';
   let index = 0;
@@ -220,6 +236,7 @@ function columnIndexFromRef(ref = '') {
   return Math.max(index - 1, 0);
 }
 
+// readXlsxRowsWithZipFallback: handles read xlsx rows with zip fallback for the Student Registry flow.
 async function readXlsxRowsWithZipFallback(buffer) {
   const zip = await JSZip.loadAsync(buffer);
   const sheetFile = zip.file('xl/worksheets/sheet1.xml');
@@ -254,6 +271,7 @@ async function readXlsxRowsWithZipFallback(buffer) {
   return rows;
 }
 
+// readWorkbookRows: handles read workbook rows for the Student Registry flow.
 async function readWorkbookRows(file) {
   const fileName = String(file.originalname || '').toLowerCase();
 
@@ -288,6 +306,7 @@ async function readWorkbookRows(file) {
   return rows.length ? rows : readXlsxRowsWithZipFallback(file.buffer);
 }
 
+// mapHeaders: maps map headers for the Student Registry flow.
 function mapHeaders(headerRow) {
   const map = new Map();
 
@@ -420,6 +439,7 @@ function mapHeaders(headerRow) {
   return map;
 }
 
+// buildSourceColumns: builds build source columns for the Student Registry flow.
 function buildSourceColumns(headerRow = [], bodyRows = []) {
   const maxColumns = Math.max(
     headerRow.length,
@@ -448,6 +468,7 @@ function buildSourceColumns(headerRow = [], bodyRows = []) {
   return columns;
 }
 
+// parseRows: parses parse rows for the Student Registry flow.
 function parseRows(rows) {
   if (!rows.length) return [];
 
@@ -489,6 +510,7 @@ function parseRows(rows) {
       ? `${missingRequiredFields.join(', ')} ${missingRequiredFields.length === 1 ? 'is' : 'are'} required.`
       : null;
 
+    // hasField: checks whether has field for the Student Registry flow.
     const hasField = (field) => Object.prototype.hasOwnProperty.call(obj, field);
     const explicitDisciplinary = hasField('has_disciplinary_action')
       ? parseNullableBoolean(obj.has_disciplinary_action)
@@ -546,6 +568,7 @@ function parseRows(rows) {
   return records;
 }
 
+// loadCourseMap: loads and returns load course map for the Student Registry flow.
 async function loadCourseMap() {
   const { data, error } = await supabase
     .from(COURSE_TABLE)
@@ -566,6 +589,7 @@ async function loadCourseMap() {
   return map;
 }
 
+// createBatch: creates create batch for the Student Registry flow.
 async function createBatch(file, adminId = null) {
   const { data, error } = await supabase
     .from(IMPORT_BATCH_TABLE)
@@ -585,6 +609,7 @@ async function createBatch(file, adminId = null) {
   return data.import_batch_id;
 }
 
+// insertImportRows: inserts insert import rows for the Student Registry flow.
 async function insertImportRows(importBatchId, parsedRows) {
   if (!parsedRows.length) return;
 
@@ -636,6 +661,7 @@ async function insertImportRows(importBatchId, parsedRows) {
   }
 }
 
+// classifyProtectedRegistryRows: handles classify protected registry rows for the Student Registry flow.
 async function classifyProtectedRegistryRows(importBatchId, importRows) {
   if (!Array.isArray(importRows) || importRows.length === 0) {
     return { safeRows: [], conflicts: [] };
@@ -713,18 +739,21 @@ function hasMeaningfulRegistryValue(value) {
     String(value).trim() !== '';
 }
 
+// preserveExistingRegistryValue: handles preserve existing registry value for the Student Registry flow.
 function preserveExistingRegistryValue(incoming, existing) {
   return hasMeaningfulRegistryValue(incoming)
     ? incoming
     : existing ?? null;
 }
 
+// preserveExistingRegistryBoolean: handles preserve existing registry boolean for the Student Registry flow.
 function preserveExistingRegistryBoolean(incoming, existing) {
   return incoming === null || incoming === undefined
     ? existing ?? null
     : incoming;
 }
 
+// mergeRegistrySnapshot: handles merge registry snapshot for the Student Registry flow.
 function mergeRegistrySnapshot(existingSnapshot = {}, incomingSnapshot = {}) {
   const merged = {
     ...(existingSnapshot && typeof existingSnapshot === 'object'
@@ -758,6 +787,7 @@ function mergeRegistrySnapshot(existingSnapshot = {}, incomingSnapshot = {}) {
   return merged;
 }
 
+// markRegistryImportFailures: marks mark registry import failures for the Student Registry flow.
 async function markRegistryImportFailures(importBatchId, failures = []) {
   if (!Array.isArray(failures) || failures.length === 0) return;
 
@@ -781,6 +811,7 @@ async function markRegistryImportFailures(importBatchId, failures = []) {
   );
 }
 
+// classifyRegistryDataQualityRows: handles classify registry data quality rows for the Student Registry flow.
 async function classifyRegistryDataQualityRows(
   importBatchId,
   importRows,
@@ -831,6 +862,7 @@ async function classifyRegistryDataQualityRows(
   return { safeRows, failures };
 }
 
+// loadExistingRegistryMasters: loads and returns load existing registry masters for the Student Registry flow.
 async function loadExistingRegistryMasters(studentNumbers = []) {
   const normalized = [
     ...new Set(
@@ -888,6 +920,7 @@ async function loadExistingRegistryMasters(studentNumbers = []) {
   );
 }
 
+// syncLinkedStudentsFromRegistryMaster: synchronizes sync linked students from registry master for the Student Registry flow.
 async function syncLinkedStudentsFromRegistryMaster(importBatchId) {
   // SMART_PDM_LINKED_STUDENT_SAFE_SYNC_V1
   await db.query(
@@ -937,6 +970,7 @@ async function syncLinkedStudentsFromRegistryMaster(importBatchId) {
 
 
 
+// upsertMasterRows: handles upsert master rows for the Student Registry flow.
 async function upsertMasterRows(importBatchId, importRows, courseMap) {
   // SMART_PDM_REGISTRY_SAFE_UPSERT_V1
   if (!Array.isArray(importRows) || importRows.length === 0) {
@@ -1128,6 +1162,7 @@ async function upsertMasterRows(importBatchId, importRows, courseMap) {
 
 
 
+// markImportRowsCompleted: marks mark import rows completed for the Student Registry flow.
 async function markImportRowsCompleted(importBatchId) {
   // SMART_PDM_REGISTRY_FAILED_ROW_PRESERVATION_V3
   const result = await db.query(`
@@ -1167,6 +1202,7 @@ async function markImportRowsCompleted(importBatchId) {
   return result.rows[0];
 }
 
+// finalizeBatch: handles finalize batch for the Student Registry flow.
 async function finalizeBatch(importBatchId, totalRows, successRows, failedRows) {
   const { error } = await supabase
     .from(IMPORT_BATCH_TABLE)
@@ -1181,6 +1217,7 @@ async function finalizeBatch(importBatchId, totalRows, successRows, failedRows) 
   if (error) throw error;
 }
 
+// importFailureLabel: handles import failure label for the Student Registry flow.
 function importFailureLabel(message) {
   const normalized = normalizeLookupValue(message);
   if (normalized.includes('identity conflict')) return 'Identity conflict';
@@ -1200,6 +1237,7 @@ function importFailureLabel(message) {
   return 'Invalid required field';
 }
 
+// loadFailedImportResults: loads and returns load failed import results for the Student Registry flow.
 async function loadFailedImportResults(importBatchId) {
   const result = await db.query(
     `
@@ -1279,6 +1317,7 @@ async function loadFailedImportResults(importBatchId) {
   });
 }
 
+// importStudentRegistryFile: handles import student registry file for the Student Registry flow.
 async function importStudentRegistryFile({ file, adminId }) {
   if (!file || !file.buffer) {
     throw buildError('No file uploaded.', 400);
@@ -1334,6 +1373,7 @@ async function importStudentRegistryFile({ file, adminId }) {
 }
 
 
+// getSnapshotValue: reads and returns get snapshot value for the Student Registry flow.
 function getSnapshotValue(snapshot, headers = []) {
   if (!snapshot || typeof snapshot !== 'object') return null;
   for (const header of headers) {
@@ -1349,6 +1389,7 @@ function getSnapshotValue(snapshot, headers = []) {
   return null;
 }
 
+// hydrateRegistryRowFromSnapshot: handles hydrate registry row from snapshot for the Student Registry flow.
 function hydrateRegistryRowFromSnapshot(row) {
   const snapshot = row?.raw_snapshot || {};
   return {
@@ -1437,6 +1478,7 @@ const REGISTRY_SEX_SQL = `COALESCE(
   registry.sex_at_birth, ''
 )`;
 
+// listStudentRegistry: loads a list of list student registry for the Student Registry flow.
 async function listStudentRegistry({ limit = 50, offset = 0, search = '', course = '', year = '', sex = '' } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
   const safeOffset = Math.max(Number(offset) || 0, 0);
@@ -1518,6 +1560,7 @@ async function listStudentRegistry({ limit = 50, offset = 0, search = '', course
   };
 }
 
+// importSdoDisciplinaryRecordsFile: handles import sdo disciplinary records file for the Student Registry flow.
 async function importSdoDisciplinaryRecordsFile({ file, actorId = null }) {
   if (!file || !file.buffer) {
     throw buildError('No file uploaded.', 400);
@@ -1594,6 +1637,7 @@ async function importSdoDisciplinaryRecordsFile({ file, actorId = null }) {
   };
 }
 
+// previewSdoDisciplinaryRecordsFile: handles preview sdo disciplinary records file for the Student Registry flow.
 async function previewSdoDisciplinaryRecordsFile({ file }) {
   if (!file || !file.buffer) {
     throw buildError('No file uploaded.', 400);
@@ -1608,6 +1652,7 @@ async function previewSdoDisciplinaryRecordsFile({ file }) {
   return classifySdoRecordRows(parsedRows);
 }
 
+// parseSdoRecordRows: parses parse sdo record rows for the Student Registry flow.
 function parseSdoRecordRows(rows) {
   if (!rows.length) return [];
 
@@ -1654,6 +1699,7 @@ function parseSdoRecordRows(rows) {
   return records;
 }
 
+// buildSdoRecordFingerprint: builds build sdo record fingerprint for the Student Registry flow.
 function buildSdoRecordFingerprint(record) {
   return crypto
     .createHash('md5')
@@ -1666,6 +1712,7 @@ function buildSdoRecordFingerprint(record) {
     .digest('hex');
 }
 
+// chunkValues: handles chunk values for the Student Registry flow.
 function chunkValues(values, size = 200) {
   const chunks = [];
   for (let index = 0; index < values.length; index += size) {
@@ -1674,6 +1721,7 @@ function chunkValues(values, size = 200) {
   return chunks;
 }
 
+// classifySdoRecordRows: handles classify sdo record rows for the Student Registry flow.
 async function classifySdoRecordRows(rows) {
   const candidateRows = rows.filter((row) => row.student_number && row.offense_type);
   const studentNumbers = [...new Set(candidateRows.map((row) => row.student_number))];
@@ -1753,6 +1801,7 @@ async function classifySdoRecordRows(rows) {
   return { counts, rows: classifiedRows };
 }
 
+// loadAllSdoRecords: loads and returns load all sdo records for the Student Registry flow.
 async function loadAllSdoRecords() {
   const records = [];
   const batchSize = 1000;
@@ -1791,6 +1840,7 @@ async function loadAllSdoRecords() {
   return records;
 }
 
+// loadSdoStudentDetails: loads and returns load sdo student details for the Student Registry flow.
 async function loadSdoStudentDetails(studentNumbers) {
   const studentsByNumber = new Map();
   const coursesById = new Map();
@@ -1818,6 +1868,7 @@ async function loadSdoStudentDetails(studentNumbers) {
   return { studentsByNumber, coursesById };
 }
 
+// buildSdoStudentSummary: builds build sdo student summary for the Student Registry flow.
 function buildSdoStudentSummary(studentNumber, records, student, course) {
   const latest = records[0] || {};
   return {
@@ -1835,6 +1886,7 @@ function buildSdoStudentSummary(studentNumber, records, student, course) {
   };
 }
 
+// listSdoStudentsWithRecords: loads a list of list sdo students with records for the Student Registry flow.
 async function listSdoStudentsWithRecords({
   limit = 20,
   offset = 0,
@@ -1892,6 +1944,7 @@ async function listSdoStudentsWithRecords({
   };
 }
 
+// getSdoStudentRecordHistory: reads and returns get sdo student record history for the Student Registry flow.
 async function getSdoStudentRecordHistory(studentNumber) {
   const normalizedStudentNumber = normalizeText(studentNumber).toUpperCase();
   if (!normalizedStudentNumber) {
@@ -1915,6 +1968,7 @@ async function getSdoStudentRecordHistory(studentNumber) {
   };
 }
 
+// getSdoRecordsSummary: reads and returns get sdo records summary for the Student Registry flow.
 async function getSdoRecordsSummary() {
   const records = await loadAllSdoRecords();
   const latest = records
@@ -1928,6 +1982,7 @@ async function getSdoRecordsSummary() {
   };
 }
 
+// listSdoStudentRegistry: loads a list of list sdo student registry for the Student Registry flow.
 async function listSdoStudentRegistry({ limit = 100, offset = 0 } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
   const safeOffset = Math.max(Number(offset) || 0, 0);

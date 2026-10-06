@@ -1,3 +1,4 @@
+// SMaRT-PDM: Document Verification — Renewal Document Verification (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Button } from '@/components/ui/button';
@@ -56,6 +57,7 @@ const DOC_STATUS = {
   },
 };
 
+// normalizedStatus: normalizes normalized status for the Document Verification flow.
 function normalizedStatus(value) {
   return String(value || '').trim().toLowerCase();
 }
@@ -212,6 +214,7 @@ export default function RenewalDocumentVerification() {
     }
   }, [activeDoc, docComments]);
 
+  // persistActiveComment: handles persist active comment for the Document Verification flow.
   const persistActiveComment = (nextComment = comment) => {
     if (!activeDoc) return;
 
@@ -221,6 +224,7 @@ export default function RenewalDocumentVerification() {
     }));
   };
 
+  // setActiveStatus: sets set active status for the Document Verification flow.
   const setActiveStatus = (nextStatus, nextComment = comment) => {
     if (isReadOnly || !activeDoc || !activeDoc.url) return;
 
@@ -235,6 +239,7 @@ export default function RenewalDocumentVerification() {
     }));
   };
 
+  // buildDocumentReviews: builds build document reviews for the Document Verification flow.
   const buildDocumentReviews = (overrides = {}) =>
     documents.map((doc) => ({
       document_type: doc.document_type,
@@ -259,6 +264,7 @@ export default function RenewalDocumentVerification() {
     (option) => option.code === reasonCode
   );
 
+  // openReviewIssue: handles open review issue for the Document Verification flow.
   const openReviewIssue = (mode) => {
     if (isReadOnly || !activeDoc?.url) return;
 
@@ -267,6 +273,7 @@ export default function RenewalDocumentVerification() {
     setComment('');
   };
 
+  // closeReviewIssue: handles close review issue for the Document Verification flow.
   const closeReviewIssue = () => {
     if (submittingAction) return;
 
@@ -275,6 +282,7 @@ export default function RenewalDocumentVerification() {
     setComment('');
   };
 
+  // buildReviewComment: builds build review comment for the Document Verification flow.
   const buildReviewComment = () =>
     [
       selectedReviewReason
@@ -338,11 +346,13 @@ export default function RenewalDocumentVerification() {
     }
   };
 
+  // handleVerify: handles handle verify for the Document Verification flow.
   const handleVerify = () => {
     setActiveStatus('verified', '');
     setComment('');
   };
 
+  // handleReviewIssueConfirm: handles handle review issue confirm for the Document Verification flow.
   const handleReviewIssueConfirm = async () => {
     if (!selectedReviewReason || !activeDoc?.url) {
       return;
@@ -385,6 +395,7 @@ export default function RenewalDocumentVerification() {
     }
   };
 
+  // handleSaveReview: handles handle save review for the Document Verification flow.
   const handleSaveReview = async () => {
     persistActiveComment();
 

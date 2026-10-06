@@ -1,7 +1,9 @@
+// SMaRT-PDM: Applications — application Registry Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 'use strict';
 
 const applicationRegistryService = require('../services/applicationRegistryService');
 
+// readOptions: handles read options for the Applications flow.
 function readOptions(query = {}) {
     return {
         page: query.page,

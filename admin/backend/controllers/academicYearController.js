@@ -1,8 +1,10 @@
+// SMaRT-PDM: Academic Periods — academic Year Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const academicYearService = require('../services/academicYearService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 
+// sendError: sends send error for the Academic Periods flow.
 function sendError(res, err, fallbackMessage) {
     const message =
         err?.message ||
@@ -26,6 +28,7 @@ function sendError(res, err, fallbackMessage) {
     });
 }
 
+// actorUserId: handles actor user id for the Academic Periods flow.
 function actorUserId(req) {
     return (
         req.user?.user_id ||
@@ -36,6 +39,7 @@ function actorUserId(req) {
     );
 }
 
+// emitAcademicUpdate: handles emit academic update for the Academic Periods flow.
 function emitAcademicUpdate(
     req,
     action,
@@ -147,6 +151,7 @@ function emitAcademicUpdate(
         });
 }
 
+// writeAudit: handles write audit for the Academic Periods flow.
 async function writeAudit(
     req,
     actionTaken,

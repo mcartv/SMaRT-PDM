@@ -1,7 +1,9 @@
+// SMaRT-PDM: Courses — course Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const courseService = require('../services/courseService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 
+// sendError: sends send error for the Courses flow.
 function sendError(res, error, fallbackMessage) {
     const message = error?.message || fallbackMessage || 'Unknown backend error';
 
@@ -28,6 +30,7 @@ function sendError(res, error, fallbackMessage) {
     });
 }
 
+// emitCourseUpdate: handles emit course update for the Courses flow.
 function emitCourseUpdate(req, action, course = null) {
     const io = req.app.get('io');
 
@@ -51,6 +54,7 @@ function emitCourseUpdate(req, action, course = null) {
     }
 }
 
+// writeCourseAudit: handles write course audit for the Courses flow.
 async function writeCourseAudit(req, action, course, changes = null) {
     await auditLogService.logAudit({
         req,
@@ -70,6 +74,7 @@ async function writeCourseAudit(req, action, course, changes = null) {
     });
 }
 
+// getCourses: reads and returns get courses for the Courses flow.
 const getCourses = async (req, res) => {
     try {
         const courses = await courseService.fetchCourses();
@@ -80,6 +85,7 @@ const getCourses = async (req, res) => {
     }
 };
 
+// createCourse: creates create course for the Courses flow.
 const createCourse = async (req, res) => {
     try {
         const createdCourse = await courseService.createCourse({
@@ -99,6 +105,7 @@ const createCourse = async (req, res) => {
     }
 };
 
+// updateCourse: updates update course for the Courses flow.
 const updateCourse = async (req, res) => {
     try {
         const updatedCourse = await courseService.updateCourse(req.params.id, {
@@ -125,6 +132,7 @@ const updateCourse = async (req, res) => {
     }
 };
 
+// archiveCourse: archives archive course for the Courses flow.
 const archiveCourse = async (req, res) => {
     try {
         const archivedCourse = await courseService.archiveCourse(req.params.id);
@@ -147,6 +155,7 @@ const archiveCourse = async (req, res) => {
     }
 };
 
+// restoreCourse: restores restore course for the Courses flow.
 const restoreCourse = async (req, res) => {
     try {
         const restoredCourse = await courseService.restoreCourse(req.params.id);

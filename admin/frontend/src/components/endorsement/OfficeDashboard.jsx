@@ -1,3 +1,4 @@
+// SMaRT-PDM: Endorsement — Office Dashboard (admin frontend component); renders reusable UI and handles local interactions.
 import { createElement, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
@@ -20,6 +21,7 @@ import { useSocketEvent } from '@/hooks/useSocket';
 import usePortalTheme from '@/hooks/usePortalTheme';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
+// buildHeaders: builds build headers for the Endorsement flow.
 function buildHeaders(tokenStorageKey) {
   return {
     Authorization: `Bearer ${sessionStorage.getItem(tokenStorageKey)}`,
@@ -27,6 +29,7 @@ function buildHeaders(tokenStorageKey) {
   };
 }
 
+// formatDate: formats format date for the Endorsement flow.
 function formatDate(value) {
   if (!value) return 'N/A';
   const date = new Date(value);
@@ -40,6 +43,7 @@ function formatDate(value) {
   });
 }
 
+// SummaryCard: handles summary card for the Endorsement flow.
 function SummaryCard({ icon, label, value, tone, theme }) {
   return (
     <Card
@@ -183,12 +187,14 @@ const STATUS_TONE = {
   disqualified_major: 'bg-red-50 text-red-700',
 };
 
+// getFocusLabel: reads and returns get focus label for the Endorsement flow.
 function getFocusLabel(officeKey) {
   if (officeKey === 'sdo') return 'Disciplinary standing endorsement';
   if (officeKey === 'guidance') return 'Good Moral Standing endorsement';
   return 'Scholastic standing and final endorsement';
 }
 
+// getDecisionLabel: reads and returns get decision label for the Endorsement flow.
 function getDecisionLabel(row, officeKey) {
   if (officeKey === 'sdo') return row.sdo_decision_label || row.sdo_decision || 'Pending SDO';
   if (officeKey === 'guidance') {

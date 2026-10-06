@@ -1,9 +1,11 @@
+// SMaRT-PDM: OCR — pi Iot Ocr Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const iotOcrRequestService = require('../services/iotOcrRequestService');
 const { ensureIotOcrSchema } = require('../services/iotOcrSchemaService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 const iotOcrPresenceService = require('../services/iotOcrPresenceService');
 
+// sanitizedDatabaseDiagnostic: handles sanitized database diagnostic for the OCR flow.
 function sanitizedDatabaseDiagnostic(error) {
     if (error?.code !== '42703') return null;
     const message = String(error.message || '');
@@ -340,10 +342,12 @@ exports.completeBirthV2Uploads = exports.completeV2CaptureUploads;
 
     const readOnlyPrefixes = ['get', 'fetch', 'list', 'download', 'export'];
 
+    // isReadOnlyAction: checks whether is read only action for the OCR flow.
     function isReadOnlyAction(name) {
         return readOnlyPrefixes.some((prefix) => String(name).startsWith(prefix));
     }
 
+    // resolveActionName: resolves resolve action name for the OCR flow.
     function resolveActionName(name) {
         const raw = String(name || '').toLowerCase();
 
@@ -356,10 +360,12 @@ exports.completeBirthV2Uploads = exports.completeV2CaptureUploads;
         return 'updated';
     }
 
+    // getActorUserId: reads and returns get actor user id for the OCR flow.
     function getActorUserId(req) {
         return req.user?.user_id || req.user?.userId || req.user?.id || null;
     }
 
+    // getEntityId: reads and returns get entity id for the OCR flow.
     function getEntityId(req, body) {
         return (
             req.params?.id ||
@@ -379,6 +385,7 @@ exports.completeBirthV2Uploads = exports.completeV2CaptureUploads;
         );
     }
 
+    // safeAudit: handles safe audit for the OCR flow.
     function safeAudit(req, functionName, responseBody) {
         try {
             const action = resolveActionName(functionName);

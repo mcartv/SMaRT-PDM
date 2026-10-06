@@ -1,3 +1,4 @@
+// SMaRT-PDM: mobile Service.raw — mobile Service.raw (mobile backend service); contains mobile-facing business logic and data operations.
 // Extracted first-pass mobile response builders
 async function buildSavedFormDataForMobile(userId) {
   const context = await loadStudentProfileContextByUserId(userId);
@@ -71,6 +72,7 @@ async function buildSavedFormDataForMobile(userId) {
   };
 }
 
+// buildCurrentRenewalForMobile: builds build current renewal for mobile for the mobile Service.raw flow.
 async function buildCurrentRenewalForMobile(userId) {
   const studentRecord = await resolveStudentByUserId(userId);
 
@@ -175,6 +177,7 @@ async function buildCurrentRenewalForMobile(userId) {
   };
 }
 
+// fetchMyPayoutSchedules: fetches and returns fetch my payout schedules for the mobile Service.raw flow.
 async function fetchMyPayoutSchedules(userId) {
   const studentRecord = await resolveStudentByUserId(userId);
 

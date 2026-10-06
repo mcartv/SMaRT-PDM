@@ -1,3 +1,4 @@
+// SMaRT-PDM: Applications — application Registry Service (admin backend service); contains business logic and data operations.
 'use strict';
 
 const pool = require('../config/db');
@@ -6,16 +7,19 @@ const applicationService = require('./applicationService');
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
 
+// safePositiveInteger: handles safe positive integer for the Applications flow.
 function safePositiveInteger(value, fallback, max = Number.MAX_SAFE_INTEGER) {
     const parsed = Number.parseInt(value, 10);
     if (!Number.isFinite(parsed) || parsed < 1) return fallback;
     return Math.min(parsed, max);
 }
 
+// normalizeFilter: normalizes normalize filter for the Applications flow.
 function normalizeFilter(value) {
     return String(value || '').trim().toLowerCase();
 }
 
+// normalizePdmSearch: normalizes normalize pdm search for the Applications flow.
 function normalizePdmSearch(value) {
     return String(value || '')
         .trim()
@@ -23,6 +27,7 @@ function normalizePdmSearch(value) {
         .replace(/[^a-z0-9]/g, '');
 }
 
+// mapRegistryRow: maps map registry row for the Applications flow.
 function mapRegistryRow(row) {
     const firstName = row.first_name || '';
     const lastName = row.last_name || '';
@@ -81,6 +86,7 @@ function mapRegistryRow(row) {
     };
 }
 
+// buildBaseCte: builds build base cte for the Applications flow.
 function buildBaseCte({ lifecycleAware = true } = {}) {
     const lifecycleColumns = lifecycleAware
         ? `
@@ -212,6 +218,7 @@ const SCHOLAR_READY_PREDICATE = `
     AND LOWER(COALESCE(oa.selection_status, '')) <> 'waitlisted'
 `;
 
+// selectRegistryColumns: handles select registry columns for the Applications flow.
 function selectRegistryColumns(alias = 'oa') {
     return `
     ${alias}.application_id,
@@ -252,6 +259,7 @@ function selectRegistryColumns(alias = 'oa') {
 `;
 }
 
+// buildFilterSql: builds build filter sql for the Applications flow.
 function buildFilterSql(options = {}, values = []) {
     const clauses = [];
     const search = String(options.search || '').trim();
@@ -318,6 +326,7 @@ function buildFilterSql(options = {}, values = []) {
     return clauses.length ? `AND ${clauses.join('\n        AND ')}` : '';
 }
 
+// isMissingLifecycleColumn: checks whether is missing lifecycle column for the Applications flow.
 function isMissingLifecycleColumn(error) {
     const message = String(error?.message || '').toLowerCase();
     return (
@@ -326,6 +335,7 @@ function isMissingLifecycleColumn(error) {
     );
 }
 
+// queryWithLifecycleFallback: handles query with lifecycle fallback for the Applications flow.
 async function queryWithLifecycleFallback(buildQuery) {
     try {
         return await buildQuery(true);
@@ -337,11 +347,13 @@ async function queryWithLifecycleFallback(buildQuery) {
     }
 }
 
+// decorateRows: handles decorate rows for the Applications flow.
 async function decorateRows(rows = []) {
     const mappedRows = (rows || []).map(mapRegistryRow);
     return applicationService.decorateApplicationRecordsWithReadiness(mappedRows);
 }
 
+// fetchRegistryApplications: fetches and returns fetch registry applications for the Applications flow.
 async function fetchRegistryApplications() {
     // This Applications registry service is intentionally read-only. FCFS queue
     // synchronization remains at the mutation points that actually change readiness.
@@ -360,6 +372,7 @@ ORDER BY oa.submission_date DESC NULLS LAST, oa.application_id DESC;`;
     return decorateRows(result.rows || []);
 }
 
+// fetchRegistryPage: fetches and returns fetch registry page for the Applications flow.
 async function fetchRegistryPage(options = {}) {
     const page = safePositiveInteger(options.page, 1);
     const limit = safePositiveInteger(options.limit, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
@@ -418,6 +431,7 @@ ORDER BY pr.submission_date DESC NULLS LAST, pr.application_id DESC;`;
     };
 }
 
+// fetchReadinessApplications: fetches and returns fetch readiness applications for the Applications flow.
 async function fetchReadinessApplications(options = {}) {
     const result = await queryWithLifecycleFallback(async (lifecycleAware) => {
         const values = [];
@@ -452,6 +466,7 @@ ORDER BY
     };
 }
 
+// fetchOpeningSummaries: fetches and returns fetch opening summaries for the Applications flow.
 async function fetchOpeningSummaries() {
     const result = await queryWithLifecycleFallback(async (lifecycleAware) => {
         const query = `

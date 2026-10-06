@@ -1,3 +1,4 @@
+// SMaRT-PDM: Messaging — message service (mobile service); calls APIs or shared services and returns processed results.
 import 'package:smartpdm_mobileapp/shared/models/chat_message.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
@@ -115,6 +116,7 @@ class SupportConversation {
   });
 
   factory SupportConversation.fromJson(Map<String, dynamic> json) {
+    // pick: handles pick for the Messaging flow.
     String pick(List<String> keys) {
       for (final key in keys) {
         final value = json[key]?.toString().trim() ?? '';
@@ -123,6 +125,7 @@ class SupportConversation {
       return '';
     }
 
+    // pickBool: handles pick bool for the Messaging flow.
     bool pickBool(List<String> keys) {
       for (final key in keys) {
         final value = json[key];
@@ -136,6 +139,7 @@ class SupportConversation {
       return false;
     }
 
+    // pickDate: handles pick date for the Messaging flow.
     DateTime? pickDate(List<String> keys) {
       final raw = pick(keys);
       return raw.isEmpty ? null : DateTime.tryParse(raw);
@@ -270,6 +274,7 @@ class GroupMember {
   });
 
   factory GroupMember.fromJson(Map<String, dynamic> json) {
+    // pick: handles pick for the Messaging flow.
     String pick(List<String> keys) {
       for (final key in keys) {
         final value = json[key]?.toString().trim() ?? '';
@@ -278,6 +283,7 @@ class GroupMember {
       return '';
     }
 
+    // pickBool: handles pick bool for the Messaging flow.
     bool pickBool(List<String> keys) {
       for (final key in keys) {
         final value = json[key];
@@ -321,6 +327,7 @@ class MessageService {
 
   final ApiClient _apiClient;
 
+  // fetchThread: fetches and returns fetch thread for the Messaging flow.
   Future<MessageThreadResult> fetchThread() async {
     final selectedCounterpartyId =
         (_selectedSupportConversation?.counterpartyId ?? '').trim();
@@ -348,6 +355,7 @@ class MessageService {
     }
   }
 
+  // fetchOlderThread: fetches and returns fetch older thread for the Messaging flow.
   Future<MessageThreadResult> fetchOlderThread({
     required ChatMessage before,
     String? counterpartyId,
@@ -368,6 +376,7 @@ class MessageService {
     );
   }
 
+  // _fetchThreadLegacy: handles fetch thread legacy for the Messaging flow.
   Future<MessageThreadResult> _fetchThreadLegacy({String? counterpartyId}) async {
     final selectedCounterpartyId = (counterpartyId ?? '').trim();
     final query = selectedCounterpartyId.isEmpty
@@ -384,6 +393,7 @@ class MessageService {
     );
   }
 
+  // sendThreadMessage: sends send thread message for the Messaging flow.
   Future<ChatMessage> sendThreadMessage(
     String messageBody, {
     String? replyToMessageId,
@@ -440,6 +450,7 @@ class MessageService {
     }
   }
 
+  // markThreadRead: marks mark thread read for the Messaging flow.
   Future<MessageReadResult> markThreadRead({String? counterpartyId}) async {
     try {
       final targetCounterpartyId = (counterpartyId ?? '').trim().isNotEmpty
@@ -486,6 +497,7 @@ class MessageService {
     }
   }
 
+  // fetchSupportConversations: fetches and returns fetch support conversations for the Messaging flow.
   Future<List<SupportConversation>> fetchSupportConversations() async {
     final response = await _apiClient.getObject(
       '/api/messages/support-conversations',
@@ -502,6 +514,7 @@ class MessageService {
         .toList(growable: false);
   }
 
+  // resolveSupportConversation: resolves resolve support conversation for the Messaging flow.
   Future<SupportConversation> resolveSupportConversation(
     String referenceId,
   ) async {
@@ -521,6 +534,7 @@ class MessageService {
     return SupportConversation.fromJson(Map<String, dynamic>.from(raw));
   }
 
+  // fetchArchivedSupportConversations: fetches and returns fetch archived support conversations for the Messaging flow.
   Future<List<SupportConversation>> fetchArchivedSupportConversations() async {
     final response = await _apiClient.getObject(
       '/api/messages/support-conversations/archived',
@@ -537,6 +551,7 @@ class MessageService {
         .toList(growable: false);
   }
 
+  // archiveSupportConversation: archives archive support conversation for the Messaging flow.
   Future<void> archiveSupportConversation(String counterpartyId) async {
     final id = counterpartyId.trim();
     if (id.isEmpty) return;
@@ -545,6 +560,7 @@ class MessageService {
     );
   }
 
+  // restoreSupportConversation: restores restore support conversation for the Messaging flow.
   Future<void> restoreSupportConversation(String counterpartyId) async {
     final id = counterpartyId.trim();
     if (id.isEmpty) return;
@@ -553,6 +569,7 @@ class MessageService {
     );
   }
 
+  // fetchUnreadCount: fetches and returns fetch unread count for the Messaging flow.
   Future<int> fetchUnreadCount() async {
     try {
       final response = await _apiClient.getObject('/api/messages/unread-count');
@@ -563,6 +580,7 @@ class MessageService {
     }
   }
 
+  // fetchGroups: fetches and returns fetch groups for the Messaging flow.
   Future<List<ChatRoom>> fetchGroups() async {
     final activeItems = await _getItems('/api/messages/rooms');
     final rooms = activeItems
@@ -607,6 +625,7 @@ class MessageService {
     return rooms;
   }
 
+  // fetchRoomMembers: fetches and returns fetch room members for the Messaging flow.
   Future<List<GroupMember>> fetchRoomMembers(String roomId) async {
     final normalizedRoomId = roomId.trim();
     if (normalizedRoomId.isEmpty) return const [];
@@ -644,6 +663,7 @@ class MessageService {
         .toList(growable: false);
   }
 
+  // leaveGroup: handles leave group for the Messaging flow.
   Future<void> leaveGroup(String roomId) async {
     final normalizedRoomId = roomId.trim();
     if (normalizedRoomId.isEmpty) return;
@@ -658,6 +678,7 @@ class MessageService {
     }
   }
 
+  // fetchRoomThread: fetches and returns fetch room thread for the Messaging flow.
   Future<List<ChatMessage>> fetchRoomThread(String roomId) async {
     final normalizedRoomId = roomId.trim();
     try {
@@ -684,6 +705,7 @@ class MessageService {
     return _parseItems(former['items']);
   }
 
+  // fetchOlderRoomThread: fetches and returns fetch older room thread for the Messaging flow.
   Future<MessageHistoryPage> fetchOlderRoomThread(
     String roomId, {
     required ChatMessage before,
@@ -711,6 +733,7 @@ class MessageService {
     );
   }
 
+  // sendRoomMessage: sends send room message for the Messaging flow.
   Future<ChatMessage> sendRoomMessage(
     String roomId,
     String messageBody, {
@@ -744,10 +767,12 @@ class MessageService {
     }
   }
 
+  // markRoomThreadRead: marks mark room thread read for the Messaging flow.
   Future<void> markRoomThreadRead(String roomId) async {
     await _apiClient.patchJson('/api/messages/rooms/$roomId/read');
   }
 
+  // unsendMessage: handles unsend message for the Messaging flow.
   Future<ChatMessage> unsendMessage(String messageId) async {
     final response = await _apiClient.patchJson(
       '/api/messages/message/$messageId/unsend',
@@ -755,12 +780,14 @@ class MessageService {
     return ChatMessage.fromJson(response);
   }
 
+  // fetchArchivedThreads: fetches and returns fetch archived threads for the Messaging flow.
   Future<List<ArchivedMessageThread>> fetchArchivedThreads() async {
     final response = await _apiClient.getObject('/api/messages/archived');
     final items = response['items'] as List<dynamic>? ?? const [];
     return items.whereType<Map>().map((item) => ArchivedMessageThread.fromJson(Map<String, dynamic>.from(item))).where((item) => item.archiveId.isNotEmpty).toList();
   }
 
+  // archivePrivateThread: archives archive private thread for the Messaging flow.
   Future<void> archivePrivateThread() async {
     final selectedId = (_selectedSupportConversation?.counterpartyId ?? '').trim();
     if (selectedId.isNotEmpty) {
@@ -770,6 +797,7 @@ class MessageService {
     await _apiClient.patchJson('/api/messages/thread/archive');
   }
 
+  // restorePrivateThread: restores restore private thread for the Messaging flow.
   Future<void> restorePrivateThread() async {
     final selectedId = (_selectedSupportConversation?.counterpartyId ?? '').trim();
     if (selectedId.isNotEmpty) {
@@ -779,14 +807,17 @@ class MessageService {
     await _apiClient.patchJson('/api/messages/thread/restore');
   }
 
+  // archiveRoom: archives archive room for the Messaging flow.
   Future<void> archiveRoom(String roomId) async {
     await _apiClient.patchJson('/api/messages/rooms/$roomId/archive');
   }
 
+  // restoreRoom: restores restore room for the Messaging flow.
   Future<void> restoreRoom(String roomId) async {
     await _apiClient.patchJson('/api/messages/rooms/$roomId/restore');
   }
 
+  // _historyQuery: handles history query for the Messaging flow.
   String _historyQuery({
     required ChatMessage before,
     String? counterpartyId,
@@ -801,6 +832,7 @@ class MessageService {
     return Uri(queryParameters: values).query;
   }
 
+  // _readHasMore: handles read has more for the Messaging flow.
   bool _readHasMore(Map<String, dynamic> response) {
     final pagination = response['pagination'];
     if (pagination is! Map) return false;
@@ -810,12 +842,14 @@ class MessageService {
     return raw?.toString().toLowerCase() == 'true';
   }
 
+  // _readCounterpartyId: handles read counterparty id for the Messaging flow.
   String _readCounterpartyId(Map<String, dynamic> response) {
     return response['counterpartyId']?.toString().trim() ??
         response['counterparty_id']?.toString().trim() ??
         '';
   }
 
+  // _parseItems: handles parse items for the Messaging flow.
   List<ChatMessage> _parseItems(dynamic rawItems) {
     final items = rawItems as List<dynamic>? ?? const [];
     final parsedItems = <ChatMessage>[];
@@ -840,6 +874,7 @@ class MessageService {
 
   String _lastConversationCounterpartyId = '';
 
+  // _fetchConversationList: handles fetch conversation list for the Messaging flow.
   Future<List<Map<String, dynamic>>> _fetchConversationList() async {
     final response = await _apiClient.getObject('/api/messages/conversations');
     final items = response['items'] as List<dynamic>? ?? const [];
@@ -850,6 +885,7 @@ class MessageService {
         .toList();
   }
 
+  // _pickPreferredConversation: handles pick preferred conversation for the Messaging flow.
   Map<String, dynamic> _pickPreferredConversation(
     List<Map<String, dynamic>> items,
   ) {
@@ -864,6 +900,7 @@ class MessageService {
     return adminConversation;
   }
 
+  // _getItems: handles get items for the Messaging flow.
   Future<List<dynamic>> _getItems(String path) async {
     try {
       return await _apiClient.getList(path);
@@ -874,6 +911,7 @@ class MessageService {
     }
   }
 
+  // _shouldFallbackToConversationList: handles should fallback to conversation list for the Messaging flow.
   bool _shouldFallbackToConversationList(ApiException error) {
     return error.statusCode == 404 || error.statusCode == 405;
   }

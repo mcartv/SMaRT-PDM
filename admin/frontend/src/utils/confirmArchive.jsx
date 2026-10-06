@@ -1,3 +1,4 @@
+// SMaRT-PDM: confirm Archive — confirm Archive (admin frontend); supports admin-side UI behavior.
 import { useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Archive } from 'lucide-react';
@@ -13,10 +14,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+// ArchiveConfirmation: archives archive confirmation for the confirm Archive flow.
 function ArchiveConfirmation({ itemName, description, finish }) {
   const [open, setOpen] = useState(true);
   const closingRef = useRef(false);
 
+  // close: handles close for the confirm Archive flow.
   const close = (confirmed) => {
     if (closingRef.current) return;
     closingRef.current = true;
@@ -58,6 +61,7 @@ function ArchiveConfirmation({ itemName, description, finish }) {
   );
 }
 
+// confirmArchive: handles confirm archive for the confirm Archive flow.
 export function confirmArchive({ itemName = '', description = '' } = {}) {
   if (typeof document === 'undefined') return Promise.resolve(false);
 
@@ -68,6 +72,7 @@ export function confirmArchive({ itemName = '', description = '' } = {}) {
     const root = createRoot(host);
     let settled = false;
 
+    // finish: handles finish for the confirm Archive flow.
     const finish = (confirmed) => {
       if (settled) return;
       settled = true;

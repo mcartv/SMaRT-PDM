@@ -1,3 +1,4 @@
+// SMaRT-PDM: Profile — profile Service (mobile backend service); contains mobile-facing business logic and data operations.
 const supabase = require('../config/supabase');
 const db = require('../config/db');
 const { normalizeSection } = require('../validation/applicationSection');
@@ -13,16 +14,19 @@ const {
 } = require('./storageImageOptimizer');
 const { validateEmail } = require('../utils/emailValidation');
 
+// createHttpError: creates create http error for the Profile flow.
 function createHttpError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
 }
 
+// safeText: handles safe text for the Profile flow.
 function safeText(value) {
   return value === null || value === undefined ? '' : String(value).trim();
 }
 
+// firstNonEmpty: handles first non empty for the Profile flow.
 function firstNonEmpty(...values) {
   for (const value of values) {
     const text = safeText(value);
@@ -31,6 +35,7 @@ function firstNonEmpty(...values) {
   return '';
 }
 
+// getLatestAvatarReview: reads and returns get latest avatar review for the Profile flow.
 async function getLatestAvatarReview(studentId) {
   if (!studentId) return null;
 
@@ -54,6 +59,7 @@ async function getLatestAvatarReview(studentId) {
   return data || null;
 }
 
+// buildAvatarReviewFields: builds build avatar review fields for the Profile flow.
 async function buildAvatarReviewFields(review) {
   const status = review?.status || null;
 
@@ -69,6 +75,7 @@ async function buildAvatarReviewFields(review) {
   };
 }
 
+// getMyProfile: reads and returns get my profile for the Profile flow.
 async function getMyProfile(userId) {
   if (!userId) {
     throw createHttpError(401, 'Authentication required.');
@@ -404,11 +411,13 @@ async function getMyProfile(userId) {
   };
 }
 
+// setupMyProfile: sets setup my profile for the Profile flow.
 async function setupMyProfile(userId, payload = {}) {
   if (!userId) {
     throw createHttpError(401, 'Authentication required.');
   }
 
+  // hasOwn: checks whether has own for the Profile flow.
   const hasOwn = (key) => Object.prototype.hasOwnProperty.call(payload, key);
   const constrainedProfileFields = [
     ['civil_status', ['Single', 'Married', 'Widowed', 'Separated', 'Divorced'], 'Civil status'],
@@ -583,6 +592,7 @@ async function setupMyProfile(userId, payload = {}) {
 }
 
 
+// updateMyProfile: updates update my profile for the Profile flow.
 async function updateMyProfile(userId, payload = {}) {
   if (!userId) {
     throw createHttpError(401, 'Authentication required.');
@@ -623,6 +633,7 @@ async function updateMyProfile(userId, payload = {}) {
     );
   }
 
+  // hasOwn: checks whether has own for the Profile flow.
   const hasOwn = (key) => Object.prototype.hasOwnProperty.call(payload, key);
 
   if (hasOwn('phone_number')) {
@@ -663,6 +674,7 @@ async function updateMyProfile(userId, payload = {}) {
   return getMyProfile(userId);
 }
 
+// uploadAvatar: uploads upload avatar for the Profile flow.
 async function uploadAvatar(userId, file) {
   if (!userId) {
     throw createHttpError(401, 'Authentication required.');
@@ -800,6 +812,7 @@ async function uploadAvatar(userId, file) {
   };
 }
 
+// getMyOnboardingPreference: reads and returns get my onboarding preference for the Profile flow.
 async function getMyOnboardingPreference(userId) {
   if (!userId) throw createHttpError(401, 'Authentication required.');
 
@@ -817,6 +830,7 @@ async function getMyOnboardingPreference(userId) {
   };
 }
 
+// markMyOnboardingSeen: marks mark my onboarding seen for the Profile flow.
 async function markMyOnboardingSeen(userId) {
   if (!userId) throw createHttpError(401, 'Authentication required.');
 

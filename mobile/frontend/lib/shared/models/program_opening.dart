@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholarship Openings — program opening (mobile frontend); supports mobile UI behavior.
 class ProgramOpening {
   const ProgramOpening({
     required this.openingId,

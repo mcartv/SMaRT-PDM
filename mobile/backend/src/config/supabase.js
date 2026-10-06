@@ -1,3 +1,4 @@
+// SMaRT-PDM: supabase — supabase (mobile backend config); configures shared mobile backend infrastructure.
 const { createClient } = require('@supabase/supabase-js');
 const { installStorageSignedUrlCache } = require('./storageSignedUrlCache');
 const { installSupabaseRealtimeInvalidation } = require('./appCache');

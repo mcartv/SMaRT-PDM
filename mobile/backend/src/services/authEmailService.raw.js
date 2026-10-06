@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — auth Email Service.raw (mobile backend service); contains mobile-facing business logic and data operations.
 // Extracted OTP email sender
 async function sendOTPEmail(userEmail, otpCode) {
   const mailOptions = {

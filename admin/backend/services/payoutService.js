@@ -1,3 +1,4 @@
+// SMaRT-PDM: Payout — payout Service (admin backend service); contains business logic and data operations.
 const pool = require('../config/db');
 const notificationService = require('./notificationService');
 const { resolveAvatarUrl } = require('./avatarService');
@@ -7,12 +8,14 @@ const PAYOUT_PAYMENT_MODES = Object.freeze([
   'Other',
 ]);
 
+// payoutError: handles payout error for the Payout flow.
 function payoutError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
 }
 
+// normalizeRequiredText: normalizes normalize required text for the Payout flow.
 function normalizeRequiredText(value, field, maxLength = 180) {
   const normalized = String(value || '').trim();
   if (!normalized) throw payoutError(400, `${field} is required.`);
@@ -20,6 +23,7 @@ function normalizeRequiredText(value, field, maxLength = 180) {
   return normalized;
 }
 
+// validatePayoutDate: validates validate payout date for the Payout flow.
 function validatePayoutDate(value) {
   const normalized = String(value || '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
@@ -32,6 +36,7 @@ function validatePayoutDate(value) {
   return normalized;
 }
 
+// validatePaymentMode: validates validate payment mode for the Payout flow.
 function validatePaymentMode(value) {
   const normalized = normalizeRequiredText(value, 'Payout mode', 60);
   if (!PAYOUT_PAYMENT_MODES.includes(normalized)) {
@@ -43,11 +48,13 @@ function validatePaymentMode(value) {
   return normalized;
 }
 
+// validateOtherPaymentMode: validates validate other payment mode for the Payout flow.
 function validateOtherPaymentMode(paymentMode, value) {
   if (paymentMode !== 'Other') return null;
   return normalizeRequiredText(value, 'Other payout type', 60);
 }
 
+// validateMoney: validates validate money for the Payout flow.
 function validateMoney(value, field) {
   const amount = Number(value);
   if (!Number.isFinite(amount) || amount <= 0 || amount > 1000000) {
@@ -796,6 +803,7 @@ const updateQuery = `
   };
 }
 
+// restorePayoutBatch: restores restore payout batch for the Payout flow.
 async function restorePayoutBatch({
   payout_batch_id,
   restored_by = null,
@@ -845,6 +853,7 @@ async function restorePayoutBatch({
   };
 }
 
+// fetchAcademicYears: fetches and returns fetch academic years for the Payout flow.
 async function fetchAcademicYears() {
   const query = `
     SELECT
@@ -861,6 +870,7 @@ async function fetchAcademicYears() {
   return rows;
 }
 
+// fetchMyPayouts: fetches and returns fetch my payouts for the Payout flow.
 async function fetchMyPayouts(userId) {
   if (!userId) {
     const err = new Error('Authentication required.');
@@ -967,6 +977,7 @@ module.exports = {
 const supabase = require('../config/supabase');
 const PAYOUT_PROOF_BUCKET = process.env.PAYOUT_PROOF_BUCKET || 'payout-proofs';
 
+// signPayoutProofPath: handles sign payout proof path for the Payout flow.
 async function signPayoutProofPath(filePath) {
   const normalized = String(filePath || '').trim();
   if (!normalized) return null;
@@ -983,6 +994,7 @@ async function signPayoutProofPath(filePath) {
   return data?.signedUrl || null;
 }
 
+// fetchPayoutProofs: fetches and returns fetch payout proofs for the Payout flow.
 async function fetchPayoutProofs(query = {}) {
   const status = String(query.status || '').trim();
   const params = [];
@@ -1032,6 +1044,7 @@ async function fetchPayoutProofs(query = {}) {
   );
 }
 
+// reviewPayoutProof: handles review payout proof for the Payout flow.
 async function reviewPayoutProof({ proofId, status, comment = '', actorUserId = null }) {
   const allowed = ['Verified', 'Rejected', 'Resubmission Required'];
   if (!allowed.includes(status)) {

@@ -1,10 +1,13 @@
+// SMaRT-PDM: Scholarship Openings — opening Controller (mobile backend controller); handles mobile API input/output and delegates business logic.
 const openingService = require('../services/openingService');
 const { getSafeStatusCode } = require('../utils/httpStatus');
 
+// getRequestUserId: reads and returns get request user id for the Scholarship Openings flow.
 function getRequestUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+// getOpenings: reads and returns get openings for the Scholarship Openings flow.
 async function getOpenings(req, res) {
     try {
         // Availability is operational state. Never let a browser, proxy, or
@@ -24,6 +27,7 @@ async function getOpenings(req, res) {
     }
 }
 
+// getLatestOpening: reads and returns get latest opening for the Scholarship Openings flow.
 async function getLatestOpening(req, res) {
     try {
         res.setHeader('Cache-Control', 'private, no-store, max-age=0');
@@ -41,6 +45,7 @@ async function getLatestOpening(req, res) {
     }
 }
 
+// applyToOpening: handles apply to opening for the Scholarship Openings flow.
 async function applyToOpening(req, res) {
     try {
         const userId = getRequestUserId(req);

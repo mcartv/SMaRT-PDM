@@ -1,3 +1,4 @@
+// SMaRT-PDM: student id input formatter — student id input formatter (mobile frontend); supports mobile UI behavior.
 import 'package:flutter/services.dart';
 
 class StudentIdInputFormatter extends TextInputFormatter {
@@ -57,6 +58,7 @@ class StudentIdInputFormatter extends TextInputFormatter {
   }
 
   @override
+  // formatEditUpdate: formats format edit update for the student id input formatter flow.
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
     TextEditingValue newValue,

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Renewal — renewal Service (admin backend service); contains business logic and data operations.
 const supabase = require('../config/supabase');
 const notificationService = require('./notificationService');
 
@@ -19,24 +20,29 @@ const REQUIRED_RENEWAL_DOCUMENTS = [
     },
 ];
 
+// createHttpError: creates create http error for the Renewal flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// cleanText: handles clean text for the Renewal flow.
 function cleanText(value) {
     return String(value || '').trim();
 }
 
+// normalizeText: normalizes normalize text for the Renewal flow.
 function normalizeText(value) {
     return String(value || '').trim().toLowerCase();
 }
 
+// getUserId: reads and returns get user id for the Renewal flow.
 function getUserId(user = {}) {
     return user?.userId || user?.user_id || user?.id || user?.sub || null;
 }
 
+// fullName: handles full name for the Renewal flow.
 function fullName(student = {}) {
     return [student.first_name, student.middle_name, student.last_name]
         .filter(Boolean)
@@ -45,6 +51,7 @@ function fullName(student = {}) {
         .trim();
 }
 
+// buildInitials: builds build initials for the Renewal flow.
 function buildInitials(student = {}) {
     const first = String(student.first_name || '').trim();
     const last = String(student.last_name || '').trim();
@@ -52,6 +59,7 @@ function buildInitials(student = {}) {
     return `${first[0] || ''}${last[0] || ''}`.toUpperCase() || 'NA';
 }
 
+// extractAvatarStoragePath: handles extract avatar storage path for the Renewal flow.
 function extractAvatarStoragePath(value) {
     const rawValue = String(value || '').trim();
 
@@ -84,6 +92,7 @@ function extractAvatarStoragePath(value) {
     return null;
 }
 
+// resolveAvatarUrl: resolves resolve avatar url for the Renewal flow.
 async function resolveAvatarUrl(value) {
     const rawValue = String(value || '').trim();
 
@@ -109,6 +118,7 @@ async function resolveAvatarUrl(value) {
     return data?.signedUrl || rawValue;
 }
 
+// documentKeyFromType: handles document key from type for the Renewal flow.
 function documentKeyFromType(value) {
     const normalized = normalizeText(value);
 
@@ -131,6 +141,7 @@ function documentKeyFromType(value) {
     return normalized.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 }
 
+// getRequiredDocumentByKey: reads and returns get required document by key for the Renewal flow.
 function getRequiredDocumentByKey(keyOrType) {
     const key = documentKeyFromType(keyOrType);
 
@@ -143,6 +154,7 @@ function getRequiredDocumentByKey(keyOrType) {
     );
 }
 
+// getDocumentStatus: reads and returns get document status for the Renewal flow.
 function getDocumentStatus(document = {}) {
     const reviewStatus = normalizeText(document.review_status);
 
@@ -158,6 +170,7 @@ function getDocumentStatus(document = {}) {
     return 'pending';
 }
 
+// deriveDocumentStatus: derives derive document status for the Renewal flow.
 function deriveDocumentStatus(documents = [], renewalStatus = 'Pending Submission') {
     const normalizedRenewalStatus = normalizeText(renewalStatus);
     const statuses = documents.map(getDocumentStatus);
@@ -204,6 +217,7 @@ function deriveDocumentStatus(documents = [], renewalStatus = 'Pending Submissio
     return 'Missing Docs';
 }
 
+// extractStoragePath: handles extract storage path for the Renewal flow.
 function extractStoragePath(value, bucketName) {
     const rawValue = String(value || '').trim();
 
@@ -232,6 +246,7 @@ function extractStoragePath(value, bucketName) {
     return null;
 }
 
+// resolveRenewalDocumentUrl: resolves resolve renewal document url for the Renewal flow.
 async function resolveRenewalDocumentUrl(fileUrl, filePath) {
     const rawFileUrl = String(fileUrl || '').trim();
     const rawFilePath = String(filePath || '').trim();
@@ -256,6 +271,7 @@ async function resolveRenewalDocumentUrl(fileUrl, filePath) {
     return data?.signedUrl || rawFileUrl || rawFilePath || null;
 }
 
+// getRowsByIds: reads and returns get rows by ids for the Renewal flow.
 async function getRowsByIds(tableName, idColumn, ids = [], select = '*') {
     const uniqueIds = [...new Set(ids.filter(Boolean))];
 
@@ -275,6 +291,7 @@ async function getRowsByIds(tableName, idColumn, ids = [], select = '*') {
     return data || [];
 }
 
+// mapBy: maps map by for the Renewal flow.
 function mapBy(rows = [], key) {
     return new Map(rows.map((row) => [row[key], row]));
 }
@@ -345,6 +362,7 @@ async function getRenewalSourcePeriodMap(renewalRows = []) {
     return result;
 }
 
+// isRenewalPeriodEligible: checks whether is renewal period eligible for the Renewal flow.
 function isRenewalPeriodEligible(
     renewal = {},
     sourceOpeningPeriodId = null
@@ -359,6 +377,7 @@ function isRenewalPeriodEligible(
     );
 }
 
+// assertRenewalPeriodEligible: handles assert renewal period eligible for the Renewal flow.
 async function assertRenewalPeriodEligible(renewal = {}) {
     const sourcePeriodMap =
         await getRenewalSourcePeriodMap([renewal]);
@@ -381,6 +400,7 @@ async function assertRenewalPeriodEligible(renewal = {}) {
     return sourceOpeningPeriodId;
 }
 
+// loadRenewalDocuments: loads and returns load renewal documents for the Renewal flow.
 async function loadRenewalDocuments(renewalIds = []) {
     const ids = [...new Set(renewalIds.filter(Boolean))];
 
@@ -409,6 +429,7 @@ async function loadRenewalDocuments(renewalIds = []) {
     return map;
 }
 
+// getAcademicPeriodMap: reads and returns get academic period map for the Renewal flow.
 async function getAcademicPeriodMap(periodIds = []) {
     const rows = await getRowsByIds(
         'academic_period',
@@ -459,6 +480,7 @@ async function getAcademicPeriodMap(periodIds = []) {
     return result;
 }
 
+// ensureDocumentCoverage: ensures ensure document coverage for the Renewal flow.
 function ensureDocumentCoverage(documents = []) {
     const byKey = new Map();
 
@@ -494,6 +516,7 @@ function ensureDocumentCoverage(documents = []) {
     });
 }
 
+// serializeDocument: handles serialize document for the Renewal flow.
 async function serializeDocument(document = {}) {
     const required = getRequiredDocumentByKey(document.document_type);
     const key = required?.key || documentKeyFromType(document.document_type);
@@ -555,6 +578,7 @@ async function serializeDocument(document = {}) {
     };
 }
 
+// sendRenewalNotification: sends send renewal notification for the Renewal flow.
 async function sendRenewalNotification({
     studentId,
     renewal,
@@ -592,6 +616,7 @@ async function sendRenewalNotification({
     }
 }
 
+// tryUpdateStudentScholarshipStatus: handles try update student scholarship status for the Renewal flow.
 async function tryUpdateStudentScholarshipStatus(studentId, scholarshipStatus) {
     if (!studentId || !scholarshipStatus) return;
 

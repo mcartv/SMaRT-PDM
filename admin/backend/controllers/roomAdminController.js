@@ -1,17 +1,21 @@
+// SMaRT-PDM: Return of Obligations — room Admin Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 'use strict';
 
 const messageService = require('../services/messageService');
 const roomAdminService = require('../services/roomAdminService');
 const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 
+// getCurrentUserId: reads and returns get current user id for the Return of Obligations flow.
 function getCurrentUserId(req) {
   return req.user?.userId || req.user?.user_id || req.user?.id || null;
 }
 
+// normalizeId: normalizes normalize id for the Return of Obligations flow.
 function normalizeId(value) {
   return String(value || '').trim();
 }
 
+// uniqueIds: handles unique ids for the Return of Obligations flow.
 function uniqueIds(...values) {
   return [
     ...new Set(
@@ -23,11 +27,13 @@ function uniqueIds(...values) {
   ];
 }
 
+// getStatusCode: reads and returns get status code for the Return of Obligations flow.
 function getStatusCode(error) {
   const parsed = Number(error?.statusCode || error?.status || 500);
   return Number.isFinite(parsed) && parsed >= 400 && parsed <= 599 ? parsed : 500;
 }
 
+// emitRoomRoleEvent: handles emit room role event for the Return of Obligations flow.
 function emitRoomRoleEvent(req, eventName, payload, targetUserIds = []) {
   const targets = uniqueIds(targetUserIds);
   const io = req.app?.get?.('io');

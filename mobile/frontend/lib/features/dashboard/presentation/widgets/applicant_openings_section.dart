@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholarship Openings — applicant openings section (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
@@ -20,6 +21,7 @@ class ApplicantOpeningsSection extends StatelessWidget {
   final VoidCallback onRetry;
 
   @override
+  // build: builds build for the Scholarship Openings flow.
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final openings =
@@ -87,6 +89,7 @@ class _OpeningCard extends StatelessWidget {
   final ValueChanged<ApplicantHomeActionPresentation> onAction;
 
   @override
+  // build: builds build for the Scholarship Openings flow.
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final statusColors = AppStatusColors.of(context);

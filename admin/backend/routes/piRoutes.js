@@ -1,3 +1,4 @@
+// SMaRT-PDM: Return of Obligations — pi Routes (admin backend route); maps API endpoints to middleware and controllers.
 const express = require('express');
 
 const piController = require('../controllers/piController');

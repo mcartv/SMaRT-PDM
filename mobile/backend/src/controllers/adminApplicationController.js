@@ -1,9 +1,12 @@
+// SMaRT-PDM: Applications — admin Application Controller (mobile backend controller); handles mobile API input/output and delegates business logic.
 const adminApplicationService = require('../services/adminApplicationService');
 
+// getRequestUserId: reads and returns get request user id for the Applications flow.
 function getRequestUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+// getSafeStatusCode: reads and returns get safe status code for the Applications flow.
 function getSafeStatusCode(error) {
     const parsed = Number.parseInt(error?.statusCode, 10);
     return Number.isInteger(parsed) && parsed >= 400 && parsed <= 599
@@ -11,6 +14,7 @@ function getSafeStatusCode(error) {
         : 500;
 }
 
+// getApplications: reads and returns get applications for the Applications flow.
 async function getApplications(req, res) {
     try {
         const result = await adminApplicationService.getApplications(req.query || {});
@@ -23,6 +27,7 @@ async function getApplications(req, res) {
     }
 }
 
+// getApplicationById: reads and returns get application by id for the Applications flow.
 async function getApplicationById(req, res) {
     try {
         const result = await adminApplicationService.getApplicationById(
@@ -38,6 +43,7 @@ async function getApplicationById(req, res) {
     }
 }
 
+// approveApplication: handles approve application for the Applications flow.
 async function approveApplication(req, res) {
     try {
         const adminUserId = getRequestUserId(req);
@@ -57,6 +63,7 @@ async function approveApplication(req, res) {
     }
 }
 
+// rejectApplication: handles reject application for the Applications flow.
 async function rejectApplication(req, res) {
     try {
         const adminUserId = getRequestUserId(req);

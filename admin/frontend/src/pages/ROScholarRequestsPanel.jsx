@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — ROScholar Requests Panel (admin frontend page); loads data, handles page actions, and renders the admin view.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
@@ -16,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useSocketEvent } from '@/hooks/useSocket';
 
+// formatDate: formats format date for the Scholars flow.
 function formatDate(value, includeTime = false) {
   if (!value) return 'No preferred date';
   const date = new Date(value);
@@ -28,6 +30,7 @@ function formatDate(value, includeTime = false) {
   });
 }
 
+// statusClass: handles status class for the Scholars flow.
 function statusClass(status) {
   if (status === 'Fulfilled') return 'border-emerald-100 bg-emerald-50 text-emerald-700';
   if (status === 'Partially Assigned' || status === 'Fully Assigned') return 'border-blue-100 bg-blue-50 text-blue-700';
@@ -37,6 +40,7 @@ function statusClass(status) {
   return 'border-amber-100 bg-amber-50 text-amber-700';
 }
 
+// ActionModal: handles action modal for the Scholars flow.
 function ActionModal({ action, request, loading, onClose, onConfirm }) {
   const [remarks, setRemarks] = useState('');
   if (!action || !request) return null;
@@ -99,12 +103,14 @@ function ActionModal({ action, request, loading, onClose, onConfirm }) {
   );
 }
 
+// requestStatusLabel: handles request status label for the Scholars flow.
 function requestStatusLabel(request = {}) {
   const status = request.request_status;
   if (['Fulfilled', 'Declined', 'Cancelled'].includes(status)) return status;
   return request.assignment_stage || (status === 'Acknowledged' ? 'Assigned' : status);
 }
 
+// scholarName: handles scholar name for the Scholars flow.
 function scholarName(scholar = {}) {
   return scholar.name || scholar.student_name || [
     scholar.first_name,
@@ -113,6 +119,7 @@ function scholarName(scholar = {}) {
   ].filter(Boolean).join(' ') || 'Scholar';
 }
 
+// hasActivePlacement: checks whether has active placement for the Scholars flow.
 function hasActivePlacement(scholar = {}) {
   if (typeof scholar.has_active_assignment === 'boolean') {
     return scholar.has_active_assignment;
@@ -141,6 +148,7 @@ function hasActivePlacement(scholar = {}) {
   ].includes(status);
 }
 
+// AssignScholarsModal: handles assign scholars modal for the Scholars flow.
 function AssignScholarsModal({ request, token, loading, onClose, onAssigned }) {
   const [scholars, setScholars] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -187,6 +195,7 @@ function AssignScholarsModal({ request, token, loading, onClose, onAssigned }) {
     return !needle || haystack.includes(needle);
   });
 
+  // toggleScholar: handles toggle scholar for the Scholars flow.
   const toggleScholar = (scholar) => {
     const id = String(scholar.student_id || '');
     if (!id || hasActivePlacement(scholar)) return;
@@ -197,6 +206,7 @@ function AssignScholarsModal({ request, token, loading, onClose, onAssigned }) {
     });
   };
 
+  // submit: handles submit for the Scholars flow.
   const submit = async () => {
     if (!selectedIds.length) return;
     try {
@@ -345,6 +355,7 @@ export default function ROScholarRequestsPanel({ token }) {
 
   useSocketEvent('ro:updated', loadRequests, [loadRequests]);
 
+  // updateRequest: updates update request for the Scholars flow.
   const updateRequest = async (remarks) => {
     const { action, request } = actionState;
     if (!action || !request || actionInFlightRef.current) return;
@@ -372,6 +383,7 @@ export default function ROScholarRequestsPanel({ token }) {
     }
   };
 
+  // assignScholars: handles assign scholars for the Scholars flow.
   const assignScholars = async (studentIds) => {
     if (!assignRequest || actionInFlightRef.current) return;
     actionInFlightRef.current = true;

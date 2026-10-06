@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — scholar nav chips (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
@@ -19,6 +20,7 @@ class ScholarNavChips extends StatelessWidget {
   static const List<String> _labels = ['Payout Schedule', 'Renewal Documents'];
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     final status = Theme.of(context).extension<AppStatusColors>()!;
 

@@ -1,23 +1,28 @@
+// SMaRT-PDM: Return of Obligations — ro Setting Service (admin backend service); contains business logic and data operations.
 const supabase = require('../config/supabase');
 const db = require('../config/db');
 const { resolveStaffRole } = require('../utils/staffRoles');
 
 const RO_COORDINATOR_CAPABLE_ROLES = new Set(['pd', 'sdo', 'guidance', 'ro_coordinator']);
 
+// isRoCoordinatorCapableStaff: checks whether is ro coordinator capable staff for the Return of Obligations flow.
 function isRoCoordinatorCapableStaff(profile = {}) {
     return RO_COORDINATOR_CAPABLE_ROLES.has(resolveStaffRole(profile));
 }
 
+// createHttpError: creates create http error for the Return of Obligations flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// safeText: handles safe text for the Return of Obligations flow.
 function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
 }
 
+// normalizeRequiredHours: normalizes normalize required hours for the Return of Obligations flow.
 function normalizeRequiredHours(value) {
     const parsed = Number.parseInt(value, 10);
 
@@ -28,6 +33,7 @@ function normalizeRequiredHours(value) {
     return parsed;
 }
 
+// getSettingPayload: reads and returns get setting payload for the Return of Obligations flow.
 function getSettingPayload(setting = {}) {
     return {
         setting_id: setting.setting_id || null,
@@ -44,6 +50,7 @@ function getSettingPayload(setting = {}) {
     };
 }
 
+// getDepartmentPayload: reads and returns get department payload for the Return of Obligations flow.
 function getDepartmentPayload(department = {}) {
     return {
         department_id: department.department_id || null,
@@ -54,6 +61,7 @@ function getDepartmentPayload(department = {}) {
     };
 }
 
+// fetchSettingById: fetches and returns fetch setting by id for the Return of Obligations flow.
 async function fetchSettingById(settingId) {
     if (!settingId) {
         throw createHttpError(400, 'settingId is required.');
@@ -94,6 +102,7 @@ async function fetchSettingById(settingId) {
     return data;
 }
 
+// fetchActiveSettingRow: fetches and returns fetch active setting row for the Return of Obligations flow.
 async function fetchActiveSettingRow() {
     const { data, error } = await supabase
         .from('ro_settings')
@@ -128,6 +137,7 @@ async function fetchActiveSettingRow() {
     return data;
 }
 
+// deactivateAllSettings: handles deactivate all settings for the Return of Obligations flow.
 async function deactivateAllSettings() {
     const { error } = await supabase
         .from('ro_settings')
@@ -137,6 +147,7 @@ async function deactivateAllSettings() {
     if (error) throw error;
 }
 
+// applySettingToPendingRoRecords: handles apply setting to pending ro records for the Return of Obligations flow.
 async function applySettingToPendingRoRecords(setting) {
     if (!setting?.setting_id) {
         throw createHttpError(400, 'RO setting is required.');
@@ -176,6 +187,7 @@ async function applySettingToPendingRoRecords(setting) {
     };
 }
 
+// getSettings: reads and returns get settings for the Return of Obligations flow.
 async function getSettings() {
     const { data, error } = await supabase
         .from('ro_settings')
@@ -210,6 +222,7 @@ async function getSettings() {
     };
 }
 
+// getActiveSetting: reads and returns get active setting for the Return of Obligations flow.
 async function getActiveSetting() {
     const setting = await fetchActiveSettingRow();
 
@@ -218,6 +231,7 @@ async function getActiveSetting() {
     };
 }
 
+// createSetting: creates create setting for the Return of Obligations flow.
 async function createSetting(body = {}) {
     const requiredHours = normalizeRequiredHours(
         body.required_hours ?? body.requiredHours ?? 8
@@ -269,6 +283,7 @@ async function createSetting(body = {}) {
     };
 }
 
+// updateSetting: updates update setting for the Return of Obligations flow.
 async function updateSetting(settingId, body = {}) {
     if (!settingId) {
         throw createHttpError(400, 'settingId is required.');
@@ -356,6 +371,7 @@ async function updateSetting(settingId, body = {}) {
     };
 }
 
+// activateSetting: handles activate setting for the Return of Obligations flow.
 async function activateSetting(settingId) {
     if (!settingId) {
         throw createHttpError(400, 'settingId is required.');
@@ -394,6 +410,7 @@ async function activateSetting(settingId) {
     };
 }
 
+// applyActiveSettingToPending: handles apply active setting to pending for the Return of Obligations flow.
 async function applyActiveSettingToPending() {
     const setting = await fetchActiveSettingRow();
 
@@ -409,6 +426,7 @@ async function applyActiveSettingToPending() {
     };
 }
 
+// getDepartments: reads and returns get departments for the Return of Obligations flow.
 async function getDepartments() {
     const [departmentResult, coordinatorResult, candidateResult] = await Promise.all([
       supabase
@@ -481,6 +499,7 @@ async function getDepartments() {
     };
 }
 
+// setDepartmentCoordinator: sets set department coordinator for the Return of Obligations flow.
 async function setDepartmentCoordinator(departmentId, body = {}, actorUserId = null) {
     if (!departmentId) {
         throw createHttpError(400, 'RO Area is required.');
@@ -622,6 +641,7 @@ async function setDepartmentCoordinator(departmentId, body = {}, actorUserId = n
     }
 }
 
+// createDepartment: creates create department for the Return of Obligations flow.
 async function createDepartment(body = {}) {
     const departmentName = safeText(body.department_name || body.departmentName);
 
@@ -652,6 +672,7 @@ async function createDepartment(body = {}) {
     };
 }
 
+// updateDepartment: updates update department for the Return of Obligations flow.
 async function updateDepartment(departmentId, body = {}) {
     if (!departmentId) {
         throw createHttpError(400, 'departmentId is required.');
@@ -725,6 +746,7 @@ async function updateDepartment(departmentId, body = {}) {
     };
 }
 
+// toggleDepartment: handles toggle department for the Return of Obligations flow.
 async function toggleDepartment(departmentId) {
     if (!departmentId) {
         throw createHttpError(400, 'departmentId is required.');

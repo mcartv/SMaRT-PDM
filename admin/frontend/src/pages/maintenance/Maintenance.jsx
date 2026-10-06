@@ -1,3 +1,4 @@
+// SMaRT-PDM: Maintenance — Maintenance (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import {
@@ -40,6 +41,7 @@ const TABS = [
   { key: 'audit', label: 'System Logs', icon: ClipboardList },
 ];
 
+// TopNav: handles top nav for the Maintenance flow.
 function TopNav({ tabs, active, onChange }) {
   return (
     <div className="sticky top-0 z-20 shrink-0 bg-transparent px-2 py-2">
@@ -77,6 +79,7 @@ export default function Maintenance() {
   const [themeView, setThemeView] = useState('landing');
   const { theme } = usePortalTheme('admin');
 
+  // renderActiveTab: handles render active tab for the Maintenance flow.
   const renderActiveTab = () => {
     switch (tab) {
       case 'general':

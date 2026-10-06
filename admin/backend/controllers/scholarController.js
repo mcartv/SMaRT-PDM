@@ -1,13 +1,16 @@
+// SMaRT-PDM: Scholars — scholar Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 const scholarService = require('../services/scholarService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 const notificationService = require('../services/notificationService');
 const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 
+// getActorUserId: reads and returns get actor user id for the Scholars flow.
 function getActorUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+// writeScholarAudit: handles write scholar audit for the Scholars flow.
 async function writeScholarAudit(req, actionTaken, description, scholar = null, metadata = {}) {
     try {
         if (typeof auditLogService?.logAudit !== 'function') return;
@@ -38,6 +41,7 @@ async function writeScholarAudit(req, actionTaken, description, scholar = null, 
     }
 }
 
+// emitScholarUpdated: handles emit scholar updated for the Scholars flow.
 function emitScholarUpdated(req, payload = {}) {
     const io = req.app.get('io');
     const data = {
@@ -98,6 +102,7 @@ function emitScholarUpdated(req, payload = {}) {
         });
 }
 
+// notifyAdminsOfSdoStatusChange: creates or sends notify admins of sdo status change for the Scholars flow.
 async function notifyAdminsOfSdoStatusChange(req, scholar = {}) {
     try {
         if (typeof notificationService?.createStaffNotifications !== 'function') return;

@@ -1,3 +1,4 @@
+// SMaRT-PDM: step submit intake2 — step submit intake2 (mobile screen); loads state, handles user actions, and renders the screen.
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
@@ -20,6 +21,7 @@ class StepSubmit extends StatefulWidget {
   final bool showErrors;
 
   @override
+  // createState: creates create state for the step submit intake2 flow.
   State<StepSubmit> createState() => _StepSubmitState();
 }
 
@@ -33,12 +35,14 @@ class _StepSubmitState extends State<StepSubmit> {
   late bool agreeTerms;
 
   @override
+  // initState: handles init state for the step submit intake2 flow.
   void initState() {
     super.initState();
     certRead = widget.data.certificationRead;
     agreeTerms = widget.data.agree;
   }
 
+  // _openLink: handles open link for the step submit intake2 flow.
   Future<void> _openLink(Uri uri) async {
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (!mounted) return;
@@ -48,10 +52,13 @@ class _StepSubmitState extends State<StepSubmit> {
     }
   }
 
+  // _empty: handles empty for the step submit intake2 flow.
   bool _empty(String value) => value.trim().isEmpty;
 
+  // _clean: handles clean for the step submit intake2 flow.
   String _clean(String value) => value.trim().isEmpty ? 'N/A' : value.trim();
 
+  // _name: handles name for the step submit intake2 flow.
   String _name(String first, String middle, String last) {
     final parts = [
       first,
@@ -61,6 +68,7 @@ class _StepSubmitState extends State<StepSubmit> {
     return parts.isEmpty ? 'N/A' : parts.join(' ');
   }
 
+  // _address: handles address for the step submit intake2 flow.
   String _address() {
     final parts = [
       widget.data.unitBldgNo,
@@ -75,15 +83,19 @@ class _StepSubmitState extends State<StepSubmit> {
     return parts.isEmpty ? 'N/A' : parts.join(', ');
   }
 
+  // _familyAddress: handles family address for the step submit intake2 flow.
   String _familyAddress() {
     final text = widget.data.parentGuardianAddress.trim();
     return text.isEmpty ? 'N/A' : text;
   }
 
+  // _education: handles education for the step submit intake2 flow.
   String _education(String value) => _clean(value);
 
+  // _yesNo: handles yes no for the step submit intake2 flow.
   String _yesNo(bool value) => value ? 'Yes' : 'No';
 
+  // _residencyDurationLabel: handles residency duration label for the step submit intake2 flow.
   String _residencyDurationLabel(String value) {
     final raw = value.trim();
     final years = int.tryParse(raw);
@@ -105,6 +117,7 @@ class _StepSubmitState extends State<StepSubmit> {
     return raw;
   }
 
+  // _parentNativeDetails: handles parent native details for the step submit intake2 flow.
   String _parentNativeDetails() {
     final status = widget.data.parentNativeStatus.trim();
     if (status.isEmpty) return '-';
@@ -118,6 +131,7 @@ class _StepSubmitState extends State<StepSubmit> {
     return years.isEmpty ? status : '$status, resident for $years';
   }
 
+  // _missingFields: handles missing fields for the step submit intake2 flow.
   List<String> _missingFields() {
     final missing = <String>[];
     if (_empty(widget.data.firstName)) missing.add('First name');
@@ -140,6 +154,7 @@ class _StepSubmitState extends State<StepSubmit> {
     return missing;
   }
 
+  // _warningBox: handles warning box for the step submit intake2 flow.
   Widget _warningBox() {
     final missing = _missingFields();
     if (missing.isEmpty) {
@@ -184,6 +199,7 @@ class _StepSubmitState extends State<StepSubmit> {
     );
   }
 
+  // _infoListCard: handles info list card for the step submit intake2 flow.
   Widget _infoListCard({required String title, required List<String> items}) {
     return IntakeCard(
       margin: const EdgeInsets.only(bottom: 16),
@@ -213,6 +229,7 @@ class _StepSubmitState extends State<StepSubmit> {
     );
   }
 
+  // _certificationArea: handles certification area for the step submit intake2 flow.
   Widget _certificationArea() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -335,6 +352,7 @@ class _StepSubmitState extends State<StepSubmit> {
   }
 
   @override
+  // build: builds build for the step submit intake2 flow.
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

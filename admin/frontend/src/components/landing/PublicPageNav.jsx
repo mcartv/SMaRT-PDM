@@ -1,11 +1,14 @@
+// SMaRT-PDM: Public Page Nav — Public Page Nav (admin frontend component); renders reusable UI and handles local interactions.
 import React, { useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 
 const dropdownClass = 'pointer-events-none invisible absolute left-0 top-full z-50 w-64 rounded-b-xl border border-white/15 p-2 opacity-0 shadow-2xl transition group-hover:pointer-events-auto group-hover:visible group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:visible group-focus-within:opacity-100';
 const itemClass = 'block rounded-lg border-l-2 border-transparent px-3 py-2.5 text-sm font-semibold text-white transition hover:border-[var(--public-accent)] hover:bg-white/10 focus:outline-none focus-visible:border-[var(--public-accent)] focus-visible:bg-white/10';
+// dropdownLinkClass: handles dropdown link class for the Public Page Nav flow.
 const dropdownLinkClass = ({ isActive }) => `${itemClass} ${isActive ? 'border-[var(--public-accent)] bg-white/10' : ''}`;
 const mobileBaseClass = 'shrink-0 snap-start border-b-2 px-3 py-3 text-[11px] font-bold uppercase tracking-[0.07em] transition focus:outline-none focus-visible:bg-white/10';
+// mobileNavClass: handles mobile nav class for the Public Page Nav flow.
 const mobileNavClass = ({ isActive }) => `${mobileBaseClass} ${isActive ? 'border-[var(--public-accent)] text-white' : 'border-transparent text-white/75 hover:border-[var(--public-accent)] hover:text-white'}`;
 
 export default function PublicPageNav({ theme }) {
@@ -68,6 +71,7 @@ export default function PublicPageNav({ theme }) {
   );
 }
 
+// NavGroup: handles nav group for the Public Page Nav flow.
 function NavGroup({ label, children, theme, active }) {
   return (
     <div className="group relative shrink-0">

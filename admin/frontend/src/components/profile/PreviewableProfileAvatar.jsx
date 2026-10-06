@@ -1,3 +1,4 @@
+// SMaRT-PDM: Profile — Previewable Profile Avatar (admin frontend component); renders reusable UI and handles local interactions.
 import { useEffect, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import ProfilePhotoPreviewDialog from '@/components/profile/ProfilePhotoPreviewDialog';

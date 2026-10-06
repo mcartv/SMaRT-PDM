@@ -1,7 +1,9 @@
+// SMaRT-PDM: downloaded file handler web — downloaded file handler web (mobile frontend); supports mobile UI behavior.
 // ignore_for_file: deprecated_member_use
 import 'dart:html' as html;
 import 'dart:typed_data';
 
+// saveAndOpenDownloadedFileImpl: validates and saves save and open downloaded file impl for the downloaded file handler web flow.
 Future<String> saveAndOpenDownloadedFileImpl({
   required Uint8List bytes,
   required String fileName,
@@ -25,6 +27,7 @@ Future<String> saveAndOpenDownloadedFileImpl({
   return 'Download started for $safeName.';
 }
 
+// _safeFileName: handles safe file name for the downloaded file handler web flow.
 String _safeFileName(String value) {
   final cleaned = value
       .trim()

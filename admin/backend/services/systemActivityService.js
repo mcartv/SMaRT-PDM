@@ -1,3 +1,4 @@
+// SMaRT-PDM: system Activity Service — system Activity Service (admin backend service); contains business logic and data operations.
 const crypto = require('crypto');
 const pool = require('../config/db');
 
@@ -21,34 +22,41 @@ const PUBLIC_WEB_PATH_PREFIXES = Object.freeze([
   '/endorsement/verify',
 ]);
 
+// hourBucket: handles hour bucket for the system Activity Service flow.
 function hourBucket(date = new Date()) {
   const bucket = new Date(date);
   bucket.setUTCMinutes(0, 0, 0);
   return bucket.toISOString();
 }
 
+// sha256: handles sha256 for the system Activity Service flow.
 function sha256(value) {
   return crypto.createHash('sha256').update(String(value || '')).digest('hex');
 }
 
+// normalizeRole: normalizes normalize role for the system Activity Service flow.
 function normalizeRole(value) {
   return String(value || '').trim().toLowerCase().slice(0, 60) || 'unknown';
 }
 
+// resolveUserId: resolves resolve user id for the system Activity Service flow.
 function resolveUserId(user = {}) {
   return String(user.user_id || user.userId || user.sub || '').trim();
 }
 
+// shouldCountApiRequest: handles should count api request for the system Activity Service flow.
 function shouldCountApiRequest(req) {
   const path = String(req?.originalUrl || req?.url || '');
   return !path.includes('/api/system-maintenance/activity/heartbeat');
 }
 
+// incrementRequestBucket: handles increment request bucket for the system Activity Service flow.
 function incrementRequestBucket() {
   const bucket = hourBucket();
   requestBuckets.set(bucket, Number(requestBuckets.get(bucket) || 0) + 1);
 }
 
+// persistSessionActivity: handles persist session activity for the system Activity Service flow.
 async function persistSessionActivity({ sessionKey, userId, role }) {
   await pool.query(
     `
@@ -70,6 +78,7 @@ async function persistSessionActivity({ sessionKey, userId, role }) {
   );
 }
 
+// recordAuthenticatedRequest: handles record authenticated request for the system Activity Service flow.
 function recordAuthenticatedRequest({ req, user, rawToken }) {
   const userId = resolveUserId(user);
   const token = String(rawToken || '').trim();
@@ -94,6 +103,7 @@ function recordAuthenticatedRequest({ req, user, rawToken }) {
   }
 }
 
+// flushRequestMetrics: handles flush request metrics for the system Activity Service flow.
 async function flushRequestMetrics() {
   if (flushPromise) return flushPromise;
   if (!requestBuckets.size) return;
@@ -133,6 +143,7 @@ async function flushRequestMetrics() {
   return flushPromise;
 }
 
+// startMetricsFlushTimer: handles start metrics flush timer for the system Activity Service flow.
 function startMetricsFlushTimer() {
   if (flushTimer) return flushTimer;
   flushTimer = setInterval(() => {
@@ -144,6 +155,7 @@ function startMetricsFlushTimer() {
   return flushTimer;
 }
 
+// normalizeVisitorId: normalizes normalize visitor id for the system Activity Service flow.
 function normalizeVisitorId(value) {
   const visitorId = String(value || '').trim();
   if (!/^[a-zA-Z0-9_-]{16,128}$/.test(visitorId)) {
@@ -154,6 +166,7 @@ function normalizeVisitorId(value) {
   return visitorId;
 }
 
+// normalizePublicPath: normalizes normalize public path for the system Activity Service flow.
 function normalizePublicPath(value) {
   const path = String(value || '').trim();
   const allowed = path.length <= 180 && PUBLIC_WEB_PATH_PREFIXES.some(
@@ -169,6 +182,7 @@ function normalizePublicPath(value) {
   return path;
 }
 
+// recordPublicVisit: handles record public visit for the system Activity Service flow.
 async function recordPublicVisit({ visitorId, path }) {
   const cleanVisitorId = normalizeVisitorId(visitorId);
   const visitorHash = sha256(cleanVisitorId);
@@ -215,6 +229,7 @@ async function recordPublicVisit({ visitorId, path }) {
   );
 }
 
+// cleanupOldActivity: handles cleanup old activity for the system Activity Service flow.
 async function cleanupOldActivity() {
   await Promise.all([
     pool.query(`DELETE FROM public.system_activity_hourly WHERE bucket_hour < NOW() - INTERVAL '8 days'`),
@@ -224,6 +239,7 @@ async function cleanupOldActivity() {
   ]);
 }
 
+// getActivitySummary: reads and returns get activity summary for the system Activity Service flow.
 async function getActivitySummary() {
   await flushRequestMetrics();
 

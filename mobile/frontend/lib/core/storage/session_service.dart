@@ -1,3 +1,4 @@
+// SMaRT-PDM: Storage — session service (mobile frontend); supports mobile UI behavior.
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -53,6 +54,7 @@ class SessionService {
   static const String _pushDeviceTokenKey = 'push_device_token';
   static const String _pushDevicePlatformKey = 'push_device_platform';
 
+  // saveAuthSession: validates and saves save auth session for the Storage flow.
   Future<void> saveAuthSession({
     required String token,
     required String userId,
@@ -91,6 +93,7 @@ class SessionService {
 
   }
 
+  // getCurrentUser: reads and returns get current user for the Storage flow.
   Future<SessionUser> getCurrentUser() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -115,16 +118,19 @@ class SessionService {
     );
   }
 
+  // getToken: reads and returns get token for the Storage flow.
   Future<String> getToken() async {
     final session = await getCurrentUser();
     return session.token;
   }
 
+  // saveProfileImage: validates and saves save profile image for the Storage flow.
   Future<void> saveProfileImage(String avatarUrl) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_userProfileImageKey, avatarUrl.trim());
   }
 
+  // saveProfileCache: validates and saves save profile cache for the Storage flow.
   Future<void> saveProfileCache({
     String? firstName,
     String? lastName,
@@ -180,11 +186,13 @@ class SessionService {
     }
   }
 
+  // saveScholarAccess: validates and saves save scholar access for the Storage flow.
   Future<void> saveScholarAccess({required bool hasScholarAccess}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_userHasScholarAccessKey, hasScholarAccess);
   }
 
+  // savePushDeviceToken: validates and saves save push device token for the Storage flow.
   Future<void> savePushDeviceToken({
     required String token,
     required String platform,
@@ -195,6 +203,7 @@ class SessionService {
     await prefs.setString(_pushDevicePlatformKey, platform.trim());
   }
 
+  // getPushDeviceToken: reads and returns get push device token for the Storage flow.
   Future<Map<String, String?>> getPushDeviceToken() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -204,6 +213,7 @@ class SessionService {
     };
   }
 
+  // isSessionValid: checks whether is session valid for the Storage flow.
   Future<bool> isSessionValid() async {
     final session = await getCurrentUser();
     final token = session.token.trim();
@@ -234,6 +244,7 @@ class SessionService {
     }
   }
 
+  // clearSession: clears clear session for the Storage flow.
   Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
 

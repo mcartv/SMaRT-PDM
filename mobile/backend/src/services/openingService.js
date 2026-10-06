@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholarship Openings — opening Service (mobile backend service); contains mobile-facing business logic and data operations.
 const supabase = require('../config/supabase');
 const {
   loadApplicationAvailabilityPolicy,
@@ -5,12 +6,14 @@ const {
   assertOpeningInActivePeriod,
 } = require('./applicationAvailabilityService');
 
+// createHttpError: creates create http error for the Scholarship Openings flow.
 function createHttpError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
 }
 
+// isApprovedScholar: checks whether is approved scholar for the Scholarship Openings flow.
 function isApprovedScholar(student) {
   return (
     student?.is_active_scholar === true ||
@@ -25,6 +28,7 @@ const REQUIRED_APPLICATION_UPLOAD_KEYS = Object.freeze([
   'letter_of_request',
 ]);
 
+// normalizeApplicationDocumentKey: normalizes normalize application document key for the Scholarship Openings flow.
 function normalizeApplicationDocumentKey(value = '') {
   const normalized = String(value || '')
     .trim()
@@ -81,6 +85,7 @@ function normalizeApplicationDocumentKey(value = '') {
   return normalized.replace(/\s+/g, '_');
 }
 
+// getApplicationUploadCounts: reads and returns get application upload counts for the Scholarship Openings flow.
 async function getApplicationUploadCounts(applicationIds = []) {
   const normalizedIds = [
     ...new Set(
@@ -147,6 +152,7 @@ async function getApplicationUploadCounts(applicationIds = []) {
   return counts;
 }
 
+// getMajorViolationApplicationIds: reads and returns get major violation application ids for the Scholarship Openings flow.
 async function getMajorViolationApplicationIds(applicationIds = []) {
   const normalizedIds = [
     ...new Set(
@@ -176,6 +182,7 @@ async function getMajorViolationApplicationIds(applicationIds = []) {
   );
 }
 
+// hasExplicitMajorViolation: checks whether has explicit major violation for the Scholarship Openings flow.
 async function hasExplicitMajorViolation(applicationId) {
   if (!applicationId) return false;
 
@@ -192,6 +199,7 @@ async function hasExplicitMajorViolation(applicationId) {
   return Array.isArray(data) && data.length > 0;
 }
 
+// getStudentByUserId: reads and returns get student by user id for the Scholarship Openings flow.
 async function getStudentByUserId(userId) {
   if (!userId) throw createHttpError(401, 'Authentication required.');
 
@@ -215,6 +223,7 @@ async function getStudentByUserId(userId) {
   return data || null;
 }
 
+// getStudentApplications: reads and returns get student applications for the Scholarship Openings flow.
 async function getStudentApplications(studentId) {
   if (!studentId) return [];
 
@@ -259,18 +268,21 @@ async function getStudentApplications(studentId) {
   return data || [];
 }
 
+// normalizedApplicationStatus: normalizes normalized application status for the Scholarship Openings flow.
 function normalizedApplicationStatus(application) {
   return String(application?.application_status || '')
     .trim()
     .toLowerCase();
 }
 
+// normalizedSelectionStatus: normalizes normalized selection status for the Scholarship Openings flow.
 function normalizedSelectionStatus(application) {
   return String(application?.selection_status || '')
     .trim()
     .toLowerCase();
 }
 
+// isRejectedApplication: checks whether is rejected application for the Scholarship Openings flow.
 function isRejectedApplication(application) {
   const status = normalizedApplicationStatus(application);
 
@@ -280,6 +292,7 @@ function isRejectedApplication(application) {
   );
 }
 
+// isActiveApplication: checks whether is active application for the Scholarship Openings flow.
 function isActiveApplication(application) {
   if (!application) {
     return false;
@@ -331,6 +344,7 @@ function applicationBelongsToPeriod(application, periodId) {
   );
 }
 
+// canReapplyToSameOpening: checks whether can reapply to same opening for the Scholarship Openings flow.
 function canReapplyToSameOpening(application, majorViolationIds) {
   if (!application || !isRejectedApplication(application)) {
     return false;
@@ -357,6 +371,7 @@ function canReapplyToSameOpening(application, majorViolationIds) {
   return true;
 }
 
+// getActiveAcademicPeriod: reads and returns get active academic period for the Scholarship Openings flow.
 async function getActiveAcademicPeriod() {
   const { data, error } = await supabase
     .from('academic_period')
@@ -369,6 +384,7 @@ async function getActiveAcademicPeriod() {
   return data || null;
 }
 
+// getOpeningsForMobile: reads and returns get openings for mobile for the Scholarship Openings flow.
 async function getOpeningsForMobile(userId) {
   const student = await getStudentByUserId(userId);
   const applications = await getStudentApplications(student?.student_id);
@@ -757,6 +773,7 @@ async function getOpeningsForMobile(userId) {
   };
 }
 
+// getLatestOpeningForMobile: reads and returns get latest opening for mobile for the Scholarship Openings flow.
 async function getLatestOpeningForMobile(userId) {
   const payload = await getOpeningsForMobile(userId);
 
@@ -769,6 +786,7 @@ async function getLatestOpeningForMobile(userId) {
   };
 }
 
+// applyToOpeningForMobile: handles apply to opening for mobile for the Scholarship Openings flow.
 async function applyToOpeningForMobile(
   userId,
   openingId,

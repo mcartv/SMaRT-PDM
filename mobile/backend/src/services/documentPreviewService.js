@@ -1,3 +1,4 @@
+// SMaRT-PDM: Document Verification — document Preview Service (mobile backend service); contains mobile-facing business logic and data operations.
 const sharp = require('sharp');
 const supabase = require('../config/supabase');
 
@@ -14,10 +15,12 @@ const DEFAULT_WEBP_QUALITY = Math.min(
   Math.max(50, Number(process.env.DOCUMENT_PREVIEW_WEBP_QUALITY || 72))
 );
 
+// safeText: handles safe text for the Document Verification flow.
 function safeText(value) {
   return value == null ? '' : String(value).trim();
 }
 
+// isPreviewableImage: checks whether is previewable image for the Document Verification flow.
 function isPreviewableImage({ mimeType, filePath } = {}) {
   const mime = safeText(mimeType).toLowerCase();
   const path = safeText(filePath).toLowerCase();
@@ -29,6 +32,7 @@ function isPreviewableImage({ mimeType, filePath } = {}) {
   return /\.(jpe?g|png|webp|heic|heif)$/i.test(path);
 }
 
+// buildDocumentPreviewPath: builds build document preview path for the Document Verification flow.
 function buildDocumentPreviewPath(filePath) {
   const normalizedPath = safeText(filePath).replace(/^\/+/, '');
   if (!normalizedPath) return null;
@@ -41,6 +45,7 @@ function buildDocumentPreviewPath(filePath) {
   return `${directory ? `${directory}/` : ''}.previews/${baseName}.webp`;
 }
 
+// createDocumentPreview: creates create document preview for the Document Verification flow.
 async function createDocumentPreview({
   bucket,
   filePath,
@@ -111,6 +116,7 @@ async function createDocumentPreview({
   }
 }
 
+// removeDocumentPreview: removes remove document preview for the Document Verification flow.
 async function removeDocumentPreview({ bucket, previewPath }) {
   const normalizedPath = safeText(previewPath).replace(/^\/+/, '');
   if (!bucket || !normalizedPath) return;

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — auth Service (admin frontend); supports admin-side UI behavior.
 import { buildApiUrl } from '@/api';
 import {
   PAGE_INSTANCE_ID,
@@ -20,6 +21,7 @@ export class AuthRequestError extends Error {
   }
 }
 
+// parseJsonResponse: parses parse json response for the Authentication flow.
 async function parseJsonResponse(response, fallbackMessage) {
   const data = await response.json().catch(() => ({}));
 
@@ -36,6 +38,7 @@ async function parseJsonResponse(response, fallbackMessage) {
   return data;
 }
 
+// requestJson: handles request json for the Authentication flow.
 async function requestJson(
   path,
   {
@@ -78,6 +81,7 @@ let logoutInProgress = false;
 let lifecycleInstalled = false;
 let validationInFlight = false;
 
+// invalidateIfStillCurrent: handles invalidate if still current for the Authentication flow.
 function invalidateIfStillCurrent(active, error) {
   if (
     !active?.portalName ||
@@ -295,6 +299,7 @@ export const authService = {
   },
 };
 
+// installAdminSessionLifecycle: handles install admin session lifecycle for the Authentication flow.
 export function installAdminSessionLifecycle() {
   if (lifecycleInstalled || typeof window === 'undefined') {
     return;
@@ -302,6 +307,7 @@ export function installAdminSessionLifecycle() {
 
   lifecycleInstalled = true;
 
+  // validateCurrentPortal: validates validate current portal for the Authentication flow.
   const validateCurrentPortal = async () => {
     const active = getStoredPortalSession();
 
@@ -325,6 +331,7 @@ export function installAdminSessionLifecycle() {
     }
   };
 
+  // heartbeat: handles heartbeat for the Authentication flow.
   const heartbeat = async () => {
     const active = getStoredPortalSession('admin');
 
@@ -343,6 +350,7 @@ export function installAdminSessionLifecycle() {
     }
   };
 
+  // resumeWhenVisible: handles resume when visible for the Authentication flow.
   const resumeWhenVisible = async () => {
     const active = getStoredPortalSession('admin');
 
@@ -361,6 +369,7 @@ export function installAdminSessionLifecycle() {
     }
   };
 
+  // validateWhenVisible: validates validate when visible for the Authentication flow.
   const validateWhenVisible = () => {
     if (document.hidden) return;
     validateCurrentPortal();

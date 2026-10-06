@@ -1,3 +1,4 @@
+// SMaRT-PDM: Return of Obligations — ro Pagination Service (admin backend service); contains business logic and data operations.
 'use strict';
 
 const db = require('../config/db');
@@ -12,21 +13,25 @@ const APPROVED_APPLICATION_STATUSES = [
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
 
+// createHttpError: creates create http error for the Return of Obligations flow.
 function createHttpError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
 }
 
+// normalizeText: normalizes normalize text for the Return of Obligations flow.
 function normalizeText(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+// positiveInteger: handles positive integer for the Return of Obligations flow.
 function positiveInteger(value, fallback) {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+// extractAvatarStoragePath: handles extract avatar storage path for the Return of Obligations flow.
 function extractAvatarStoragePath(value) {
   const rawValue = String(value || '').trim();
 
@@ -52,6 +57,7 @@ function extractAvatarStoragePath(value) {
   return null;
 }
 
+// resolveAvatarUrl: resolves resolve avatar url for the Return of Obligations flow.
 async function resolveAvatarUrl(value) {
   const rawValue = String(value || '').trim();
 
@@ -70,6 +76,7 @@ async function resolveAvatarUrl(value) {
   return data?.signedUrl || rawValue;
 }
 
+// getCurrentAcademicPeriod: reads and returns get current academic period for the Return of Obligations flow.
 async function getCurrentAcademicPeriod() {
   const result = await db.query(
     `
@@ -99,6 +106,7 @@ async function getCurrentAcademicPeriod() {
   return period;
 }
 
+// normalizeBucket: normalizes normalize bucket for the Return of Obligations flow.
 function normalizeBucket(value) {
   const bucket = normalizeText(value);
 
@@ -109,6 +117,7 @@ function normalizeBucket(value) {
   return 'assigned';
 }
 
+// normalizeStatusFilter: normalizes normalize status filter for the Return of Obligations flow.
 function normalizeStatusFilter(value) {
   const status = normalizeText(value);
 
@@ -125,6 +134,7 @@ function normalizeStatusFilter(value) {
     : 'all';
 }
 
+// mapPlacement: maps map placement for the Return of Obligations flow.
 function mapPlacement(value) {
   if (!value || typeof value !== 'object') return null;
 
@@ -140,6 +150,7 @@ function mapPlacement(value) {
   };
 }
 
+// serializePageRow: handles serialize page row for the Return of Obligations flow.
 async function serializePageRow(row) {
   const placements = Array.isArray(row.placements)
     ? row.placements.map(mapPlacement).filter(Boolean)
@@ -253,6 +264,7 @@ async function serializePageRow(row) {
   };
 }
 
+// getROScholarsPage: reads and returns get roscholars page for the Return of Obligations flow.
 async function getROScholarsPage(filters = {}) {
   const currentPeriod = await getCurrentAcademicPeriod();
 
@@ -275,6 +287,7 @@ async function getROScholarsPage(filters = {}) {
     currentPeriod.period_id,
   ];
 
+  // addValue: adds add value for the Return of Obligations flow.
   const addValue = (value) => {
     values.push(value);
     return `$${values.length}`;

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Guidance Layout — Guidance Layout (admin frontend component); renders reusable UI and handles local interactions.
 import DepartmentPortalLayout from './DepartmentPortalLayout';
 
 export default function GuidanceLayout() {

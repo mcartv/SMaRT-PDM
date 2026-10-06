@@ -1,5 +1,7 @@
+// SMaRT-PDM: Courses — course Service (mobile backend service); contains mobile-facing business logic and data operations.
 const supabase = require('../config/supabase');
 
+// getCourses: reads and returns get courses for the Courses flow.
 async function getCourses() {
     const { data, error } = await supabase
         .from('academic_course')

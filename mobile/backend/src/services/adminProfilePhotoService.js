@@ -1,17 +1,21 @@
+// SMaRT-PDM: Profile — admin Profile Photo Service (mobile backend service); contains mobile-facing business logic and data operations.
 const { notificationsEnabled } = require('../config/notificationPolicy');
 const supabase = require('../config/supabase');
 const { resolveAvatarUrl } = require('./avatarService');
 
+// createHttpError: creates create http error for the Profile flow.
 function createHttpError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
 }
 
+// safeText: handles safe text for the Profile flow.
 function safeText(value) {
   return value === null || value === undefined ? '' : String(value).trim();
 }
 
+// getAdminProfileId: reads and returns get admin profile id for the Profile flow.
 async function getAdminProfileId(adminUserId) {
   if (!adminUserId) {
     throw createHttpError(401, 'Authentication required.');
@@ -32,6 +36,7 @@ async function getAdminProfileId(adminUserId) {
   return data.admin_id;
 }
 
+// buildStudentName: builds build student name for the Profile flow.
 function buildStudentName(student = {}) {
   return [student.first_name, student.middle_name, student.last_name]
     .map(safeText)
@@ -40,6 +45,7 @@ function buildStudentName(student = {}) {
     .trim();
 }
 
+// getStudentsByIds: reads and returns get students by ids for the Profile flow.
 async function getStudentsByIds(studentIds = []) {
   const uniqueStudentIds = Array.from(
     new Set(studentIds.map((studentId) => safeText(studentId)).filter(Boolean))
@@ -98,6 +104,7 @@ async function getStudentsByIds(studentIds = []) {
   );
 }
 
+// serializeReview: handles serialize review for the Profile flow.
 async function serializeReview(row, student = null) {
   if (!row) return null;
 
@@ -135,6 +142,7 @@ async function serializeReview(row, student = null) {
   };
 }
 
+// reviewSelect: handles review select for the Profile flow.
 function reviewSelect() {
   return `
     review_id,
@@ -150,6 +158,7 @@ function reviewSelect() {
   `;
 }
 
+// hydrateReviews: handles hydrate reviews for the Profile flow.
 async function hydrateReviews(rows = []) {
   const studentsById = await getStudentsByIds(rows.map((row) => row.student_id));
 
@@ -158,6 +167,7 @@ async function hydrateReviews(rows = []) {
   );
 }
 
+// getProfilePhotoReviews: reads and returns get profile photo reviews for the Profile flow.
 async function getProfilePhotoReviews({ adminUserId, query = {} }) {
   await getAdminProfileId(adminUserId);
 
@@ -181,6 +191,7 @@ async function getProfilePhotoReviews({ adminUserId, query = {} }) {
   };
 }
 
+// getProfilePhotoReviewById: reads and returns get profile photo review by id for the Profile flow.
 async function getProfilePhotoReviewById({ adminUserId, reviewId }) {
   await getAdminProfileId(adminUserId);
 
@@ -219,6 +230,7 @@ async function getProfilePhotoReviewById({ adminUserId, reviewId }) {
   };
 }
 
+// approveProfilePhotoReview: handles approve profile photo review for the Profile flow.
 async function approveProfilePhotoReview({ adminUserId, reviewId, remarks }) {
   const adminId = await getAdminProfileId(adminUserId);
 
@@ -304,6 +316,7 @@ async function approveProfilePhotoReview({ adminUserId, reviewId, remarks }) {
   };
 }
 
+// rejectProfilePhotoReview: handles reject profile photo review for the Profile flow.
 async function rejectProfilePhotoReview({
   adminUserId,
   reviewId,

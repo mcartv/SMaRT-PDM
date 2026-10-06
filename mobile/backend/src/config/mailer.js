@@ -1,5 +1,7 @@
+// SMaRT-PDM: mailer — mailer (mobile backend config); configures shared mobile backend infrastructure.
 const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
 
+// requireEnv: handles require env for the mailer flow.
 function requireEnv(name) {
     const value = process.env[name]?.trim();
 
@@ -10,6 +12,7 @@ function requireEnv(name) {
     return value;
 }
 
+// normalizeRecipients: normalizes normalize recipients for the mailer flow.
 function normalizeRecipients(to) {
     const recipients = Array.isArray(to) ? to : [to];
 
@@ -34,6 +37,7 @@ function normalizeRecipients(to) {
         .filter(Boolean);
 }
 
+// sendMail: sends send mail for the mailer flow.
 async function sendMail(message = {}) {
     const apiKey = requireEnv('BREVO_API_KEY');
     const senderEmail = requireEnv('MAIL_FROM_EMAIL');

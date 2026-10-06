@@ -1,3 +1,4 @@
+// SMaRT-PDM: OCR — enhanced Ocr Errors (admin backend service); contains business logic and data operations.
 // Only fixed messages cross the provider boundary: never persist response text,
 // request contents, API keys, or SDK URLs in applicant records or logs.
 const MESSAGES = {
@@ -14,6 +15,7 @@ const MESSAGES = {
     ENHANCED_OCR_PROVIDER_FAILED: 'The OCR service could not complete extraction. The captured document was preserved. Retry OCR using the existing capture.',
 };
 
+// normalizeEnhancedOcrError: normalizes normalize enhanced ocr error for the OCR flow.
 function normalizeEnhancedOcrError(error) {
     const providerStatus = Number(error?.providerStatus || error?.status || error?.statusCode || error?.code) || null;
     let code = Object.hasOwn(MESSAGES, error?.code) ? error.code : null;

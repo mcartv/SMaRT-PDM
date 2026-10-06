@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholarship Openings — program opening service (mobile service); calls APIs or shared services and returns processed results.
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
 import 'package:smartpdm_mobileapp/shared/models/program_opening.dart';
@@ -8,6 +9,7 @@ class ProgramOpeningService {
 
   final ApiClient _apiClient;
 
+  // fetchAvailableOpenings: fetches and returns fetch available openings for the Scholarship Openings flow.
   Future<ProgramOpeningsResult> fetchAvailableOpenings() async {
     // This list must always reflect the current Admin opening state. The
     // revision prevents web/proxy caches from retaining stale status or slot
@@ -67,6 +69,7 @@ class ProgramOpeningService {
     );
   }
 
+  // fetchLatestOpeningOfficeUpdate: fetches and returns fetch latest opening office update for the Scholarship Openings flow.
   Future<AppNotification?> fetchLatestOpeningOfficeUpdate() async {
     final response = await _apiClient.getObject('/api/openings/latest');
     final item = response['item'];
@@ -76,6 +79,7 @@ class ProgramOpeningService {
     return AppNotification.fromLatestOpening(Map<String, dynamic>.from(item));
   }
 
+  // applyToOpening: handles apply to opening for the Scholarship Openings flow.
   Future<Map<String, dynamic>> applyToOpening({
     required String openingId,
     required Map<String, dynamic> body,
@@ -83,6 +87,7 @@ class ProgramOpeningService {
     return _apiClient.postJson('/api/openings/$openingId/apply', body: body);
   }
 
+  // submitApplicationForm: handles submit application form for the Scholarship Openings flow.
   Future<Map<String, dynamic>> submitApplicationForm({
     required Map<String, dynamic> body,
   }) {

@@ -1,3 +1,4 @@
+// SMaRT-PDM: former Room History Controller — former Room History Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 'use strict';
 
 const db = require('../config/db');
@@ -6,15 +7,18 @@ const messageService = require('../services/messageService');
 const DEFAULT_LIMIT = 30;
 const MAX_LIMIT = 50;
 
+// userId: handles user id for the former Room History Controller flow.
 function userId(req) {
   return req.user?.userId || req.user?.user_id || req.user?.id || null;
 }
 
+// limitOf: handles limit of for the former Room History Controller flow.
 function limitOf(value) {
   const parsed = Number.parseInt(value, 10);
   return Math.min(Math.max(Number.isFinite(parsed) ? parsed : DEFAULT_LIMIT, 1), MAX_LIMIT);
 }
 
+// archiveAccess: archives archive access for the former Room History Controller flow.
 async function archiveAccess(currentUserId, roomId) {
   const result = await db.query(`
     SELECT mta.archive_id, mta.archived_at, cr.room_name,

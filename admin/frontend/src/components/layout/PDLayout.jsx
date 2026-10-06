@@ -1,3 +1,4 @@
+// SMaRT-PDM: PDLayout — PDLayout (admin frontend component); renders reusable UI and handles local interactions.
 import DepartmentPortalLayout from './DepartmentPortalLayout';
 
 export default function PDLayout() {

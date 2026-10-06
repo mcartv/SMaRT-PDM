@@ -1,3 +1,4 @@
+// SMaRT-PDM: connectivity controller — connectivity controller (mobile frontend); supports mobile UI behavior.
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -29,6 +30,7 @@ class ConnectivityController extends ChangeNotifier
   bool get isOffline => _availability == NetworkAvailability.offline;
   bool get isChecking => _availability == NetworkAvailability.checking;
 
+  // start: handles start for the connectivity controller flow.
   Future<void> start() async {
     if (_started) return;
     _started = true;
@@ -47,6 +49,7 @@ class ConnectivityController extends ChangeNotifier
     await checkNow(showCheckingState: true);
   }
 
+  // checkNow: checks check now for the connectivity controller flow.
   Future<bool> checkNow({bool showCheckingState = false}) async {
     if (_checking) return isOnline;
     _checking = true;
@@ -104,6 +107,7 @@ class ConnectivityController extends ChangeNotifier
     }
   }
 
+  // _handleConnectivityChange: handles handle connectivity change for the connectivity controller flow.
   Future<void> _handleConnectivityChange(
     List<ConnectivityResult> results,
   ) async {
@@ -119,6 +123,7 @@ class ConnectivityController extends ChangeNotifier
     await checkNow(showCheckingState: true);
   }
 
+  // _setAvailability: handles set availability for the connectivity controller flow.
   void _setAvailability(NetworkAvailability next) {
     if (_availability == next) return;
 
@@ -132,6 +137,7 @@ class ConnectivityController extends ChangeNotifier
   }
 
   @override
+  // didChangeAppLifecycleState: handles did change app lifecycle state for the connectivity controller flow.
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       checkNow(showCheckingState: true);
@@ -139,6 +145,7 @@ class ConnectivityController extends ChangeNotifier
   }
 
   @override
+  // dispose: handles dispose for the connectivity controller flow.
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _subscription?.cancel();

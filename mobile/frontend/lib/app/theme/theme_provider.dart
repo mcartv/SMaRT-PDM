@@ -1,3 +1,4 @@
+// SMaRT-PDM: Settings — theme provider (mobile frontend); supports mobile UI behavior.
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -70,6 +71,7 @@ class ThemeProvider extends ChangeNotifier {
     return ThemeProvider(initialThemeMode: ThemeMode.light);
   }
 
+  // _load: handles load for the Settings flow.
   Future<void> _load() async {
     final loaded = await loadFromPreferences();
     _themeMode = loaded.themeMode;
@@ -77,6 +79,7 @@ class ThemeProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // setThemeMode: sets set theme mode for the Settings flow.
   Future<void> setThemeMode(ThemeMode value) async {
     final normalized = value == ThemeMode.dark
         ? ThemeMode.dark

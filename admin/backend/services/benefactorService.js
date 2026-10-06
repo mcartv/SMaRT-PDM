@@ -1,7 +1,9 @@
+// SMaRT-PDM: Benefactors — benefactor Service (admin backend service); contains business logic and data operations.
 const supabase = require('../config/supabase');
 
 const ALLOWED_BENEFACTOR_TYPES = ['Public', 'Private'];
 
+// normalizeRequiredText: normalizes normalize required text for the Benefactors flow.
 function normalizeRequiredText(value, fieldName) {
     const trimmed = String(value || '').trim();
 
@@ -12,6 +14,7 @@ function normalizeRequiredText(value, fieldName) {
     return trimmed;
 }
 
+// normalizeNullableText: normalizes normalize nullable text for the Benefactors flow.
 function normalizeNullableText(value) {
     if (value === undefined) return undefined;
     if (value === null) return null;
@@ -20,6 +23,7 @@ function normalizeNullableText(value) {
     return trimmed ? trimmed : null;
 }
 
+// normalizeEnum: normalizes normalize enum for the Benefactors flow.
 function normalizeEnum(value, allowed, fallback, fieldName) {
     const normalized = value ?? fallback;
 
@@ -30,6 +34,7 @@ function normalizeEnum(value, allowed, fallback, fieldName) {
     return normalized;
 }
 
+// mapBenefactorRow: maps map benefactor row for the Benefactors flow.
 function mapBenefactorRow(row) {
     return {
         benefactor_id: row.benefactor_id,
@@ -60,6 +65,7 @@ const BENEFACTOR_SELECT = `
     updated_at
 `;
 
+// getBenefactors: reads and returns get benefactors for the Benefactors flow.
 async function getBenefactors() {
     const { data, error } = await supabase
         .from('benefactors')
@@ -74,11 +80,13 @@ async function getBenefactors() {
     return (data || []).map(mapBenefactorRow);
 }
 
+// getPublicBenefactors: reads and returns get public benefactors for the Benefactors flow.
 async function getPublicBenefactors() {
     const benefactors = await getBenefactors();
     return benefactors.filter((item) => item.is_archived !== true);
 }
 
+// createBenefactor: creates create benefactor for the Benefactors flow.
 async function createBenefactor(payload = {}) {
     const insertData = {
         benefactor_name: normalizeRequiredText(
@@ -109,6 +117,7 @@ async function createBenefactor(payload = {}) {
     return mapBenefactorRow(data);
 }
 
+// updateBenefactor: updates update benefactor for the Benefactors flow.
 async function updateBenefactor(benefactorId, payload = {}) {
     if (!benefactorId) {
         throw new Error('Benefactor ID is required');
@@ -161,6 +170,7 @@ async function updateBenefactor(benefactorId, payload = {}) {
     return data ? mapBenefactorRow(data) : null;
 }
 
+// deleteBenefactor: deletes delete benefactor for the Benefactors flow.
 async function deleteBenefactor(benefactorId) {
     if (!benefactorId) {
         throw new Error('Benefactor ID is required');

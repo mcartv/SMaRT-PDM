@@ -1,3 +1,4 @@
+// SMaRT-PDM: Authentication — login screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
   @override
+  // createState: creates create state for the Authentication flow.
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
@@ -28,6 +30,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String _studentName = '';
 
   @override
+  // didChangeDependencies: handles did change dependencies for the Authentication flow.
   void didChangeDependencies() {
     super.didChangeDependencies();
 
@@ -59,6 +62,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
+  // dispose: handles dispose for the Authentication flow.
   void dispose() {
     _studentIdController.dispose();
     _passwordController.dispose();
@@ -66,6 +70,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  // _handleLogin: handles handle login for the Authentication flow.
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -93,6 +98,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // _showMessage: handles show message for the Authentication flow.
   void _showMessage(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(
@@ -101,6 +107,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
+  // build: builds build for the Authentication flow.
   Widget build(BuildContext context) {
     final hasPrefilledId = _studentIdController.text.trim().isNotEmpty;
     final visibleId = StudentIdInputFormatter.toFullStudentId(
@@ -381,6 +388,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // _inputDecoration: handles input decoration for the Authentication flow.
   InputDecoration _inputDecoration({
     required String label,
     required String hint,

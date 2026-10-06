@@ -1,3 +1,4 @@
+// SMaRT-PDM: Settings — app status colors (mobile frontend); supports mobile UI behavior.
 import 'package:flutter/material.dart';
 
 /// Semantic workflow colors installed by the app theme.
@@ -91,6 +92,7 @@ class AppStatusColors extends ThemeExtension<AppStatusColors> {
   }
 
   @override
+  // copyWith: handles copy with for the Settings flow.
   AppStatusColors copyWith({
     Color? neutralContainer,
     Color? onNeutralContainer,
@@ -132,6 +134,7 @@ class AppStatusColors extends ThemeExtension<AppStatusColors> {
   }
 
   @override
+  // lerp: handles lerp for the Settings flow.
   AppStatusColors lerp(covariant AppStatusColors? other, double t) {
     if (other == null) {
       return this;

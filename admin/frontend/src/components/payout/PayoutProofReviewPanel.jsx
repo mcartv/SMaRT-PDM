@@ -1,3 +1,4 @@
+// SMaRT-PDM: Payout — Payout Proof Review Panel (admin frontend component); renders reusable UI and handles local interactions.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -37,6 +38,7 @@ const STATUS_META = {
   },
 };
 
+// authHeaders: handles auth headers for the Payout flow.
 function authHeaders() {
   return {
     'Content-Type': 'application/json',
@@ -44,6 +46,7 @@ function authHeaders() {
   };
 }
 
+// formatDate: formats format date for the Payout flow.
 function formatDate(value) {
   if (!value) return EM_DASH;
   const date = new Date(value);
@@ -58,6 +61,7 @@ function formatDate(value) {
   });
 }
 
+// proofName: handles proof name for the Payout flow.
 function proofName(item) {
   return (
     item.student_name ||
@@ -66,6 +70,7 @@ function proofName(item) {
   );
 }
 
+// proofReviewKey: handles proof review key for the Payout flow.
 function proofReviewKey(item) {
   if (!item?.payout_proof_id) return '';
   return [
@@ -75,6 +80,7 @@ function proofReviewKey(item) {
   ].join(':');
 }
 
+// isPendingReview: checks whether is pending review for the Payout flow.
 function isPendingReview(item) {
   return String(item?.proof_status || 'Pending Review').trim() === 'Pending Review';
 }
@@ -97,12 +103,14 @@ export default function PayoutProofReviewPanel() {
   const selectedIsPending = isPendingReview(selected);
   const selectedStatusMeta = STATUS_META[selected?.proof_status] || STATUS_META['Pending Review'];
 
+  // closeReview: handles close review for the Payout flow.
   const closeReview = () => {
     if (saving) return;
     setSelected(null);
     setComment('');
   };
 
+  // openProof: handles open proof for the Payout flow.
   const openProof = (item) => {
     const url = item?.signed_url || item?.file_url;
     const reviewKey = proofReviewKey(item);
@@ -123,6 +131,7 @@ export default function PayoutProofReviewPanel() {
     setError('');
   };
 
+  // openSelectedProof: handles open selected proof for the Payout flow.
   const openSelectedProof = () => openProof(selected);
 
   const load = useCallback(async () => {
@@ -169,6 +178,7 @@ export default function PayoutProofReviewPanel() {
     );
   }, [items, search]);
 
+  // review: handles review for the Payout flow.
   const review = async (nextStatus) => {
     if (!selected?.payout_proof_id) return;
     if (!selectedIsPending) {

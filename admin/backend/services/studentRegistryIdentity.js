@@ -1,5 +1,7 @@
+// SMaRT-PDM: Student Registry — student Registry Identity (admin backend service); contains business logic and data operations.
 'use strict';
 
+// normalizeIdentityValue: normalizes normalize identity value for the Student Registry flow.
 function normalizeIdentityValue(value) {
   return String(value ?? '')
     .normalize('NFKD')
@@ -8,10 +10,12 @@ function normalizeIdentityValue(value) {
     .replace(/[^a-z0-9]/g, '');
 }
 
+// normalizeDate: normalizes normalize date for the Student Registry flow.
 function normalizeDate(value) {
   return String(value ?? '').trim();
 }
 
+// editDistance: updates edit distance for the Student Registry flow.
 function editDistance(left, right) {
   if (left === right) return 0;
   if (!left) return right.length;
@@ -33,6 +37,7 @@ function editDistance(left, right) {
   return previous[right.length];
 }
 
+// reasonablyMatchesNamePart: handles reasonably matches name part for the Student Registry flow.
 function reasonablyMatchesNamePart(left, right) {
   if (!left || !right) return false;
   if (left === right || left.startsWith(right) || right.startsWith(left)) {
@@ -43,6 +48,7 @@ function reasonablyMatchesNamePart(left, right) {
   return editDistance(left, right) <= allowedDistance;
 }
 
+// evaluateRegistryIdentity: handles evaluate registry identity for the Student Registry flow.
 function evaluateRegistryIdentity(existing = {}, incoming = {}) {
   const existingLrn = normalizeIdentityValue(
     existing.learners_reference_number

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Landing Institution Header — Landing Institution Header (admin frontend component); renders reusable UI and handles local interactions.
 import { Link } from 'react-router-dom';
 import pdmLogo from '../../assets/pdm-logo.png';
 import marilaoLogo from '../../assets/MARILAO-LOGO-optimized.png';

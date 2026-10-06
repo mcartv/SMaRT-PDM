@@ -1,3 +1,4 @@
+// SMaRT-PDM: app — app (mobile backend); supports mobile API behavior.
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
@@ -58,6 +59,7 @@ const otpLimiter = rateLimit({
     },
 });
 
+// createApp: creates create app for the app flow.
 function createApp() {
     const app = express();
 

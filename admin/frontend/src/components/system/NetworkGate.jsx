@@ -1,3 +1,4 @@
+// SMaRT-PDM: Network Gate — Network Gate (admin frontend component); renders reusable UI and handles local interactions.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw, ServerOff, WifiOff } from 'lucide-react';
 import { buildApiUrl } from '@/api';
@@ -45,25 +46,30 @@ const CONNECTION_COPY = {
   },
 };
 
+// normalizePath: normalizes normalize path for the Network Gate flow.
 function normalizePath(pathname = window.location.pathname) {
   return String(pathname || '/').replace(/\/+$/, '') || '/';
 }
 
+// isPublicCheckPath: checks whether is public check path for the Network Gate flow.
 function isPublicCheckPath(pathname = window.location.pathname) {
   const normalized = normalizePath(pathname);
   return PUBLIC_CHECK_PATHS.has(normalized) || normalized.startsWith('/endorsement/verify/');
 }
 
+// isInitialWebsiteEntry: checks whether is initial website entry for the Network Gate flow.
 function isInitialWebsiteEntry(pathname = window.location.pathname) {
   if (!isPublicCheckPath(pathname)) return false;
   const navigationEntry = performance.getEntriesByType('navigation')[0];
   return !navigationEntry || navigationEntry.type === 'navigate';
 }
 
+// wait: handles wait for the Network Gate flow.
 function wait(milliseconds) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
+// PublicLogoLoader: handles public logo loader for the Network Gate flow.
 export function PublicLogoLoader({ status = 'loading', isRetrying = false, onRetry, onGoBack }) {
   const visualStatus = status === 'checking' ? 'loading' : status;
   const resolvedStatus = CONNECTION_COPY[visualStatus] ? visualStatus : 'loading';
@@ -156,6 +162,7 @@ export default function NetworkGate({ children }) {
       }
     }
 
+    // runCheck: handles run check for the Network Gate flow.
     const runCheck = async () => {
       const checkStartedAt = Date.now();
       const publicCheckPath = isPublicCheckPath();
@@ -252,7 +259,9 @@ export default function NetworkGate({ children }) {
 
   useEffect(() => {
     if (isPublicCheckPath()) void checkConnection();
+    // handleOnline: handles handle online for the Network Gate flow.
     const handleOnline = () => void checkConnection();
+    // handleOffline: handles handle offline for the Network Gate flow.
     const handleOffline = () => updateConnectionState('offline');
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);

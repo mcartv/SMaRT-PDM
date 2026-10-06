@@ -1,3 +1,4 @@
+// SMaRT-PDM: Department Portal Layout — Department Portal Layout (admin frontend component); renders reusable UI and handles local interactions.
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router';
 import {
@@ -27,6 +28,7 @@ import { authService } from '../../services/authService';
 import { clearPortalSession } from '../../utils/authStorage';
 import ProfilePhotoPreviewDialog from '../profile/ProfilePhotoPreviewDialog';
 
+// resolveProfileImage: resolves resolve profile image for the Department Portal Layout flow.
 function resolveProfileImage(profile) {
   const candidates = [
     profile?.avatar_url,
@@ -38,6 +40,7 @@ function resolveProfileImage(profile) {
   return candidates.find((value) => typeof value === 'string' && value.trim())?.trim() || '';
 }
 
+// getInitials: reads and returns get initials for the Department Portal Layout flow.
 function getInitials(profile, fallback) {
   const name =
     profile?.name ||
@@ -49,6 +52,7 @@ function getInitials(profile, fallback) {
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
+// readStoredProfile: handles read stored profile for the Department Portal Layout flow.
 function readStoredProfile(storageKey) {
   try {
     return JSON.parse(sessionStorage.getItem(storageKey) || '{}');
@@ -143,6 +147,7 @@ export default function DepartmentPortalLayout({
   }, [profileStorageKey]);
 
   useEffect(() => {
+    // handleProfileUpdated: handles handle profile updated for the Department Portal Layout flow.
     const handleProfileUpdated = (event) => {
       if (event.detail?.profileStorageKey !== profileStorageKey) return;
       setProfile(event.detail?.profile || readStoredProfile(profileStorageKey));
@@ -153,6 +158,7 @@ export default function DepartmentPortalLayout({
   }, [profileStorageKey]);
 
   useEffect(() => {
+    // handleSessionInvalidated: handles handle session invalidated for the Department Portal Layout flow.
     const handleSessionInvalidated = (event) => {
       if (event.detail?.portalName && event.detail.portalName !== portalKey) return;
       clearPortalSession(portalKey);
@@ -164,6 +170,7 @@ export default function DepartmentPortalLayout({
   }, [loginPath, navigate, portalKey]);
 
   useEffect(() => {
+    // handleMessageUnread: handles handle message unread for the Department Portal Layout flow.
     const handleMessageUnread = (event) => {
       if (event.detail?.portalKey === portalKey) {
         setMessageUnreadCount(Number(event.detail?.count || 0));
@@ -211,6 +218,7 @@ export default function DepartmentPortalLayout({
   }, [roQueuePath, tokenStorageKey]);
 
   useEffect(() => {
+    // handleClickOutside: handles handle click outside for the Department Portal Layout flow.
     function handleClickOutside(event) {
       if (notifRef.current && !notifRef.current.contains(event.target)) {
         setNotifOpen(false);
@@ -224,6 +232,7 @@ export default function DepartmentPortalLayout({
   useEffect(() => {
     if (!mobileNavOpen) return undefined;
 
+    // handleKeyDown: handles handle key down for the Department Portal Layout flow.
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') setMobileNavOpen(false);
     };
@@ -247,10 +256,12 @@ export default function DepartmentPortalLayout({
     [profileStorageKey]
   );
 
+  // handleLogout: handles handle logout for the Department Portal Layout flow.
   const handleLogout = async () => {
     await authService.logout();
   };
 
+  // handleNavRefresh: handles handle nav refresh for the Department Portal Layout flow.
   const handleNavRefresh = (event, path) => {
     setMobileNavOpen(false);
     if (location.pathname !== path) return;

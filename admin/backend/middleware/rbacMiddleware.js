@@ -1,3 +1,4 @@
+// SMaRT-PDM: rbac Middleware — rbac Middleware (admin backend middleware); validates or transforms requests before controller handling.
 const ROLE_GROUPS = Object.freeze({
   ALL_STAFF: Object.freeze(['admin', 'sdo', 'guidance', 'pd', 'ro_coordinator']),
   ENDORSEMENT_STAFF: Object.freeze(['admin', 'sdo', 'guidance', 'pd']),
@@ -6,10 +7,12 @@ const ROLE_GROUPS = Object.freeze({
   ADMIN_ONLY: Object.freeze(['admin']),
 });
 
+// normalizeRole: normalizes normalize role for the rbac Middleware flow.
 function normalizeRole(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+// authorizeRoleGroup: handles authorize role group for the rbac Middleware flow.
 function authorizeRoleGroup(groupName) {
   const allowed = ROLE_GROUPS[groupName];
   if (!allowed) throw new Error(`Unknown RBAC role group: ${groupName}`);
@@ -26,6 +29,7 @@ function authorizeRoleGroup(groupName) {
   };
 }
 
+// authorizeOwnPortalTheme: handles authorize own portal theme for the rbac Middleware flow.
 function authorizeOwnPortalTheme(req, res, next) {
   const role = normalizeRole(req.user?.role);
   const requestedPortal = normalizeRole(req.params?.portalKey).replace(/-/g, '_');

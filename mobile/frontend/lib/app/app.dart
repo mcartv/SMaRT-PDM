@@ -1,3 +1,4 @@
+// SMaRT-PDM: app — app (mobile frontend); supports mobile UI behavior.
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_router.dart';
@@ -13,6 +14,7 @@ final GlobalKey<NavigatorState> smartPdmNavigatorKey =
 class SmartPdmApp extends StatelessWidget {
   const SmartPdmApp({super.key});
 
+  // _responsiveTextFactor: handles responsive text factor for the app flow.
   double _responsiveTextFactor(double width) {
     if (width <= 340) return 0.88;
     if (width <= 360) return 0.91;
@@ -22,6 +24,7 @@ class SmartPdmApp extends StatelessWidget {
   }
 
   @override
+  // build: builds build for the app flow.
   Widget build(BuildContext context) {
     return Consumer<ThemeProvider>(
       builder: (context, themeProvider, child) {

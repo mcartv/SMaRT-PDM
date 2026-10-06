@@ -1,3 +1,4 @@
+// SMaRT-PDM: staff Session Service — staff Session Service (admin backend service); contains business logic and data operations.
 const db = require('../config/db');
 
 const TOKEN_VERSION_FALLBACK = 1;
@@ -23,16 +24,19 @@ class StaffSessionError extends Error {
     }
 }
 
+// normalizeRole: normalizes normalize role for the staff Session Service flow.
 function normalizeRole(value) {
     return String(value || '').trim().toLowerCase();
 }
 
+// resolveUserId: resolves resolve user id for the staff Session Service flow.
 function resolveUserId(decoded = {}) {
     return String(
         decoded.user_id || decoded.userId || decoded.sub || ''
     ).trim();
 }
 
+// normalizeTokenVersion: normalizes normalize token version for the staff Session Service flow.
 function normalizeTokenVersion(value, fallback = TOKEN_VERSION_FALLBACK) {
     const parsed = Number(value);
 
@@ -43,6 +47,7 @@ function normalizeTokenVersion(value, fallback = TOKEN_VERSION_FALLBACK) {
     return parsed;
 }
 
+// getDecodedTokenVersion: reads and returns get decoded token version for the staff Session Service flow.
 function getDecodedTokenVersion(decoded = {}) {
     // Backward compatibility: tokens issued before this hardening patch do not
     // contain token_version. Existing production accounts start at version 1,
@@ -54,10 +59,12 @@ function getDecodedTokenVersion(decoded = {}) {
     );
 }
 
+// expectedBackingRole: handles expected backing role for the staff Session Service flow.
 function expectedBackingRole(tokenRole) {
     return ROLE_BACKING[normalizeRole(tokenRole)] || null;
 }
 
+// loadCurrentStaffAccount: loads and returns load current staff account for the staff Session Service flow.
 async function loadCurrentStaffAccount(userId) {
     const result = await db.query(
         `
@@ -83,6 +90,7 @@ async function loadCurrentStaffAccount(userId) {
     return result.rows[0] || null;
 }
 
+// assertCurrentStaffSession: handles assert current staff session for the staff Session Service flow.
 async function assertCurrentStaffSession({ decoded = {} } = {}) {
     const userId = resolveUserId(decoded);
     const tokenRole = normalizeRole(decoded.role);

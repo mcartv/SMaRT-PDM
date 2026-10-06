@@ -1,3 +1,4 @@
+// SMaRT-PDM: Messaging — message Service (mobile backend service); contains mobile-facing business logic and data operations.
 const adminRealtimeRelayService = require('./adminRealtimeRelayService');
 const { resolveAvatarUrl } = require('./avatarService');
 
@@ -19,17 +20,20 @@ let ioRef = null;
 let supabaseRef = null;
 let fixedAdminUserIdPromise = null;
 
+// configureMessageService: handles configure message service for the Messaging flow.
 function configureMessageService({ io, supabase }) {
   ioRef = io;
   supabaseRef = supabase;
 }
 
+// createHttpError: creates create http error for the Messaging flow.
 function createHttpError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
 }
 
+// getSupabase: reads and returns get supabase for the Messaging flow.
 function getSupabase() {
   if (!supabaseRef) {
     throw new Error('Message service is not configured with Supabase.');
@@ -38,14 +42,17 @@ function getSupabase() {
   return supabaseRef;
 }
 
+// safeText: handles safe text for the Messaging flow.
 function safeText(value) {
   return value === null || value === undefined ? '' : String(value).trim();
 }
 
+// normalizeText: normalizes normalize text for the Messaging flow.
 function normalizeText(value) {
   return safeText(value).toLowerCase();
 }
 
+// emitToUser: handles emit to user for the Messaging flow.
 function emitToUser(userId, eventName, payload) {
   if (!ioRef) {
     console.warn('[MessageService Emit] skipped: ioRef missing');
@@ -79,6 +86,7 @@ function emitToUser(userId, eventName, payload) {
   ioRef.to(`user:${userId}`).emit(eventName, payload);
 }
 
+// emitToGroup: handles emit to group for the Messaging flow.
 function emitToGroup(roomId, eventName, payload) {
   if (!ioRef) {
     console.warn('[MessageService Emit Group] skipped: ioRef missing');
@@ -112,6 +120,7 @@ function emitToGroup(roomId, eventName, payload) {
 }
 
 
+// relayToAdminBackend: handles relay to admin backend for the Messaging flow.
 function relayToAdminBackend(message, targetUserIds = []) {
   adminRealtimeRelayService
     .relayMessageCreated(message, targetUserIds)
@@ -120,6 +129,7 @@ function relayToAdminBackend(message, targetUserIds = []) {
     });
 }
 
+// mapMessageRow: maps map message row for the Messaging flow.
 function mapMessageRow(row = {}, profiles = null) {
   const profile = profiles ? profiles.get(row.sender_id) : null;
 
@@ -167,10 +177,12 @@ function mapMessageRow(row = {}, profiles = null) {
   };
 }
 
+// normalizeMessageBody: normalizes normalize message body for the Messaging flow.
 function normalizeMessageBody(messageBody = '') {
   return String(messageBody || '').trim();
 }
 
+// validateConversationMessageBody: validates validate conversation message body for the Messaging flow.
 function validateConversationMessageBody(messageBody = '') {
   const trimmedBody = normalizeMessageBody(messageBody);
 
@@ -185,6 +197,7 @@ function validateConversationMessageBody(messageBody = '') {
   return trimmedBody;
 }
 
+// createRoomSystemMessage: creates create room system message for the Messaging flow.
 async function createRoomSystemMessage(roomId, senderId, body) {
   const supabase = getSupabase();
   const { data, error } = await supabase
@@ -200,27 +213,32 @@ async function createRoomSystemMessage(roomId, senderId, body) {
   return payload;
 }
 
+// getDisplayName: reads and returns get display name for the Messaging flow.
 async function getDisplayName(userId) {
   const profiles = await fetchConversationProfiles([userId]);
   const profile = buildProfileDisplay(userId, profiles);
   return profile?.name || 'A member';
 }
 
+// buildThreadFilter: builds build thread filter for the Messaging flow.
 function buildThreadFilter(leftUserId, rightUserId) {
   return `and(sender_id.eq.${leftUserId},receiver_id.eq.${rightUserId}),and(sender_id.eq.${rightUserId},receiver_id.eq.${leftUserId})`;
 }
 
+// isUuid: checks whether is uuid for the Messaging flow.
 function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     String(value || '').trim()
   );
 }
 
+// adminProfileLooksActive: handles admin profile looks active for the Messaging flow.
 function adminProfileLooksActive(adminProfile) {
   if (!adminProfile) return false;
   return adminProfile.is_archived !== true;
 }
 
+// userLooksAdmin: handles user looks admin for the Messaging flow.
 function userLooksAdmin(user = {}, adminProfile = null) {
   const normalizedRole = normalizeText(user.role);
   const normalizedDepartment = normalizeText(adminProfile?.department);
@@ -235,6 +253,7 @@ function userLooksAdmin(user = {}, adminProfile = null) {
   );
 }
 
+// resolveFixedAdminUserId: resolves resolve fixed admin user id for the Messaging flow.
 async function resolveFixedAdminUserId({ forceRefresh = false } = {}) {
   if (!forceRefresh && fixedAdminUserIdPromise) {
     return fixedAdminUserIdPromise;
@@ -301,6 +320,7 @@ async function resolveFixedAdminUserId({ forceRefresh = false } = {}) {
   return fixedAdminUserIdPromise;
 }
 
+// isActiveSupportProfile: checks whether is active support profile for the Messaging flow.
 function isActiveSupportProfile(userId, profiles) {
   const user = profiles.userMap.get(userId);
   const adminProfile = profiles.adminMap.get(userId);
@@ -312,6 +332,7 @@ function isActiveSupportProfile(userId, profiles) {
   );
 }
 
+// resolveSupportCounterpartyId: resolves resolve support counterparty id for the Messaging flow.
 async function resolveSupportCounterpartyId(userId, requestedCounterpartyId = null) {
   const normalizedUserId = safeText(userId);
   const normalizedRequestedId = safeText(requestedCounterpartyId);
@@ -380,6 +401,7 @@ async function resolveSupportCounterpartyId(userId, requestedCounterpartyId = nu
   return resolveFixedAdminUserId();
 }
 
+// ensureMobileThreadActor: ensures ensure mobile thread actor for the Messaging flow.
 async function ensureMobileThreadActor(userId) {
   const normalizedUserId = safeText(userId);
   const adminUserId = await resolveFixedAdminUserId();
@@ -398,6 +420,7 @@ async function ensureMobileThreadActor(userId) {
   return adminUserId;
 }
 
+// resolveActiveAdminUser: resolves resolve active admin user for the Messaging flow.
 async function resolveActiveAdminUser(userId) {
   const normalizedUserId = safeText(userId);
 
@@ -445,6 +468,7 @@ async function resolveActiveAdminUser(userId) {
   };
 }
 
+// fetchConversationProfiles: fetches and returns fetch conversation profiles for the Messaging flow.
 async function fetchConversationProfiles(counterpartyIds = []) {
   const ids = Array.from(
     new Set(
@@ -516,6 +540,7 @@ async function fetchConversationProfiles(counterpartyIds = []) {
     }
   }
 
+  // resolveUsableAvatar: resolves resolve usable avatar for the Messaging flow.
   async function resolveUsableAvatar(value) {
     const raw = safeText(value);
     if (!raw) return null;
@@ -556,6 +581,7 @@ async function fetchConversationProfiles(counterpartyIds = []) {
   };
 }
 
+// buildProfileDisplay: builds build profile display for the Messaging flow.
 function buildProfileDisplay(userId, { userMap, studentMap, adminMap }) {
   const user = userMap.get(userId);
   const student = studentMap.get(userId);
@@ -595,6 +621,7 @@ function buildProfileDisplay(userId, { userMap, studentMap, adminMap }) {
   };
 }
 
+// fetchConversationNames: fetches and returns fetch conversation names for the Messaging flow.
 async function fetchConversationNames(userIds = []) {
   const ids = Array.from(
     new Set(userIds.map((item) => safeText(item)).filter(Boolean))
@@ -651,6 +678,7 @@ async function fetchConversationNames(userIds = []) {
   }));
 }
 
+// buildProfileMap: builds build profile map for the Messaging flow.
 function buildProfileMap(profilesResult) {
   const ids = new Set([
     ...profilesResult.userMap.keys(),
@@ -670,6 +698,7 @@ function buildProfileMap(profilesResult) {
   return map;
 }
 
+// buildConversationPreview: builds build conversation preview for the Messaging flow.
 function buildConversationPreview(
   counterpartyId,
   row,
@@ -702,6 +731,7 @@ function buildConversationPreview(
   };
 }
 
+// fetchThreadMessages: fetches and returns fetch thread messages for the Messaging flow.
 async function fetchThreadMessages(leftUserId, rightUserId, { limit = 200 } = {}) {
   const supabase = getSupabase();
   const safeLimit = Math.min(Math.max(Number(limit) || 200, 1), 500);
@@ -726,6 +756,7 @@ async function fetchThreadMessages(leftUserId, rightUserId, { limit = 200 } = {}
   return (data || []).map((row) => mapMessageRow(row, profileMap));
 }
 
+// fetchAllPrivateMessagesForUser: fetches and returns fetch all private messages for user for the Messaging flow.
 async function fetchAllPrivateMessagesForUser(userId) {
   const supabase = getSupabase();
   const rows = [];
@@ -759,6 +790,7 @@ async function fetchAllPrivateMessagesForUser(userId) {
   return rows;
 }
 
+// resolveConversationStudent: resolves resolve conversation student for the Messaging flow.
 async function resolveConversationStudent(counterpartyId) {
   const normalizedCounterpartyId = safeText(counterpartyId);
 
@@ -790,6 +822,7 @@ async function resolveConversationStudent(counterpartyId) {
   return data;
 }
 
+// fetchRoomMemberIds: fetches and returns fetch room member ids for the Messaging flow.
 async function fetchRoomMemberIds(roomId) {
   const normalizedRoomId = safeText(roomId);
 
@@ -814,6 +847,7 @@ async function fetchRoomMemberIds(roomId) {
     .filter(Boolean);
 }
 
+// upsertMessageReadStates: handles upsert message read states for the Messaging flow.
 async function upsertMessageReadStates(rows = []) {
   const normalizedRows = rows
     .filter((row) => row?.message_id && row?.user_id)
@@ -836,6 +870,7 @@ async function upsertMessageReadStates(rows = []) {
   }
 }
 
+// fetchViewerReadMap: fetches and returns fetch viewer read map for the Messaging flow.
 async function fetchViewerReadMap(userId, messageIds = []) {
   const normalizedIds = [...new Set(messageIds.map(safeText).filter(Boolean))];
   const map = new Map();
@@ -859,6 +894,7 @@ async function fetchViewerReadMap(userId, messageIds = []) {
   return map;
 }
 
+// ensureSharedRoomMembership: ensures ensure shared room membership for the Messaging flow.
 async function ensureSharedRoomMembership(leftUserId, rightUserId) {
   const left = safeText(leftUserId);
   const right = safeText(rightUserId);
@@ -891,6 +927,7 @@ async function ensureSharedRoomMembership(leftUserId, rightUserId) {
   return sharedRoom.room_id;
 }
 
+// emitRoomMessageToMembers: handles emit room message to members for the Messaging flow.
 async function emitRoomMessageToMembers(roomId, eventName, payload) {
   emitToGroup(roomId, eventName, payload);
 
@@ -906,6 +943,7 @@ async function emitRoomMessageToMembers(roomId, eventName, payload) {
 }
 
 
+// fetchArchivedRoomIds: fetches and returns fetch archived room ids for the Messaging flow.
 async function fetchArchivedRoomIds(userId) {
   const normalizedUserId = safeText(userId);
   if (!normalizedUserId) return new Set();
@@ -919,6 +957,7 @@ async function fetchArchivedRoomIds(userId) {
   return new Set((data || []).map((row) => safeText(row.room_id)).filter(Boolean));
 }
 
+// restorePrivateArchivesForParticipants: restores restore private archives for participants for the Messaging flow.
 async function restorePrivateArchivesForParticipants(senderId, receiverId) {
   const leftUserId = safeText(senderId);
   const rightUserId = safeText(receiverId);
@@ -939,6 +978,7 @@ async function restorePrivateArchivesForParticipants(senderId, receiverId) {
   return Array.from(new Set(restoredUserIds));
 }
 
+// restoreRoomArchivesForCurrentMembers: restores restore room archives for current members for the Messaging flow.
 async function restoreRoomArchivesForCurrentMembers(roomId) {
   const normalizedRoomId = safeText(roomId);
   if (!normalizedRoomId) return [];
@@ -956,6 +996,7 @@ async function restoreRoomArchivesForCurrentMembers(roomId) {
   return Array.from(new Set((data || []).map((row) => safeText(row.user_id)).filter(Boolean)));
 }
 
+// emitAutoRestoreEvents: handles emit auto restore events for the Messaging flow.
 function emitAutoRestoreEvents({ restoredUserIds = [], roomId = null, senderId = null, receiverId = null }) {
   const targets = Array.from(new Set(restoredUserIds.map(safeText).filter(Boolean)));
   if (!targets.length) return;
@@ -985,6 +1026,7 @@ function emitAutoRestoreEvents({ restoredUserIds = [], roomId = null, senderId =
   }
 }
 
+// createMessage: creates create message for the Messaging flow.
 async function createMessage({
   senderId,
   receiverId,
@@ -1089,6 +1131,7 @@ async function createMessage({
   return message;
 }
 
+// markThreadRead: marks mark thread read for the Messaging flow.
 async function markThreadRead({ readerId, senderId }) {
   const supabase = getSupabase();
 
@@ -1138,6 +1181,7 @@ async function markThreadRead({ readerId, senderId }) {
   };
 }
 
+// getUnreadCount: reads and returns get unread count for the Messaging flow.
 async function getUnreadCount(userId) {
   const normalizedUserId = safeText(userId);
   if (!normalizedUserId) throw createHttpError(401, 'Authentication required.');
@@ -1160,6 +1204,7 @@ async function getUnreadCount(userId) {
   return privateCount + groupCount;
 }
 
+// fetchRoomUnreadCounts: fetches and returns fetch room unread counts for the Messaging flow.
 async function fetchRoomUnreadCounts(userId, roomIds = []) {
   const normalizedUserId = safeText(userId);
   const normalizedRoomIds = roomIds
@@ -1195,6 +1240,7 @@ async function fetchRoomUnreadCounts(userId, roomIds = []) {
   return unreadCounts;
 }
 
+// listFixedThread: loads a list of list fixed thread for the Messaging flow.
 async function listFixedThread(userId) {
   const supportUserId = await resolveSupportCounterpartyId(userId);
 
@@ -1205,6 +1251,7 @@ async function listFixedThread(userId) {
   };
 }
 
+// sendToFixedThread: sends send to fixed thread for the Messaging flow.
 async function sendToFixedThread(userId, messageBody, counterpartyId = null) {
   const supportUserId = await resolveSupportCounterpartyId(userId, counterpartyId);
 
@@ -1215,6 +1262,7 @@ async function sendToFixedThread(userId, messageBody, counterpartyId = null) {
   });
 }
 
+// sendToFixedThreadReply: sends send to fixed thread reply for the Messaging flow.
 async function sendToFixedThreadReply(
   userId,
   messageBody,
@@ -1231,6 +1279,7 @@ async function sendToFixedThreadReply(
   });
 }
 
+// markFixedThreadRead: marks mark fixed thread read for the Messaging flow.
 async function markFixedThreadRead(userId, counterpartyId = null) {
   const supportUserId = await resolveSupportCounterpartyId(userId, counterpartyId);
 
@@ -1240,6 +1289,7 @@ async function markFixedThreadRead(userId, counterpartyId = null) {
   });
 }
 
+// listAdminConversations: loads a list of list admin conversations for the Messaging flow.
 async function listAdminConversations(userId) {
   const admin = await resolveActiveAdminUser(userId);
   const rows = await fetchAllPrivateMessagesForUser(admin.userId);
@@ -1289,6 +1339,7 @@ async function listAdminConversations(userId) {
     });
 }
 
+// listAdminConversation: loads a list of list admin conversation for the Messaging flow.
 async function listAdminConversation(userId, counterpartyId) {
   const admin = await resolveActiveAdminUser(userId);
   const student = await resolveConversationStudent(counterpartyId);
@@ -1300,6 +1351,7 @@ async function listAdminConversation(userId, counterpartyId) {
   };
 }
 
+// fetchAdminConversationMessages: fetches and returns fetch admin conversation messages for the Messaging flow.
 async function fetchAdminConversationMessages(userId, counterpartyId) {
   const admin = await resolveActiveAdminUser(userId);
   const student = await resolveConversationStudent(counterpartyId);
@@ -1307,6 +1359,7 @@ async function fetchAdminConversationMessages(userId, counterpartyId) {
   return fetchThreadMessages(admin.userId, student.user_id);
 }
 
+// sendAdminConversationMessage: sends send admin conversation message for the Messaging flow.
 async function sendAdminConversationMessage(userId, counterpartyId, messageBody) {
   const admin = await resolveActiveAdminUser(userId);
   const student = await resolveConversationStudent(counterpartyId);
@@ -1318,6 +1371,7 @@ async function sendAdminConversationMessage(userId, counterpartyId, messageBody)
   });
 }
 
+// markAdminConversationRead: marks mark admin conversation read for the Messaging flow.
 async function markAdminConversationRead(userId, counterpartyId) {
   const admin = await resolveActiveAdminUser(userId);
   const student = await resolveConversationStudent(counterpartyId);
@@ -1328,6 +1382,7 @@ async function markAdminConversationRead(userId, counterpartyId) {
   });
 }
 
+// listRoomsForAdmin: loads a list of list rooms for admin for the Messaging flow.
 async function listRoomsForAdmin(userId) {
   await resolveActiveAdminUser(userId);
 
@@ -1377,6 +1432,7 @@ async function listRoomsForAdmin(userId) {
   }));
 }
 
+// createRoom: creates create room for the Messaging flow.
 async function createRoom(adminUserId, roomName, userIds = []) {
   const admin = await resolveActiveAdminUser(adminUserId);
   const normalizedRoomName = safeText(roomName) || 'Group Chat';
@@ -1462,6 +1518,7 @@ async function createRoom(adminUserId, roomName, userIds = []) {
   return payload;
 }
 
+// addGroupMembers: adds add group members for the Messaging flow.
 async function addGroupMembers(adminUserId, roomId, userIds = []) {
   const admin = await resolveActiveAdminUser(adminUserId);
   const normalizedRoomId = safeText(roomId);
@@ -1542,6 +1599,7 @@ async function addGroupMembers(adminUserId, roomId, userIds = []) {
   return fetchRoomMembers(admin.userId, normalizedRoomId);
 }
 
+// removeGroupMember: removes remove group member for the Messaging flow.
 async function removeGroupMember(adminUserId, roomId, memberId) {
   const admin = await resolveActiveAdminUser(adminUserId);
   const normalizedRoomId = safeText(roomId);
@@ -1615,6 +1673,7 @@ async function removeGroupMember(adminUserId, roomId, memberId) {
   };
 }
 
+// listRoomsForUser: loads a list of list rooms for user for the Messaging flow.
 async function listRoomsForUser(userId) {
   const normalizedUserId = safeText(userId);
 
@@ -1734,6 +1793,7 @@ async function listRoomsForUser(userId) {
     });
 }
 
+// ensureRoomMember: ensures ensure room member for the Messaging flow.
 async function ensureRoomMember(userId, roomId) {
   const normalizedUserId = safeText(userId);
   const normalizedRoomId = safeText(roomId);
@@ -1767,6 +1827,7 @@ async function ensureRoomMember(userId, roomId) {
   return data;
 }
 
+// fetchRoomThread: fetches and returns fetch room thread for the Messaging flow.
 async function fetchRoomThread(userId, roomId, { limit = 200 } = {}) {
   await ensureRoomMember(userId, roomId);
 
@@ -1810,6 +1871,7 @@ async function fetchRoomThread(userId, roomId, { limit = 200 } = {}) {
   );
 }
 
+// sendRoomMessage: sends send room message for the Messaging flow.
 async function sendRoomMessage(userId, roomId, messageBody) {
   await ensureRoomMember(userId, roomId);
 
@@ -1820,6 +1882,7 @@ async function sendRoomMessage(userId, roomId, messageBody) {
   });
 }
 
+// sendRoomMessageReply: sends send room message reply for the Messaging flow.
 async function sendRoomMessageReply(
   userId,
   roomId,
@@ -1836,6 +1899,7 @@ async function sendRoomMessageReply(
   });
 }
 
+// markRoomThreadRead: marks mark room thread read for the Messaging flow.
 async function markRoomThreadRead(userId, roomId) {
   await ensureRoomMember(userId, roomId);
 
@@ -1892,6 +1956,7 @@ async function markRoomThreadRead(userId, roomId) {
   };
 }
 
+// fetchRoomMembers: fetches and returns fetch room members for the Messaging flow.
 async function fetchRoomMembers(userId, roomId) {
   await ensureRoomMember(userId, roomId);
   const normalizedUserId = safeText(userId);
@@ -1941,6 +2006,7 @@ async function fetchRoomMembers(userId, roomId) {
   });
 }
 
+// leaveRoom: handles leave room for the Messaging flow.
 async function leaveRoom(userId, roomId) {
   const membership = await ensureRoomMember(userId, roomId);
   const normalizedUserId = safeText(userId);
@@ -2102,6 +2168,7 @@ async function leaveRoom(userId, roomId) {
   return { success: true, ...payload };
 }
 
+// fetchArchivedThreads: fetches and returns fetch archived threads for the Messaging flow.
 async function fetchArchivedThreads(userId) {
   const normalizedUserId = safeText(userId);
 
@@ -2200,6 +2267,7 @@ async function fetchArchivedThreads(userId) {
   return items;
 }
 
+// archiveFixedThread: archives archive fixed thread for the Messaging flow.
 async function archiveFixedThread(userId) {
   const normalizedUserId = safeText(userId);
   const adminUserId = await ensureMobileThreadActor(normalizedUserId);
@@ -2252,6 +2320,7 @@ async function archiveFixedThread(userId) {
   return data;
 }
 
+// restoreFixedThread: restores restore fixed thread for the Messaging flow.
 async function restoreFixedThread(userId) {
   const normalizedUserId = safeText(userId);
   const adminUserId = await ensureMobileThreadActor(normalizedUserId);
@@ -2293,6 +2362,7 @@ async function restoreFixedThread(userId) {
   return { restored };
 }
 
+// archiveRoom: archives archive room for the Messaging flow.
 async function archiveRoom(userId, roomId) {
   const normalizedUserId = safeText(userId);
   const normalizedRoomId = safeText(roomId);
@@ -2346,6 +2416,7 @@ async function archiveRoom(userId, roomId) {
   return data;
 }
 
+// restoreRoom: restores restore room for the Messaging flow.
 async function restoreRoom(userId, roomId) {
   const normalizedUserId = safeText(userId);
   const normalizedRoomId = safeText(roomId);
@@ -2388,11 +2459,13 @@ async function restoreRoom(userId, roomId) {
   return { restored };
 }
 
+// fetchSharedConversationMessages: fetches and returns fetch shared conversation messages for the Messaging flow.
 async function fetchSharedConversationMessages(userId, counterpartyId) {
   await ensureSharedRoomMembership(userId, counterpartyId);
   return fetchThreadMessages(safeText(userId), safeText(counterpartyId));
 }
 
+// sendSharedConversationMessage: sends send shared conversation message for the Messaging flow.
 async function sendSharedConversationMessage(userId, counterpartyId, messageBody) {
   await ensureSharedRoomMembership(userId, counterpartyId);
   return createMessage({
@@ -2402,6 +2475,7 @@ async function sendSharedConversationMessage(userId, counterpartyId, messageBody
   });
 }
 
+// markSharedConversationRead: marks mark shared conversation read for the Messaging flow.
 async function markSharedConversationRead(userId, counterpartyId) {
   await ensureSharedRoomMembership(userId, counterpartyId);
   return markThreadRead({
@@ -2410,6 +2484,7 @@ async function markSharedConversationRead(userId, counterpartyId) {
   });
 }
 
+// unsendMessage: handles unsend message for the Messaging flow.
 async function unsendMessage(userId, messageId) {
   const normalizedUserId = safeText(userId);
   const normalizedMessageId = safeText(messageId);

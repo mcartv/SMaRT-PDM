@@ -1,24 +1,30 @@
+// SMaRT-PDM: Messaging — message Controller (mobile backend controller); handles mobile API input/output and delegates business logic.
 const messageService = require('../services/messageService');
 const { getSafeStatusCode } = require('../utils/httpStatus');
 const adminRealtimeRelayService = require('../services/adminRealtimeRelayService');
 
+// getCurrentUserId: reads and returns get current user id for the Messaging flow.
 function getCurrentUserId(req) {
   return req.user?.userId || req.user?.user_id || req.user?.id || null;
 }
 
+// getCurrentRole: reads and returns get current role for the Messaging flow.
 function getCurrentRole(req) {
   return String(req.user?.role || '').trim().toLowerCase();
 }
 
+// isAdminLike: checks whether is admin like for the Messaging flow.
 function isAdminLike(req) {
   const role = getCurrentRole(req);
   return ['admin', 'osfa_admin', 'sdo', 'guidance', 'pd'].includes(role);
 }
 
+// getMessageBody: reads and returns get message body for the Messaging flow.
 function getMessageBody(req) {
   return req.body?.messageBody ?? req.body?.message_body ?? req.body?.message;
 }
 
+// getSupportCounterpartyId: reads and returns get support counterparty id for the Messaging flow.
 function getSupportCounterpartyId(req) {
   return (
     req.body?.counterpartyId ??

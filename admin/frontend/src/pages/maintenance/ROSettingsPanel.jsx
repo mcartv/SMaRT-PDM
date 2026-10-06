@@ -1,3 +1,4 @@
+// SMaRT-PDM: Return of Obligations — ROSettings Panel (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -43,6 +44,7 @@ const C = {
     line: '#e7e5e4',
 };
 
+// getHeaders: reads and returns get headers for the Return of Obligations flow.
 function getHeaders() {
     return {
         Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
@@ -50,16 +52,19 @@ function getHeaders() {
     };
 }
 
+// parseItemsPayload: parses parse items payload for the Return of Obligations flow.
 function parseItemsPayload(payload) {
     if (Array.isArray(payload?.items)) return payload.items;
     if (Array.isArray(payload?.data)) return payload.data;
     return [];
 }
 
+// parseSettingPayload: parses parse setting payload for the Return of Obligations flow.
 function parseSettingPayload(payload) {
     return payload?.setting || payload?.data?.setting || payload?.data || null;
 }
 
+// formatDateTime: formats format date time for the Return of Obligations flow.
 function formatDateTime(value) {
     if (!value) return '—';
 
@@ -76,6 +81,7 @@ function formatDateTime(value) {
     }
 }
 
+// StatusPill: handles status pill for the Return of Obligations flow.
 function StatusPill({ active }) {
     return (
         <span
@@ -90,6 +96,7 @@ function StatusPill({ active }) {
     );
 }
 
+// DepartmentModal: handles department modal for the Return of Obligations flow.
 function DepartmentModal({
     open,
     mode,
@@ -236,6 +243,7 @@ export default function ROSettingsPanel() {
             );
     }, [departments, search, pageTab]);
 
+    // loadSettings: loads and returns load settings for the Return of Obligations flow.
     const loadSettings = async () => {
         try {
             setLoading(true);
@@ -323,6 +331,7 @@ export default function ROSettingsPanel() {
         []
     );
 
+    // saveActiveSetting: validates and saves save active setting for the Return of Obligations flow.
     const saveActiveSetting = async () => {
         try {
             setSaving(true);
@@ -376,6 +385,7 @@ export default function ROSettingsPanel() {
         }
     };
 
+    // assignCoordinator: handles assign coordinator for the Return of Obligations flow.
     const assignCoordinator = async (department, userId) => {
         try {
             setDepartmentActionId(department.department_id);
@@ -403,6 +413,7 @@ export default function ROSettingsPanel() {
         }
     };
 
+    // openCreateModal: handles open create modal for the Return of Obligations flow.
     const openCreateModal = () => {
         setModalMode('create');
         setEditingDepartmentId(null);
@@ -411,6 +422,7 @@ export default function ROSettingsPanel() {
         setModalOpen(true);
     };
 
+    // openEditModal: handles open edit modal for the Return of Obligations flow.
     const openEditModal = (department) => {
         setModalMode('edit');
         setEditingDepartmentId(department.department_id);
@@ -419,6 +431,7 @@ export default function ROSettingsPanel() {
         setModalOpen(true);
     };
 
+    // closeDepartmentModal: handles close department modal for the Return of Obligations flow.
     const closeDepartmentModal = () => {
         if (departmentSaving) return;
 
@@ -428,6 +441,7 @@ export default function ROSettingsPanel() {
         setDepartmentName('');
     };
 
+    // saveDepartment: validates and saves save department for the Return of Obligations flow.
     const saveDepartment = async () => {
         try {
             setDepartmentSaving(true);
@@ -473,6 +487,7 @@ export default function ROSettingsPanel() {
         }
     };
 
+    // toggleDepartment: handles toggle department for the Return of Obligations flow.
     const toggleDepartment = async (department) => {
         const isDeactivating = department.is_active !== false;
         if (isDeactivating && department.coordinator) {
@@ -515,6 +530,7 @@ export default function ROSettingsPanel() {
         }
     };
 
+    // requestDeactivation: handles request deactivation for the Return of Obligations flow.
     const requestDeactivation = (department) => {
         if (department.coordinator) {
             showAppToast(
@@ -527,6 +543,7 @@ export default function ROSettingsPanel() {
         setDeactivationTarget(department);
     };
 
+    // confirmDeactivation: handles confirm deactivation for the Return of Obligations flow.
     const confirmDeactivation = async () => {
         if (!deactivationTarget) return;
         const currentDepartment = departments.find(

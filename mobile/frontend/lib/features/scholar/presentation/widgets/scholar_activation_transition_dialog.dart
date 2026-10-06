@@ -1,3 +1,4 @@
+// SMaRT-PDM: Scholars — scholar activation transition dialog (mobile widget); renders reusable mobile UI behavior.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ class ScholarActivationTransitionDialog extends StatefulWidget {
   final Future<bool> Function() synchronize;
 
   @override
+  // createState: creates create state for the Scholars flow.
   State<ScholarActivationTransitionDialog> createState() =>
       _ScholarActivationTransitionDialogState();
 }
@@ -22,11 +24,13 @@ class _ScholarActivationTransitionDialogState
   int _runGeneration = 0;
 
   @override
+  // initState: handles init state for the Scholars flow.
   void initState() {
     super.initState();
     scheduleMicrotask(_runSynchronization);
   }
 
+  // _runSynchronization: handles run synchronization for the Scholars flow.
   Future<void> _runSynchronization() async {
     final generation = ++_runGeneration;
     if (mounted) {
@@ -72,12 +76,14 @@ class _ScholarActivationTransitionDialogState
   }
 
   @override
+  // dispose: handles dispose for the Scholars flow.
   void dispose() {
     _runGeneration += 1;
     super.dispose();
   }
 
   @override
+  // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
 

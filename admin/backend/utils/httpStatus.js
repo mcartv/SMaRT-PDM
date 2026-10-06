@@ -1,3 +1,4 @@
+// SMaRT-PDM: http Status — http Status (admin backend); supports backend application behavior.
 function getSafeStatusCode(error, fallback = 500) {
   const parsed = Number.parseInt(error?.statusCode, 10);
 

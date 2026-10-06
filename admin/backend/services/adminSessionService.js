@@ -1,3 +1,4 @@
+// SMaRT-PDM: admin Session Service — admin Session Service (admin backend service); contains business logic and data operations.
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
@@ -38,10 +39,12 @@ class AdminSessionError extends Error {
     }
 }
 
+// normalizeRole: normalizes normalize role for the admin Session Service flow.
 function normalizeRole(value) {
     return String(value || '').trim().toLowerCase();
 }
 
+// assertSessionScope: handles assert session scope for the admin Session Service flow.
 function assertSessionScope(value) {
     const tokenScope = String(value || '').trim().toLowerCase();
 
@@ -56,6 +59,7 @@ function assertSessionScope(value) {
     }
 }
 
+// lockSessionAccount: handles lock session account for the admin Session Service flow.
 async function lockSessionAccount(client, userId) {
     // Serialize login attempts for this account/environment so two new
     // devices cannot race past the active-device limit at the same time.
@@ -65,6 +69,7 @@ async function lockSessionAccount(client, userId) {
     );
 }
 
+// requireJwtSecret: handles require jwt secret for the admin Session Service flow.
 function requireJwtSecret() {
     const secret = String(process.env.JWT_SECRET || '').trim();
 
@@ -75,6 +80,7 @@ function requireJwtSecret() {
     return secret;
 }
 
+// hashToken: checks whether hash token for the admin Session Service flow.
 function hashToken(token) {
     return crypto
         .createHash('sha256')
@@ -82,6 +88,7 @@ function hashToken(token) {
         .digest('hex');
 }
 
+// safeEqualHex: handles safe equal hex for the admin Session Service flow.
 function safeEqualHex(left, right) {
     const leftBuffer = Buffer.from(String(left || ''), 'utf8');
     const rightBuffer = Buffer.from(String(right || ''), 'utf8');
@@ -93,6 +100,7 @@ function safeEqualHex(left, right) {
     return crypto.timingSafeEqual(leftBuffer, rightBuffer);
 }
 
+// getBearerToken: reads and returns get bearer token for the admin Session Service flow.
 function getBearerToken(req) {
     const header = String(req.headers?.authorization || '').trim();
 
@@ -103,6 +111,7 @@ function getBearerToken(req) {
     return header.slice(7).trim();
 }
 
+// getRequestIp: reads and returns get request ip for the admin Session Service flow.
 function getRequestIp(req) {
     const forwarded = String(req.headers?.['x-forwarded-for'] || '')
         .split(',')[0]
@@ -111,6 +120,7 @@ function getRequestIp(req) {
     return forwarded || req.ip || req.socket?.remoteAddress || null;
 }
 
+// sanitizeClientId: handles sanitize client id for the admin Session Service flow.
 function sanitizeClientId(value, fieldName) {
     const normalized = String(value || '').trim();
 
@@ -131,6 +141,7 @@ function sanitizeClientId(value, fieldName) {
     return normalized;
 }
 
+// sessionTtlSeconds: handles session ttl seconds for the admin Session Service flow.
 function sessionTtlSeconds(stayLoggedIn) {
     if (stayLoggedIn) {
         return Math.max(1, REMEMBER_SESSION_DAYS) * 24 * 60 * 60;
@@ -139,6 +150,7 @@ function sessionTtlSeconds(stayLoggedIn) {
     return Math.max(1, DEFAULT_SESSION_HOURS) * 60 * 60;
 }
 
+// cleanupStalePages: handles cleanup stale pages for the admin Session Service flow.
 async function cleanupStalePages(client, userId) {
     await client.query(
         `
@@ -174,6 +186,7 @@ async function cleanupStalePages(client, userId) {
     );
 }
 
+// createAdminSession: creates create admin session for the admin Session Service flow.
 async function createAdminSession({
     user,
     role,
@@ -367,6 +380,7 @@ async function createAdminSession({
     }
 }
 
+// verifyAdminToken: verifies verify admin token for the admin Session Service flow.
 function verifyAdminToken(rawToken) {
     if (!rawToken) {
         throw new AdminSessionError('Admin session token is missing.', {
@@ -397,6 +411,7 @@ function verifyAdminToken(rawToken) {
     return decoded;
 }
 
+// loadSessionForUpdate: loads and returns load session for update for the admin Session Service flow.
 async function loadSessionForUpdate(client, decoded, rawToken) {
     const result = await client.query(
         `
@@ -448,6 +463,7 @@ async function loadSessionForUpdate(client, decoded, rawToken) {
     return session;
 }
 
+// resumeAdminSession: handles resume admin session for the admin Session Service flow.
 async function resumeAdminSession({ rawToken, deviceId, pageId }) {
     const decoded = verifyAdminToken(rawToken);
 
@@ -546,6 +562,7 @@ async function resumeAdminSession({ rawToken, deviceId, pageId }) {
     }
 }
 
+// assertActiveAdminSession: handles assert active admin session for the admin Session Service flow.
 async function assertActiveAdminSession({ decoded, rawToken }) {
     assertSessionScope(decoded.session_scope);
 
@@ -598,6 +615,7 @@ async function assertActiveAdminSession({ decoded, rawToken }) {
     return session;
 }
 
+// heartbeatAdminSession: handles heartbeat admin session for the admin Session Service flow.
 async function heartbeatAdminSession({ decoded, pageId }) {
     const cleanPageId = sanitizeClientId(pageId, 'pageId');
     const client = await db.connect();
@@ -656,6 +674,7 @@ async function heartbeatAdminSession({ decoded, pageId }) {
     }
 }
 
+// releaseAdminPage: handles release admin page for the admin Session Service flow.
 async function releaseAdminPage({ decoded, pageId }) {
     const cleanPageId = sanitizeClientId(pageId, 'pageId');
     const client = await db.connect();
@@ -688,6 +707,7 @@ async function releaseAdminPage({ decoded, pageId }) {
     }
 }
 
+// logoutAdminSession: handles logout admin session for the admin Session Service flow.
 async function logoutAdminSession({ decoded }) {
     const sessionId = decoded?.sid || decoded?.session_id || null;
 
@@ -736,6 +756,7 @@ async function logoutAdminSession({ decoded }) {
 }
 
 
+// listRecentAdminSessions: loads a list of list recent admin sessions for the admin Session Service flow.
 async function listRecentAdminSessions({
     userId,
     currentSessionId = null,
@@ -837,6 +858,7 @@ async function listRecentAdminSessions({
     });
 }
 
+// revokeAllAdminSessionsForUser: handles revoke all admin sessions for user for the admin Session Service flow.
 async function revokeAllAdminSessionsForUser(client, userId) {
     await client.query(
         `

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Return of Obligations — ro Pagination Controller (admin backend controller); handles HTTP input/output and delegates business logic.
 'use strict';
 
 const roController = require('./roController');

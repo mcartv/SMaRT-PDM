@@ -1,3 +1,4 @@
+// SMaRT-PDM: Messaging — Admin Messages (admin frontend page); loads data, handles page actions, and renders the admin view.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -59,12 +60,14 @@ function createClientMessageId() {
   })
 }
 
+// compactMessagePreview: handles compact message preview for the Messaging flow.
 function compactMessagePreview(value, maxLength = 90) {
   const text = String(value || '').replace(/\s+/g, ' ').trim()
   if (!text) return ''
   return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text
 }
 
+// formatThreadPreview: formats format thread preview for the Messaging flow.
 function formatThreadPreview(item, currentUserId) {
   const body = compactMessagePreview(item.lastMessage, 88)
   const content = body || (item.lastAttachmentUrl ? '📎 Attachment' : 'No messages yet')
@@ -79,6 +82,7 @@ function formatThreadPreview(item, currentUserId) {
   return content
 }
 
+// parseMessagingToken: parses parse messaging token for the Messaging flow.
 function parseMessagingToken(token) {
   try {
     if (!token) return {}
@@ -96,6 +100,7 @@ function parseMessagingToken(token) {
   }
 }
 
+// buildMessagingHeaders: builds build messaging headers for the Messaging flow.
 function buildMessagingHeaders(token, options = {}) {
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -108,6 +113,7 @@ function buildMessagingHeaders(token, options = {}) {
   return headers
 }
 
+// parseApiResponse: parses parse api response for the Messaging flow.
 async function parseApiResponse(response, fallbackMessage) {
   const payload = await response.json().catch(() => ({}))
 
@@ -118,6 +124,7 @@ async function parseApiResponse(response, fallbackMessage) {
   return payload
 }
 
+// normalizeConversation: normalizes normalize conversation for the Messaging flow.
 function normalizeConversation(raw = {}) {
   return {
     id: raw.counterpartyId?.toString() || raw.counterparty_id?.toString() || '',
@@ -141,6 +148,7 @@ function normalizeConversation(raw = {}) {
   }
 }
 
+// normalizeRoom: normalizes normalize room for the Messaging flow.
 function normalizeRoom(raw = {}) {
   const memberCount = Number(raw.member_count ?? raw.memberCount ?? 0)
 
@@ -163,6 +171,7 @@ function normalizeRoom(raw = {}) {
   }
 }
 
+// normalizeRoomMember: normalizes normalize room member for the Messaging flow.
 function normalizeRoomMember(raw = {}) {
   return {
     userId: raw.userId?.toString() || raw.user_id?.toString() || '',
@@ -185,6 +194,7 @@ function normalizeRoomMember(raw = {}) {
   }
 }
 
+// normalizeArchivedThread: normalizes normalize archived thread for the Messaging flow.
 function normalizeArchivedThread(raw = {}) {
   const type = raw.thread_type === 'group' ? 'group' : 'private'
 
@@ -213,6 +223,7 @@ function normalizeArchivedThread(raw = {}) {
   }
 }
 
+// normalizeScholarMember: normalizes normalize scholar member for the Messaging flow.
 function normalizeScholarMember(raw = {}) {
   return {
     userId: raw.user_id?.toString() || '',
@@ -236,6 +247,7 @@ function normalizeScholarMember(raw = {}) {
   }
 }
 
+// toScholarSearchItem: handles to scholar search item for the Messaging flow.
 function toScholarSearchItem(raw = {}) {
   return {
     id: raw.userId || '',
@@ -258,6 +270,7 @@ function toScholarSearchItem(raw = {}) {
   }
 }
 
+// normalizeMessage: normalizes normalize message for the Messaging flow.
 function normalizeMessage(raw = {}) {
   const seenBy = (Array.isArray(raw.seenBy) ? raw.seenBy : Array.isArray(raw.seen_by) ? raw.seen_by : [])
     .map((receipt) => ({
@@ -308,6 +321,7 @@ function normalizeMessage(raw = {}) {
   }
 }
 
+// sortMessages: handles sort messages for the Messaging flow.
 function sortMessages(items = []) {
   return [...items].sort((left, right) => {
     const leftTime = new Date(left.sentAt).getTime()
@@ -325,11 +339,14 @@ function sortMessages(items = []) {
   })
 }
 
+// sortItems: handles sort items for the Messaging flow.
 function sortItems(items = []) {
+  // getSortTime: reads and returns get sort time for the Messaging flow.
   const getSortTime = (item) => new Date(item.lastSentAt || item.createdAt || 0).getTime()
   return [...items].sort((left, right) => getSortTime(right) - getSortTime(left))
 }
 
+// upsertMessage: handles upsert message for the Messaging flow.
 function upsertMessage(items, message) {
   const next = items.filter((item) => {
     if (item.messageId === message.messageId) return false
@@ -340,6 +357,7 @@ function upsertMessage(items, message) {
   return sortMessages(next)
 }
 
+// mergeMessageCollections: handles merge message collections for the Messaging flow.
 function mergeMessageCollections(current = [], incoming = []) {
   return incoming.reduce(
     (items, message) => upsertMessage(items, message),
@@ -347,6 +365,7 @@ function mergeMessageCollections(current = [], incoming = []) {
   )
 }
 
+// markMessagesRead: marks mark messages read for the Messaging flow.
 function markMessagesRead(items, messageIds = []) {
   const ids = new Set(messageIds)
 
@@ -360,11 +379,13 @@ function markMessagesRead(items, messageIds = []) {
   )
 }
 
+// isBrowserTabActivelyViewed: checks whether is browser tab actively viewed for the Messaging flow.
 function isBrowserTabActivelyViewed() {
   if (typeof document === 'undefined') return false
   return document.visibilityState === 'visible' && document.hasFocus()
 }
 
+// markMessagesUnread: marks mark messages unread for the Messaging flow.
 function markMessagesUnread(items, messageIds = []) {
   const ids = new Set(messageIds)
 
@@ -378,6 +399,7 @@ function markMessagesUnread(items, messageIds = []) {
   )
 }
 
+// formatConversationTime: formats format conversation time for the Messaging flow.
 function formatConversationTime(value) {
   if (!value) return ''
 
@@ -395,6 +417,7 @@ function formatConversationTime(value) {
     }).format(date)
 }
 
+// formatMessageTime: formats format message time for the Messaging flow.
 function formatMessageTime(value) {
   if (!value) return ''
 
@@ -406,6 +429,7 @@ function formatMessageTime(value) {
   }).format(new Date(value))
 }
 
+// messageDayKey: handles message day key for the Messaging flow.
 function messageDayKey(value) {
   if (!value) return ''
   const date = new Date(value)
@@ -413,6 +437,7 @@ function messageDayKey(value) {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
 }
 
+// formatMessageDay: formats format message day for the Messaging flow.
 function formatMessageDay(value) {
   if (!value) return ''
   const date = new Date(value)
@@ -443,6 +468,7 @@ function formatMessageDay(value) {
   return `${calendarDate}, ${time}`
 }
 
+// shouldShowMessageSeparator: handles should show message separator for the Messaging flow.
 function shouldShowMessageSeparator(previousMessage, currentMessage) {
   if (!previousMessage) return true
   if (messageDayKey(previousMessage.sentAt) !== messageDayKey(currentMessage.sentAt)) return true
@@ -454,6 +480,7 @@ function shouldShowMessageSeparator(previousMessage, currentMessage) {
   return currentTime - previousTime > 60 * 60 * 1000
 }
 
+// messagesBelongTogether: handles messages belong together for the Messaging flow.
 function messagesBelongTogether(older, newer) {
   if (!older || !newer) return false
   if (!older.senderId || older.senderId !== newer.senderId) return false
@@ -466,6 +493,7 @@ function messagesBelongTogether(older, newer) {
   return newerTime - olderTime <= 5 * 60 * 1000
 }
 
+// MessageDateDivider: handles message date divider for the Messaging flow.
 function MessageDateDivider({ value, timeOnly = false }) {
   return (
     <div className="my-4 flex items-center gap-3">
@@ -480,6 +508,7 @@ function MessageDateDivider({ value, timeOnly = false }) {
   )
 }
 
+// NewMessagesDivider: handles new messages divider for the Messaging flow.
 function NewMessagesDivider() {
   return (
     <div className="my-4 flex items-center gap-3" role="separator" aria-label="New messages">
@@ -492,6 +521,7 @@ function NewMessagesDivider() {
   )
 }
 
+// MessageThreadSkeleton: handles message thread skeleton for the Messaging flow.
 function MessageThreadSkeleton() {
   return (
     <div className="flex h-full min-h-[240px] flex-col justify-end gap-3 py-3" role="status" aria-label="Loading messages">
@@ -511,6 +541,7 @@ function MessageThreadSkeleton() {
   )
 }
 
+// ThreadIcon: handles thread icon for the Messaging flow.
 function ThreadIcon({ item }) {
   const initials = (item.name || 'User')
     .split(/\s+/)
@@ -532,6 +563,7 @@ function ThreadIcon({ item }) {
   )
 }
 
+// ThreadRow: handles thread row for the Messaging flow.
 function ThreadRow({
   item,
   isActive,
@@ -549,11 +581,13 @@ function ThreadRow({
   const iconOnly = density === 'compact'
   const compact = density === 'compact'
 
+  // closeMenu: handles close menu for the Messaging flow.
   const closeMenu = () => {
     setMenuOpen(false)
     setMenuPosition(null)
   }
 
+  // toggleMenu: handles toggle menu for the Messaging flow.
   const toggleMenu = (event) => {
     event.stopPropagation()
 
@@ -586,7 +620,9 @@ function ThreadRow({
   useEffect(() => {
     if (!menuOpen) return undefined
 
+    // handleViewportChange: handles handle viewport change for the Messaging flow.
     const handleViewportChange = () => closeMenu()
+    // handleKeyDown: handles handle key down for the Messaging flow.
     const handleKeyDown = (event) => { if (event.key === 'Escape') closeMenu() }
     window.addEventListener('resize', handleViewportChange)
     window.addEventListener('scroll', handleViewportChange, true)
@@ -774,6 +810,7 @@ function ThreadRow({
   )
 }
 
+// ArchivedThreadsModal: archives archived threads modal for the Messaging flow.
 function ArchivedThreadsModal({
   open,
   onClose,
@@ -888,6 +925,7 @@ function ArchivedThreadsModal({
 }
 
 
+// FormerGroupHistoryPanel: handles former group history panel for the Messaging flow.
 function FormerGroupHistoryPanel({ thread, messages, loading, error, currentUserId, onClose }) {
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
@@ -945,6 +983,7 @@ function FormerGroupHistoryPanel({ thread, messages, loading, error, currentUser
   )
 }
 
+// parseSafeExternalUrl: parses parse safe external url for the Messaging flow.
 function parseSafeExternalUrl(rawValue) {
   try {
     const normalized = /^www\./i.test(rawValue) ? `https://${rawValue}` : rawValue
@@ -961,6 +1000,7 @@ function parseSafeExternalUrl(rawValue) {
   }
 }
 
+// MessageText: handles message text for the Messaging flow.
 function MessageText({ value, onOpenExternalLink }) {
   const text = String(value || '')
   const urlPattern = /((?:https?:\/\/|www\.)[^\s<]+)/gi
@@ -1003,6 +1043,7 @@ function MessageText({ value, onOpenExternalLink }) {
   )
 }
 
+// MessageAvatar: handles message avatar for the Messaging flow.
 function MessageAvatar({ message, isMine = false }) {
   const initials = (message.senderName || 'User')
     .split(/\s+/)
@@ -1032,12 +1073,14 @@ function MessageAvatar({ message, isMine = false }) {
   )
 }
 
+// FloatingMessageTooltip: handles floating message tooltip for the Messaging flow.
 function FloatingMessageTooltip({ anchorRef, open, placement = 'left', children }) {
   const [position, setPosition] = useState(null)
 
   useEffect(() => {
     if (!open) return undefined
 
+    // updatePosition: updates update position for the Messaging flow.
     const updatePosition = () => {
       const rect = anchorRef.current?.getBoundingClientRect()
       if (!rect) return
@@ -1074,6 +1117,7 @@ function FloatingMessageTooltip({ anchorRef, open, placement = 'left', children 
   )
 }
 
+// MessageBubble: handles message bubble for the Messaging flow.
 function MessageBubble({
   message,
   displaySeenBy = [],
@@ -1111,9 +1155,11 @@ function MessageBubble({
   useEffect(() => {
     if (!actionsOpen) return undefined
 
+    // closeOnOutside: handles close on outside for the Messaging flow.
     const closeOnOutside = (event) => {
       if (!actionRootRef.current?.contains(event.target)) setActionsOpen(false)
     }
+    // closeOnEscape: handles close on escape for the Messaging flow.
     const closeOnEscape = (event) => {
       if (event.key === 'Escape') setActionsOpen(false)
     }
@@ -1188,6 +1234,7 @@ function MessageBubble({
     !editLimitReached &&
     !isEmojiOnlyMessage
   )
+  // toggleEditHistory: handles toggle edit history for the Messaging flow.
   const toggleEditHistory = async () => {
     if (historyOpen) {
       setHistoryOpen(false)
@@ -1205,6 +1252,7 @@ function MessageBubble({
       setHistoryLoading(false)
     }
   }
+  // renderSeenAvatar: handles render seen avatar for the Messaging flow.
   const renderSeenAvatar = (receipt) => (
     <span
       key={receipt.userId}
@@ -1465,6 +1513,7 @@ function MessageBubble({
 }
 
 
+// MemberAvatar: handles member avatar for the Messaging flow.
 function MemberAvatar({ member, sizeClass = 'h-10 w-10' }) {
   const initials = (member.name || 'User')
     .split(/\s+/)
@@ -1484,9 +1533,11 @@ function MemberAvatar({ member, sizeClass = 'h-10 w-10' }) {
   )
 }
 
+// MemberProfileModal: handles member profile modal for the Messaging flow.
 function MemberProfileModal({ member, onClose, onMessage }) {
   useEffect(() => {
     if (!member) return undefined
+    // handleKeyDown: handles handle key down for the Messaging flow.
     const handleKeyDown = (event) => { if (event.key === 'Escape') onClose?.() }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
@@ -1534,10 +1585,12 @@ function MemberProfileModal({ member, onClose, onMessage }) {
   )
 }
 
+// ConfirmActionModal: handles confirm action modal for the Messaging flow.
 function ConfirmActionModal({ open, title, description, confirmLabel, busy, onCancel, onConfirm, variant = 'danger' }) {
   useEffect(() => {
     if (!open) return undefined
 
+    // handleKeyDown: handles handle key down for the Messaging flow.
     const handleKeyDown = (event) => {
       if (event.key === 'Escape' && !busy) onCancel?.()
     }
@@ -1579,6 +1632,7 @@ function ConfirmActionModal({ open, title, description, confirmLabel, busy, onCa
   )
 }
 
+// GroupInfoModal: handles group info modal for the Messaging flow.
 function GroupInfoModal({
   open,
   room,
@@ -1604,6 +1658,7 @@ function GroupInfoModal({
 
   useEffect(() => {
     if (!open) return undefined
+    // handleKeyDown: handles handle key down for the Messaging flow.
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') onClose?.()
     }
@@ -1643,6 +1698,7 @@ function GroupInfoModal({
   const adminMembers = visibleMembers.filter((member) => member.isAdmin)
   const regularMembers = visibleMembers.filter((member) => !member.isAdmin)
 
+  // renderMemberRow: handles render member row for the Messaging flow.
   const renderMemberRow = (member) => {
     const canPromote =
       viewerIsCreator &&
@@ -1904,6 +1960,7 @@ function GroupInfoModal({
   )
 }
 
+// CreateGroupModal: creates create group modal for the Messaging flow.
 function CreateGroupModal({
   open,
   onClose,
@@ -1942,6 +1999,7 @@ function CreateGroupModal({
 
   if (!open) return null
 
+  // toggleMember: handles toggle member for the Messaging flow.
   const toggleMember = (userId) => {
     setSelectedMembers((current) => current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId])
   }
@@ -2035,6 +2093,7 @@ function CreateGroupModal({
   )
 }
 
+// AddMembersView: adds add members view for the Messaging flow.
 function AddMembersView({
   open,
   onClose,
@@ -2103,6 +2162,7 @@ function AddMembersView({
 
   if (!open) return null
 
+  // toggleMember: handles toggle member for the Messaging flow.
   const toggleMember = (userId) => {
     setSelectedMembers((current) =>
       current.includes(userId)
@@ -2319,6 +2379,7 @@ export default function AdminMessages({
       ? 'lg:grid-cols-[76px_minmax(0,1fr)_300px] xl:grid-cols-[76px_minmax(0,1fr)_320px]'
       : 'lg:grid-cols-[280px_minmax(0,1fr)_300px] xl:grid-cols-[340px_minmax(0,1fr)_320px]'
 
+  // toggleConversationPaneMode: handles toggle conversation pane mode for the Messaging flow.
   const toggleConversationPaneMode = () => {
     setConversationPaneMode((current) =>
       current === 'full' ? 'compact' : 'full'
@@ -3697,6 +3758,7 @@ export default function AdminMessages({
 
   useEffect(() => () => stopTyping(), [stopTyping])
 
+  // sendMessageBody: sends send message body for the Messaging flow.
   async function sendMessageBody(rawMessageBody, options = {}) {
     const messageBody = rawMessageBody?.trim?.() || ''
     if (!messageBody || sendingRef.current) return
@@ -3852,6 +3914,7 @@ export default function AdminMessages({
     }
   }
 
+  // handleSendMessage: handles handle send message for the Messaging flow.
   async function handleSendMessage(event) {
     event.preventDefault()
     if (editingMessage) {
@@ -3869,11 +3932,13 @@ export default function AdminMessages({
     await sendMessageBody(draft)
   }
 
+  // handleQuickLike: handles handle quick like for the Messaging flow.
   async function handleQuickLike() {
     if (draft.trim() || sendingRef.current) return
     await sendMessageBody('👍')
   }
 
+  // handleReplyToMessage: handles handle reply to message for the Messaging flow.
   function handleReplyToMessage(message) {
     if (editingMessage) return
     if (!message || message.deliveryStatus === 'failed') return
@@ -3881,6 +3946,7 @@ export default function AdminMessages({
     window.requestAnimationFrame(() => composerRef.current?.focus())
   }
 
+  // handleStartEditMessage: handles handle start edit message for the Messaging flow.
   function handleStartEditMessage(message) {
     setReplyingTo(null)
     setChatSearchOpen(false)
@@ -3902,12 +3968,14 @@ export default function AdminMessages({
     })
   }
 
+  // cancelMessageEdit: checks whether cancel message edit for the Messaging flow.
   function cancelMessageEdit() {
     setEditingMessage(null)
     setDraft('')
     window.requestAnimationFrame(() => composerRef.current?.focus())
   }
 
+  // handleCopyMessage: handles handle copy message for the Messaging flow.
   async function handleCopyMessage(message) {
     try {
       await navigator.clipboard.writeText(message?.messageBody || '')
@@ -3916,6 +3984,7 @@ export default function AdminMessages({
     }
   }
 
+  // handleEditMessage: handles handle edit message for the Messaging flow.
   async function handleEditMessage(message, messageBody) {
     try {
       const response = await fetch(`${MESSAGING_API_BASE}/api/messages/message/${message.messageId}`, {
@@ -3946,6 +4015,7 @@ export default function AdminMessages({
     }
   }
 
+  // handleLoadEditHistory: handles handle load edit history for the Messaging flow.
   async function handleLoadEditHistory(message) {
     const response = await fetch(`${MESSAGING_API_BASE}/api/messages/message/${message.messageId}/history`, {
       headers: buildMessagingHeaders(token),
@@ -3960,6 +4030,7 @@ export default function AdminMessages({
     })).sort((left, right) => left.editNumber - right.editNumber)
   }
 
+  // handleDeleteMessageForMe: handles handle delete message for me for the Messaging flow.
   async function handleDeleteMessageForMe(message) {
     if (!message?.messageId || message.messageId.startsWith('local:')) {
       setMessages((current) => current.filter((item) => item.messageId !== message?.messageId))
@@ -3991,6 +4062,7 @@ export default function AdminMessages({
     }
   }
 
+  // handleUnsendMessage: handles handle unsend message for the Messaging flow.
   async function handleUnsendMessage(message) {
     if (!message?.messageId || message.messageId.startsWith('local:')) return
     try {
@@ -4022,6 +4094,7 @@ export default function AdminMessages({
     }
   }
 
+  // handleRetryFailedMessage: handles handle retry failed message for the Messaging flow.
   async function handleRetryFailedMessage(message) {
     if (!message || sendingRef.current) return
     await sendMessageBody(message.messageBody, {
@@ -4041,6 +4114,7 @@ export default function AdminMessages({
   }
 
 
+  // handleCreateGroup: handles handle create group for the Messaging flow.
   async function handleCreateGroup(payload) {
     try {
       setCreatingGroup(true)
@@ -4063,6 +4137,7 @@ export default function AdminMessages({
     }
   }
 
+  // handleAddMembers: handles handle add members for the Messaging flow.
   async function handleAddMembers(memberIds) {
     if (!activeRoomId || !memberIds.length) return
 
@@ -4104,6 +4179,7 @@ export default function AdminMessages({
     }
   }
 
+  // handlePromoteMember: handles handle promote member for the Messaging flow.
   async function handlePromoteMember(member) {
     if (!activeRoomId || !member?.userId) return
 
@@ -4147,6 +4223,7 @@ export default function AdminMessages({
     }
   }
 
+  // handleDemoteMember: handles handle demote member for the Messaging flow.
   async function handleDemoteMember(member) {
     if (!activeRoomId || !member?.userId) return
 
@@ -4189,6 +4266,7 @@ export default function AdminMessages({
     }
   }
 
+  // handleRemoveMember: handles handle remove member for the Messaging flow.
   async function handleRemoveMember(member) {
     if (!activeRoomId || !member?.userId) return
 
@@ -4227,6 +4305,7 @@ export default function AdminMessages({
     }
   }
 
+  // handleLeaveGroup: handles handle leave group for the Messaging flow.
   async function handleLeaveGroup() {
     if (!activeRoomId) return
 
@@ -4254,6 +4333,7 @@ export default function AdminMessages({
     }
   }
 
+  // handleMessageMember: handles handle message member for the Messaging flow.
   function handleMessageMember(member) {
     if (!member?.userId || member.userId === currentUserId) return
     setSelectedMemberProfile(null)
@@ -4387,6 +4467,7 @@ export default function AdminMessages({
   useEffect(() => {
     if (!isOpen) return undefined
 
+    // syncOpenThread: synchronizes sync open thread for the Messaging flow.
     const syncOpenThread = () => {
       if (!isBrowserTabActivelyViewed()) return
 
@@ -5127,6 +5208,7 @@ export default function AdminMessages({
     ]
   )
 
+  // renderGroupInfo: handles render group info for the Messaging flow.
   const renderGroupInfo = ({ embedded = false } = {}) => (
     <GroupInfoModal
       open={groupInfoOpen}

@@ -1,3 +1,4 @@
+// SMaRT-PDM: Applications — Application Review (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
@@ -60,6 +61,7 @@ const DEFAULT_FILTERS = {
   documentStatus: 'all',
 };
 
+// buildApplicationsQuery: builds build applications query for the Applications flow.
 function buildApplicationsQuery({ viewType, page, search, filters, includeSummary = false }) {
   const params = new URLSearchParams();
   const apiView = viewType === 'action'
@@ -96,6 +98,7 @@ function buildApplicationsQuery({ viewType, page, search, filters, includeSummar
 
 const READINESS_SEEN_STORAGE_PREFIX = 'smart-pdm:admin:readiness-seen:v1';
 
+// getReadinessSeenStorageKey: reads and returns get readiness seen storage key for the Applications flow.
 function getReadinessSeenStorageKey() {
   try {
     const profile = JSON.parse(sessionStorage.getItem('adminProfile') || '{}');
@@ -106,6 +109,7 @@ function getReadinessSeenStorageKey() {
   }
 }
 
+// readReadinessSeenState: handles read readiness seen state for the Applications flow.
 function readReadinessSeenState() {
   try {
     const parsed = JSON.parse(localStorage.getItem(getReadinessSeenStorageKey()) || '{}');
@@ -115,6 +119,7 @@ function readReadinessSeenState() {
   }
 }
 
+// writeReadinessSeenState: handles write readiness seen state for the Applications flow.
 function writeReadinessSeenState(value) {
   try {
     localStorage.setItem(getReadinessSeenStorageKey(), JSON.stringify(value || {}));
@@ -123,10 +128,12 @@ function writeReadinessSeenState(value) {
   }
 }
 
+// normalizeStatus: normalizes normalize status for the Applications flow.
 function normalizeStatus(value = '') {
   return String(value).trim().toLowerCase();
 }
 
+// formatDate: formats format date for the Applications flow.
 function formatDate(value) {
   if (!value) return 'No date';
   const d = new Date(value);
@@ -138,6 +145,7 @@ function formatDate(value) {
   });
 }
 
+// formatTime: formats format time for the Applications flow.
 function formatTime(value) {
   if (!value) return 'No time';
   const d = new Date(value);
@@ -149,12 +157,14 @@ function formatTime(value) {
   });
 }
 
+// toTimestamp: handles to timestamp for the Applications flow.
 function toTimestamp(value, fallback = Number.MAX_SAFE_INTEGER) {
   if (!value) return fallback;
   const parsed = new Date(value).getTime();
   return Number.isNaN(parsed) ? fallback : parsed;
 }
 
+// compareFcfs: handles compare fcfs for the Applications flow.
 function compareFcfs(a, b) {
   const queueA = Number(a?.queue_position);
   const queueB = Number(b?.queue_position);
@@ -185,6 +195,7 @@ function compareFcfs(a, b) {
   );
 }
 
+// getFcfsLabel: reads and returns get fcfs label for the Applications flow.
 function getFcfsLabel(row) {
   const queuePosition = Number(row?.queue_position);
   if (Number.isFinite(queuePosition) && queuePosition > 0) {
@@ -193,6 +204,7 @@ function getFcfsLabel(row) {
   return row?.fcfs_completed_at ? 'Queued' : 'Not ranked';
 }
 
+// parseErrorResponse: parses parse error response for the Applications flow.
 async function parseErrorResponse(response, fallback = 'Request failed') {
   try {
     const data = await response.json();
@@ -207,6 +219,7 @@ async function parseErrorResponse(response, fallback = 'Request failed') {
   }
 }
 
+// getStatusGroup: reads and returns get status group for the Applications flow.
 function getStatusGroup(status = '') {
   const raw = normalizeStatus(status);
 
@@ -217,6 +230,7 @@ function getStatusGroup(status = '') {
   return 'pending';
 }
 
+// getDocumentGroup: reads and returns get document group for the Applications flow.
 function getDocumentGroup(status = '') {
   const raw = normalizeStatus(status);
 
@@ -227,6 +241,7 @@ function getDocumentGroup(status = '') {
   return 'other';
 }
 
+// getOpeningGroup: reads and returns get opening group for the Applications flow.
 function getOpeningGroup(status = '') {
   const raw = normalizeStatus(status);
 
@@ -237,6 +252,7 @@ function getOpeningGroup(status = '') {
   return 'open';
 }
 
+// _getApplicationStatusMeta: handles get application status meta for the Applications flow.
 function _getApplicationStatusMeta(row) {
   const group = getStatusGroup(row?.application_status || row?.status || '');
 
@@ -259,6 +275,7 @@ function _getApplicationStatusMeta(row) {
   };
 }
 
+// _getDocumentStatusMeta: handles get document status meta for the Applications flow.
 function _getDocumentStatusMeta(row) {
   const group = getDocumentGroup(row?.document_status || '');
 
@@ -281,6 +298,7 @@ function _getDocumentStatusMeta(row) {
   };
 }
 
+// getReadinessMeta: reads and returns get readiness meta for the Applications flow.
 function getReadinessMeta(isComplete, positiveLabel, negativeLabel) {
   if (isComplete) {
     return { label: positiveLabel, bg: C.greenSoft, color: C.green };
@@ -289,6 +307,7 @@ function getReadinessMeta(isComplete, positiveLabel, negativeLabel) {
   return { label: negativeLabel, bg: '#FFF7ED', color: '#d97706' };
 }
 
+// getScholarReadinessMeta: reads and returns get scholar readiness meta for the Applications flow.
 function getScholarReadinessMeta(row) {
   if (row?.scholar_activation_ready) {
     return { label: 'Scholar Ready', bg: C.greenSoft, color: C.green };
@@ -297,6 +316,7 @@ function getScholarReadinessMeta(row) {
   return { label: 'Pending Activation', bg: '#FEF2F2', color: '#dc2626' };
 }
 
+// getOpeningStatusMeta: reads and returns get opening status meta for the Applications flow.
 function getOpeningStatusMeta(opening) {
   const group = getOpeningGroup(opening?.posting_status || opening?.status || '');
 
@@ -315,6 +335,7 @@ function getOpeningStatusMeta(opening) {
   return { label: 'Open', bg: C.greenSoft, color: C.green };
 }
 
+// getComputedFilledSlots: reads and returns get computed filled slots for the Applications flow.
 function getComputedFilledSlots(opening) {
   const qualifiedCount =
     opening?.qualified_count != null ? Number(opening.qualified_count) : null;
@@ -328,6 +349,7 @@ function getComputedFilledSlots(opening) {
   return 0;
 }
 
+// normalizeApplicantRow: normalizes normalize applicant row for the Applications flow.
 function normalizeApplicantRow(app) {
   return {
     application_id: app.application_id,
@@ -376,6 +398,7 @@ function normalizeApplicantRow(app) {
   };
 }
 
+// _isApplicantAtRisk: handles is applicant at risk for the Applications flow.
 function _isApplicantAtRisk(app) {
   const gwa = Number(app?.gwa);
   const rawStatus = (app?.application_status || '').toLowerCase();
@@ -392,6 +415,7 @@ function _isApplicantAtRisk(app) {
   return gwaRisk || docRisk || verificationRisk || sdoRisk || appRisk;
 }
 
+// StatusPill: handles status pill for the Applications flow.
 function StatusPill({ meta }) {
   return (
     <span
@@ -403,6 +427,7 @@ function StatusPill({ meta }) {
   );
 }
 
+// MetricItem: handles metric item for the Applications flow.
 function MetricItem({ label, value, emphasis = false }) {
   return (
     <div
@@ -419,6 +444,7 @@ function MetricItem({ label, value, emphasis = false }) {
   );
 }
 
+// ReadinessSummary: handles readiness summary for the Applications flow.
 function ReadinessSummary({ rows }) {
   const totalReady = rows.length;
   const withSlip = rows.filter((row) => row.endorsement_slip_id).length;
@@ -455,6 +481,7 @@ function ReadinessSummary({ rows }) {
   );
 }
 
+// Toolbar: handles toolbar for the Applications flow.
 function Toolbar({
   search,
   setSearch,
@@ -478,16 +505,19 @@ function Toolbar({
     filters.applicationStatus !== 'all' ||
     filters.documentStatus !== 'all';
 
+  // openModal: handles open modal for the Applications flow.
   const openModal = () => {
     setDraftFilters(filters);
     setFilterOpen(true);
   };
 
+  // apply: handles apply for the Applications flow.
   const apply = () => {
     onApplyFilters();
     setFilterOpen(false);
   };
 
+  // clear: clears clear for the Applications flow.
   const clear = () => {
     onClearFilters();
     setFilterOpen(false);
@@ -715,6 +745,7 @@ function Toolbar({
   );
 }
 
+// OpeningsGrid: handles openings grid for the Applications flow.
 function OpeningsGrid({
   rows,
   countsMap,
@@ -817,6 +848,7 @@ function OpeningsGrid({
   );
 }
 
+// ReadinessCompletionSummary: handles readiness completion summary for the Applications flow.
 function ReadinessCompletionSummary({
   row,
   navigate,
@@ -1021,6 +1053,7 @@ function ReadinessCompletionSummary({
 }
 
 
+// ReadinessOpeningCards: handles readiness opening cards for the Applications flow.
 function ReadinessOpeningCards({
   openings,
   rows,
@@ -1540,6 +1573,7 @@ function ReadinessOpeningCards({
 }
 
 
+// RegistryTable: handles registry table for the Applications flow.
 function RegistryTable({
   rows,
   navigate,
@@ -1803,6 +1837,7 @@ function RegistryTable({
   );
 }
 
+// Pagination: handles pagination for the Applications flow.
 function Pagination({ page, totalPages, totalItems, onPrev, onNext }) {
   return (
     <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
@@ -1910,6 +1945,7 @@ export default function ApplicationReview() {
     });
   }, [location.pathname, location.state, navigate]);
 
+  // downloadSlipPdf: downloads download slip pdf for the Applications flow.
   const downloadSlipPdf = async (row) => {
     if (!row?.endorsement_slip_id) return;
 
@@ -1943,6 +1979,7 @@ export default function ApplicationReview() {
     }
   };
 
+  // approveScholar: handles approve scholar for the Applications flow.
   const approveScholar = async (row) => {
     try {
       setApprovalLoadingId(row.application_id);
@@ -2000,6 +2037,7 @@ export default function ApplicationReview() {
     }
   };
 
+  // loadData: loads and returns load data for the Applications flow.
   const loadData = async ({ soft = false, forceOpenings = false } = {}) => {
     const requestId = ++loadRequestIdRef.current;
 
@@ -2114,6 +2152,7 @@ export default function ApplicationReview() {
     }
   };
 
+  // scheduleSoftRefresh: handles schedule soft refresh for the Applications flow.
   const scheduleSoftRefresh = () => {
     if (softRefreshTimerRef.current) {
       window.clearTimeout(softRefreshTimerRef.current);
@@ -2169,6 +2208,7 @@ export default function ApplicationReview() {
     // only self-heals a temporarily missed socket event.
     const FALLBACK_REFRESH_INTERVAL_MS = 2 * 60 * 1000;
 
+    // refreshIfVisible: refreshes refresh if visible for the Applications flow.
     const refreshIfVisible = () => {
       if (document.visibilityState !== 'visible') return;
       loadData({ soft: true });
@@ -2274,6 +2314,7 @@ export default function ApplicationReview() {
     );
   }, [readinessAttentionSignatures, readinessSeenSignatures]);
 
+  // markReadinessOpeningSeen: marks mark readiness opening seen for the Applications flow.
   const markReadinessOpeningSeen = (openingId) => {
     const key = String(openingId || '');
     const signature = readinessAttentionSignatures.get(key);
@@ -2299,11 +2340,13 @@ export default function ApplicationReview() {
     return filteredOpeningCards.slice(start, start + PAGE_SIZE);
   }, [filteredOpeningCards, page]);
 
+  // applyFilters: handles apply filters for the Applications flow.
   const applyFilters = () => {
     setPage(1);
     setFilters(draftFilters);
   };
 
+  // clearFilters: clears clear filters for the Applications flow.
   const clearFilters = () => {
     setPage(1);
     setFilters(DEFAULT_FILTERS);

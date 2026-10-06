@@ -1,7 +1,9 @@
+// SMaRT-PDM: Messaging — message Reply Controller (mobile backend controller); handles mobile API input/output and delegates business logic.
 const replyService = require('../services/messageReplyCompatibility');
 const messageHistoryService = require('../services/messageHistoryService');
 const { getSafeStatusCode } = require('../utils/httpStatus');
 
+// userId: handles user id for the Messaging flow.
 function userId(req) {
   return (
     req.user?.userId ||
@@ -12,10 +14,12 @@ function userId(req) {
   );
 }
 
+// messageBody: handles message body for the Messaging flow.
 function messageBody(req) {
   return String(req.body?.messageBody ?? req.body?.message_body ?? '').trim();
 }
 
+// replyToMessageId: handles reply to message id for the Messaging flow.
 function replyToMessageId(req) {
   return String(
     req.body?.replyToMessageId ?? req.body?.reply_to_message_id ?? ''

@@ -1,3 +1,4 @@
+// SMaRT-PDM: status badge — status badge (mobile widget); renders reusable mobile UI behavior.
 import 'package:flutter/material.dart';
 
 class StatusBadge extends StatelessWidget {
@@ -5,6 +6,7 @@ class StatusBadge extends StatelessWidget {
 
   final String label;
 
+  // _color: handles color for the status badge flow.
   Color _color() {
     final value = label.trim().toLowerCase();
     if (value.contains('verified') ||
@@ -30,6 +32,7 @@ class StatusBadge extends StatelessWidget {
   }
 
   @override
+  // build: builds build for the status badge flow.
   Widget build(BuildContext context) {
     final color = _color();
     return Container(

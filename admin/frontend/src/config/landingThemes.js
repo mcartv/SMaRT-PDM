@@ -1,3 +1,4 @@
+// SMaRT-PDM: Settings — landing Themes (admin frontend); supports admin-side UI behavior.
 export const LANDING_THEME_PRESET_KEYS = ['default', 'forest', 'ocean', 'royal', 'sunset', 'coral', 'mint', 'custom'];
 
 const DEFAULT_LANDING_THEME = {
@@ -81,10 +82,12 @@ export const LANDING_COLOR_FIELDS = [
   { key: 'pageBg', label: 'Page Background' },
 ];
 
+// getDefaultLandingTheme: reads and returns get default landing theme for the Settings flow.
 export function getDefaultLandingTheme() {
   return { ...DEFAULT_LANDING_THEME };
 }
 
+// resolveLandingTheme: resolves resolve landing theme for the Settings flow.
 export function resolveLandingTheme(presetKey = 'default', customColors = null) {
   const normalizedPreset = String(presetKey || 'default').trim().toLowerCase();
   const preset =
@@ -100,6 +103,7 @@ export function resolveLandingTheme(presetKey = 'default', customColors = null) 
   };
 }
 
+// getLandingThemePresetOptions: reads and returns get landing theme preset options for the Settings flow.
 export function getLandingThemePresetOptions() {
   return LANDING_THEME_PRESET_KEYS.filter((key) => key !== 'custom').map((key) => {
     const theme = resolveLandingTheme(key);

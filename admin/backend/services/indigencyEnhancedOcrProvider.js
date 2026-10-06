@@ -1,3 +1,4 @@
+// SMaRT-PDM: OCR — indigency Enhanced Ocr Provider (admin backend service); contains business logic and data operations.
 const { GoogleGenAI } = require('@google/genai');
 const { normalizeEnhancedOcrError } = require('./enhancedOcrErrors');
 
@@ -18,6 +19,7 @@ const MODELS = Object.freeze(Array.from(new Set([
 const API_KEY = String(process.env.ENHANCED_OCR_API_KEY || process.env.GEMINI_API_KEY || '').trim();
 const TRANSIENT_STATUS = new Set([408, 429, 500, 502, 503, 504]);
 
+// providerStatus: handles provider status for the OCR flow.
 function providerStatus(error) {
     return Number(
         error?.providerStatus || error?.status || error?.statusCode || error?.code
@@ -25,6 +27,7 @@ function providerStatus(error) {
     ) || null;
 }
 
+// shouldTryNextModel: handles should try next model for the OCR flow.
 function shouldTryNextModel(error) {
     const failure = normalizeEnhancedOcrError(error);
     return failure.retryable === true
@@ -32,6 +35,7 @@ function shouldTryNextModel(error) {
         || TRANSIENT_STATUS.has(providerStatus(error));
 }
 
+// validateResult: validates validate result for the OCR flow.
 function validateResult(response, schema) {
     if (response.candidates?.[0]?.finishReason === 'MAX_TOKENS') {
         throw Object.assign(new Error(), { code: 'ENHANCED_OCR_TRUNCATED' });
@@ -50,6 +54,7 @@ function validateResult(response, schema) {
     return result;
 }
 
+// extract: handles extract for the OCR flow.
 async function extract({ documentType, image, schema, instruction, timeoutMs, maxOutputTokens }) {
     if (!API_KEY) {
         throw normalizeEnhancedOcrError(Object.assign(

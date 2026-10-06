@@ -1,3 +1,4 @@
+// SMaRT-PDM: use Force Dark Mode — use Force Dark Mode (admin frontend); supports admin-side UI behavior.
 import { useEffect } from 'react';
 
 const FORCE_DARK_CLASS = 'smartpdm-force-dark';

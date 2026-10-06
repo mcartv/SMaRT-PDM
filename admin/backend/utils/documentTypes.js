@@ -1,3 +1,4 @@
+// SMaRT-PDM: Document Verification — document Types (admin backend); supports backend application behavior.
 const DOCUMENT_TYPE_ALIASES = {
     cor: 'certificate_of_registration',
     certificate_of_registration: 'certificate_of_registration',
@@ -45,6 +46,7 @@ const DOCUMENT_TYPE_TO_NAME = {
     birth_certificate: 'PSA / Birth Certificate',
 };
 
+// normalizeDocumentType: normalizes normalize document type for the Document Verification flow.
 function normalizeDocumentType(value) {
     const normalized = String(value || '')
         .trim()

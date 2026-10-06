@@ -1,3 +1,4 @@
+// SMaRT-PDM: Endorsement — endorsement Slip Service (admin backend service); contains business logic and data operations.
 const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -23,6 +24,7 @@ const {
     isCanonicalPdResult,
 } = require('../utils/endorsementContract');
 
+// normalizeStorageBucketName: normalizes normalize storage bucket name for the Endorsement flow.
 function normalizeStorageBucketName(value, fallback = 'documents') {
     const normalized = String(value || fallback)
         .trim()
@@ -100,16 +102,19 @@ const SDO_STANDARD_REASONS = Object.freeze({
 
 const CHECKBOX_LABELS = RESULT_LABELS;
 
+// createHttpError: creates create http error for the Endorsement flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
 }
 
+// safeText: handles safe text for the Endorsement flow.
 function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
 }
 
+// formatCourseDisplay: formats format course display for the Endorsement flow.
 function formatCourseDisplay(row = {}) {
     const code = safeText(row.course_code);
     const name = safeText(row.course_name);
@@ -121,6 +126,7 @@ function formatCourseDisplay(row = {}) {
     return code || name || 'N/A';
 }
 
+// parseJson: parses parse json for the Endorsement flow.
 function parseJson(value, fallback = {}) {
     if (!value) return fallback;
     if (typeof value === 'object') return value;
@@ -131,17 +137,20 @@ function parseJson(value, fallback = {}) {
     }
 }
 
+// deriveApplicationSection: derives derive application section for the Endorsement flow.
 function deriveApplicationSection(applicationPayload) {
     const payload = parseJson(applicationPayload);
     const academic = parseJson(payload.academic);
     return safeText(academic.current_section || academic.section);
 }
 
+// deriveSlipCode: derives derive slip code for the Endorsement flow.
 function deriveSlipCode(slipId) {
     const base = safeText(slipId).split('-')[0].toUpperCase();
     return base ? `ES-${base}` : 'ES-PENDING';
 }
 
+// getSignedFileUrl: reads and returns get signed file url for the Endorsement flow.
 async function getSignedFileUrl(filePath) {
     if (!filePath) return null;
 
@@ -164,6 +173,7 @@ async function getSignedFileUrl(filePath) {
     return data?.signedUrl || null;
 }
 
+// deriveLegacyPdCheckboxResult: derives derive legacy pd checkbox result for the Endorsement flow.
 function deriveLegacyPdCheckboxResult(gwa) {
     const numericGwa = Number(gwa);
     return Number.isFinite(numericGwa) && numericGwa <= 1.75
@@ -171,6 +181,7 @@ function deriveLegacyPdCheckboxResult(gwa) {
         : CHECKBOX_LABELS.pd[PD_RESULTS.AVERAGE_SCHOLASTIC_STANDING];
 }
 
+// mapPaperOfficeResults: maps map paper office results for the Endorsement flow.
 function mapPaperOfficeResults(row = {}) {
     const pdResult = CHECKBOX_LABELS.pd[row.pd_status] ||
         (row.pd_status === LEGACY_RESULTS.PD_APPROVED ? deriveLegacyPdCheckboxResult(row.gwa) : null);
@@ -182,10 +193,12 @@ function mapPaperOfficeResults(row = {}) {
     };
 }
 
+// getActorUserId: reads and returns get actor user id for the Endorsement flow.
 function getActorUserId(actor = {}) {
     return actor?.userId || actor?.user_id || null;
 }
 
+// ensureQueueAccess: ensures ensure queue access for the Endorsement flow.
 function ensureQueueAccess(queueKey, actor) {
     const config = QUEUE_CONFIG[queueKey];
     if (!config) {
@@ -200,6 +213,7 @@ function ensureQueueAccess(queueKey, actor) {
     return config;
 }
 
+// ensureTrackerAccess: ensures ensure tracker access for the Endorsement flow.
 function ensureTrackerAccess(actor = {}) {
     const role = safeText(actor?.role).toLowerCase();
     if (!['admin', 'pd', 'guidance', 'sdo'].includes(role)) {
@@ -220,6 +234,7 @@ function appendVerifiedApplicationGate(conditions = []) {
     );
 }
 
+// assertVerifiedApplicationForEndorsement: handles assert verified application for endorsement for the Endorsement flow.
 function assertVerifiedApplicationForEndorsement(row = {}) {
     const verificationStatus = safeText(
         row.application_verification_status || row.verification_status
@@ -244,6 +259,7 @@ function assertVerifiedApplicationForEndorsement(row = {}) {
     }
 }
 
+// getTrackerSummary: reads and returns get tracker summary for the Endorsement flow.
 function getTrackerSummary(status) {
     switch (status) {
         case 'pending_sdo':
@@ -319,6 +335,7 @@ function getTrackerSummary(status) {
     }
 }
 
+// buildProgressTracker: builds build progress tracker for the Endorsement flow.
 function buildProgressTracker({
     current_stage,
     overall_status,
@@ -395,6 +412,7 @@ function buildProgressTracker({
     };
 }
 
+// mapQueueRow: maps map queue row for the Endorsement flow.
 function mapQueueRow(row, actorRole = '') {
     const tracker = buildProgressTracker(row);
     const officeResults = mapPaperOfficeResults(row);
@@ -495,6 +513,7 @@ function mapQueueRow(row, actorRole = '') {
     };
 }
 
+// mapQueueRowForActor: maps map queue row for actor for the Endorsement flow.
 async function mapQueueRowForActor(row, actorRole = '') {
     const normalizedRole = safeText(actorRole).toLowerCase();
     const avatarUrl = await resolveAvatarUrl(row.profile_photo_url);
@@ -514,6 +533,7 @@ async function mapQueueRowForActor(row, actorRole = '') {
     );
 }
 
+// loadSlipRows: loads and returns load slip rows for the Endorsement flow.
 async function loadSlipRows({ stage = null, stages = null, actor = null } = {}) {
     const params = [];
     const normalizedStages = Array.isArray(stages)
@@ -647,16 +667,19 @@ async function loadSlipRows({ stage = null, stages = null, actor = null } = {}) 
     return Promise.all(rows.map((row) => mapQueueRowForActor(row, actorRole)));
 }
 
+// fetchQueue: fetches and returns fetch queue for the Endorsement flow.
 async function fetchQueue(queueKey, actor) {
     ensureQueueAccess(queueKey, actor);
     return loadSlipRows({ actor });
 }
 
+// fetchAllSlips: fetches and returns fetch all slips for the Endorsement flow.
 async function fetchAllSlips(actor) {
     ensureTrackerAccess(actor);
     return loadSlipRows({ actor });
 }
 
+// fetchSlipDetail: fetches and returns fetch slip detail for the Endorsement flow.
 async function fetchSlipDetail(slipId, actor = null) {
     if (actor?.role) {
         ensureTrackerAccess(actor);
@@ -875,6 +898,7 @@ async function fetchSlipDetail(slipId, actor = null) {
     };
 }
 
+// fetchStaffTargetsByRole: fetches and returns fetch staff targets by role for the Endorsement flow.
 async function fetchStaffTargetsByRole(role, { courseId = null } = {}) {
     const { rows } = await pool.query(
         `
@@ -914,6 +938,7 @@ async function fetchStaffTargetsByRole(role, { courseId = null } = {}) {
     return targets;
 }
 
+// notifyNextStage: creates or sends notify next stage for the Endorsement flow.
 async function notifyNextStage({ slipId, queueKey, studentName, courseId = null }) {
     const config = QUEUE_CONFIG[queueKey];
     if (!config?.nextRole) {
@@ -994,10 +1019,12 @@ async function notifyStaffOfEndorsementOutcome({
     }
 }
 
+// buildPdfVerificationUrl: builds build pdf verification url for the Endorsement flow.
 function buildPdfVerificationUrl(token) {
     return `${FRONTEND_BASE_URL}/endorsement/verify/${token}`;
 }
 
+// generateVerificationQrDataUrl: handles generate verification qr data url for the Endorsement flow.
 async function generateVerificationQrDataUrl(url) {
     let QRCode = null;
     try {
@@ -1015,6 +1042,7 @@ async function generateVerificationQrDataUrl(url) {
     });
 }
 
+// buildCompletedSlipPdf: builds build completed slip pdf for the Endorsement flow.
 async function buildCompletedSlipPdf(detail) {
     let PDFDocument = null;
     try {
@@ -1058,6 +1086,7 @@ async function buildCompletedSlipPdf(detail) {
         ].filter((value) => safeText(value)).join(' | ') || 'N/A';
         const studentSection = safeText(detail.section || detail.section_name) || 'Not provided';
 
+        // drawBox: handles draw box for the Endorsement flow.
         const drawBox = (x, y, width, height, options = {}) => {
             const fillColor = options.fillColor || null;
             doc.save();
@@ -1069,6 +1098,7 @@ async function buildCompletedSlipPdf(detail) {
             doc.restore();
         };
 
+        // drawCenteredText: handles draw centered text for the Endorsement flow.
         const drawCenteredText = (text, x, y, width, options = {}) => {
             doc.font(options.font || baseFont)
                 .fontSize(options.size || 10)
@@ -1079,6 +1109,7 @@ async function buildCompletedSlipPdf(detail) {
                 });
         };
 
+        // drawFieldRow: handles draw field row for the Endorsement flow.
         const drawFieldRow = (y, label, value, width = contentWidth) => {
             drawBox(left, y, width, 18);
             doc.font(boldFont).fontSize(5.5).text(label, left + 6, y + 6);
@@ -1089,6 +1120,7 @@ async function buildCompletedSlipPdf(detail) {
             });
         };
 
+        // drawCheckboxLine: handles draw checkbox line for the Endorsement flow.
         const drawCheckboxLine = (x, y, label, checked) => {
             drawBox(x, y + 1, checkboxSize, checkboxSize);
             if (checked) {
@@ -1112,6 +1144,7 @@ async function buildCompletedSlipPdf(detail) {
             });
         };
 
+        // drawSignatureBlock: handles draw signature block for the Endorsement flow.
         const drawSignatureBlock = (x, y, width, height, title, signatoryName) => {
             // The office row provides the signature block borders.
             const signatureLineY = y + height * 0.52;
@@ -1321,6 +1354,7 @@ async function buildCompletedSlipPdf(detail) {
     });
 }
 
+// storeCompletedSlipPdf: handles store completed slip pdf for the Endorsement flow.
 async function storeCompletedSlipPdf(detail) {
     const pdfBuffer = await buildCompletedSlipPdf(detail);
     const fileName = `endorsement-slip-${detail.slip_id}.pdf`;
@@ -1353,6 +1387,7 @@ async function storeCompletedSlipPdf(detail) {
     };
 }
 
+// finalizeCompletedSlip: handles finalize completed slip for the Endorsement flow.
 async function finalizeCompletedSlip(slipId) {
     const detailBeforePdf = await fetchSlipDetail(slipId);
     const pdf = await storeCompletedSlipPdf(detailBeforePdf);
@@ -1372,6 +1407,7 @@ async function finalizeCompletedSlip(slipId) {
     return fetchSlipDetail(slipId);
 }
 
+// buildSlipPdfDownload: builds build slip pdf download for the Endorsement flow.
 async function buildSlipPdfDownload(slipId, actor = null) {
     const detail = await fetchSlipDetail(slipId, actor);
     const pdfBuffer = await buildCompletedSlipPdf(detail);
@@ -1381,6 +1417,7 @@ async function buildSlipPdfDownload(slipId, actor = null) {
     };
 }
 
+// buildStageUpdate: builds build stage update for the Endorsement flow.
 function buildStageUpdate(queueKey, payload, actorUserId, context = {}) {
     const now = new Date().toISOString();
     const rawAction = safeText(payload?.action).toLowerCase();
@@ -1508,6 +1545,7 @@ function buildStageUpdate(queueKey, payload, actorUserId, context = {}) {
     throw createHttpError(400, 'Unsupported endorsement action.');
 }
 
+// applyStageAction: handles apply stage action for the Endorsement flow.
 async function applyStageAction(queueKey, slipId, payload, actor) {
     const config = ensureQueueAccess(queueKey, actor);
     const action = safeText(payload?.action).toLowerCase();
@@ -1663,6 +1701,7 @@ async function applyStageAction(queueKey, slipId, payload, actor) {
     }
 }
 
+// fetchVerificationPayload: fetches and returns fetch verification payload for the Endorsement flow.
 async function fetchVerificationPayload(token) {
     const { rows } = await pool.query(
         `
@@ -1790,6 +1829,7 @@ async function fetchVerificationPayload(token) {
     };
 }
 
+// sendPendingDigestForRole: sends send pending digest for role for the Endorsement flow.
 async function sendPendingDigestForRole(role) {
     if (!transporter) {
         return { sent: 0, skipped: 'mailer_unavailable' };
@@ -1837,6 +1877,7 @@ async function sendPendingDigestForRole(role) {
     };
 }
 
+// sendPendingDigests: sends send pending digests for the Endorsement flow.
 async function sendPendingDigests() {
     const roles = ['pd', 'guidance', 'sdo'];
     const results = [];
@@ -1851,6 +1892,7 @@ async function sendPendingDigests() {
     return results;
 }
 
+// ensureSlipForApplication: ensures ensure slip for application for the Endorsement flow.
 async function ensureSlipForApplication(applicationId) {
     if (!applicationId) return null;
     const { rows } = await pool.query(

@@ -95,8 +95,19 @@ const DEFAULT_OFFICE = {
     office_hours: 'Monday - Friday, 8:00 AM - 5:00 PM',
 };
 
+function getManilaToday() {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).formatToParts(new Date());
+    const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    return `${byType.year}-${byType.month}-${byType.day}`;
+}
+
 const DEFAULT_APPLICATION = {
-    global_deadline: '2026-03-31',
+    global_deadline: getManilaToday(),
     applications_open: true,
     notifications_enabled: true,
 };
@@ -376,6 +387,7 @@ export default function GeneralPanel() {
     const [featuredNotices, setFeaturedNotices] = useState(() => normalizeFeaturedNotices(DEFAULT_FEATURED_NOTICE));
     const [landingFaqs, setLandingFaqs] = useState(DEFAULT_FAQS);
     const [globalDeadline, setGlobalDeadline] = useState(DEFAULT_APPLICATION.global_deadline);
+    const [savedGlobalDeadline, setSavedGlobalDeadline] = useState(DEFAULT_APPLICATION.global_deadline);
     const [appOpen, setAppOpen] = useState(DEFAULT_APPLICATION.applications_open);
     const [notificationsEnabled, setNotificationsEnabled] = useState(DEFAULT_APPLICATION.notifications_enabled);
     const [loading, setLoading] = useState(true);
@@ -438,7 +450,8 @@ export default function GeneralPanel() {
             setSavedPolicyContent(nextPolicyContent);
             setFeaturedNotices(normalizeFeaturedNotices(payload?.featured_notice));
             setLandingFaqs(normalizeFaqs(payload?.landing_faqs));
-            setGlobalDeadline(payload?.global_deadline || DEFAULT_APPLICATION.global_deadline);
+            setGlobalDeadline(payload?.global_deadline ?? '');
+            setSavedGlobalDeadline(payload?.global_deadline ?? '');
             setAppOpen(typeof payload?.applications_open === 'boolean' ? payload.applications_open : DEFAULT_APPLICATION.applications_open);
             setNotificationsEnabled(payload?.notifications_enabled !== false);
         } catch (nextError) {
@@ -532,7 +545,8 @@ export default function GeneralPanel() {
                     setOfficeHours(payload.office_hours);
                 }
                 if (typeof payload?.global_deadline === 'string' || payload?.global_deadline === null) {
-                    setGlobalDeadline(payload.global_deadline || DEFAULT_APPLICATION.global_deadline);
+                    setGlobalDeadline(payload.global_deadline ?? '');
+                    setSavedGlobalDeadline(payload.global_deadline ?? '');
                 }
                 if (typeof payload?.applications_open === 'boolean') {
                     setAppOpen(payload.applications_open);
@@ -646,9 +660,15 @@ export default function GeneralPanel() {
 
     // saveApplicationSettings: validates and saves save application settings for the Maintenance flow.
     const saveApplicationSettings = async () => {
+        if (globalDeadline !== savedGlobalDeadline) {
+            if (!globalDeadline || globalDeadline < getManilaToday()) {
+                setError('Global deadline must be today or a future date.');
+                return;
+            }
+        }
         await updateGeneralSettings(
             {
-                global_deadline: globalDeadline,
+                ...(globalDeadline !== savedGlobalDeadline ? { global_deadline: globalDeadline } : {}),
                 applications_open: appOpen,
                 notifications_enabled: notificationsEnabled,
             },
@@ -892,7 +912,7 @@ export default function GeneralPanel() {
 
     // restoreApplicationDefaults: restores restore application defaults for the Maintenance flow.
     const restoreApplicationDefaults = () => {
-        setGlobalDeadline(DEFAULT_APPLICATION.global_deadline);
+        setGlobalDeadline(getManilaToday());
         setAppOpen(DEFAULT_APPLICATION.applications_open);
         setNotificationsEnabled(DEFAULT_APPLICATION.notifications_enabled);
         showSuccess('Application window settings restored locally. Save to apply.');
@@ -2045,10 +2065,14 @@ export default function GeneralPanel() {
                                         <FieldLabel>Global Deadline</FieldLabel>
                                         <Input
                                             type="date"
+                                            min={getManilaToday()}
                                             value={globalDeadline}
                                             onChange={(e) => setGlobalDeadline(e.target.value)}
                                             className="h-9 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
                                         />
+                                        <p className="mt-1 text-xs text-stone-500">
+                                            New deadlines must be today or later. Existing expired deadlines can remain unchanged.
+                                        </p>
                                     </div>
                                 </div>
                             </GroupCard>

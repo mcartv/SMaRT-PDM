@@ -194,6 +194,30 @@ function normalizeDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
 }
 
+function getManilaToday() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${byType.year}-${byType.month}-${byType.day}`;
+}
+
+function validateGlobalDeadline(value, currentDeadline) {
+  if (value === currentDeadline) return currentDeadline;
+  const normalized = normalizeDate(value);
+  const date = new Date(`${normalized}T00:00:00.000Z`);
+  if (!normalized || Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== normalized) {
+    throw createHttpError(400, 'Global deadline must be a valid date in YYYY-MM-DD format.');
+  }
+  if (normalized < getManilaToday()) {
+    throw createHttpError(400, 'Global deadline cannot be in the past. Please select today or a future date.');
+  }
+  return normalized;
+}
+
 // normalizeDateTime: normalizes normalize date time for the Maintenance flow.
 function normalizeDateTime(value) {
   const normalized = String(value ?? '').trim();
@@ -584,6 +608,7 @@ function sanitizeFaqs(faqs) {
 function buildFallbackSettings() {
   return {
     ...DEFAULT_GENERAL_SETTINGS,
+    global_deadline: getManilaToday(),
     landing_content: sanitizeLandingContent(DEFAULT_GENERAL_SETTINGS.landing_content),
     policy_content: sanitizePolicyContent(DEFAULT_GENERAL_SETTINGS.policy_content),
     featured_notice: sanitizeFeaturedNotices(DEFAULT_GENERAL_SETTINGS.featured_notice),
@@ -660,10 +685,14 @@ async function updateGeneralSettings(payload = {}, actor = {}) {
   }
 
   const currentSettings = await getGeneralSettings();
+  const globalDeadline = Object.prototype.hasOwnProperty.call(payload, 'global_deadline')
+    ? validateGlobalDeadline(payload.global_deadline, currentSettings.global_deadline)
+    : currentSettings.global_deadline;
   const sanitized = sanitizeSettings({
     ...currentSettings,
     ...payload,
   });
+  sanitized.global_deadline = globalDeadline;
 
   const upsertPayload = {
     general_settings_id: 1,

@@ -1159,6 +1159,16 @@ export default function PayoutManagement() {
         return;
       }
 
+      if (!form.payout_date) {
+        alert('Please select a payout date.');
+        return;
+      }
+
+      if (form.payout_date < getManilaDateInputValue()) {
+        alert('Payout date cannot be in the past. Please select today or a future date.');
+        return;
+      }
+
       setCreating(true);
 
       const payload = {
@@ -1890,7 +1900,10 @@ export default function PayoutManagement() {
             <Button
               style={{ background: C.brownMid }}
               className="h-10 rounded-xl text-white"
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => {
+                resetCreateForm();
+                setShowCreateModal(true);
+              }}
             >
               <Plus className="mr-2 h-4 w-4" />
               Create Payout Batch
@@ -2096,6 +2109,8 @@ export default function PayoutManagement() {
                         <label className="text-sm font-medium">Payout Date</label>
                         <Input
                           type="date"
+                          min={getManilaDateInputValue()}
+                          required
                           value={form.payout_date}
                           onChange={(e) =>
                             setForm((prev) => ({

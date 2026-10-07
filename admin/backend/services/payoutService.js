@@ -34,6 +34,17 @@ function validatePayoutDate(value) {
   if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== normalized) {
     throw payoutError(400, 'Payout date is invalid.');
   }
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const today = `${byType.year}-${byType.month}-${byType.day}`;
+  if (normalized < today) {
+    throw payoutError(400, 'Payout date cannot be in the past. Please select today or a future date.');
+  }
   return normalized;
 }
 

@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 // ArchiveConfirmation: archives archive confirmation for the confirm Archive flow.
-function ArchiveConfirmation({ itemName, description, finish }) {
+function ArchiveConfirmation({ itemName, description, finish, container }) {
   const [open, setOpen] = useState(true);
   const closingRef = useRef(false);
 
@@ -29,7 +29,7 @@ function ArchiveConfirmation({ itemName, description, finish }) {
 
   return (
     <AlertDialog open={open} onOpenChange={(nextOpen) => !nextOpen && close(false)}>
-      <AlertDialogContent className="gap-0 rounded-2xl p-0 sm:max-w-md">
+      <AlertDialogContent container={container} className="gap-0 rounded-2xl p-0 sm:max-w-md">
         <AlertDialogHeader className="gap-1.5 border-b border-stone-100 px-5 py-4">
           <div className="flex items-center gap-3">
             <AlertDialogMedia className="size-9 rounded-xl bg-[var(--portal-accent-soft)] text-[var(--portal-base)] *:[svg]:size-4">
@@ -49,7 +49,7 @@ function ArchiveConfirmation({ itemName, description, finish }) {
             Cancel
           </AlertDialogCancel>
           <AlertDialogAction
-            className="h-9 rounded-lg border-none bg-[var(--portal-base)] px-4 text-xs font-semibold text-white shadow-sm transition hover:brightness-95 focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)] focus-visible:ring-offset-2 active:translate-y-px"
+            className="h-9 rounded-lg border-none px-4 text-xs font-semibold shadow-sm transition hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:translate-y-px"
             onClick={() => close(true)}
           >
             <Archive className="mr-1.5 h-3.5 w-3.5" />
@@ -68,7 +68,10 @@ export function confirmArchive({ itemName = '', description = '' } = {}) {
   return new Promise((resolve) => {
     const host = document.createElement('div');
     host.dataset.archiveConfirmationHost = 'true';
-    document.body.appendChild(host);
+    // Keep both the separate React root and the Radix portal inside the workspace
+    // so their CSS variables follow the signed-in user's theme, including updates.
+    const workspace = document.querySelector('.portal-shell') || document.body;
+    workspace.appendChild(host);
     const root = createRoot(host);
     let settled = false;
 
@@ -81,6 +84,6 @@ export function confirmArchive({ itemName = '', description = '' } = {}) {
       resolve(confirmed);
     };
 
-    root.render(<ArchiveConfirmation itemName={itemName} description={description} finish={finish} />);
+    root.render(<ArchiveConfirmation itemName={itemName} description={description} finish={finish} container={host} />);
   });
 }

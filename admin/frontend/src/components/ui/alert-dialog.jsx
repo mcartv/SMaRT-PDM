@@ -40,10 +40,11 @@ function AlertDialogOverlay({
 function AlertDialogContent({
   className,
   size = "default",
+  container,
   ...props
 }) {
   return (
-    <AlertDialogPortal>
+    <AlertDialogPortal container={container}>
       <AlertDialogOverlay />
       <AlertDialogPrimitive.Content
         data-slot="alert-dialog-content"

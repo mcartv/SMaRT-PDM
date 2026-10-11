@@ -214,15 +214,12 @@ function AcademicYearModal({
     const schedule = form.semesters || {first:['',''], second:['','']};
     const first = schedule.first || ['',''];
     const second = schedule.second || ['',''];
-    // SMARTPDM_ACADEMIC_CALENDAR_CROSS_YEAR_V2: school calendar spans the second half of the starting year and first half of the next.
-    const isValidSchedule = !!(first[0] && first[1] && second[0] && second[1] &&
-        first[0] >= `${start}-07-01` && first[0] <= `${start}-12-31` &&
-        first[1] >= first[0] && first[1] <= `${start}-12-31` &&
-        second[0] > first[1] && second[0] >= `${start}-12-01` &&
-        second[0] <= `${end}-06-30` &&
-        second[1] >= second[0] && second[1] >= `${end}-01-01` &&
-        second[1] <= `${end}-06-30` &&
-        form.start_date <= first[0] && form.end_date >= second[1]);
+    // SMARTPDM_FLEXIBLE_SEMESTER_V7: admin chooses dates; only valid chronology and academic-year containment matter.
+    const isValidSchedule = Boolean(first[0] && first[1] && second[0] && second[1] &&
+        form.start_date && form.end_date &&
+        first[0] >= form.start_date && first[1] >= first[0] &&
+        second[0] > first[1] && second[1] >= second[0] &&
+        second[1] <= form.end_date);
     const canSubmit = Number.isInteger(start) && start >= 2000 &&
         !!form.start_date && !!form.end_date &&
         form.start_date.slice(0,4) === String(start) &&
@@ -295,7 +292,7 @@ function AcademicYearModal({
                         <p className="text-sm font-semibold text-stone-800">{label} Dates</p>
                         <div className="mt-2 space-y-2">
                           {[0,1].map(i=><label key={i} className="block text-xs text-stone-500">{i===0?'Start':'End'}
-                            <input type="date" className="mt-1 w-full rounded-lg border border-stone-200 p-2 text-sm" disabled={saving || !start || (i===1 && !schedule[key]?.[0])} min={i===0 ? (key==='first' ? `${start}-07-01` : first[1] ? new Date(Date.parse(first[1]+'T00:00:00Z')+86400000).toISOString().slice(0,10) : `${start}-12-01`) : schedule[key]?.[0]} max={i===0 ? (key==='first' ? `${start}-12-31` : `${end}-06-30`) : (key==='first' ? `${start}-12-31` : `${end}-06-30`)} value={schedule[key]?.[i] || ''} onChange={e=>setForm(p=>{const old=p.semesters || {first:['',''],second:['','']};const next=[...(old[key] || ['',''])];next[i]=e.target.value;if(i===0 && next[1] && next[1]<next[0])next[1]='';const updated={...old,[key]:next};if(key==='first' && updated.second?.[0] && updated.second[0] <= updated.first[1]) updated.second=['',''];return {...p,semesters:updated};})}/>
+                            <input type="date" className="mt-1 w-full rounded-lg border border-stone-200 p-2 text-sm" disabled={saving || !start || (i===1 && !schedule[key]?.[0])} min={i===1 ? (schedule[key]?.[0] || form.start_date) : key==='second' && first[1] ? new Date(Date.parse(first[1]+'T00:00:00Z')+86400000).toISOString().slice(0,10) : (form.start_date || undefined)} max={i===0 && key==='first' && second[0] ? new Date(Date.parse(second[0]+'T00:00:00Z')-86400000).toISOString().slice(0,10) : (form.end_date || undefined)} value={schedule[key]?.[i] || ''} onChange={e=>setForm(p=>{const old=p.semesters || {first:['',''],second:['','']};const next=[...(old[key] || ['',''])];next[i]=e.target.value;if(i===0 && next[1] && next[1]<next[0])next[1]='';const updated={...old,[key]:next};if(key==='first' && updated.second?.[0] && updated.second[0] <= updated.first[1]) updated.second=['',''];return {...p,semesters:updated};})}/>
                           </label>)}
                         </div>
                       </div>)}
@@ -337,11 +334,7 @@ function AcademicYearModal({
                     </label>
 
                     <label className="flex items-center gap-2 text-sm text-stone-700"><input type="checkbox" checked={form.auto_enabled===true} onChange={e=>setForm(p=>({...p,auto_enabled:e.target.checked}))} disabled={saving}/>Enable automatic semester transitions after safety checks</label>
-                    {!canSubmit ? (
-                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                            First Semester must run July–December of the starting year. Second Semester may start after First Semester ends (late December or the next year) and must finish by June. Check that the overall academic year ends in the next calendar year.
-                        </div>
-                    ) : null}
+                    {!canSubmit ? (<p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">Review the date ranges. You can click Save Changes to see the exact validation error.</p>) : null}
                 </CardContent>
 
                 <div className="flex justify-end gap-2 border-t border-stone-100 bg-stone-50 px-5 py-4">
@@ -354,7 +347,7 @@ function AcademicYearModal({
                     </Button>
                     <Button
                         onClick={onSave}
-                        disabled={saving || !canSubmit}
+                        disabled={saving}
                         className="border-none text-white"
                         style={{ background: C.brown }}
                     >
@@ -638,58 +631,61 @@ export default function AcademicYearPanel() {
     };
 
     // openEdit: handles open edit for the Academic Periods flow.
-    const openEdit = (row) => {
-        setModalMode('edit');
-        setEditingId(row.academic_year_id);
-        setForm({
-            start_year: String(
-                row.start_year || ''
-            ),
-            end_year: String(
-                row.end_year || ''
-            ),
-            start_date: row.start_date || '',
-            end_date: row.end_date || '',
-            is_active: !!row.is_active,
-            semesters:{
-              first:['First Semester'].map(t => autoSchedules.find(q => q.academic_year_label === (row.label || (row.start_year+'-'+row.end_year)) && q.term === t)).reduce((_,q)=>[q?.start_date || '',q?.end_date || ''],[]),
-              second:['Second Semester'].map(t => autoSchedules.find(q => q.academic_year_label === (row.label || (row.start_year+'-'+row.end_year)) && q.term === t)).reduce((_,q)=>[q?.start_date || '',q?.end_date || ''],[]),
-            }, auto_enabled: autoSchedules.some(q => q.academic_year_label === (row.label || (row.start_year+'-'+row.end_year)) && q.auto_enabled === true),
-        });
-        setModalOpen(true);
+    // SMARTPDM_SEMESTER_SAVE_V6: fetch current semester windows rather than relying on possibly stale mount state.
+    const openEdit = async (row) => {
+        try {
+            const response = await fetch(buildApiUrl('/api/academic-years/auto-schedule'), { headers: authHeaders() });
+            if (!response.ok) throw new Error('Could not load semester schedules. Please retry.');
+            const all = await response.json();
+            if (!Array.isArray(all)) throw new Error('Invalid semester schedule response.');
+            setAutoSchedules(all);
+            const label = row.label || String(row.start_year) + '-' + String(row.end_year);
+            const findTerm = (term) => all.find(q => String(q.academic_year_label) === String(label) && q.term === term);
+            const first = findTerm('First Semester');
+            const second = findTerm('Second Semester');
+            setModalMode('edit');
+            setEditingId(row.academic_year_id);
+            setForm({
+                start_year: String(row.start_year), end_year: String(row.end_year),
+                start_date: row.start_date || '', end_date: row.end_date || '',
+                is_active: !!row.is_active,
+                semesters: {
+                    first: [first?.start_date || '', first?.end_date || ''],
+                    second: [second?.start_date || '', second?.end_date || ''],
+                },
+                auto_enabled: first?.auto_enabled === true && second?.auto_enabled === true,
+            });
+            setModalOpen(true);
+        } catch (error) {
+            showMessage({tone:'danger', title:'Schedule unavailable', message:error.message});
+        }
     };
 
     // saveYear: validates and saves save year for the Academic Periods flow.
     const saveYear = async () => {
         try {
             setSaving(true);
-            // SMARTPDM_EXACT_SEMESTER_SAVE_V5: use the chosen year, not the date field, as the academic year identity.
+            // SMARTPDM_SEMESTER_SAVE_V6: one year source of truth, validation occurs on click.
             const start = Number(form.start_year);
             const end = start + 1;
-            if (!Number.isInteger(start) || start < 2000) {
-                throw new Error('Select a valid starting academic year.');
-            }
-            if (!form.start_date || !form.end_date ||
-                form.start_date.slice(0, 4) !== String(start) ||
-                form.end_date.slice(0, 4) !== String(end) ||
-                form.end_date <= form.start_date) {
-                throw new Error('Academic year dates must start in the selected year and end in the following year.');
+            const first = form.semesters?.first || [];
+            const second = form.semesters?.second || [];
+            if (!Number.isInteger(start) || start < 2000 ||
+                !form.start_date || !form.end_date ||
+                form.start_date.slice(0,4) !== String(start) ||
+                form.end_date.slice(0,4) !== String(end) ||
+                form.start_date >= form.end_date) {
+                throw new Error('Academic Year Start must be in ' + start + ' and Academic Year End must be in ' + end + '.');
             }
             if (modalMode !== 'edit' && form.start_date < getTodayDateInputValue()) {
                 throw new Error('New academic years cannot start in the past.');
             }
-            const sem = form.semesters || {};
-            const first = sem.first || [];
-            const second = sem.second || [];
+            // SMARTPDM_FLEXIBLE_SEMESTER_V7: no fixed calendar months; only sensible date ordering.
             if (!(first[0] && first[1] && second[0] && second[1] &&
-                first[0] >= `${start}-07-01` && first[1] <= `${start}-12-31` &&
-                first[0] <= first[1] &&
-                second[0] > first[1] && second[0] >= `${start}-12-01` &&
-                second[0] <= `${end}-06-30` &&
-                second[1] >= second[0] && second[1] >= `${end}-01-01` &&
-                second[1] <= `${end}-06-30` &&
-                form.start_date <= first[0] && form.end_date >= second[1])) {
-                throw new Error('Enter non-overlapping semester dates within the academic year.');
+                first[0] >= form.start_date && first[1] >= first[0] &&
+                second[0] > first[1] && second[1] >= second[0] &&
+                second[1] <= form.end_date)) {
+                throw new Error('Semester dates must be inside the academic year, with end dates on or after start dates and no overlap.');
             }
             const isEdit = modalMode === 'edit' && editingId;
             const url = isEdit

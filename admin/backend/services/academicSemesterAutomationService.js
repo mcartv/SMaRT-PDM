@@ -21,15 +21,13 @@ async function saveYear(academicYearId, payload) {
     const { rows: periods } = await client.query('SELECT ap.period_id,ap.term,ay.start_year,ay.end_year,ay.is_archived FROM academic_period ap JOIN academic_years ay USING(academic_year_id) WHERE ap.academic_year_id=$1 FOR UPDATE OF ap,ay', [academicYearId]);
     if (periods.length !== 2 || periods.some(p => p.is_archived)) throw Error('Select a non-archived academic year with both semesters.');
     const windows = validate(periods.map(p => { const input = (payload.windows || []).find(w => w.term === p.term); if (!input) throw Error('Missing schedule for ' + p.term); const start = fmt(input.start_date), end = fmt(input.end_date); if (Number(start.slice(0, 4)) < p.start_year || Number(start.slice(0, 4)) > p.end_year || Number(end.slice(0, 4)) < p.start_year || Number(end.slice(0, 4)) > p.end_year) throw Error('Date outside academic year.'); return { period_id: p.period_id, term: p.term, start_date: start, end_date: end }; }));
-    // SMARTPDM_ACADEMIC_CALENDAR_CROSS_YEAR_V2: enforce the institution's cross-calendar-year semester windows.
-    const first = windows.find(w => w.term === 'First Semester');
-    const second = windows.find(w => w.term === 'Second Semester');
-    const beginYear = Number(periods[0].start_year), followingYear = Number(periods[0].end_year);
-    const firstMin = beginYear + '-07-01', firstMax = beginYear + '-12-31';
-    const secondMin = beginYear + '-12-01', secondMax = followingYear + '-06-30';
-    if (!first || !second || first.start_date < firstMin || first.start_date > firstMax || first.end_date > firstMax ||
-      second.start_date < secondMin || second.start_date > secondMax || second.end_date < followingYear + '-01-01' || second.end_date > secondMax ||
-      second.start_date <= first.end_date) throw Error('First Semester must be in July-December of the starting year; Second Semester may start in late December after First Semester or in the following year, and must end by June.');
+    // SMARTPDM_FLEXIBLE_SEMESTER_V7: preserve administrator-selected semester dates without month restrictions.
+ const first=windows.find(w=>w.term==='First Semester');
+ const second=windows.find(w=>w.term==='Second Semester');
+ if (!first || !second || first.start_date > first.end_date ||
+     second.start_date > second.end_date || second.start_date <= first.end_date) {
+   throw Error('Semester windows must be chronological and must not overlap.');
+ }
     // An already elapsed start date cannot silently trigger historical transitions.
     // SMARTPDM_ACADEMIC_SCHEDULE_PAST_SAFE_V1 — permit historical dates to be configured; never auto-activate completed windows.
     const today = todayManila(); if (payload.auto_enabled === true && windows.every(w => w.end_date < today)) throw Error('Cannot enable automation when both semesters have ended.');

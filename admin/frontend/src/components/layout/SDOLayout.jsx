@@ -50,7 +50,7 @@ const baseNavItems = [
   { path: '/sdo/queue', label: 'For Endorsement', icon: FileText },
   { path: '/sdo/tracker', label: 'All Applicants', icon: FileText },
   { path: '/sdo/reports', label: 'Reports', icon: BarChart3 },
-  { path: '/sdo/scholars', label: 'Scholar List', icon: ShieldAlert },
+  { path: '/sdo/students', label: 'Student Records', icon: ShieldAlert },
   { path: '/sdo/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -765,7 +765,7 @@ export default function SDOLayout() {
 
         {/* Viewport */}
         <main className="portal-responsive-main flex-1 overflow-y-auto p-5 md:p-6" style={{ background: theme.mainBg }}>
-          <div key={outletKey} className="portal-responsive-content max-w-7xl mx-auto w-full">
+          <div key={outletKey} className="portal-responsive-content min-w-0 max-w-7xl mx-auto w-full">
             <Outlet />
           </div>
         </main>

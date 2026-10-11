@@ -70,7 +70,9 @@ async function resolveRegistrarStudentByStudentNumber(studentNumber) {
       sequence_number,
       source_registry,
       is_active,
-      is_archived
+      is_archived,
+      has_disciplinary_action,
+      offense_type
     `)
         .or(`student_number.eq.${normalizedStudentNumber},pdm_id.eq.${normalizedStudentNumber}`)
         .eq('is_archived', false)

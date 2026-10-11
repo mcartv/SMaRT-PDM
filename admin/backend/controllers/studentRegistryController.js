@@ -3,6 +3,59 @@ const studentRegistryService = require('../services/studentRegistryService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 
+exports.getDisciplinaryRecords = async (req, res) => {
+  try {
+    res.json(await studentRegistryService.listSdoStudentRegistry(req.query));
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ message: error.message });
+  }
+};
+
+exports.updateDisciplinaryRecord = async (req, res) => {
+  try {
+    const record = await studentRegistryService.updateSdoDisciplinaryRecord({
+      recordId: req.params.recordId, values: req.body || {},
+      actorId: req.user?.user_id || req.user?.userId || req.user?.sub || null,
+    });
+    await auditLogService.logAudit({
+      req, actionTaken: 'UPDATE_DISCIPLINARY_CASE', module: 'Disciplinary Cases',
+      entityType: 'sdo_student_records', entityId: record.record_id,
+      description: `Updated disciplinary record for ${record.student_number}.`,
+    }).catch(error => console.error('SDO UPDATE AUDIT ERROR:', error.message));
+    socketEvents.scholarUpdated(req.app.get('io'), { student_number: record.student_number });
+    res.json(record);
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ message: error.message });
+  }
+};
+
+exports.previewDisciplinaryImport = async (req, res) => {
+  try {
+    res.json(await studentRegistryService.previewSdoDisciplinaryRecordsFile({ file: req.file }));
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ message: error.message });
+  }
+};
+
+exports.importDisciplinaryRecords = async (req, res) => {
+  try {
+    const result = await studentRegistryService.importSdoDisciplinaryRecordsFile({
+      file: req.file,
+      actorId: req.user?.user_id || req.user?.userId || req.user?.sub || null,
+    });
+    await auditLogService.logAudit({
+      req, actionTaken: 'IMPORT_DISCIPLINARY_CASES', module: 'Disciplinary Cases',
+      entityType: 'sdo_student_records',
+      description: `Processed ${result.imported} disciplinary cases: ${result.added} added, ${result.updated} updated.`,
+      metadata: { imported: result.imported, added: result.added, updated: result.updated, total: result.total, duplicates: result.duplicate_rows },
+    }).catch(error => console.error('SDO IMPORT AUDIT ERROR:', error.message));
+    socketEvents.scholarUpdated(req.app.get('io'), { action: 'disciplinary_import' });
+    res.json(result);
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ message: error.message });
+  }
+};
+
 exports.getRegistry = async (req, res) => {
   try {
     const limit = req.query.limit;

@@ -3,24 +3,31 @@ const { paginationRequested, listFilters, queryPage } = require('../utils/listPa
 const db = require('../config/db');
 const supabase = require('../config/supabase');
 
-const SDO_STATUS_MAP = {
-  clear: 'Clear',
-  minor: 'Minor Offense',
-  major: 'Major Offense',
-};
+// SDO records own the current standing. Legacy scholars without a case retain
+// their existing standing until their first SDO edit/import creates the record.
+const SCHOLAR_SDO_STATUS_SQL = `COALESCE((
+  SELECT CASE regexp_replace(lower(btrim(record.offense_type)), '[_-]+', ' ', 'g')
+    WHEN 'major' THEN 'Major Offense' WHEN 'major offense' THEN 'Major Offense'
+    WHEN 'major disciplinary offense' THEN 'Major Offense'
+    WHEN 'minor' THEN 'Minor Offense' WHEN 'minor offense' THEN 'Minor Offense'
+    ELSE 'Clear' END
+  FROM public.sdo_student_records AS record
+  WHERE upper(btrim(record.student_number)) = upper(btrim(st.pdm_id))
+    AND record.is_archived = false
+  ORDER BY record.updated_at DESC, record.record_id DESC LIMIT 1
+), st.sdo_status, 'Clear')`;
+const SCHOLAR_SDO_REMARKS_SQL = `(
+  SELECT record.remarks FROM public.sdo_student_records AS record
+  WHERE upper(btrim(record.student_number)) = upper(btrim(st.pdm_id))
+    AND record.is_archived = false
+  ORDER BY record.updated_at DESC, record.record_id DESC LIMIT 1
+)`;
 
 // mapSdoLevelFromStudentStatus: maps map sdo level from student status for the Scholars flow.
 function mapSdoLevelFromStudentStatus(studentStatus) {
   if (studentStatus === 'Minor Offense') return 'minor';
   if (studentStatus === 'Major Offense') return 'major';
   return 'none';
-}
-
-// mapStudentStatusFromLevel: maps map student status from level for the Scholars flow.
-function mapStudentStatusFromLevel(level) {
-  if (level === 'minor') return SDO_STATUS_MAP.minor;
-  if (level === 'major') return SDO_STATUS_MAP.major;
-  return SDO_STATUS_MAP.clear;
 }
 
 // extractAvatarStoragePath: handles extract avatar storage path for the Scholars flow.
@@ -128,7 +135,7 @@ function normalizeScholarRow(row) {
      */
     sdo_record_id: null,
     offense_level: null,
-    sdo_comment: '',
+    sdo_comment: row.sdo_comment || '',
     sdo_comment_date: null,
     sdo_record_status: null,
 
@@ -302,7 +309,8 @@ exports.fetchAllScholars = async (query = {}) => {
       st.first_name,
       st.last_name,
       st.gwa,
-      st.sdo_status,
+      ${SCHOLAR_SDO_STATUS_SQL} AS sdo_status,
+      ${SCHOLAR_SDO_REMARKS_SQL} AS sdo_comment,
 
       COALESCE(st.course_id, smr.course_id) AS course_id,
       ac.course_code,
@@ -474,7 +482,8 @@ exports.fetchRemovedScholars = async (query = {}) => {
       st.first_name,
       st.last_name,
       st.gwa,
-      st.sdo_status,
+      ${SCHOLAR_SDO_STATUS_SQL} AS sdo_status,
+      ${SCHOLAR_SDO_REMARKS_SQL} AS sdo_comment,
       COALESCE(st.course_id, smr.course_id) AS course_id,
       ac.course_code,
       ac.course_name,
@@ -784,7 +793,14 @@ exports.fetchScholarById = async (studentId, options = {}) => {
 
       st.gwa,
       st.year_level,
-      st.sdo_status,
+      ${SCHOLAR_SDO_STATUS_SQL} AS sdo_status,
+      ${SCHOLAR_SDO_REMARKS_SQL} AS sdo_comment,
+      (
+        SELECT record.offense_incident_date FROM public.sdo_student_records AS record
+        WHERE upper(btrim(record.student_number)) = upper(btrim(st.pdm_id))
+          AND record.is_archived = false
+        ORDER BY record.updated_at DESC, record.record_id DESC LIMIT 1
+      ) AS sdo_incident_date,
       NULLIF(
         TRIM(
           COALESCE(
@@ -1013,9 +1029,10 @@ exports.fetchScholarById = async (studentId, options = {}) => {
      */
     sdo_record_id: null,
     offense_level: null,
-    sdo_comment: '',
+    sdo_comment: row.sdo_comment || '',
     sdo_comment_date: null,
     sdo_record_status: null,
+    sdo_incident_date: row.sdo_incident_date || null,
 
     email:
       row.email || 'N/A',
@@ -1437,7 +1454,7 @@ exports.fetchSdoStats = async () => {
 
       COUNT(*) FILTER (
         WHERE COALESCE(
-          st.sdo_status,
+          ${SCHOLAR_SDO_STATUS_SQL},
           'Clear'
         ) = 'Clear'
 
@@ -1448,7 +1465,7 @@ exports.fetchSdoStats = async () => {
       ) AS clear_count,
 
       COUNT(*) FILTER (
-        WHERE st.sdo_status =
+        WHERE ${SCHOLAR_SDO_STATUS_SQL} =
           'Minor Offense'
 
         AND COALESCE(
@@ -1458,7 +1475,7 @@ exports.fetchSdoStats = async () => {
       ) AS minor_count,
 
       COUNT(*) FILTER (
-        WHERE st.sdo_status =
+        WHERE ${SCHOLAR_SDO_STATUS_SQL} =
           'Major Offense'
 
         AND COALESCE(
@@ -1468,7 +1485,7 @@ exports.fetchSdoStats = async () => {
       ) AS major_count,
 
       COUNT(*) FILTER (
-        WHERE st.sdo_status IN (
+        WHERE ${SCHOLAR_SDO_STATUS_SQL} IN (
           'Minor Offense',
           'Major Offense'
         )
@@ -1530,64 +1547,10 @@ exports.updateScholarSdoStatus =
       );
     }
 
-    const studentStatus =
-      mapStudentStatusFromLevel(
-        normalizedStatus
-      );
-
-    const result = await db.query(
-      `
-      UPDATE students
-
-      SET
-        sdo_status = $2,
-
-        scholar_remarks =
-          CASE
-            WHEN $3::text <> ''
-              THEN $3
-            ELSE scholar_remarks
-          END,
-
-        updated_at = NOW()
-
-      WHERE student_id = $1
-
-        AND COALESCE(
-          is_archived,
-          false
-        ) = false
-
-        AND COALESCE(
-          scholar_is_archived,
-          false
-        ) = false
-
-        AND COALESCE(
-          scholarship_status,
-          'None'
-        ) IN (
-          'Active',
-          'On Hold',
-          'Inactive',
-          'Removed'
-        )
-
-      RETURNING
-        student_id,
-        first_name,
-        last_name,
-        sdo_status,
-        ro_status;
-      `,
-      [
-        studentId,
-        studentStatus,
-        comment,
-      ]
-    );
-
-    const scholar = result.rows[0];
+    const scholar = await require('./studentRegistryService').updateScholarDisciplinaryStanding({
+      studentId, status: normalizedStatus, comment,
+      actorId: actor?.user_id || actor?.userId || actor?.id || null,
+    });
 
     if (!scholar) {
       return null;

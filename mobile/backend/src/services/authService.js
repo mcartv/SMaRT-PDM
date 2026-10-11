@@ -15,6 +15,37 @@ const otpStore = new Map();
 const pendingRegistrationStore = new Map();
 const REGISTRATION_OTP_EXPIRY_MS = 60 * 1000;
 
+function isMajorOffense(value) {
+    const classification = String(value || '').trim().toLowerCase()
+        .replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
+    return ['major', 'major offense', 'major disciplinary offense'].includes(classification);
+}
+
+async function ensureRegistrationAllowed(student, studentNumber) {
+    const blockedMessage = 'You cannot sign up because SDO has recorded a major disciplinary offense under your Student ID. Please contact the Student Discipline Office (SDO) to review your record.';
+    if (isMajorOffense(student.offense_type)) {
+        throw createHttpError(403, blockedMessage);
+    }
+
+    // Check the imported cases directly too: a later registrar import can reset
+    // the master-record flag without removing the SDO case.
+    const studentNumbers = [...new Set([
+        studentNumber, student.student_number, student.pdm_id,
+    ].map(normalizeStudentNumber).filter(Boolean))];
+    const { data, error } = await supabase
+        .from('sdo_student_records')
+        .select('offense_type')
+        .in('student_number', studentNumbers)
+        .eq('is_archived', false);
+
+    if (error) {
+        throw createHttpError(503, 'Unable to verify disciplinary clearance right now. Please try again later.');
+    }
+    if (data?.some(record => isMajorOffense(record.offense_type))) {
+        throw createHttpError(403, blockedMessage);
+    }
+}
+
 // createHttpError: creates create http error for the Authentication flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
@@ -121,6 +152,12 @@ async function findUserByEmail(email) {
 
 // generateAndStoreNewOtp: handles generate and store new otp for the Authentication flow.
 async function generateAndStoreNewOtp(existingUser, plainPassword = null) {
+    const student = await resolveRegistrarStudentByStudentNumber(existingUser.username);
+    if (!student) {
+        throw createHttpError(403, 'Student ID is not registered in the registrar records.');
+    }
+    await ensureRegistrationAllowed(student, existingUser.username);
+
     const otp = generateOTP();
     const expiresAt = Date.now() + REGISTRATION_OTP_EXPIRY_MS;
     const passwordHash =
@@ -208,6 +245,10 @@ async function checkStudentId(body = {}) {
 
     if (error) throw error;
 
+    if (!existingUser) {
+        await ensureRegistrationAllowed(registryStudent, student_id);
+    }
+
     return {
         exists: true,
         hasAccount: !!existingUser,
@@ -250,6 +291,8 @@ async function register(body = {}) {
             'Student ID is not registered in the registrar records.'
         );
     }
+
+    await ensureRegistrationAllowed(registrarStudent, student_id);
 
     const { data: existingUserByStudentId, error: studentIdCheckError } =
         await supabase
@@ -368,6 +411,16 @@ async function verifyOtp(body = {}) {
         );
     }
 
+    try {
+        await ensureRegistrationAllowed(masterStudent, pendingRegistration.student_id);
+    } catch (error) {
+        if (error.statusCode === 403) {
+            otpStore.delete(email);
+            pendingRegistrationStore.delete(email);
+        }
+        throw error;
+    }
+
     const { data: existingUserByStudentId, error: studentIdCheckError } =
         await supabase
             .from('users')
@@ -482,6 +535,12 @@ async function resendOtp(body = {}) {
             message: 'A new verification code has been sent.',
         };
     }
+
+    const student = await resolveRegistrarStudentByStudentNumber(pendingRegistration.student_id);
+    if (!student) {
+        throw createHttpError(403, 'Student ID is not registered in the registrar records.');
+    }
+    await ensureRegistrationAllowed(student, pendingRegistration.student_id);
 
     const otp = generateOTP();
     const expiresAt = Date.now() + REGISTRATION_OTP_EXPIRY_MS;

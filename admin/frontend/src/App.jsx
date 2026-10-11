@@ -58,7 +58,7 @@ import { DataProcessingConsent, PrivacyNotice, TermsOfUse } from './pages/Public
 // --- SDO PAGES ---
 
 import SDODashboard from './pages/SDODashboard';
-import SDOScholarList from './pages/SDOScholarList';
+import SDOStudents from './pages/SDOStudents';
 import SDOProfile from './pages/SDOProfile';
 import SDOMaintenance from './pages/SDOMaintenance';
 
@@ -351,7 +351,9 @@ export default function App() {
               />
             }
           />
-          <Route path="scholars" element={<SDOScholarList />} />
+          <Route path="students" element={<SDOStudents />} />
+          <Route path="scholars" element={<Navigate to="/sdo/students?view=scholars" replace />} />
+          <Route path="disciplinary-cases" element={<Navigate to="/sdo/students?view=cases" replace />} />
           <Route path="profile" element={<SDOProfile />} />
           <Route path="settings" element={<SDOMaintenance />} />
           <Route path="maintenance" element={<Navigate to="/sdo/settings" replace />} />

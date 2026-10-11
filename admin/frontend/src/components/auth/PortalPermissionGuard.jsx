@@ -16,7 +16,8 @@ export default function PortalPermissionGuard({ children }) {
   if (status === 'error') {
     return <div role="alert" className="p-8 text-center">Permissions are temporarily unavailable. {error || 'Please refresh the page.'}</div>;
   }
-  if (!hasPermission(permission)) {
+  const allowed = Array.isArray(permission) ? permission.some(hasPermission) : hasPermission(permission);
+  if (!allowed) {
     return <div role="alert" className="p-8 text-center">You do not have permission to view this page.</div>;
   }
   return children;

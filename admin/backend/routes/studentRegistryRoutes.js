@@ -6,6 +6,8 @@ const router = express.Router();
 const studentRegistryController = require('../controllers/studentRegistryController');
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
 const { requirePermission } = require('../middleware/rbacMiddleware');
+const { invalidateCacheOnSuccess } = require('../middleware/appCacheMiddleware');
+const invalidateDisciplinaryChanges = invalidateCacheOnSuccess(['scholars', 'applications', 'renewals', 'payouts', 'ro']);
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -15,6 +17,10 @@ const upload = multer({
 });
 
 router.get('/', protect, authorizeRoles('admin'), requirePermission('students.view'), studentRegistryController.getRegistry);
+router.get('/disciplinary', protect, authorizeRoles('sdo'), requirePermission('discipline.manage'), studentRegistryController.getDisciplinaryRecords);
+router.post('/disciplinary/preview', protect, authorizeRoles('sdo'), requirePermission('discipline.manage'), upload.single('file'), studentRegistryController.previewDisciplinaryImport);
+router.post('/disciplinary/import', protect, authorizeRoles('sdo'), requirePermission('discipline.manage'), invalidateDisciplinaryChanges, upload.single('file'), studentRegistryController.importDisciplinaryRecords);
+router.patch('/disciplinary/:recordId', protect, authorizeRoles('sdo'), requirePermission('discipline.manage'), invalidateDisciplinaryChanges, studentRegistryController.updateDisciplinaryRecord);
 router.post(
   '/import',
   protect,

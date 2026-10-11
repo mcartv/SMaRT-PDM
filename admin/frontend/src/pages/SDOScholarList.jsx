@@ -1,7 +1,8 @@
 import { useListPage } from '../hooks/useListPage';
+import StudentRecordsPagination from '@/components/StudentRecordsPagination';
 // SMaRT-PDM: Scholars — SDOScholar List (admin frontend page); loads data, handles page actions, and renders the admin view.
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useCallback, useEffect, useState } from 'react';
+
 
 // --- SHADCN UI COMPONENTS ---
 import { Input } from "@/components/ui/input";
@@ -32,12 +33,7 @@ import {
   CheckCircle2,
   Clock,
   Loader2,
-  X,
   ShieldAlert,
-  CalendarDays,
-  GraduationCap,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react';
 
 import { buildApiUrl } from '@/api';
@@ -46,7 +42,7 @@ import { useSocketEvent } from '@/hooks/useSocket';
 import usePortalTheme from '@/hooks/usePortalTheme';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
-import ScholarIdentity from '@/components/profile/ScholarIdentity';
+import ScholarViewModal from '@/components/profile/SDOScholarProfile';
 const API_BASE = buildApiUrl('/api');const PAGE_SIZE = 10;
 
 // ─── Theme ───────────────────────────────────────────────────────
@@ -67,22 +63,22 @@ const C = {
 };
 
 const SDO_STYLE = {
-  none: { label: 'Clear', color: C.green, bg: C.greenSoft },
-  minor: { label: 'Minor', color: C.amber, bg: C.amberSoft },
-  major: { label: 'Major', color: C.red, bg: C.redSoft },
+  none: { label: 'No Offense', color: C.green, bg: C.greenSoft },
+  minor: { label: 'Minor Offense', color: C.amber, bg: C.amberSoft },
+  major: { label: 'Major Offense', color: C.red, bg: C.redSoft },
 };
 
 const FILTER_OPTIONS = [
   { value: 'all', label: 'All Statuses' },
-  { value: 'clear', label: 'Clear' },
+  { value: 'clear', label: 'No Offense' },
   { value: 'minor', label: 'Minor Offense' },
   { value: 'major', label: 'Major Offense' },
 ];
 
 const STATUS_OPTIONS = [
-  { value: 'clear', label: 'Clear' },
-  { value: 'minor', label: 'Minor' },
-  { value: 'major', label: 'Major' },
+  { value: 'clear', label: 'No Offense' },
+  { value: 'minor', label: 'Minor Offense' },
+  { value: 'major', label: 'Major Offense' },
 ];
 
 // getToken: reads and returns get token for the Scholars flow.
@@ -100,13 +96,6 @@ function getInitials(name = '') {
     .toUpperCase();
 }
 
-// normalizeStatus: normalizes normalize status for the Scholars flow.
-function normalizeStatus(status) {
-  if (status === 'minor') return 'Minor';
-  if (status === 'major') return 'Major';
-  return 'Clear';
-}
-
 // getEditableStatus: reads and returns get editable status for the Scholars flow.
 function getEditableStatus(status) {
   const normalized = String(status || '').trim().toLowerCase();
@@ -118,159 +107,6 @@ function getEditableStatus(status) {
 // getSdoStyle: reads and returns get sdo style for the Scholars flow.
 function getSdoStyle(status) {
   return SDO_STYLE[status || 'none'] || SDO_STYLE.none;
-}
-
-// formatDate: formats format date for the Scholars flow.
-function formatDate(value) {
-  if (!value) return 'N/A';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return 'N/A';
-  return d.toLocaleDateString('en-PH', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
-// ProfileDetail: handles profile detail for the Scholars flow.
-function ProfileDetail({ icon: Icon, label, children, wide = false }) {
-  return (
-    <div className={`rounded-xl border border-stone-200 bg-white px-4 py-3.5 ${wide ? 'sm:col-span-2' : ''}`}>
-      <div className="mb-1.5 flex items-center gap-2 text-xs text-stone-500">
-        <Icon className="h-3.5 w-3.5" />
-        <span>{label}</span>
-      </div>
-      <p className="whitespace-pre-wrap text-sm font-medium leading-5 text-stone-800">
-        {children}
-      </p>
-    </div>
-  );
-}
-
-// ScholarViewModal: handles scholar view modal for the Scholars flow.
-function ScholarViewModal({ scholar, theme, onClose }) {
-  useEffect(() => {
-    if (!scholar) return undefined;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [scholar]);
-
-  if (!scholar || typeof document === 'undefined') return null;
-
-  const displayStatus = getSdoStyle(getEditableStatus(scholar.sdu_level));
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[100] flex h-[100dvh] w-full items-center justify-center bg-black/45 p-0 backdrop-blur-[3px] sm:p-4"
-      style={{
-        '--portal-base': theme?.base || C.brown,
-        '--portal-border': theme?.border || '#e7e5e4',
-      }}
-      onClick={onClose}
-    >
-      <Card
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="sdo-scholar-profile-title"
-        className="flex h-full max-h-[100dvh] w-full max-w-4xl flex-col overflow-hidden rounded-none border-stone-200 bg-white shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div
-          className="flex shrink-0 items-start justify-between gap-4 border-b px-5 py-4 sm:px-6"
-          style={{ background: theme?.accentSoft || '#fafaf9', borderColor: theme?.border }}
-        >
-          <div className="min-w-0">
-            <h3 id="sdo-scholar-profile-title" className="text-lg font-semibold text-stone-900">
-              Scholar Profile
-            </h3>
-            <p className="mt-1 text-xs leading-5 text-stone-500">
-              Review scholarship and disciplinary information.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="-mr-1 rounded-lg p-2 text-stone-400 transition-colors hover:bg-white/70 hover:text-stone-700"
-            aria-label="Close scholar profile"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto bg-stone-50/50 p-4 sm:p-6">
-          <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-            <aside className="rounded-2xl border border-stone-200 bg-white p-5">
-              <ScholarIdentity
-                scholar={scholar}
-                name={scholar.student_name}
-                studentNumber={scholar.student_number}
-              />
-
-              <div
-                className="mt-5 rounded-xl border px-3.5 py-3"
-                style={{ background: displayStatus.bg, borderColor: displayStatus.color }}
-              >
-                <p className="text-xs font-medium" style={{ color: displayStatus.color }}>
-                  Disciplinary Standing
-                </p>
-                <p className="mt-1 text-sm font-semibold" style={{ color: displayStatus.color }}>
-                  {displayStatus.label}
-                </p>
-              </div>
-
-              <div className="mt-4 divide-y divide-stone-100 rounded-xl border border-stone-200 px-3.5">
-                {[
-                  ['Scholarship Program', scholar.program_name || 'Not available'],
-                  ['Course', scholar.course_code || scholar.course_name || 'Not available'],
-                ].map(([label, value]) => (
-                  <div key={label} className="py-3">
-                    <p className="text-xs text-stone-500">{label}</p>
-                    <p className="mt-1 text-sm font-medium leading-5 text-stone-800">{value}</p>
-                  </div>
-                ))}
-              </div>
-            </aside>
-
-            <section className="rounded-2xl border border-stone-200 bg-white p-4 sm:p-5">
-              <div className="mb-4">
-                <h4 className="text-sm font-semibold text-stone-900">Scholar Details</h4>
-                <p className="mt-1 text-xs text-stone-500">Current scholarship and disciplinary record.</p>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <ProfileDetail icon={GraduationCap} label="Scholarship Program">
-                  {scholar.program_name || 'Not available'}
-                </ProfileDetail>
-                <ProfileDetail icon={ShieldAlert} label="Course">
-                  {scholar.course_code || scholar.course_name || 'Not available'}
-                </ProfileDetail>
-                <ProfileDetail icon={CalendarDays} label="Batch Year">
-                  {scholar.batch_year || 'Not available'}
-                </ProfileDetail>
-                <ProfileDetail icon={CalendarDays} label="Date Awarded">
-                  {formatDate(scholar.date_awarded)}
-                </ProfileDetail>
-                <ProfileDetail icon={CheckCircle2} label="Disciplinary Standing">
-                  {displayStatus.label}
-                </ProfileDetail>
-                <ProfileDetail icon={Users} label="Student ID">
-                  {scholar.student_number || 'Not available'}
-                </ProfileDetail>
-                <ProfileDetail icon={Clock} label="SDO Comment" wide>
-                  {(scholar.sdo_comment || '').trim() || 'No comment provided.'}
-                </ProfileDetail>
-              </div>
-            </section>
-          </div>
-        </div>
-      </Card>
-    </div>,
-    document.body
-  );
 }
 
 // DisciplinaryStandingConfirmModal: handles disciplinary standing confirm modal for the Scholars flow.
@@ -368,7 +204,29 @@ function DisciplinaryStandingConfirmModal({
 }
 
 // ─── Main Component ──────────────────────────────────────────────
-export default function SDOScholarList() {
+export function SDOScholarSummary({ stats }) {
+  const cards = [
+    { label: 'Total Scholars', value: stats.total, icon: Users, accent: C.brown, soft: C.amberSoft },
+    { label: 'No Offense', value: stats.clear, icon: CheckCircle2, accent: C.green, soft: C.greenSoft },
+    { label: 'Minor Offense', value: stats.minor, icon: Clock, accent: C.amber, soft: C.amberSoft },
+    { label: 'Major Offense', value: stats.major, icon: AlertTriangle, accent: C.red, soft: C.redSoft },
+  ];
+  return <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    {cards.map(card => <Card key={card.label} className="rounded-[20px] border-stone-200 shadow-none">
+      <CardContent className="flex items-center gap-3 p-4">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: card.soft }}>
+          <card.icon className="w-4 h-4" style={{ color: card.accent }} />
+        </div>
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-500">{card.label}</p>
+          <p className="mt-1 text-xl font-semibold text-stone-900">{card.value}</p>
+        </div>
+      </CardContent>
+    </Card>)}
+  </div>;
+}
+
+export default function SDOScholarList({ embedded = false, searchValue = '', filtersOpen = true, onSummaryChange }) {
   const { theme } = usePortalTheme('sdo');
   const [scholars, setScholars] = useState([]);
   const [stats, setStats] = useState({
@@ -378,9 +236,11 @@ export default function SDOScholarList() {
     major: 0,
   });
   const [loading, setLoading] = useState(true);
+  useEffect(() => { onSummaryChange?.(stats); }, [stats, onSummaryChange]);
   const [error, setError] = useState('');
 
-  const [search, setSearch] = useState('');
+  const [localSearch, setSearch] = useState('');
+  const search = embedded ? searchValue : localSearch;
   const [program, setProgram] = useState('All Programs');
   const [batchYear, setBatchYear] = useState('All Years');
   const [probationFilter, setProbationFilter] = useState('all');
@@ -518,39 +378,6 @@ export default function SDOScholarList() {
     }
   };
 
-  const statCards = useMemo(() => {
-    return [
-      {
-        label: 'Total Scholars',
-        value: stats.total,
-        icon: Users,
-        accent: C.brown,
-        soft: C.amberSoft,
-      },
-      {
-        label: 'Clear',
-        value: stats.clear,
-        icon: CheckCircle2,
-        accent: C.green,
-        soft: C.greenSoft,
-      },
-      {
-        label: 'Minor',
-        value: stats.minor,
-        icon: Clock,
-        accent: C.amber,
-        soft: C.amberSoft,
-      },
-      {
-        label: 'Major',
-        value: stats.major,
-        icon: AlertTriangle,
-        accent: C.red,
-        soft: C.redSoft,
-      },
-    ];
-  }, [stats]);
-
   if (loading) {
     return <PageLoadingSkeleton label="Loading SDO scholars" showStats />;
   }
@@ -574,7 +401,7 @@ export default function SDOScholarList() {
   }
 
   return (
-    <div className="space-y-5 py-2">
+    <div className="min-w-0 max-w-full space-y-5 py-2">
       {viewScholar && (
         <ScholarViewModal
           scholar={viewScholar}
@@ -594,32 +421,13 @@ export default function SDOScholarList() {
         onConfirm={handleSave}
       />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {statCards.map((s) => (
-          <Card key={s.label} className="rounded-[20px] border-stone-200 shadow-none">
-            <CardContent className="flex items-center gap-3 p-4">
-              <div
-                className="flex h-10 w-10 items-center justify-center rounded-xl"
-                style={{ background: s.soft }}
-              >
-                <s.icon className="w-4 h-4" style={{ color: s.accent }} />
-              </div>
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-500">
-                  {s.label}
-                </p>
-                <p className="mt-1 text-xl font-semibold text-stone-900">{s.value}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {!embedded && <SDOScholarSummary stats={stats} />}
 
       <Card className="overflow-hidden rounded-[22px] border-stone-200 shadow-none">
-        <CardHeader className="border-b border-stone-100 bg-white p-4">
+        {(!embedded || filtersOpen || error) && <CardHeader id="scholars-filters" className="border-b border-stone-100 bg-white p-4">
           <div className="space-y-4">
             <div className="flex flex-col gap-3 xl:flex-row">
-              <div className="relative flex-1">
+              {!embedded && <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                 <Input
                   value={search}
@@ -627,11 +435,11 @@ export default function SDOScholarList() {
                   placeholder="Search scholar, student ID, batch, program, or course"
                   className="h-10 rounded-lg border-stone-200 pl-9 text-sm bg-white"
                 />
-              </div>
+              </div>}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 xl:w-auto">
+              <div style={embedded && !filtersOpen ? { display: 'none' } : undefined} className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <Select value={program} onValueChange={setProgram}>
-                  <SelectTrigger className="h-10 rounded-lg border-stone-200 bg-white text-sm min-w-[170px]">
+                  <SelectTrigger className="h-10 w-full min-w-0 rounded-lg border-stone-200 bg-white text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -644,7 +452,7 @@ export default function SDOScholarList() {
                 </Select>
 
                 <Select value={batchYear} onValueChange={setBatchYear}>
-                  <SelectTrigger className="h-10 rounded-lg border-stone-200 bg-white text-sm min-w-[150px]">
+                  <SelectTrigger className="h-10 w-full min-w-0 rounded-lg border-stone-200 bg-white text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -657,7 +465,7 @@ export default function SDOScholarList() {
                 </Select>
 
                 <Select value={probationFilter} onValueChange={setProbationFilter}>
-                  <SelectTrigger className="h-10 rounded-lg border-stone-200 bg-white text-sm min-w-[150px]">
+                  <SelectTrigger className="h-10 w-full min-w-0 rounded-lg border-stone-200 bg-white text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -670,7 +478,7 @@ export default function SDOScholarList() {
                 </Select>
 
                 <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="h-10 rounded-lg border-stone-200 bg-white text-sm min-w-[150px]">
+                  <SelectTrigger className="h-10 w-full min-w-0 rounded-lg border-stone-200 bg-white text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -690,7 +498,7 @@ export default function SDOScholarList() {
               </div>
             )}
           </div>
-        </CardHeader>
+        </CardHeader>}
 
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -700,7 +508,8 @@ export default function SDOScholarList() {
                 <TableHead className="text-xs font-medium text-stone-500 py-3 px-5">Scholar</TableHead>
                 <TableHead className="text-xs font-medium text-stone-500 py-3">Student ID</TableHead>
                 <TableHead className="text-xs font-medium text-stone-500 py-3">Course</TableHead>
-                <TableHead className="text-xs font-medium text-stone-500 py-3 w-[160px]">Disciplinary Standing</TableHead>
+                <TableHead className="text-xs font-medium text-stone-500 py-3">Year Level</TableHead>
+                <TableHead className="text-xs font-medium text-stone-500 py-3 w-[180px]">Disciplinary Standing</TableHead>
                 <TableHead className="text-xs font-medium text-stone-500 py-3 text-right pr-5">Action</TableHead>
               </TableRow>
             </TableHeader>
@@ -708,7 +517,7 @@ export default function SDOScholarList() {
             <TableBody>
               {pageData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-12 text-sm text-stone-400">
+                  <TableCell colSpan={6} className="text-center py-12 text-sm text-stone-400">
                     No scholars match the current filters.
                   </TableCell>
                 </TableRow>
@@ -743,13 +552,17 @@ export default function SDOScholarList() {
                         {scholar.course_code || scholar.course_name || '—'}
                       </TableCell>
 
+                      <TableCell className="py-3.5 align-top text-sm text-stone-600">
+                        {scholar.year_level || '—'}
+                      </TableCell>
+
                       <TableCell className="py-3.5 align-top">
                         <Select
                           value={getEditableStatus(scholar.sdu_level)}
                           onValueChange={(value) => requestStandingUpdate(scholar, value)}
                         >
-                          <SelectTrigger className="h-9 rounded-lg border-stone-200 bg-white text-sm w-[120px]">
-                            <SelectValue>{normalizeStatus(getEditableStatus(scholar.sdu_level))}</SelectValue>
+                          <SelectTrigger className="h-9 w-[160px] rounded-lg border-stone-200 bg-white text-sm">
+                            <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             {STATUS_OPTIONS.map((option) => (
@@ -790,33 +603,7 @@ export default function SDOScholarList() {
           {(page - 1) * PAGE_SIZE + pageData.length} of {total} scholars
         </p>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 rounded-lg border-stone-200 text-xs"
-            disabled={page <= 1}
-            onClick={() => setPage((current) => Math.max(1, current - 1))}
-          >
-            <ChevronLeft className="w-3.5 h-3.5 mr-1" />
-            Prev
-          </Button>
-
-          <div className="px-3 text-xs text-stone-500">
-            Page {page} of {totalPages}
-          </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 rounded-lg border-stone-200 text-xs"
-            disabled={page >= totalPages}
-            onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-          >
-            Next
-            <ChevronRight className="w-3.5 h-3.5 ml-1" />
-          </Button>
-        </div>
+        <StudentRecordsPagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </div>
     </div>
   );

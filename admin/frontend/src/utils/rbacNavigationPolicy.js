@@ -14,6 +14,8 @@ export const NAV_PERMISSIONS = Object.freeze({
   '/sdo/queue': 'endorsements.view',
   '/sdo/tracker': 'endorsements.view',
   '/sdo/scholars': 'students.view',
+  '/sdo/disciplinary-cases': 'discipline.manage',
+  '/sdo/students': ['students.view', 'discipline.manage'],
   '/pd/queue': 'endorsements.view',
   '/pd/tracker': 'endorsements.view',
   '/guidance/queue': 'endorsements.view',
@@ -32,5 +34,5 @@ export function permissionForPath(pathname) {
 export function canSeePath(path, status, hasPermission) {
   const code = permissionForPath(path);
   if (!code) return true;
-  return status === 'ready' && hasPermission(code);
+  return status === 'ready' && (Array.isArray(code) ? code.some(hasPermission) : hasPermission(code));
 }

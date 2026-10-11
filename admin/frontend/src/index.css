@@ -4230,6 +4230,24 @@ html.smartpdm-admin-active .portal-shell
 
 /* Payout creation uses a definite viewport-bound height so the middle grid
  * row can scroll while the heading and actions remain reachable. */
+html [data-slot="dialog-content"].sdo-scholar-profile {
+  z-index: 60;
+  width: calc(100vw - 2rem);
+  max-width: 72rem;
+  max-height: calc(100dvh - 2rem);
+  padding: 0;
+}
+
+@media (max-width: 639px) {
+  html [data-slot="dialog-content"].sdo-scholar-profile {
+    width: 100%;
+    max-width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+}
+
 html [data-slot="dialog-content"].payout-create-dialog {
   --payout-dialog-gutter: 1.5rem;
   --payout-dialog-height: calc(100dvh - max(var(--payout-dialog-gutter), env(safe-area-inset-top, 0px)) - max(var(--payout-dialog-gutter), env(safe-area-inset-bottom, 0px)));

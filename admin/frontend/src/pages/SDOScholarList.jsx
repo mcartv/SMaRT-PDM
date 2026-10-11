@@ -1,5 +1,6 @@
 import { useListPage } from '../hooks/useListPage';
 import StudentRecordsPagination from '@/components/StudentRecordsPagination';
+import StudentRecordsFilterModal from '@/components/StudentRecordsFilterModal';
 // SMaRT-PDM: Scholars — SDOScholar List (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useState } from 'react';
 
@@ -226,7 +227,7 @@ export function SDOScholarSummary({ stats }) {
   </div>;
 }
 
-export default function SDOScholarList({ embedded = false, searchValue = '', filtersOpen = true, onSummaryChange }) {
+export default function SDOScholarList({ embedded = false, searchValue = '', filtersOpen = false, onFiltersOpenChange, onSummaryChange }) {
   const { theme } = usePortalTheme('sdo');
   const [scholars, setScholars] = useState([]);
   const [stats, setStats] = useState({
@@ -243,8 +244,10 @@ export default function SDOScholarList({ embedded = false, searchValue = '', fil
   const search = embedded ? searchValue : localSearch;
   const [program, setProgram] = useState('All Programs');
   const [batchYear, setBatchYear] = useState('All Years');
+  const [course, setCourse] = useState('All Courses');
   const [probationFilter, setProbationFilter] = useState('all');
   const [sortBy, setSortBy] = useState('Name A-Z');
+  const [localFiltersOpen, setLocalFiltersOpen] = useState(false);
 
   const [savingId, setSavingId] = useState(null);
   const [viewScholar, setViewScholar] = useState(null);
@@ -252,7 +255,7 @@ export default function SDOScholarList({ embedded = false, searchValue = '', fil
   const [confirmationRemarks, setConfirmationRemarks] = useState('');
 
   const { page, setPage, query: listQuery, metadata: listMetadata, accept: acceptList, beginRequest } = useListPage({
-    search, program, academicYear: batchYear, probation: probationFilter, sort: sortBy, view: 'sdo',
+    search, program, course, academicYear: batchYear, probation: probationFilter, sort: sortBy, view: 'sdo',
   }, PAGE_SIZE);
 
   // loadScholars: loads and returns load scholars for the Scholars flow.
@@ -296,6 +299,7 @@ export default function SDOScholarList({ embedded = false, searchValue = '', fil
   useSocketEvent('renewal:approved', () => loadScholars({ soft: true }), [loadScholars]);
   const programOptions = ['All Programs', ...(listMetadata.filters?.programs || [])];
   const batchOptions = ['All Years', ...(listMetadata.filters?.years || [])];
+  const courseOptions = ['All Courses', ...(listMetadata.filters?.courses || [])];
 
   const sortOptions = [
     'Name A-Z',
@@ -422,82 +426,23 @@ export default function SDOScholarList({ embedded = false, searchValue = '', fil
       />
 
       {!embedded && <SDOScholarSummary stats={stats} />}
+      {(embedded ? filtersOpen : localFiltersOpen) && <StudentRecordsFilterModal
+        title="Filter scholar list"
+        values={{ program, course, batchYear, probationFilter, sortBy }}
+        fields={[
+          { key: 'program', label: 'Scholarship Program', defaultValue: 'All Programs', options: programOptions.map(value => ({ value, label: value })) },
+          { key: 'course', label: 'Course', defaultValue: 'All Courses', options: courseOptions.map(value => ({ value, label: value })) },
+          { key: 'batchYear', label: 'Academic Year', defaultValue: 'All Years', options: batchOptions.map(value => ({ value, label: value })) },
+          { key: 'probationFilter', label: 'Offense', defaultValue: 'all', options: FILTER_OPTIONS },
+          { key: 'sortBy', label: 'Sort By', defaultValue: 'Name A-Z', options: sortOptions.map(value => ({ value, label: value })) },
+        ]}
+        onApply={draft => { setProgram(draft.program); setCourse(draft.course); setBatchYear(draft.batchYear); setProbationFilter(draft.probationFilter); setSortBy(draft.sortBy); setPage(1); }}
+        onClose={() => embedded ? onFiltersOpenChange?.(false) : setLocalFiltersOpen(false)}
+      />}
 
       <Card className="overflow-hidden rounded-[22px] border-stone-200 shadow-none">
-        {(!embedded || filtersOpen || error) && <CardHeader id="scholars-filters" className="border-b border-stone-100 bg-white p-4">
-          <div className="space-y-4">
-            <div className="flex flex-col gap-3 xl:flex-row">
-              {!embedded && <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search scholar, student ID, batch, program, or course"
-                  className="h-10 rounded-lg border-stone-200 pl-9 text-sm bg-white"
-                />
-              </div>}
-
-              <div style={embedded && !filtersOpen ? { display: 'none' } : undefined} className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <Select value={program} onValueChange={setProgram}>
-                  <SelectTrigger className="h-10 w-full min-w-0 rounded-lg border-stone-200 bg-white text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {programOptions.map((option) => (
-                      <SelectItem key={option} value={option} className="text-sm">
-                        {option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select value={batchYear} onValueChange={setBatchYear}>
-                  <SelectTrigger className="h-10 w-full min-w-0 rounded-lg border-stone-200 bg-white text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {batchOptions.map((option) => (
-                      <SelectItem key={option} value={option} className="text-sm">
-                        {option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select value={probationFilter} onValueChange={setProbationFilter}>
-                  <SelectTrigger className="h-10 w-full min-w-0 rounded-lg border-stone-200 bg-white text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FILTER_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value} className="text-sm">
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="h-10 w-full min-w-0 rounded-lg border-stone-200 bg-white text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sortOptions.map((option) => (
-                      <SelectItem key={option} value={option} className="text-sm">
-                        {option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {error && (
-              <div className="rounded-lg px-4 py-3 text-sm border border-red-200 bg-red-50 text-red-700">
-                {error}
-              </div>
-            )}
-          </div>
+        {!embedded && <CardHeader className="border-b p-4">
+          <div className="flex min-w-0 flex-wrap items-center gap-3"><div className="relative min-w-0 flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" /><Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search by student name or PDM ID..." className="pl-9" /></div><Button variant="outline" aria-haspopup="dialog" onClick={() => setLocalFiltersOpen(true)}>Filters</Button></div>
         </CardHeader>}
 
         <CardContent className="p-0">

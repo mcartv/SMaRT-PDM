@@ -1,6 +1,7 @@
 import { formatPeso } from '@/utils/currency';
 // SMaRT-PDM: Reports — Report Generation (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import pdmReportHeader from '@/assets/pdm-report-header.png';
 import { Button } from '@/components/ui/button';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import {
@@ -116,7 +117,7 @@ const REPORT_TEMPLATE_GROUPS = [
   },
   {
     label: 'Scholar Operations',
-    ids: ['payouts', 'payout_proofs', 'ro_compliance'],
+    ids: ['payouts', 'payout_acknowledgment', 'payout_proofs', 'ro_compliance'],
   },
   {
     label: 'Office Reports',
@@ -125,6 +126,7 @@ const REPORT_TEMPLATE_GROUPS = [
 ];
 
 const REPORT_FILTER_FIELDS = {
+  payout_acknowledgment: ['payoutBatch'],
   slot_utilization: ['academicYear', 'semester', 'benefactor', 'program', 'result', 'date'],
   applications: [
     'academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'gender',
@@ -215,10 +217,11 @@ function FilterField({ label, children }) {
 
 // formatCellValue: formats format cell value for the Reports flow.
 function formatCellValue(value, key = '') {
+  if (key === 'recipient_signature' || key === 'date_received') return '';
   if (value === null || value === undefined || value === '') return '—';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (key === 'gwa' && Number.isFinite(Number(value))) return Number(value).toFixed(2);
-  if (/^(amount|amount_per_scholar|amount_received|total_amount|financial_allocation|per_scholar_amount)$/.test(key)) return formatPeso(value);
+  if (/^(amount|payout_amount|amount_per_scholar|amount_received|total_amount|financial_allocation|per_scholar_amount)$/.test(key)) return formatPeso(value);
 
   if (typeof value === 'string' && value.includes('T')) {
     const date = new Date(value);
@@ -321,6 +324,8 @@ export default function ReportGeneration({
   const [payoutBatchStatuses, setPayoutBatchStatuses] = useState([]);
   const [payoutReleaseStatuses, setPayoutReleaseStatuses] = useState([]);
   const [payoutPaymentModes, setPayoutPaymentModes] = useState([]);
+  const [payoutBatches, setPayoutBatches] = useState([]);
+  const [payoutBatchId, setPayoutBatchId] = useState('');
 
   const [selected, setSelected] = useState('applications');
   const [academicYearId, setAcademicYearId] = useState('all');
@@ -383,7 +388,7 @@ export default function ReportGeneration({
     setPreviewTotal(0);
     setHasPreviewed(false);
   }, [
-    selected, academicYearId, academicYearFromId, academicYearToId, semester, programId, benefactorId, reviewResult, courseId,
+    selected, payoutBatchId, academicYearId, academicYearFromId, academicYearToId, semester, programId, benefactorId, reviewResult, courseId,
     roAreaId, yearLevel, gender, applicationStatus, documentStatus, verificationStatus,
     batchStatus, releaseStatus, paymentMode, dateFrom, dateTo,
   ]);
@@ -525,6 +530,7 @@ export default function ReportGeneration({
       setPayoutBatchStatuses(data.payoutBatchStatuses || []);
       setPayoutReleaseStatuses(data.payoutReleaseStatuses || []);
       setPayoutPaymentModes(data.payoutPaymentModes || []);
+      setPayoutBatches(data.payoutBatches || []);
 
       const allowed = Array.isArray(allowedReportTypes) && allowedReportTypes.length > 0
         ? allReports.filter((report) => allowedReportTypes.includes(report.id))
@@ -558,6 +564,7 @@ export default function ReportGeneration({
     const has = (field) => activeFilterFields.has(field);
     return new URLSearchParams({
       reportType: selected,
+      payoutBatchId: has('payoutBatch') ? payoutBatchId : '',
       academicYearId: has('academicYear') ? academicYearId : 'all',
       academicYearFromId: has('academicYearRange') ? academicYearFromId : 'all',
       academicYearToId: has('academicYearRange') ? academicYearToId : 'all',
@@ -579,13 +586,14 @@ export default function ReportGeneration({
       dateTo: has('date') ? dateTo : '',
     });
   }, [
-    activeFilterFields, selected, academicYearId, academicYearFromId, academicYearToId, semester, programId, benefactorId,
+    activeFilterFields, selected, payoutBatchId, academicYearId, academicYearFromId, academicYearToId, semester, programId, benefactorId,
     reviewResult, courseId, roAreaId, yearLevel, gender, applicationStatus, documentStatus,
     verificationStatus, batchStatus, releaseStatus, paymentMode, dateFrom, dateTo,
   ]);
 
   // resetFilters: resets reset filters for the Reports flow.
   function resetFilters() {
+    setPayoutBatchId('');
     setAcademicYearId('all');
     setAcademicYearFromId('all');
     setAcademicYearToId('all');
@@ -625,6 +633,10 @@ export default function ReportGeneration({
   }
 
   const handlePreviewReport = useCallback(async ({ navigateToPreview = false } = {}) => {
+    if (selected === 'payout_acknowledgment' && !payoutBatchId) {
+      if (navigateToPreview) toast.error('Select a payout batch first.');
+      return;
+    }
     if (hasInvalidFilterRange) {
       setFeedback({
         tone: 'error',
@@ -670,6 +682,8 @@ export default function ReportGeneration({
     }
   }, [
     buildParams,
+    selected,
+    payoutBatchId,
     hasInvalidFilterRange,
     invalidFilterRangeMessage,
     tokenStorageKey,
@@ -798,6 +812,7 @@ export default function ReportGeneration({
 
   // handleDownloadByFormat: handles handle download by format for the Reports flow.
   async function handleDownloadByFormat(format = 'xlsx') {
+    if (selected === 'payout_acknowledgment' && !payoutBatchId) { toast.error('Select a payout batch first.'); return; }
     if (hasInvalidFilterRange) {
       setFeedback({
         tone: 'error',
@@ -903,12 +918,13 @@ export default function ReportGeneration({
       const title = escapePrintHtml(data.title || selectedReport?.name || 'Report Preview');
       const subtitle = escapePrintHtml([data.subtitle, selectedReport?.sub].filter(Boolean).join(' • '));
       const generatedAt = escapePrintHtml(new Date().toLocaleString());
+      const isAcknowledgment = selected === 'payout_acknowledgment';
       const columnHeaders = printColumns
         .map((column) => `<th>${escapePrintHtml(column.header)}</th>`)
         .join('');
       const tableRows = printRows
         .map((row) => `<tr>${printColumns
-          .map(({ key }) => `<td>${escapePrintHtml(formatCellValue(row[key], key))}</td>`)
+          .map(({ key }) => `<td${key === 'recipient_signature' ? ' class="signature"' : ''}>${escapePrintHtml(formatCellValue(row[key], key))}</td>`)
           .join('')}</tr>`)
         .join('');
       const emptyState = `<tr><td class="empty" colspan="${Math.max(printColumns.length, 1)}">No matching records found.</td></tr>`;
@@ -932,24 +948,34 @@ export default function ReportGeneration({
               thead { display: table-header-group; }
               tr { break-inside: avoid; }
               .empty { padding: 28px; text-align: center; color: #78716c; }
+              .signature { min-width: 45mm; height: 13mm; }
+              .acknowledgment { table-layout: fixed; }
+              .acknowledgment th, .acknowledgment td { padding: 7px 5px; }
+              .institutional-header { display: block; width: 175mm; max-width: 100%; height: auto; margin: 0 auto 8mm; }
+              .acknowledgment-title { text-align: center; font-size: 12pt; }
+              .certification { margin-top: 24px; break-inside: avoid; font-size: 10pt; line-height: 1.8; }
             </style>
           </head>
           <body>
-            <h1>${title}</h1>
+            ${isAcknowledgment ? `<img class="institutional-header" src="${escapePrintHtml(new URL(pdmReportHeader, window.location.origin).href)}" alt="Pambayang Dalubhasaan ng Marilao — Office of Scholarship and Financial Assistance" />` : ''}
+            <h1${isAcknowledgment ? ' class="acknowledgment-title"' : ''}>${title}</h1>
             ${subtitle ? `<p class="subtitle">${subtitle}</p>` : ''}
             <div class="meta">
               <span>${printRows.length} matching record(s)</span>
               <span>Prepared ${generatedAt}</span>
             </div>
-            <table>
+            <table${isAcknowledgment ? ' class="acknowledgment"' : ''}>
+              ${isAcknowledgment ? '<colgroup><col style="width:3%" /><col style="width:13%" /><col style="width:16%" /><col style="width:7%" /><col style="width:6%" /><col style="width:8%" /><col style="width:8%" /><col style="width:14%" /><col style="width:17%" /><col style="width:8%" /></colgroup>' : ''}
               ${printColumns.length ? `<thead><tr>${columnHeaders}</tr></thead>` : ''}
               <tbody>${tableRows || emptyState}</tbody>
             </table>
+            ${isAcknowledgment ? `<div class="certification"><strong>Recipients: ${data.total} · Total Amount: ${escapePrintHtml(formatPeso(data.totalAmount))}</strong><p>Recipient signature acknowledges receipt of the amount listed above.</p><br />Prepared / Certified by: ____________________________________<br />OSFA Coordinator &nbsp;&nbsp;&nbsp; Date: ____________________</div>` : ''}
           </body>
         </html>`);
       printWindow.document.close();
       printWindow.focus();
-      window.setTimeout(() => printWindow.print(), 150);
+      await Promise.all(Array.from(printWindow.document.images).map(image => image.decode().catch(() => {})));
+      if (!printWindow.closed) window.setTimeout(() => printWindow.print(), 150);
     } catch (error) {
       printWindow.close();
       toast.error('Unable to print report', { description: error.message });
@@ -1198,6 +1224,15 @@ export default function ReportGeneration({
                     </>
                   ) : null}
 
+                  {activeFilterFields.has('payoutBatch') ? (
+                    <FilterField label="Payout Batch">
+                      <Select value={payoutBatchId} onValueChange={setPayoutBatchId}>
+                        <SelectTrigger className="h-11 w-full min-w-0 rounded-xl"><SelectValue placeholder="Select payout batch" /></SelectTrigger>
+                        <SelectContent>{payoutBatches.map(batch => <SelectItem key={batch.payout_batch_id} value={String(batch.payout_batch_id)}>{batch.payout_title}{batch.payout_date ? ` · ${String(batch.payout_date).slice(0, 10)}` : ''}</SelectItem>)}</SelectContent>
+                      </Select>
+                      {!payoutBatches.length && <p className="text-xs text-stone-500">Create a payout batch first.</p>}
+                    </FilterField>
+                  ) : null}
                   {supportsAcademicYearFilter ? (
                     <FilterField label="Academic Year">
                       <Select

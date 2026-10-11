@@ -1,14 +1,10 @@
 // SMaRT-PDM: Reports — report Service (admin backend service); contains business logic and data operations.
-const path = require('path');
 const ExcelJS = require('exceljs');
 const pool = require('../config/db');
 const { getReportColumns, prepareReportRow } = require('./reportColumns');
 const { getNewlyRecommendedRows, getGraduateRows } = require('./osfaReportService');
 
-const EXCEL_HEADER_IMAGE_PATH = path.resolve(
-    __dirname,
-    '../assets/report-templates/pdm-excel-header.png'
-);
+const { visualTextWidth, estimateWrappedLines, addInstitutionalWorksheetHeader, styleInstitutionalTable } = require('./reportWorksheetTemplate');
 
 // createHttpError: creates create http error for the Reports flow.
 function createHttpError(statusCode, message) {
@@ -68,6 +64,7 @@ function normalizeReportType(value) {
         'applications',
         'scholars',
         'payouts',
+        'payout_acknowledgment',
         'payout_proofs',
         'sdo',
         'sdo_offenses',
@@ -126,6 +123,7 @@ async function getReportMetadata() {
         payoutBatchStatusesResult,
         payoutReleaseStatusesResult,
         payoutPaymentModesResult,
+        payoutBatchesResult,
     ] = await Promise.all([
         pool.query(`
       SELECT program_id, program_name
@@ -209,10 +207,13 @@ async function getReportMetadata() {
       WHERE NULLIF(TRIM(COALESCE(payment_mode, '')), '') IS NOT NULL
       ORDER BY value;
     `),
+        pool.query(`SELECT payout_batch_id, payout_title, payout_date FROM payout_batches
+          WHERE COALESCE(is_archived, false) = false ORDER BY payout_date DESC, created_at DESC`),
     ]);
 
     return {
         reportTypes: [
+            { id: 'payout_acknowledgment', name: 'Payout Batch Acknowledgment', sub: 'Recipient signature sheet for one payout batch, with amounts and OSFA certification' },
             {
                 id: 'applications',
                 name: 'Application Registry Report',
@@ -350,6 +351,7 @@ async function getReportMetadata() {
         payoutBatchStatuses: buildMetadataOptions(payoutBatchStatusesResult.rows, 'value', 'All Batch Statuses'),
         payoutReleaseStatuses: buildMetadataOptions(payoutReleaseStatusesResult.rows, 'value', 'All Release Statuses'),
         payoutPaymentModes: buildMetadataOptions(payoutPaymentModesResult.rows, 'value', 'All Payout Modes'),
+        payoutBatches: payoutBatchesResult.rows,
     };
 }
 
@@ -483,6 +485,7 @@ function normalizeExcelCellValue(value) {
 
 // normalizeReportDisplayValue: normalizes normalize report display value for the Reports flow.
 function normalizeReportDisplayValue(key, value) {
+    if (key === 'payout_amount') return `₱${Number(value || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`;
     const normalized = normalizeExcelCellValue(value);
     if (typeof normalized !== 'string') return normalized;
 
@@ -581,21 +584,6 @@ function excelCellText(cell) {
     return String(value).replace(/\r\n/g, '\n').trim();
 }
 
-// visualTextWidth: handles visual text width for the Reports flow.
-function visualTextWidth(text) {
-    const lines = String(text || '').split('\n');
-    return Math.max(0, ...lines.map((line) => {
-        let width = 0;
-        for (const char of Array.from(line)) {
-            if (/\s/.test(char)) width += 0.55;
-            else if (/[MW@#%&]/.test(char)) width += 1.35;
-            else if (/[ilI1.,'`|]/.test(char)) width += 0.55;
-            else if (char.charCodeAt(0) > 255) width += 1.8;
-            else width += 1;
-        }
-        return width;
-    }));
-}
 
 // resolveExcelWidthBounds: resolves resolve excel width bounds for the Reports flow.
 function resolveExcelWidthBounds(key, headerText, { institutional = false } = {}) {
@@ -611,15 +599,6 @@ function resolveExcelWidthBounds(key, headerText, { institutional = false } = {}
     return { minWidth, maxWidth };
 }
 
-// estimateWrappedLines: handles estimate wrapped lines for the Reports flow.
-function estimateWrappedLines(text, columnWidth) {
-    const available = Math.max(4, Number(columnWidth || 10) - 1.5);
-    const rawLines = String(text || '').split('\n');
-    return Math.max(1, rawLines.reduce((total, line) => {
-        const width = Math.max(1, visualTextWidth(line));
-        return total + Math.max(1, Math.ceil(width / available));
-    }, 0));
-}
 
 // applyAdaptiveWorksheetLayout: handles apply adaptive worksheet layout for the Reports flow.
 function applyAdaptiveWorksheetLayout(sheet, {
@@ -778,59 +757,6 @@ function applyAdaptiveWorksheetLayout(sheet, {
     return { totalColumnWidth, orientation, lastRow, lastColumn };
 }
 
-// addInstitutionalWorksheetHeader: adds add institutional worksheet header for the Reports flow.
-function addInstitutionalWorksheetHeader(workbook, sheet, {
-    title,
-    subtitle,
-    lastColumn,
-    headerRow = 11,
-    sectionLabel = '',
-}) {
-    const imageId = workbook.addImage({
-        filename: EXCEL_HEADER_IMAGE_PATH,
-        extension: 'png',
-    });
-
-    // Keep the PDM banner at a stable aspect ratio. Tying the image to the
-    // worksheet columns stretches it whenever auto-fit changes column widths.
-    sheet.addImage(imageId, {
-        tl: { col: 0, row: 0 },
-        ext: { width: 662, height: 140 },
-        editAs: 'oneCell',
-    });
-
-    [1, 2, 3, 4, 5, 6, 7].forEach((rowNumber) => {
-        sheet.getRow(rowNumber).height = rowNumber === 7 ? 6 : 18;
-    });
-
-    sheet.mergeCells(`A8:${lastColumn}8`);
-    sheet.getCell('A8').value = title;
-    sheet.getCell('A8').font = { bold: true, size: 12, color: { argb: 'FF111111' } };
-    sheet.getCell('A8').alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    sheet.getRow(8).height = Math.max(24, Math.min(42, 18 + estimateWrappedLines(title, Math.max(18, sheet.columnCount * 10)) * 10));
-
-    sheet.mergeCells(`A9:${lastColumn}9`);
-    sheet.getCell('A9').value = subtitle;
-    sheet.getCell('A9').font = { bold: true, size: 10, color: { argb: 'FF111111' } };
-    sheet.getCell('A9').alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    sheet.getRow(9).height = 20;
-
-    sheet.getRow(10).height = 6;
-
-    if (sectionLabel) {
-        const sectionRow = headerRow + 1;
-        sheet.mergeCells(`A${sectionRow}:${lastColumn}${sectionRow}`);
-        sheet.getCell(`A${sectionRow}`).value = sectionLabel;
-        sheet.getCell(`A${sectionRow}`).font = { bold: true, size: 10, color: { argb: 'FF111111' } };
-        sheet.getCell(`A${sectionRow}`).fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FFD9D9D9' },
-        };
-        sheet.getCell(`A${sectionRow}`).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-        sheet.getRow(sectionRow).height = 20;
-    }
-}
 
 // styleSheet: handles style sheet for the Reports flow.
 function styleSheet(sheet, {
@@ -2471,41 +2397,6 @@ function addRows(sheet, rows, columns = sheet.columns || []) {
     });
 }
 
-// styleInstitutionalTable: handles style institutional table for the Reports flow.
-function styleInstitutionalTable(sheet, { headerRow, dataStartRow }) {
-    const lastRow = sheet.lastRow?.number || headerRow;
-    const lastColumn = Math.max(1, sheet.columnCount);
-    const header = sheet.getRow(headerRow);
-    header.font = { bold: true, color: { argb: 'FF111111' }, size: 10 };
-    header.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFFFFFFF' },
-    };
-    header.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-    header.height = Math.max(header.height || 0, 28);
-
-    for (let rowNumber = headerRow; rowNumber <= lastRow; rowNumber += 1) {
-        const row = sheet.getRow(rowNumber);
-        for (let columnNumber = 1; columnNumber <= lastColumn; columnNumber += 1) {
-            const cell = row.getCell(columnNumber);
-            cell.border = {
-                top: { style: 'thin', color: { argb: 'FF333333' } },
-                left: { style: 'thin', color: { argb: 'FF333333' } },
-                bottom: { style: 'thin', color: { argb: 'FF333333' } },
-                right: { style: 'thin', color: { argb: 'FF333333' } },
-            };
-            if (rowNumber >= dataStartRow) {
-                cell.font = { ...(cell.font || {}), size: 10 };
-                cell.alignment = {
-                    ...(cell.alignment || {}),
-                    vertical: 'middle',
-                    wrapText: true,
-                };
-            }
-        }
-    }
-}
 
 // buildOfficeSummary: builds build office summary for the Reports flow.
 function buildOfficeSummary(reportType, rows = []) {
@@ -2736,6 +2627,7 @@ async function getRowsByReportType({
 function normalizeReportQuery(query = {}) {
     const normalized = {
         reportType: normalizeReportType(query.reportType || query.type),
+        payoutBatchId: safeText(query.payoutBatchId || query.payout_batch_id || ''),
         academicYearId: safeText(query.academicYearId || query.academic_year_id || 'all'),
         semester: safeText(query.semester || 'all'),
         programId: safeText(query.programId || query.program_id || 'all'),
@@ -2777,6 +2669,9 @@ function normalizeReportQuery(query = {}) {
 // previewReport: handles preview report for the Reports flow.
 async function previewReport(query = {}) {
     const normalized = normalizeReportQuery(query);
+    if (normalized.reportType === 'payout_acknowledgment') {
+        return require('./payoutAcknowledgmentReportService').preview({ ...normalized, print: query.print });
+    }
     const rows = await getRowsByReportType(normalized);
 
     const previewResult = {
@@ -2953,6 +2848,7 @@ async function buildExportDefinition(normalized) {
 // generateExcelReport: handles generate excel report for the Reports flow.
 async function generateExcelReport(query = {}) {
     const normalized = normalizeReportQuery(query);
+    if (normalized.reportType === 'payout_acknowledgment') return require('./payoutAcknowledgmentReportService').excel(normalized);
     const definition = await buildExportDefinition(normalized);
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'SMaRT-PDM';
@@ -3006,7 +2902,9 @@ async function generateExcelReport(query = {}) {
 // generateCsvReport: handles generate csv report for the Reports flow.
 async function generateCsvReport(query = {}) {
     const normalized = normalizeReportQuery(query);
-    const definition = await buildExportDefinition(normalized);
+    const definition = normalized.reportType === 'payout_acknowledgment'
+        ? await require('./payoutAcknowledgmentReportService').getData(normalized)
+        : await buildExportDefinition(normalized);
     const lines = [];
 
     lines.push(definition.columns.map((column) => escapeCsvValue(column.header)).join(','));

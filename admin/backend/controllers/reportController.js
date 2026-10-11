@@ -21,6 +21,7 @@ function cleanupExportLocks(now = Date.now()) {
 function buildExportLockKey(access, queryPayload) {
     const filterFingerprint = JSON.stringify({
         reportType: String(queryPayload.reportType || 'applications').toLowerCase(),
+        payoutBatchId: queryPayload.payoutBatchId,
         academicYearId: queryPayload.academicYearId,
         semester: queryPayload.semester,
         programId: queryPayload.programId,
@@ -86,6 +87,7 @@ function getAllowedReportTypes(role, hasRoCoordinatorAccess = false) {
             'newly_recommended',
             'scholarship_history',
             'payouts',
+            'payout_acknowledgment',
             'payout_proofs',
             'endorsements',
             'ro_compliance',
@@ -174,6 +176,7 @@ function getScopedServiceQuery(req, access) {
 function getReportQueryPayload(req) {
     return {
         reportType: req.query?.reportType || req.query?.type || 'applications',
+        payoutBatchId: req.query?.payoutBatchId || req.query?.payout_batch_id || '',
         academicYearId: req.query?.academicYearId || req.query?.academic_year_id || 'all',
         academicYearFromId:
             req.query?.academicYearFromId ||
@@ -237,6 +240,7 @@ async function getReportMetadata(req, res) {
         result.reportTypes = (result.reportTypes || []).filter((reportType) =>
             allowedReportTypes.includes(reportType.id)
         );
+        if (!allowedReportTypes.includes('payout_acknowledgment')) result.payoutBatches = [];
 
         await writeReportAudit(
             req,

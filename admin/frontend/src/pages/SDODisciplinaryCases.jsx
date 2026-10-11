@@ -3,6 +3,7 @@ import { buildApiUrl } from '@/api';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import StudentRecordsPagination from '@/components/StudentRecordsPagination';
+import StudentRecordsFilterModal from '@/components/StudentRecordsFilterModal';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -51,16 +52,6 @@ function PageControls({ page, total, rowCount, onPageChange, disabled = false, l
   </div>;
 }
 
-function OffenseFilter({ value, onChange, id }) {
-  return <div className="min-w-0 space-y-2">
-    <label className="text-sm font-medium" htmlFor={id}>Offense</label>
-    <Select value={value} onValueChange={onChange}><SelectTrigger id={id}><SelectValue /></SelectTrigger><SelectContent>
-      <SelectItem value="all">All Offenses</SelectItem>
-      {['No Offense', 'Minor Offense', 'Major Offense'].map(offense => <SelectItem key={offense} value={offense}>{offense}</SelectItem>)}
-    </SelectContent></Select>
-  </div>;
-}
-
 async function request(path, options = {}) {
   const response = await fetch(buildApiUrl(`/api/student-registry/disciplinary${path}`), {
     ...options,
@@ -71,7 +62,7 @@ async function request(path, options = {}) {
   return data;
 }
 
-export default function SDODisciplinaryCases({ embedded = false, search = '', filtersOpen = false }) {
+export default function SDODisciplinaryCases({ embedded = false, search = '', filtersOpen = false, onFiltersOpenChange }) {
   const { hasPermission } = useRbacPermissions();
   const allowed = hasPermission('discipline.manage');
   const [file, setFile] = useState(null);
@@ -79,8 +70,10 @@ export default function SDODisciplinaryCases({ embedded = false, search = '', fi
   const [records, setRecords] = useState({ items: [], total: 0 });
   const [page, setPage] = useState(0);
   const [offense, setOffense] = useState('all');
+  const [course, setCourse] = useState('all');
+  const [localFiltersOpen, setLocalFiltersOpen] = useState(false);
   const [previewPage, setPreviewPage] = useState(0);
-  const [previewOffense, setPreviewOffense] = useState('all');
+
   const [previewStatus, setPreviewStatus] = useState('all');
   const [busy, setBusy] = useState(false);
   const [operation, setOperation] = useState('');
@@ -92,22 +85,22 @@ export default function SDODisciplinaryCases({ embedded = false, search = '', fi
   const fileRequestVersion = useRef(0);
   const requestVersion = useRef(0);
   const previewData = getImportPreviewPage(preview?.rows || [], {
-    search, offense: previewOffense, status: previewStatus, page: previewPage, pageSize: PAGE_SIZE,
+    search, offense, course, status: previewStatus, page: previewPage, pageSize: PAGE_SIZE,
   });
   const caseSearch = search;
 
   const load = useCallback(async () => {
     const version = ++requestVersion.current;
     try {
-      const query = new URLSearchParams({ limit: PAGE_SIZE, offset: page * PAGE_SIZE, search: caseSearch, offense });
+      const query = new URLSearchParams({ limit: PAGE_SIZE, offset: page * PAGE_SIZE, search: caseSearch, offense, course });
       const data = await request(`?${query}`);
       if (version === requestVersion.current) { setRecords(data); }
     } catch (err) { if (version === requestVersion.current) toast.error('Unable to load disciplinary records', { id: 'sdo-records-load-error', description: err.message }); }
-  }, [page, caseSearch, offense]);
+  }, [page, caseSearch, offense, course]);
   useSocketEvent('scholar:updated', () => load(), [load]);
 
-  useEffect(() => { setPage(0); }, [caseSearch, offense]);
-  useEffect(() => { setPreviewPage(0); }, [search, previewOffense, previewStatus, preview]);
+  useEffect(() => { setPage(0); }, [caseSearch, offense, course]);
+  useEffect(() => { setPreviewPage(0); }, [search, offense, course, previewStatus, preview]);
   useEffect(() => {
     const lastPage = Math.max(0, Math.ceil(records.total / PAGE_SIZE) - 1);
     if (page > lastPage) setPage(lastPage);
@@ -153,7 +146,7 @@ export default function SDODisciplinaryCases({ embedded = false, search = '', fi
     setPreview(null);
     const message = validateSdoImportFile(nextFile);
     setFile(message ? null : nextFile);
-    setPreviewOffense('all');
+
     setPreviewStatus('all');
     if (message) { toast.error('Unable to read file', { description: message }); return; }
     if (!nextFile) return;
@@ -199,19 +192,21 @@ export default function SDODisciplinaryCases({ embedded = false, search = '', fi
         <h1 className="text-2xl font-semibold">Disciplinary Records</h1>
         <p className="mt-1 text-sm text-muted-foreground">Manage disciplinary standing for students, including those without scholarships.</p>
       </div>}
+      {!embedded && <Button variant="outline" aria-haspopup="dialog" onClick={() => setLocalFiltersOpen(true)}>Filters</Button>}
+      {(embedded ? filtersOpen : localFiltersOpen) && <StudentRecordsFilterModal
+        title="Filter disciplinary records"
+        values={{ offense, course, previewStatus }}
+        fields={[
+          { key: 'offense', label: 'Offense', defaultValue: 'all', options: ['all', 'No Offense', 'Minor Offense', 'Major Offense'].map(value => ({ value, label: value === 'all' ? 'All Offenses' : value })) },
+          { key: 'course', label: 'Course', defaultValue: 'all', options: [{ value: 'all', label: 'All Courses' }, ...(records.course_options || []).map(item => ({ value: item.course_code, label: item.course_code }))] },
+          ...(preview ? [{ key: 'previewStatus', label: 'Import Preview Result', defaultValue: 'all', options: [['all', 'All Results'], ['ready', 'Ready to Import'], ['duplicate', 'Duplicates'], ['invalid', 'Invalid Rows'], ['unmatched', 'Unmatched Students']].map(([value, label]) => ({ value, label })) }] : []),
+        ]}
+        onApply={draft => { setOffense(draft.offense); setCourse(draft.course); setPreviewStatus(draft.previewStatus || 'all'); setPage(0); setPreviewPage(0); }}
+        onClose={() => embedded ? onFiltersOpenChange?.(false) : setLocalFiltersOpen(false)}
+      />}
       {preview && <Card>
         <CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">Import preview</h2><Button variant="outline" disabled={busy} onClick={() => { setPreview(null); setFile(null); }}>Dismiss preview</Button></div></CardHeader>
         <CardContent className="min-w-0 space-y-4">
-          {filtersOpen && <div id="import-filters" className="grid gap-3 sm:grid-cols-2">
-            <OffenseFilter id="import-offense-filter" value={previewOffense} onChange={setPreviewOffense} />
-            {preview && <div className="space-y-2">
-              <label htmlFor="import-status-filter" className="text-sm font-medium">Import result</label>
-              <Select value={previewStatus} onValueChange={setPreviewStatus}><SelectTrigger id="import-status-filter"><SelectValue /></SelectTrigger><SelectContent>
-                <SelectItem value="all">All Results</SelectItem>
-                {[['ready', 'Ready to Import'], ['duplicate', 'Duplicates'], ['invalid', 'Invalid Rows'], ['unmatched', 'Unmatched Students']].map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
-              </SelectContent></Select>
-            </div>}
-          </div>}
           {preview && <>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {[['ready', 'Ready'], ['duplicate', 'Duplicates'], ['invalid', 'Invalid'], ['unmatched', 'Unmatched']].map(([status, label]) => <button key={status} type="button" onClick={() => setPreviewStatus(value => value === status ? 'all' : status)} aria-pressed={previewStatus === status} className={`min-w-0 rounded-xl border p-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${previewStatus === status ? 'bg-muted' : 'bg-card'}`}><span className="text-xs text-muted-foreground">{label}</span><span className="mt-1 block text-xl font-semibold">{preview.counts[status]}</span></button>)}
@@ -236,9 +231,6 @@ export default function SDODisciplinaryCases({ embedded = false, search = '', fi
       <Card>
         <CardHeader><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h2 className="font-semibold">Disciplinary Records ({records.total})</h2><p className="mt-1 text-sm text-muted-foreground">Student offenses, incident dates, and remarks.</p></div><div className="flex flex-wrap gap-2"><Button onClick={() => { setImportOpen(true); }}><Upload className="size-4" />Import</Button><Button variant="outline" onClick={() => downloadCsv('SDO-import-template.csv', 'Student Number,Offense Type,Course,Year Level,Incident Date,Remarks\r\n')}><Download className="size-4" />Download template</Button></div></div></CardHeader>
         <CardContent className="space-y-4">
-          {filtersOpen && <div id="cases-filters" className="max-w-sm">
-            <OffenseFilter id="offense-filter" value={offense} onChange={setOffense} />
-          </div>}
           <RecordCards rows={records.items} onEdit={openEdit} />
           <div className="hidden min-w-0 overflow-x-auto md:block">
             <Table><TableHeader><TableRow><TableHead>Student Number</TableHead><TableHead>Student</TableHead><TableHead>Course</TableHead><TableHead>Year Level</TableHead><TableHead>Offense</TableHead><TableHead>Incident Date</TableHead><TableHead>Remarks</TableHead><TableHead>Action</TableHead></TableRow></TableHeader>

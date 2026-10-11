@@ -2227,10 +2227,26 @@ async function getSdoRecordsSummary() {
 }
 
 // listSdoStudentRegistry: loads a list of list sdo student registry for the Student Registry flow.
-async function listSdoStudentRegistry({ limit = 100, offset = 0, search = '', offense = 'all' } = {}) {
+async function listSdoStudentRegistry({ limit = 100, offset = 0, search = '', offense = 'all', course = 'all' } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
   const safeOffset = Math.max(Number(offset) || 0, 0);
   const searchTerm = normalizeText(search).replace(/[^\p{L}\p{N}\s-]/gu, '').slice(0, 100);
+  const { data: configuredCourses, error: configuredCoursesError } = await supabase
+    .from(COURSE_TABLE).select('course_id, course_code, course_name').eq('is_archived', false).order('course_code');
+  if (configuredCoursesError) throw configuredCoursesError;
+  const courseFilter = normalizeText(course);
+  let selectedCourse;
+  let courseStudentNumbers = [];
+  if (courseFilter && courseFilter.toLowerCase() !== 'all') {
+    selectedCourse = (configuredCourses || []).find(item => item.course_code?.toLowerCase() === courseFilter.toLowerCase());
+    if (!selectedCourse) throw buildError('Invalid course filter.', 400);
+    // Older records inherit their course from the student registry when no SDO course is set.
+    const { data: courseStudents, error: courseStudentError } = await supabase.from(MASTER_TABLE)
+      .select('student_number').eq('course_id', selectedCourse.course_id);
+    if (courseStudentError) throw courseStudentError;
+    courseStudentNumbers = (courseStudents || []).map(student => normalizeText(student.student_number))
+      .filter(value => /^[A-Za-z0-9-]+$/.test(value));
+  }
   let matchingStudentNumbers = [];
   if (searchTerm) {
     let studentQuery = supabase.from(MASTER_TABLE).select('student_number').eq('is_archived', false);
@@ -2268,6 +2284,12 @@ async function listSdoStudentRegistry({ limit = 100, offset = 0, search = '', of
     const matchingIds = matchingStudentNumbers.length ? `,student_number.in.(${matchingStudentNumbers.join(',')})` : '';
     recordQuery = recordQuery.or(`student_number.ilike.%${searchTerm}%${matchingIds}`);
   }
+  if (selectedCourse) {
+    const quotedCourse = JSON.stringify(selectedCourse.course_code);
+    const inheritedCourse = courseStudentNumbers.length
+      ? `,and(or(course_code.is.null,course_code.eq.""),student_number.in.(${courseStudentNumbers.join(',')}))` : '';
+    recordQuery = recordQuery.or(`course_code.eq.${quotedCourse}${inheritedCourse}`);
+  }
   const { data: records, error, count } = await recordQuery
     .order('offense_incident_date', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
@@ -2304,9 +2326,6 @@ async function listSdoStudentRegistry({ limit = 100, offset = 0, search = '', of
     courseById = new Map((courses || []).map((course) => [course.course_id, course.course_code]));
   }
 
-  const { data: configuredCourses, error: configuredCoursesError } = await supabase
-    .from(COURSE_TABLE).select('course_code, course_name').eq('is_archived', false).order('course_code');
-  if (configuredCoursesError) throw configuredCoursesError;
   return {
     total: count || 0,
     limit: safeLimit,

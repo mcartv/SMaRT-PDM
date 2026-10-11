@@ -1,3 +1,4 @@
+import { useRbacPermissions } from '@/context/RbacPermissionContext';
 // SMaRT-PDM: Applications — Application Review (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
@@ -1876,6 +1877,8 @@ function Pagination({ page, totalPages, totalItems, onPrev, onNext }) {
 }
 
 export default function ApplicationReview() {
+  // SMARTPDM_PHASE5_3_PART2
+  const { hasPermission: canPerformSensitiveAction } = useRbacPermissions();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -1981,6 +1984,7 @@ export default function ApplicationReview() {
 
   // approveScholar: handles approve scholar for the Applications flow.
   const approveScholar = async (row) => {
+    if (!canPerformSensitiveAction('applications.review')) return;
     try {
       setApprovalLoadingId(row.application_id);
       const response = await fetch(buildApiUrl(`/api/applications/${row.application_id}/approve`), {

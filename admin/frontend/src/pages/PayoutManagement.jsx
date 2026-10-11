@@ -786,6 +786,8 @@ function BulkReleaseModal({
 }
 
 export default function PayoutManagement() {
+  // SMARTPDM_PHASE5_3_PART2
+  const { hasPermission: canPerformSensitiveAction } = useRbacPermissions();
   // PHASE_5_3_PAYOUT_ACTIONS
   const { hasPermission } = useRbacPermissions();
   const navigate = useNavigate();
@@ -1146,6 +1148,7 @@ export default function PayoutManagement() {
 
   // handleCreateBatch: handles handle create batch for the Payout flow.
   const handleCreateBatch = async () => {
+    if (!canPerformSensitiveAction('payouts.manage')) return;
     try {
       if (!form.opening_id) {
         alert('Please select an opening first.');
@@ -1312,6 +1315,7 @@ export default function PayoutManagement() {
 
   // submitStatusUpdate: handles submit status update for the Payout flow.
   const submitStatusUpdate = async () => {
+    if (!canPerformSensitiveAction('payouts.manage')) return;
     const entry = statusCandidate?.entry;
     const entryId = getEntryId(entry);
     const finalStatus = normalizeReleaseStatus(statusCandidate?.nextStatus);
@@ -1389,6 +1393,7 @@ export default function PayoutManagement() {
 
   // submitBulkRelease: handles submit bulk release for the Payout flow.
   const submitBulkRelease = async () => {
+    if (!canPerformSensitiveAction('payouts.manage')) return;
     const entries = selectedBulkReleaseEntries;
     if (!entries.length) {
       setBulkReleaseError('Select at least one eligible scholar.');
@@ -1492,6 +1497,7 @@ export default function PayoutManagement() {
 
   // handleArchiveBatch: handles handle archive batch for the Payout flow.
   const handleArchiveBatch = async (batch) => {
+    if (!canPerformSensitiveAction('payouts.manage')) return;
     try {
       if (!batch?.payout_batch_id) return;
 
@@ -1539,6 +1545,7 @@ export default function PayoutManagement() {
 
   // handleRestoreBatch: handles handle restore batch for the Payout flow.
   const handleRestoreBatch = async (batch) => {
+    if (!canPerformSensitiveAction('payouts.manage')) return;
     try {
       if (!batch?.payout_batch_id) return;
 

@@ -1,3 +1,4 @@
+import { useRbacPermissions } from '@/context/RbacPermissionContext';
 // SMaRT-PDM: Scholars — Scholarship Openings (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -1573,6 +1574,8 @@ function OpeningCard({
 }
 
 export default function ScholarshipOpenings() {
+  // SMARTPDM_PHASE5_3_PART2
+  const { hasPermission: canPerformSensitiveAction } = useRbacPermissions();
     const navigate = useNavigate();
     const { theme } = usePortalTheme('admin');
 
@@ -1959,6 +1962,7 @@ export default function ScholarshipOpenings() {
 
     // handleSaveOpening: handles handle save opening for the Scholars flow.
     const handleSaveOpening = async (forcedStatus = null) => {
+    if (!canPerformSensitiveAction('programs.manage')) return;
         try {
             if (!form.program_id) {
                 setNotice({ title: 'Program required', description: 'Select a scholarship program before saving this opening.' });
@@ -2153,12 +2157,14 @@ export default function ScholarshipOpenings() {
 
     // handleArchiveOpening: handles handle archive opening for the Scholars flow.
     const handleArchiveOpening = (openingId) => {
+    if (!canPerformSensitiveAction('programs.manage')) return;
         const opening = openings.find((item) => item.opening_id === openingId);
         if (opening) requestStatusAction('archive', opening, 'archived');
     };
 
     // handleRestoreOpening: handles handle restore opening for the Scholars flow.
     const handleRestoreOpening = (opening) => {
+    if (!canPerformSensitiveAction('programs.manage')) return;
         const restoredCandidate = {
             ...opening,
             posting_status: 'open',
@@ -2176,6 +2182,7 @@ export default function ScholarshipOpenings() {
 
     // handleOpenDraftOpening: handles handle open draft opening for the Scholars flow.
     const handleOpenDraftOpening = (opening) => {
+    if (!canPerformSensitiveAction('programs.manage')) return;
         if (!canOpeningBeOpened(opening)) {
             setNotice({
                 title: 'Opening is not ready',
@@ -2189,11 +2196,13 @@ export default function ScholarshipOpenings() {
 
     // handleCloseOpening: handles handle close opening for the Scholars flow.
     const handleCloseOpening = (opening) => {
+    if (!canPerformSensitiveAction('programs.manage')) return;
         requestStatusAction('close', opening, 'closed');
     };
 
     // handleMoveToDraft: handles handle move to draft for the Scholars flow.
     const handleMoveToDraft = (opening) => {
+    if (!canPerformSensitiveAction('programs.manage')) return;
         if (getFilledSlots(opening) > 0) {
             setNotice({
                 title: 'Cannot move opening to draft',
@@ -2207,6 +2216,7 @@ export default function ScholarshipOpenings() {
 
     // handleReopenOpening: handles handle reopen opening for the Scholars flow.
     const handleReopenOpening = (opening) => {
+    if (!canPerformSensitiveAction('programs.manage')) return;
         const reopenCandidate = {
             ...opening,
             posting_status: 'open',

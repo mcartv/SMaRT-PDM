@@ -1,5 +1,5 @@
 import { buildApiUrl } from '@/api';
-import { getStoredPortalSession } from '@/utils/authStorage';
+import { getStoredPortalSession, getPortalNameFromPath } from '@/utils/authStorage';
 
 export async function fetchMyPermissions(token) {
   if (!token) throw new Error('No authenticated session');
@@ -20,6 +20,7 @@ export async function fetchMyPermissions(token) {
 }
 
 export function getCurrentPermissionSession() {
-  const session = getStoredPortalSession();
+  const portal = getPortalNameFromPath(window.location.pathname || '');
+  const session = portal ? getStoredPortalSession(portal) : getStoredPortalSession();
   return session ? { token: session.token, portalName: session.portalName } : null;
 }

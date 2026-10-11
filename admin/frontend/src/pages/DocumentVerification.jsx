@@ -1,3 +1,4 @@
+import { useRbacPermissions } from '@/context/RbacPermissionContext';
 // SMaRT-PDM: Document Verification — Document Verification (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
@@ -1387,8 +1388,8 @@ function DocumentPreviewPanel({ activeDoc, application }) {
       controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  // Preview reloads only when its identity or backing file changes.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Preview reloads only when its identity or backing file changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDoc?.id, activeDoc?.file_path, activeDoc?.preview_path, activeDoc?.is_submitted, application?.application_id, application?.id]);
 
   const isImage = previewMimeType.startsWith('image/');
@@ -2295,8 +2296,7 @@ function OCRPanel({
               </div>
               <div className="flex max-w-[52%] flex-wrap justify-end gap-2">
                 {(reviewCandidate.review_exceptions || []).map((exception) => (
-                  <Badge key={`${exception.exception_group}-${exception.field_key || 'document'}`} className={`whitespace-nowrap ${
-                    exception.priority === 'compliance_hold'
+                  <Badge key={`${exception.exception_group}-${exception.field_key || 'document'}`} className={`whitespace-nowrap ${exception.priority === 'compliance_hold'
                       ? 'border-red-300 bg-red-100 text-red-800'
                       : 'border-amber-200 bg-amber-100 text-amber-800'} `}
                   >
@@ -3127,10 +3127,10 @@ function ChecklistCard({
                           ? 'Mobile copy uploaded · Admin review or OCR required'
                           : 'Mobile upload optional · physical OCR required'
                       : d.id === 'application_form'
-                      ? 'Text-based application data'
-                      : available
-                        ? 'File uploaded'
-                        : 'No file uploaded'}
+                        ? 'Text-based application data'
+                        : available
+                          ? 'File uploaded'
+                          : 'No file uploaded'}
                   </p>
                 </div>
               </div>
@@ -3549,6 +3549,7 @@ function VerificationActions({
 }
 
 export default function DocumentVerification() {
+  const { hasPermission: canReviewDocument } = useRbacPermissions();
   const { theme } = usePortalTheme('admin');
   const navigate = useNavigate();
   const { id } = useParams();
@@ -4364,8 +4365,8 @@ export default function DocumentVerification() {
     if (!runningIotOcr && !isSameOcrDocument(reviewCandidate?.document_key, activeDoc.id)) {
       setRawOcrSnapshot(buildRawOcrSnapshot(activeDoc, application));
     }
-  // Candidate content is intentionally keyed by document identity here.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Candidate content is intentionally keyed by document identity here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDoc, application, docComments, runningIotOcr, reviewCandidate?.document_key]);
 
   useEffect(() => {
@@ -4546,8 +4547,8 @@ export default function DocumentVerification() {
     if (!requestId || activeIotRequestRef.current?.requestId === requestId) {
       activeIotRequestRef.current = null;
     }
-  // Poll completion is keyed by candidate identity/status, not object identity.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Poll completion is keyed by candidate identity/status, not object identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDoc, reviewCandidate?.document_key, reviewCandidate?.request_id, stopPolling]);
 
   useEffect(() => {
@@ -4631,6 +4632,7 @@ export default function DocumentVerification() {
     nextComment = null,
     reviewMeta = null
   ) => {
+    if (!canReviewDocument('documents.review')) return false;
     if (
       !activeDoc ||
       !hasUploadedDocument ||
@@ -4774,6 +4776,7 @@ export default function DocumentVerification() {
     reasonCode,
     comment: nextComment,
   }) => {
+    if (!canReviewDocument('documents.review')) return;
     if (requirementsReviewAlreadySaved) {
       setReviewIssueModal(null);
       return;
@@ -4861,7 +4864,7 @@ export default function DocumentVerification() {
           'error',
           'Re-edit request not saved',
           error.message ||
-            'Failed to request Application Form re-edit.',
+          'Failed to request Application Form re-edit.',
           {
             id: toastId,
             duration: 5000,
@@ -5147,6 +5150,7 @@ export default function DocumentVerification() {
 
   // handleConfirmCandidate: handles handle confirm candidate for the Document Verification flow.
   const handleConfirmCandidate = async () => {
+    if (!canReviewDocument('documents.review')) return;
     if (!activeDoc || !reviewCandidate) return;
     try {
       setReviewingCandidate(true);
@@ -5320,6 +5324,7 @@ export default function DocumentVerification() {
 
   // handleCompleteVerification: handles handle complete verification for the Document Verification flow.
   const handleCompleteVerification = async () => {
+    if (!canReviewDocument('documents.review')) return;
     if (requirementsReviewAlreadySaved || !canCompleteVerification) {
       return;
     }
@@ -5470,8 +5475,8 @@ export default function DocumentVerification() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  // Action functions use the same current state already listed below.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Action functions use the same current state already listed below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDoc?.id, birthReviewReason, correctedFields, reviewCandidate]);
 
   if (loading) {

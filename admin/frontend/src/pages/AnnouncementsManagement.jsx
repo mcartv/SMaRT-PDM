@@ -1146,6 +1146,8 @@ function buildPayoutPrefillContent(params) {
 }
 
 export default function AnnouncementsManagement() {
+  // SMARTPDM_PHASE5_3_PART2
+  const { hasPermission: canPerformSensitiveAction } = useRbacPermissions();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -1576,6 +1578,7 @@ export default function AnnouncementsManagement() {
 
   // handlePost: handles handle post for the Announcements flow.
   const handlePost = async () => {
+    if (!canPerformSensitiveAction('announcements.manage')) return;
     const operationKey = 'compose:publish';
     if (operationGuards.current.has(operationKey)) return;
     operationGuards.current.add(operationKey);
@@ -1627,6 +1630,7 @@ export default function AnnouncementsManagement() {
 
   // handleSaveDraft: handles handle save draft for the Announcements flow.
   const handleSaveDraft = async () => {
+    if (!canPerformSensitiveAction('announcements.manage')) return;
     const operationKey = 'compose:draft';
     if (operationGuards.current.has(operationKey)) return;
     operationGuards.current.add(operationKey);
@@ -1693,6 +1697,7 @@ export default function AnnouncementsManagement() {
 
   // handleArchive: handles handle archive for the Announcements flow.
   const handleArchive = async (id) => {
+    if (!canPerformSensitiveAction('announcements.manage')) return;
     const operationKey = `archive:${id}`;
     if (operationGuards.current.has(operationKey)) return;
     operationGuards.current.add(operationKey);
@@ -1755,6 +1760,7 @@ export default function AnnouncementsManagement() {
 
   // handleRestore: handles handle restore for the Announcements flow.
   const handleRestore = async (id) => {
+    if (!canPerformSensitiveAction('announcements.manage')) return;
     const operationKey = `restore:${id}`;
     if (operationGuards.current.has(operationKey)) return;
     operationGuards.current.add(operationKey);
@@ -1803,6 +1809,7 @@ export default function AnnouncementsManagement() {
 
   // handlePublish: handles handle publish for the Announcements flow.
   const handlePublish = async (id) => {
+    if (!canPerformSensitiveAction('announcements.manage')) return;
     const operationKey = `publish:${id}`;
     if (operationGuards.current.has(operationKey)) return;
     operationGuards.current.add(operationKey);

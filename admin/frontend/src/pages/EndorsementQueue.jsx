@@ -1,3 +1,4 @@
+import { useRbacPermissions } from '@/context/RbacPermissionContext';
 import { useListPage } from '../hooks/useListPage';
 import ServerPagination from '../components/ServerPagination';
 // SMaRT-PDM: Endorsement — Endorsement Queue (admin frontend page); loads data, handles page actions, and renders the admin view.
@@ -701,6 +702,8 @@ export default function EndorsementQueue({
   detailBasePath = '/admin/endorsements',
   profileStorageKey = 'adminProfile',
 }) {
+  const { hasPermission: canReviewEndorsement } = useRbacPermissions();
+  const reviewPermission = { sdo: 'endorsements.review_sdo', guidance: 'endorsements.review_gco', pd: 'endorsements.review_pd' }[queueKey];
   const navigate = useNavigate();
   const meta = QUEUE_META[queueKey];
   const { theme } = usePortalTheme(queueKey);
@@ -804,6 +807,7 @@ export default function EndorsementQueue({
 
   // executeAction: handles execute action for the Endorsement flow.
   const executeAction = async () => {
+    if (!reviewPermission || !canReviewEndorsement(reviewPermission)) { setError('You do not have permission to submit this endorsement.'); return; }
     if (!confirmAction) return;
     const { row, action } = confirmAction;
     if (queueKey === 'pd' && !hasUploadedGrade(row)) {

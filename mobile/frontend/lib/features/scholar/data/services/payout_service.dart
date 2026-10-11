@@ -12,6 +12,8 @@ class MobilePayoutItem {
     required this.amount,
     required this.status,
     required this.payoutDate,
+    this.payoutTime = '',
+    this.payoutVenue = 'OSFA - Office of Scholarship and Financial Assistance',
     required this.semester,
     required this.schoolYear,
     required this.paymentMode,
@@ -29,6 +31,8 @@ class MobilePayoutItem {
   final double amount;
   final String status;
   final String payoutDate;
+  final String payoutTime;
+  final String payoutVenue;
   final String semester;
   final String schoolYear;
   final String paymentMode;
@@ -50,6 +54,8 @@ class MobilePayoutItem {
           json['status']?.toString() ??
           'Pending',
       payoutDate: json['payout_date']?.toString() ?? '',
+      payoutTime: json['payout_time']?.toString() ?? '',
+      payoutVenue: json['payout_venue']?.toString() ?? 'OSFA - Office of Scholarship and Financial Assistance',
       semester: json['semester']?.toString() ?? '',
       schoolYear:
           json['academic_year']?.toString() ??

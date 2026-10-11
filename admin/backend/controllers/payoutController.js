@@ -49,6 +49,8 @@ function normalizeBatchPayload(row = {}, action = 'updated') {
         semester: batch.semester || row.semester || null,
         payout_title: batch.payout_title || row.payout_title || 'Payout Batch',
         payout_date: batch.payout_date || row.payout_date || null,
+        payout_time: batch.payout_time || row.payout_time || null,
+        payout_venue: batch.payout_venue || row.payout_venue || null,
         payment_mode: batch.payment_mode || row.payment_mode || null,
         payment_mode_other: batch.payment_mode_other || row.payment_mode_other || null,
         total_amount: batch.total_amount || row.total_amount || null,
@@ -279,6 +281,8 @@ async function writePayoutAudit(req, actionTaken, description, entity = null, me
                 benefactor_name: batchPayload.benefactor_name || metadata.benefactor_name || null,
                 payout_title: batchPayload.payout_title || metadata.payout_title || null,
                 payout_date: batchPayload.payout_date || metadata.payout_date || null,
+                payout_time: batchPayload.payout_time || metadata.payout_time || null,
+                payout_venue: batchPayload.payout_venue || metadata.payout_venue || null,
                 payment_mode: batchPayload.payment_mode || metadata.payment_mode || null,
                 payment_mode_other:
                     batchPayload.payment_mode_other || metadata.payment_mode_other || null,
@@ -371,6 +375,20 @@ exports.createPayoutBatch = async (req, res) => {
     } catch (err) {
         console.error('CREATE PAYOUT BATCH ERROR:', err);
         sendError(res, err, 'Failed to create payout batch');
+    }
+};
+
+exports.updatePayoutVenue = async (req, res) => {
+    try {
+        const row = await payoutService.updatePayoutVenue(req.params.payoutBatchId, req.body?.payout_venue);
+        emitPayoutBatchRealtime(req, row, 'updated');
+        await writePayoutAudit(req, 'UPDATE_PAYOUT_VENUE', `Changed payout venue: ${row.payout_title}.`, row, {
+            entityType: 'payout_batch', action: 'venue_updated',
+            changes: { previous_venue: row.previous_payout_venue, payout_venue: row.payout_venue },
+        });
+        res.status(200).json(row);
+    } catch (err) {
+        sendError(res, err, 'Failed to update payout venue');
     }
 };
 

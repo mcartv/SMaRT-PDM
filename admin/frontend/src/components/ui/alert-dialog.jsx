@@ -17,9 +17,22 @@ function AlertDialogTrigger({
 }
 
 function AlertDialogPortal({
+  container,
   ...props
 }) {
-  return (<AlertDialogPrimitive.Portal data-slot="alert-dialog-portal" {...props} />);
+  const portalContainer =
+    container ||
+    (typeof document !== "undefined"
+      ? document.querySelector(".portal-shell") || undefined
+      : undefined)
+
+  return (
+    <AlertDialogPrimitive.Portal
+      data-slot="alert-dialog-portal"
+      container={portalContainer}
+      {...props}
+    />
+  );
 }
 
 function AlertDialogOverlay({
@@ -41,11 +54,12 @@ function AlertDialogContent({
   className,
   size = "default",
   container,
+  overlayClassName,
   ...props
 }) {
   return (
     <AlertDialogPortal container={container}>
-      <AlertDialogOverlay />
+      <AlertDialogOverlay className={overlayClassName} />
       <AlertDialogPrimitive.Content
         data-slot="alert-dialog-content"
         data-size={size}

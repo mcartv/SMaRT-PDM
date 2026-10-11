@@ -62,7 +62,8 @@ test('payout report UI and exports use payout terminology', () => {
   assert.match(reportPage, /<FilterField label="Payout Mode">/);
   assert.doesNotMatch(reportPage, /<FilterField label="Payment Mode">/);
   assert.match(reportService, /'All Payout Modes'/);
-  assert.match(reportService, /header: 'Payout Mode', key: 'payment_mode'/);
+  const payoutColumns = require('../services/reportColumns').getReportColumns('payouts');
+  assert.equal(payoutColumns.find((column) => column.key === 'payment_mode')?.header, 'Payout Mode');
   assert.doesNotMatch(reportService, /'All Payment Modes'/);
   assert.doesNotMatch(reportService, /header: 'Payment Mode', key: 'payment_mode'/);
 });

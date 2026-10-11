@@ -1327,6 +1327,8 @@ function handlePayoutBatchChange(io, payload = {}) {
     period_id: row.period_id || null,
     batch_status: row.batch_status || null,
     payout_date: row.payout_date || null,
+    payout_time: row.payout_time || null,
+    payout_venue: row.payout_venue || null,
     updated_at: row.updated_at || new Date().toISOString(),
     event_type: eventType,
     source: 'payout_batch',

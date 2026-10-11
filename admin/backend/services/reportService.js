@@ -2,6 +2,8 @@
 const path = require('path');
 const ExcelJS = require('exceljs');
 const pool = require('../config/db');
+const { getReportColumns, prepareReportRow } = require('./reportColumns');
+const { getNewlyRecommendedRows, getGraduateRows } = require('./osfaReportService');
 
 const EXCEL_HEADER_IMAGE_PATH = path.resolve(
     __dirname,
@@ -72,6 +74,9 @@ function normalizeReportType(value) {
         'guidance',
         'pd',
         'scholars_by_benefactor',
+        'benefactor_grades',
+        'beneficiary_graduates',
+        'newly_recommended',
         'scholarship_history',
         'endorsements',
         'ro',
@@ -215,13 +220,28 @@ async function getReportMetadata() {
             },
             {
                 id: 'scholars',
-                name: 'Active Scholars Master List',
-                sub: 'Approved scholars with program, course, year level, and RO status',
+                name: 'Financial Assistance Beneficiaries',
+                sub: 'Active beneficiaries with names, course, year level, and benefactor',
+            },
+            {
+                id: 'beneficiary_graduates',
+                name: 'Financial Assistance Beneficiaries — Graduates',
+                sub: 'Confirmed graduated beneficiaries with scholarship periods covered. Date filters use the recorded graduation removal date.',
+            },
+            {
+                id: 'newly_recommended',
+                name: 'Newly Recommended Financial Assistance Beneficiaries',
+                sub: 'First-time recommendations with reserved, selected, or promoted slots and current recorded GWA',
             },
             {
                 id: 'scholars_by_benefactor',
                 name: 'Scholar Count by Benefactor',
                 sub: 'Active scholar totals grouped by benefactor or program for the selected benefactor',
+            },
+            {
+                id: 'benefactor_grades',
+                name: 'Benefactor Grades Report',
+                sub: 'Active scholars with their current recorded GWA, grouped by benefactor. GWA is not a historical semester grade.',
             },
             {
                 id: 'scholarship_history',
@@ -430,6 +450,9 @@ const EXCEL_COLUMN_MIN_WIDTHS = {
 
 
 const INSTITUTIONAL_EXCEL_COLUMN_MAX_WIDTHS = {
+    student_name: 28,
+    academic_period: 23,
+    history_summary: 45,
     row_number: 6,
     pdm_id: 14,
     _last_name: 18,
@@ -521,6 +544,9 @@ function getInstitutionalReportTitle(reportType) {
         applications: 'APPLICATION REGISTRY REPORT',
         scholars: 'FINANCIAL ASSISTANCE BENEFICIARIES',
         scholars_by_benefactor: 'SCHOLAR COUNT BY BENEFACTOR',
+        benefactor_grades: 'BENEFACTOR GRADES REPORT — CURRENT RECORDED GWA',
+        beneficiary_graduates: 'FINANCIAL ASSISTANCE BENEFICIARIES — GRADUATES',
+        newly_recommended: 'NEWLY RECOMMENDED FINANCIAL ASSISTANCE BENEFICIARIES',
         scholarship_history: 'SCHOLARSHIP PROGRAM HISTORY',
         payouts: 'PAYOUT BATCH REPORT',
         payout_proofs: 'PAYOUT PROOF UPLOAD REPORT',
@@ -681,7 +707,7 @@ function applyAdaptiveWorksheetLayout(sheet, {
         });
 
         if (/amount|total_amount|amount_received/i.test(key)) {
-            column.numFmt = '₱#,##0.00;[Red]-₱#,##0.00';
+            column.numFmt = '₱#,##0;[Red]-₱#,##0';
         } else if (/percentage/i.test(key)) {
             column.numFmt = '0.0';
         } else if (/gwa|hours/i.test(key)) {
@@ -712,7 +738,7 @@ function applyAdaptiveWorksheetLayout(sheet, {
             const width = sheet.getColumn(columnNumber).width || 10;
             wrappedLines = Math.max(wrappedLines, estimateWrappedLines(excelCellText(cell), width));
         }
-        row.height = Math.max(18, Math.min(institutional ? 42 : 84, 7 + wrappedLines * (institutional ? 12 : 14)));
+        row.height = Math.max(20, Math.min(409, 7 + wrappedLines * 14));
 
         if (alternateRows && (rowNumber - dataStartRow) % 2 === 1) {
             row.fill = {
@@ -958,6 +984,7 @@ async function getScholarsRows({
       ay.label AS academic_year,
       ap.term AS semester,
       st.scholarship_status,
+      st.gwa,
       st.date_awarded,
       COALESCE(st.ro_status, 'Pending') AS ro_status,
       b.benefactor_name
@@ -968,7 +995,7 @@ async function getScholarsRows({
     LEFT JOIN academic_period ap ON st.active_period_id = ap.period_id
     LEFT JOIN benefactors b ON sp.benefactor_id = b.benefactor_id
     WHERE ${where.join(' AND ')}
-    ORDER BY st.last_name ASC, st.first_name ASC;
+    ORDER BY b.benefactor_name ASC NULLS LAST, st.last_name ASC, st.first_name ASC;
   `;
 
     const { rows } = await pool.query(query, params);
@@ -1457,6 +1484,7 @@ async function getPayoutRows({
       ay.label AS academic_year,
       ap.term AS semester,
       pb.payout_date,
+      pb.payout_venue,
       CASE
         WHEN pb.payment_mode = 'Other'
           AND NULLIF(TRIM(pb.payment_mode_other), '') IS NOT NULL
@@ -2448,7 +2476,7 @@ function styleInstitutionalTable(sheet, { headerRow, dataStartRow }) {
     const lastRow = sheet.lastRow?.number || headerRow;
     const lastColumn = Math.max(1, sheet.columnCount);
     const header = sheet.getRow(headerRow);
-    header.font = { bold: true, color: { argb: 'FF111111' }, size: 9 };
+    header.font = { bold: true, color: { argb: 'FF111111' }, size: 10 };
     header.fill = {
         type: 'pattern',
         pattern: 'solid',
@@ -2468,7 +2496,7 @@ function styleInstitutionalTable(sheet, { headerRow, dataStartRow }) {
                 right: { style: 'thin', color: { argb: 'FF333333' } },
             };
             if (rowNumber >= dataStartRow) {
-                cell.font = { ...(cell.font || {}), size: 9 };
+                cell.font = { ...(cell.font || {}), size: 10 };
                 cell.alignment = {
                     ...(cell.alignment || {}),
                     vertical: 'middle',
@@ -2637,6 +2665,14 @@ async function getRowsByReportType({
     if (reportType === 'scholars') {
         return await getScholarsRows(sharedFilters);
     }
+    if (reportType === 'beneficiary_graduates') return await getGraduateRows(sharedFilters);
+    if (reportType === 'newly_recommended') return await getNewlyRecommendedRows(sharedFilters);
+
+    if (reportType === 'benefactor_grades') {
+        const rows = await getScholarsRows(sharedFilters);
+        return rows.sort((a, b) => safeText(a.benefactor_name).localeCompare(safeText(b.benefactor_name))
+            || safeText(a.student_name).localeCompare(safeText(b.student_name)));
+    }
 
     if (reportType === 'scholarship_history') {
         return await getScholarshipHistoryRows(sharedFilters);
@@ -2745,8 +2781,17 @@ async function previewReport(query = {}) {
 
     const previewResult = {
         reportType: normalized.reportType,
+        title: getInstitutionalReportTitle(normalized.reportType)
+            + (normalized.reportType === 'newly_recommended' && normalized.benefactorId !== 'all' && rows[0]?.benefactor_name
+                ? ` OF ${safeText(rows[0].benefactor_name).toUpperCase()}` : ''),
+        subtitle: normalized.reportType === 'beneficiary_graduates'
+            ? 'Confirmed graduated scholars — coverage includes approved applications and renewals'
+            : formatExcelPeriodSubtitle(normalized, rows),
         total: rows.length,
-        rows: rows.slice(0, 50).map(stripInternalReportFields),
+        columns: getReportColumns(normalized.reportType, normalized),
+        rows: (query.print === 'true' ? rows : rows.slice(0, 50))
+            .map((row, index) => ({ ...prepareReportRow(row), row_number: index + 1 }))
+            .map(stripInternalReportFields),
         summary: ['sdo', 'sdo_offenses', 'guidance', 'pd', 'ro', 'ro_compliance'].includes(normalized.reportType)
             ? buildOfficeSummary(normalized.reportType, rows)
             : null,
@@ -2789,7 +2834,7 @@ async function previewReport(query = {}) {
 // buildExportDefinition: builds build export definition for the Reports flow.
 async function buildExportDefinition(normalized) {
     let rows = [];
-    let columns = [];
+
     let sheetName = 'Report';
     let filename = 'report.xlsx';
     let institutional = null;
@@ -2798,125 +2843,41 @@ async function buildExportDefinition(normalized) {
         rows = await getApplicationsRows(normalized);
         sheetName = 'Applications';
         filename = 'application_registry_report.xlsx';
-        columns = [
-            { header: 'Student Number', key: 'pdm_id' },
-            { header: 'Student Name', key: 'student_name' },
-            { header: 'Gender', key: 'gender' },
-            { header: 'Course', key: 'course_code' },
-            { header: 'Year Level', key: 'year_level' },
-            { header: 'GWA', key: 'gwa' },
-            { header: 'Email Address', key: 'email_address' },
-            { header: 'Mobile Number', key: 'phone_number' },
-            { header: 'Program', key: 'program_name' },
-            { header: 'Benefactor', key: 'benefactor_name' },
-            { header: 'Opening', key: 'opening_title' },
-            { header: 'Academic Year', key: 'academic_year' },
-            { header: 'Semester', key: 'semester' },
-            { header: 'Application Status', key: 'application_status' },
-            { header: 'Document Status', key: 'document_status' },
-            { header: 'Verification Status', key: 'verification_status' },
-            { header: 'Submitted At', key: 'submission_date' },
-            { header: 'Remarks', key: 'remarks' },
-        ];
     } else if (normalized.reportType === 'scholars') {
         rows = await getScholarsRows(normalized);
         sheetName = 'Active Scholars';
         filename = 'active_scholars_master_list.xlsx';
-        columns = [
-            { header: 'No.', key: 'row_number' },
-            { header: 'Student Number', key: 'pdm_id' },
-            { header: 'Last Name', key: '_last_name' },
-            { header: 'Given Name', key: '_given_name' },
-            { header: 'MI', key: '_middle_initial' },
-            { header: 'Course', key: 'course_code' },
-            { header: 'Year', key: 'year_level' },
-            { header: 'Gender', key: 'gender' },
-            { header: 'Scholarship Program', key: 'program_name' },
-            { header: 'Benefactor', key: 'benefactor_name' },
-            { header: 'Academic Year', key: 'academic_year' },
-            { header: 'Semester', key: 'semester' },
-            { header: 'Scholarship Status', key: 'scholarship_status' },
-            { header: 'RO Status', key: 'ro_status' },
-            { header: 'Date Awarded', key: 'date_awarded' },
-        ];
         institutional = {
             title: 'FINANCIAL ASSISTANCE BENEFICIARIES',
             subtitle: formatExcelPeriodSubtitle(normalized, rows),
             headerRow: 11,
             dataStartRow: 12,
         };
+    } else if (normalized.reportType === 'benefactor_grades') {
+        rows = await getRowsByReportType(normalized);
+        sheetName = 'Benefactor Grades';
+        filename = 'benefactor_grades_report.xlsx';
+    } else if (normalized.reportType === 'beneficiary_graduates' || normalized.reportType === 'newly_recommended') {
+        rows = await getRowsByReportType(normalized);
+        sheetName = normalized.reportType === 'beneficiary_graduates' ? 'Graduates' : 'Newly Recommended';
+        filename = normalized.reportType === 'beneficiary_graduates'
+            ? 'financial_assistance_beneficiaries_graduates.xlsx' : 'newly_recommended_beneficiaries.xlsx';
     } else if (normalized.reportType === 'scholarship_history') {
         rows = await getScholarshipHistoryRows(normalized);
         sheetName = 'Program History';
         filename = 'scholarship_program_history_report.xlsx';
-        columns = [
-            { header: 'Student Number', key: 'pdm_id' },
-            { header: 'Student Name', key: 'student_name' },
-            { header: 'Gender', key: 'gender' },
-            { header: 'Course', key: 'course_code' },
-            { header: 'Year Level', key: 'year_level' },
-            { header: 'Scholarship Program', key: 'program_name' },
-            { header: 'Benefactor', key: 'benefactor_name' },
-            { header: 'History Range', key: 'history_range' },
-            { header: 'History Records', key: 'history_records' },
-            { header: 'Latest Status', key: 'latest_status' },
-            { header: 'History', key: 'history_summary' },
-        ];
     } else if (normalized.reportType === 'scholars_by_benefactor') {
         rows = await getScholarCountRows(normalized);
         sheetName = 'Scholar Counts';
         filename = 'scholar_count_by_benefactor_report.xlsx';
-        columns = [
-            { header: 'Benefactor', key: 'benefactor_name' },
-            { header: 'Program', key: 'program_name' },
-            { header: 'Scholar Count', key: 'scholar_count' },
-        ];
     } else if (normalized.reportType === 'payouts') {
         rows = await getPayoutRows(normalized);
         sheetName = 'Payouts';
         filename = 'payout_batch_report.xlsx';
-        columns = [
-            { header: 'Payout Title', key: 'payout_title' },
-            { header: 'Program', key: 'program_name' },
-            { header: 'Academic Year', key: 'academic_year' },
-            { header: 'Semester', key: 'semester' },
-            { header: 'Payout Date', key: 'payout_date' },
-            { header: 'Payout Mode', key: 'payment_mode' },
-            { header: 'Amount Per Scholar', key: 'amount_per_scholar' },
-            { header: 'Batch Total', key: 'total_amount' },
-            { header: 'Batch Status', key: 'batch_status' },
-            { header: 'Student Number', key: 'pdm_id' },
-            { header: 'Student Name', key: 'student_name' },
-            { header: 'Gender', key: 'gender' },
-            { header: 'Amount Received', key: 'amount_received' },
-            { header: 'Release Status', key: 'release_status' },
-            { header: 'Released At', key: 'released_at' },
-            { header: 'Remarks', key: 'remarks' },
-        ];
     } else if (normalized.reportType === 'payout_proofs') {
         rows = await getPayoutProofRows(normalized);
         sheetName = 'Payout Proof Uploads';
         filename = 'payout_proof_upload_report.xlsx';
-        columns = [
-            { header: 'Student Number', key: 'pdm_id' },
-            { header: 'Student Name', key: 'student_name' },
-            { header: 'Course', key: 'course_code' },
-            { header: 'Year Level', key: 'year_level' },
-            { header: 'Scholarship Program', key: 'program_name' },
-            { header: 'Benefactor', key: 'benefactor_name' },
-            { header: 'Academic Year', key: 'academic_year' },
-            { header: 'Semester', key: 'semester' },
-            { header: 'Payout Title', key: 'payout_title' },
-            { header: 'Payout Date', key: 'payout_date' },
-            { header: 'Amount Received', key: 'amount_received' },
-            { header: 'Release Status', key: 'release_status' },
-            { header: 'Proof File', key: 'file_name' },
-            { header: 'Uploaded At', key: 'submitted_at' },
-            { header: 'Proof Status', key: 'proof_status' },
-            { header: 'Reviewed By', key: 'reviewed_by' },
-            { header: 'Reviewed At', key: 'reviewed_at' },
-            { header: 'Review Comment', key: 'review_comment' },
-        ];
     } else if (normalized.reportType === 'renewals') {
         rows = await getRenewalRows(normalized);
         sheetName = 'Scholarship Renewals';
@@ -2925,22 +2886,6 @@ async function buildExportDefinition(normalized) {
             ? safeText(rows.find((row) => safeText(row.benefactor_name))?.benefactor_name)
             : '';
         const titleSuffix = selectedBenefactor ? ` OF ${selectedBenefactor.toUpperCase()}` : '';
-        columns = [
-            { header: 'No.', key: 'row_number' },
-            { header: 'Last Name', key: '_last_name' },
-            { header: 'Given Name', key: '_given_name' },
-            { header: 'MI', key: '_middle_initial' },
-            { header: 'Course', key: 'course_code' },
-            { header: 'Year', key: 'year_level' },
-            { header: 'GWA', key: '_gwa' },
-            { header: 'Benefactor', key: 'benefactor_name' },
-            { header: 'Scholarship Program', key: 'program_name' },
-            { header: 'Academic Year', key: 'applicable_academic_year' },
-            { header: 'Semester', key: 'semester' },
-            { header: 'Renewal Status', key: 'renewal_status' },
-            { header: 'Renewal Date', key: 'renewal_date' },
-            { header: 'Remarks', key: 'remarks' },
-        ];
         institutional = {
             title: `STATUS AND RECOMMENDED FINANCIAL ASSISTANCE BENEFICIARIES${titleSuffix}`,
             subtitle: formatExcelPeriodSubtitle(normalized, rows),
@@ -2952,212 +2897,50 @@ async function buildExportDefinition(normalized) {
         rows = await getSlotUtilizationRows(normalized);
         sheetName = 'Scholarship Slots';
         filename = 'scholarship_slot_report.xlsx';
-        columns = [
-            { header: 'Opening ID', key: 'opening_id' },
-            { header: 'Opening', key: 'opening_title' },
-            { header: 'Scholarship Program', key: 'program_name' },
-            { header: 'Benefactor', key: 'benefactor_name' },
-            { header: 'Academic Year', key: 'academic_year' },
-            { header: 'Semester', key: 'semester' },
-            { header: 'Total Slots', key: 'total_slots' },
-            { header: 'Filled Slots', key: 'filled_slots' },
-            { header: 'Available Slots', key: 'available_slots' },
-            { header: 'Released Slots', key: 'released_slots' },
-            { header: 'Opening Status', key: 'opening_status' },
-            { header: 'Opening Created At', key: 'opening_created_at' },
-        ];
     } else if (normalized.reportType === 'sdo') {
         rows = await getSdoRows(normalized);
         sheetName = 'SDO Endorsements';
         filename = 'sdo_endorsement_report.xlsx';
-        columns = [
-            { header: 'Slip ID', key: 'slip_id' },
-            { header: 'Student Number', key: 'pdm_id' },
-            { header: 'Student Name', key: 'student_name' },
-            { header: 'Gender', key: 'gender' },
-            { header: 'Course', key: 'course_code' },
-            { header: 'Year Level', key: 'year_level' },
-            { header: 'Program', key: 'program_name' },
-            { header: 'Benefactor', key: 'benefactor_name' },
-            { header: 'Opening', key: 'opening_title' },
-            { header: 'Academic Year', key: 'academic_year' },
-            { header: 'Semester', key: 'semester' },
-            { header: 'Current Stage', key: 'current_stage' },
-            { header: 'Overall Status', key: 'overall_status' },
-            { header: 'SDO Result', key: 'sdo_status' },
-            { header: 'SDO Remarks', key: 'sdo_remarks' },
-            { header: 'Reviewed By', key: 'reviewed_by' },
-            { header: 'Reviewed At', key: 'sdo_acted_at' },
-            { header: 'Submitted At', key: 'submission_date' },
-        ];
     } else if (normalized.reportType === 'sdo_offenses') {
         rows = await getSdoOffenseRows(normalized);
         sheetName = 'SDO Offense Classifications';
         filename = 'sdo_offense_classification_report.xlsx';
-        columns = [
-            { header: 'Student Number', key: 'pdm_id' },
-            { header: 'Student Name', key: 'student_name' },
-            { header: 'Gender', key: 'gender' },
-            { header: 'Course', key: 'course_code' },
-            { header: 'Year Level', key: 'year_level' },
-            { header: 'Program', key: 'program_name' },
-            { header: 'Benefactor', key: 'benefactor_name' },
-            { header: 'Academic Year', key: 'academic_year' },
-            { header: 'Semester', key: 'semester' },
-            { header: 'Offense Classification', key: 'offense_classification' },
-            { header: 'Remarks', key: 'remarks' },
-            { header: 'Reviewed By', key: 'reviewed_by' },
-            { header: 'Reviewed At', key: 'reviewed_at' },
-        ];
     } else if (normalized.reportType === 'guidance') {
         rows = await getGuidanceRows(normalized);
         sheetName = 'Guidance Endorsements';
         filename = 'guidance_endorsement_report.xlsx';
-        columns = [
-            { header: 'Slip ID', key: 'slip_id' },
-            { header: 'Student Number', key: 'pdm_id' },
-            { header: 'Student Name', key: 'student_name' },
-            { header: 'Gender', key: 'gender' },
-            { header: 'Course', key: 'course_code' },
-            { header: 'Year Level', key: 'year_level' },
-            { header: 'Program', key: 'program_name' },
-            { header: 'Benefactor', key: 'benefactor_name' },
-            { header: 'Opening', key: 'opening_title' },
-            { header: 'Academic Year', key: 'academic_year' },
-            { header: 'Semester', key: 'semester' },
-            { header: 'Current Stage', key: 'current_stage' },
-            { header: 'Overall Status', key: 'overall_status' },
-            { header: 'SDO Result', key: 'sdo_status' },
-            { header: 'Guidance Result', key: 'guidance_status' },
-            { header: 'Guidance Remarks', key: 'guidance_remarks' },
-            { header: 'Reviewed By', key: 'reviewed_by' },
-            { header: 'Reviewed At', key: 'guidance_acted_at' },
-            { header: 'Submitted At', key: 'submission_date' },
-        ];
     } else if (normalized.reportType === 'pd') {
         rows = await getPdRows(normalized);
         sheetName = 'PD Endorsements';
         filename = 'pd_endorsement_report.xlsx';
-        columns = [
-            { header: 'Slip ID', key: 'slip_id' },
-            { header: 'Student Number', key: 'pdm_id' },
-            { header: 'Student Name', key: 'student_name' },
-            { header: 'Gender', key: 'gender' },
-            { header: 'Course', key: 'course_code' },
-            { header: 'Year Level', key: 'year_level' },
-            { header: 'Program', key: 'program_name' },
-            { header: 'Benefactor', key: 'benefactor_name' },
-            { header: 'Opening', key: 'opening_title' },
-            { header: 'Academic Year', key: 'academic_year' },
-            { header: 'Semester', key: 'semester' },
-            { header: 'Current Stage', key: 'current_stage' },
-            { header: 'Overall Status', key: 'overall_status' },
-            { header: 'SDO Result', key: 'sdo_status' },
-            { header: 'Guidance Result', key: 'guidance_status' },
-            { header: 'PD Result', key: 'pd_status' },
-            { header: 'PD Remarks', key: 'pd_remarks' },
-            { header: 'Reviewed By', key: 'reviewed_by' },
-            { header: 'Reviewed At', key: 'pd_acted_at' },
-            { header: 'Completed At', key: 'completed_at' },
-            { header: 'Final PDF URL', key: 'final_pdf_url' },
-            { header: 'Submitted At', key: 'submission_date' },
-        ];
     } else if (normalized.reportType === 'ro') {
         rows = await getRoRows(normalized);
         sheetName = 'RO Personnel-In-Charge';
         filename = 'ro_coordinator_report.xlsx';
-        columns = [
-            { header: 'RO ID', key: 'ro_id' },
-            { header: 'Student Number', key: 'pdm_id' },
-            { header: 'Student Name', key: 'student_name' },
-            { header: 'Gender', key: 'gender' },
-            { header: 'Course', key: 'course_code' },
-            { header: 'Year Level', key: 'year_level' },
-            { header: 'Program', key: 'program_name' },
-            { header: 'Opening', key: 'opening_title' },
-            { header: 'Academic Year', key: 'academic_year' },
-            { header: 'Semester', key: 'semester' },
-            { header: 'RO Area', key: 'ro_area' },
-            { header: 'Placement Status', key: 'placement_status' },
-            { header: 'Required Hours', key: 'required_hours' },
-            { header: 'Submitted Hours', key: 'submitted_hours' },
-            { header: 'Validated Hours', key: 'validated_hours' },
-            { header: 'Pending Validation', key: 'pending_validation_count' },
-            { header: 'Progress Status', key: 'progress_status' },
-            { header: 'Assignment Status', key: 'assignment_status' },
-            { header: 'RO Status', key: 'ro_status' },
-            { header: 'Requested At', key: 'requested_at' },
-            { header: 'Decided At', key: 'decided_at' },
-        ];
     } else if (normalized.reportType === 'ro_compliance') {
         rows = await getRoComplianceRows(normalized);
         sheetName = 'RO Scholar Compliance';
         filename = 'ro_scholar_compliance_report.xlsx';
-        columns = [
-            { header: 'RO ID', key: 'ro_id' },
-            { header: 'Student Number', key: 'pdm_id' },
-            { header: 'Student Name', key: 'student_name' },
-            { header: 'Email', key: 'email_address' },
-            { header: 'Mobile Number', key: 'phone_number' },
-            { header: 'Gender', key: 'gender' },
-            { header: 'Course', key: 'course_code' },
-            { header: 'Course Name', key: 'course_name' },
-            { header: 'Year Level', key: 'year_level' },
-            { header: 'Scholarship Program', key: 'program_name' },
-            { header: 'Benefactor', key: 'benefactor_name' },
-            { header: 'Academic Year', key: 'academic_year' },
-            { header: 'Semester', key: 'semester' },
-            { header: 'Assigned RO Area', key: 'assigned_areas' },
-            { header: 'PIC Name', key: 'personnel_in_charge' },
-            { header: 'Required Hours', key: 'required_hours' },
-            { header: 'Submitted Hours', key: 'submitted_hours' },
-            { header: 'Validated Hours', key: 'validated_hours' },
-            { header: 'Remaining Hours', key: 'remaining_hours' },
-            { header: 'Completion %', key: 'completion_percentage' },
-            { header: 'Compliance Status', key: 'compliance_status' },
-            { header: 'Progress Status', key: 'progress_status' },
-            { header: 'Assignment Status', key: 'assignment_status' },
-            { header: 'Clearance Status', key: 'clearance_status' },
-            { header: 'Pending Validation', key: 'pending_validation_count' },
-            { header: 'Assigned At', key: 'assigned_at' },
-            { header: 'Cleared At', key: 'cleared_at' },
-        ];
     } else if (normalized.reportType === 'endorsements') {
         rows = await getPdRows({ ...normalized, consolidated: true });
         sheetName = 'Endorsements';
         filename = 'endorsement_report.xlsx';
-        columns = [
-            { header: 'Slip ID', key: 'slip_id' },
-            { header: 'Student Number', key: 'pdm_id' },
-            { header: 'Student Name', key: 'student_name' },
-            { header: 'Gender', key: 'gender' },
-            { header: 'Course', key: 'course_code' },
-            { header: 'Year Level', key: 'year_level' },
-            { header: 'Program', key: 'program_name' },
-            { header: 'Benefactor', key: 'benefactor_name' },
-            { header: 'Opening', key: 'opening_title' },
-            { header: 'Academic Year', key: 'academic_year' },
-            { header: 'Semester', key: 'semester' },
-            { header: 'Current Stage', key: 'current_stage' },
-            { header: 'Overall Status', key: 'overall_status' },
-            { header: 'SDO Result', key: 'sdo_status' },
-            { header: 'Guidance Result', key: 'guidance_status' },
-            { header: 'PD Result', key: 'pd_status' },
-            { header: 'PD Remarks', key: 'pd_remarks' },
-            { header: 'PD Reviewed By', key: 'reviewed_by' },
-            { header: 'PD Reviewed At', key: 'pd_acted_at' },
-            { header: 'Completed At', key: 'completed_at' },
-            { header: 'Final PDF URL', key: 'final_pdf_url' },
-            { header: 'Submitted At', key: 'submission_date' },
-        ];
     } else {
         throw createHttpError(400, 'Invalid report type.');
     }
 
+    const columns = getReportColumns(normalized.reportType, normalized);
+    rows = rows.map(prepareReportRow);
+
     if (!institutional) {
+        const selectedBenefactor = normalized.benefactorId !== 'all'
+            ? safeText(rows.find((row) => safeText(row.benefactor_name))?.benefactor_name) : '';
         institutional = {
-            title: getInstitutionalReportTitle(normalized.reportType),
-            subtitle: formatExcelPeriodSubtitle(normalized, rows),
+            title: getInstitutionalReportTitle(normalized.reportType)
+                + (selectedBenefactor && normalized.reportType === 'newly_recommended' ? ` OF ${selectedBenefactor.toUpperCase()}` : ''),
+            subtitle: normalized.reportType === 'beneficiary_graduates'
+                ? 'Confirmed graduated scholars — scholarship periods covered'
+                : formatExcelPeriodSubtitle(normalized, rows),
             headerRow: 11,
             dataStartRow: 12,
             autoFilter: true,

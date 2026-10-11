@@ -48,6 +48,14 @@ function validatePayoutDate(value) {
   return normalized;
 }
 
+function validatePayoutTime(value) {
+  const normalized = String(value || '').trim();
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(normalized)) {
+    throw payoutError(400, 'Payout time is required and must use HH:mm format.');
+  }
+  return normalized;
+}
+
 // validatePaymentMode: validates validate payment mode for the Payout flow.
 function validatePaymentMode(value) {
   const normalized = normalizeRequiredText(value, 'Payout mode', 60);
@@ -115,6 +123,8 @@ async function fetchPayoutBatches(query = {}) {
       ap.term AS semester,
       pb.payout_title,
       pb.payout_date,
+      pb.payout_time,
+      pb.payout_venue,
       pb.payment_mode,
       pb.payment_mode_other,
       pb.amount_per_scholar,
@@ -190,6 +200,8 @@ async function fetchPayoutBatches(query = {}) {
       ap.term,
       pb.payout_title,
       pb.payout_date,
+      pb.payout_time,
+      pb.payout_venue,
       pb.payment_mode,
       pb.payment_mode_other,
       pb.amount_per_scholar,
@@ -380,10 +392,36 @@ async function fetchEligibleScholarsByOpening(openingId) {
 // =========================
 // CREATE PAYOUT BATCH
 // =========================
+function validatePayoutVenue(value) {
+  const venue = normalizeRequiredText(value, 'Payout venue');
+  if (venue.length > 250) throw payoutError(400, 'Payout venue must be 250 characters or fewer.');
+  return venue;
+}
+
+async function updatePayoutVenue(payoutBatchId, payoutVenue) {
+  const venue = validatePayoutVenue(payoutVenue);
+  const result = await pool.query(`
+    WITH previous AS (
+      SELECT payout_batch_id, payout_venue FROM payout_batches
+      WHERE payout_batch_id = $1 AND COALESCE(is_archived, FALSE) = FALSE
+      FOR UPDATE
+    )
+    UPDATE payout_batches pb SET payout_venue = $2, updated_at = now()
+    FROM previous WHERE pb.payout_batch_id = previous.payout_batch_id
+    RETURNING pb.*, previous.payout_venue AS previous_payout_venue;
+  `, [payoutBatchId, venue]);
+  if (result.rows[0]) return result.rows[0];
+  const existing = await pool.query('SELECT is_archived FROM payout_batches WHERE payout_batch_id = $1', [payoutBatchId]);
+  if (!existing.rows[0]) throw payoutError(404, 'Payout batch not found.');
+  throw payoutError(409, 'Restore this archived batch before changing its venue.');
+}
+
 async function createPayoutBatchFromOpening({
   opening_id,
   payout_title,
   payout_date,
+  payout_time,
+  payout_venue = 'OSFA - Office of Scholarship and Financial Assistance',
   payment_mode,
   payment_mode_other,
   remarks,
@@ -395,6 +433,8 @@ async function createPayoutBatchFromOpening({
 
   const normalizedTitle = normalizeRequiredText(payout_title, 'Payout title');
   const normalizedDate = validatePayoutDate(payout_date);
+  const normalizedTime = validatePayoutTime(payout_time);
+  const normalizedVenue = validatePayoutVenue(payout_venue);
   const normalizedPaymentMode = validatePaymentMode(payment_mode);
   const normalizedOtherPaymentMode = validateOtherPaymentMode(
     normalizedPaymentMode,
@@ -542,9 +582,11 @@ async function createPayoutBatchFromOpening({
         amount_per_scholar,
         total_amount,
         batch_status,
-        remarks
+        remarks,
+        payout_time,
+        payout_venue
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'Draft', $11)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'Draft', $11, $12, $13)
       RETURNING *;
       `,
       [
@@ -559,6 +601,8 @@ async function createPayoutBatchFromOpening({
         amount,
         totalAmount,
         remarks || null,
+        normalizedTime,
+        normalizedVenue,
       ]
     );
 
@@ -736,6 +780,8 @@ async function updateScholarPayoutStatus({
         const amount = Number(updated.amount_received || 0).toLocaleString('en-PH', {
           style: 'currency',
           currency: 'PHP',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
         });
 
         await notificationService.createUserNotification({
@@ -950,6 +996,8 @@ async function fetchMyPayouts(userId) {
       pb.payout_title,
       pb.payout_code,
       pb.payout_date,
+      pb.payout_time,
+      pb.payout_venue,
       pb.payment_mode,
       pb.payment_mode_other,
       pb.amount_per_scholar,
@@ -983,6 +1031,8 @@ async function fetchMyPayouts(userId) {
       amount: Number(row.amount_received || row.amount_per_scholar || 0),
       release_status: row.release_status || 'Pending',
       payout_date: row.payout_date || null,
+      payout_time: row.payout_time || null,
+      payout_venue: row.payout_venue,
       semester: row.semester || '-',
       academic_year: row.academic_year || '-',
       payment_mode: row.payment_mode || '-',
@@ -1003,6 +1053,7 @@ module.exports = {
   fetchPayoutOpenings,
   fetchEligibleScholarsByOpening,
   createPayoutBatchFromOpening,
+  updatePayoutVenue,
   updateScholarPayoutStatus,
   archivePayoutBatch,
   restorePayoutBatch,
@@ -1054,6 +1105,8 @@ async function fetchPayoutProofs(query = {}) {
         st.last_name,
         pb.payout_title,
         pb.payout_date,
+        pb.payout_time,
+        pb.payout_venue,
         pbs.amount_received,
         pbs.release_status,
         sp.program_name,

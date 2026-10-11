@@ -1,3 +1,4 @@
+import { formatPeso } from '@/utils/currency';
 // SMaRT-PDM: Reports — Report Generation (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -111,7 +112,7 @@ const REPORT_TEMPLATE_GROUPS = [
   },
   {
     label: 'Scholar Management',
-    ids: ['scholars', 'scholarship_history', 'scholars_by_benefactor', 'renewals'],
+    ids: ['scholars', 'beneficiary_graduates', 'newly_recommended', 'scholarship_history', 'scholars_by_benefactor', 'benefactor_grades', 'renewals'],
   },
   {
     label: 'Scholar Operations',
@@ -133,6 +134,9 @@ const REPORT_FILTER_FIELDS = {
   scholars: ['academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'gender', 'date'],
   scholarship_history: ['academicYearRange', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'gender'],
   scholars_by_benefactor: ['academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'gender', 'date'],
+  benefactor_grades: ['academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel'],
+  beneficiary_graduates: ['benefactor', 'program', 'course', 'date'],
+  newly_recommended: ['academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'date'],
   renewals: ['academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'result', 'date'],
   payouts: [
     'academicYear', 'semester', 'benefactor', 'program', 'course', 'yearLevel', 'gender',
@@ -210,9 +214,11 @@ function FilterField({ label, children }) {
 }
 
 // formatCellValue: formats format cell value for the Reports flow.
-function formatCellValue(value) {
+function formatCellValue(value, key = '') {
   if (value === null || value === undefined || value === '') return '—';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (key === 'gwa' && Number.isFinite(Number(value))) return Number(value).toFixed(2);
+  if (/^(amount|amount_per_scholar|amount_received|total_amount|financial_allocation|per_scholar_amount)$/.test(key)) return formatPeso(value);
 
   if (typeof value === 'string' && value.includes('T')) {
     const date = new Date(value);
@@ -338,6 +344,7 @@ export default function ReportGeneration({
   const [dateTo, setDateTo] = useState('');
 
   const [previewRows, setPreviewRows] = useState([]);
+  const [reportColumns, setReportColumns] = useState([]);
   const [previewTotal, setPreviewTotal] = useState(0);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [hasPreviewed, setHasPreviewed] = useState(false);
@@ -466,9 +473,8 @@ export default function ReportGeneration({
             : 'Office Result';
 
   const previewColumns = useMemo(() => {
-    if (!previewRows.length) return [];
-    return Object.keys(previewRows[0] || {});
-  }, [previewRows]);
+    return reportColumns.map((column) => column.key);
+  }, [reportColumns]);
 
   const scholarCountXAxisKey = useMemo(() => {
     if (!isScholarCountReport) return 'label';
@@ -642,6 +648,7 @@ export default function ReportGeneration({
 
       if (requestId !== previewRequestIdRef.current) return;
       setPreviewRows(Array.isArray(data.rows) ? data.rows : []);
+      setReportColumns(Array.isArray(data.columns) ? data.columns : []);
       setPreviewTotal(Number(data.total || data.rows?.length || 0));
       setHasPreviewed(true);
       setFeedback(null);
@@ -873,7 +880,7 @@ export default function ReportGeneration({
   }
 
   // handlePrintPreview: handles handle print preview for the Reports flow.
-  function handlePrintPreview() {
+  async function handlePrintPreview() {
     const printWindow = window.open('', '_blank', 'width=1200,height=800');
     if (!printWindow) {
       toast.error('Unable to open print preview', {
@@ -883,55 +890,70 @@ export default function ReportGeneration({
     }
 
     printWindow.opener = null;
-    const title = escapePrintHtml(selectedReport?.name || 'Report Preview');
-    const subtitle = escapePrintHtml(selectedReport?.sub || '');
-    const generatedAt = escapePrintHtml(new Date().toLocaleString());
-    const columnHeaders = previewColumns
-      .map((column) => `<th>${escapePrintHtml(formatHeader(column))}</th>`)
-      .join('');
-    const tableRows = previewRows
-      .map((row) => `<tr>${previewColumns
-        .map((column) => `<td>${escapePrintHtml(formatCellValue(row[column]))}</td>`)
-        .join('')}</tr>`)
-      .join('');
-    const emptyState = `<tr><td class="empty" colspan="${Math.max(previewColumns.length, 1)}">No matching records found.</td></tr>`;
+    printWindow.document.write('<p style="font-family:Arial;padding:24px">Preparing report…</p>');
+    try {
+      const response = await fetch(`${API_BASE}/reports/preview?${buildParams()}&print=true`, {
+        headers: getAuthHeaders(tokenStorageKey),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to prepare report.');
+      if (printWindow.closed) return;
+      const printRows = Array.isArray(data.rows) ? data.rows : [];
+      const printColumns = Array.isArray(data.columns) ? data.columns : [];
+      const title = escapePrintHtml(data.title || selectedReport?.name || 'Report Preview');
+      const subtitle = escapePrintHtml([data.subtitle, selectedReport?.sub].filter(Boolean).join(' • '));
+      const generatedAt = escapePrintHtml(new Date().toLocaleString());
+      const columnHeaders = printColumns
+        .map((column) => `<th>${escapePrintHtml(column.header)}</th>`)
+        .join('');
+      const tableRows = printRows
+        .map((row) => `<tr>${printColumns
+          .map(({ key }) => `<td>${escapePrintHtml(formatCellValue(row[key], key))}</td>`)
+          .join('')}</tr>`)
+        .join('');
+      const emptyState = `<tr><td class="empty" colspan="${Math.max(printColumns.length, 1)}">No matching records found.</td></tr>`;
 
-    printWindow.document.open();
-    printWindow.document.write(`<!doctype html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <title>${title}</title>
-          <style>
-            @page { size: landscape; margin: 12mm; }
-            * { box-sizing: border-box; }
-            body { margin: 0; color: #1c1917; font-family: Arial, sans-serif; font-size: 11px; }
-            h1 { margin: 0; font-size: 20px; }
-            .subtitle { margin: 5px 0 0; color: #57534e; font-size: 12px; }
-            .meta { display: flex; justify-content: space-between; gap: 16px; margin: 18px 0 10px; color: #78716c; }
-            table { width: 100%; border-collapse: collapse; }
-            th, td { border: 1px solid #d6d3d1; padding: 7px 8px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
-            th { background: #f5f5f4; font-size: 10px; text-transform: uppercase; }
-            tr { break-inside: avoid; }
-            .empty { padding: 28px; text-align: center; color: #78716c; }
-          </style>
-        </head>
-        <body>
-          <h1>${title}</h1>
-          ${subtitle ? `<p class="subtitle">${subtitle}</p>` : ''}
-          <div class="meta">
-            <span>Showing ${previewRows.length} of ${previewTotal} matching records</span>
-            <span>Prepared ${generatedAt}</span>
-          </div>
-          <table>
-            ${previewColumns.length ? `<thead><tr>${columnHeaders}</tr></thead>` : ''}
-            <tbody>${tableRows || emptyState}</tbody>
-          </table>
-        </body>
-      </html>`);
-    printWindow.document.close();
-    printWindow.focus();
-    window.setTimeout(() => printWindow.print(), 150);
+      printWindow.document.open();
+      printWindow.document.write(`<!doctype html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>${title}</title>
+            <style>
+              @page { size: A4 ${printColumns.length > 5 ? 'landscape' : 'portrait'}; margin: 12mm; }
+              * { box-sizing: border-box; }
+              body { margin: 0; color: #1c1917; font-family: Arial, sans-serif; font-size: 10pt; }
+              h1 { margin: 0; font-size: 20px; }
+              .subtitle { margin: 5px 0 0; color: #57534e; font-size: 12px; }
+              .meta { display: flex; justify-content: space-between; gap: 16px; margin: 18px 0 10px; color: #78716c; }
+              table { width: 100%; border-collapse: collapse; }
+              th, td { border: 1px solid #d6d3d1; padding: 7px 8px; text-align: left; vertical-align: top; overflow-wrap: break-word; }
+              th { background: #f5f5f4; font-size: 10pt; }
+              thead { display: table-header-group; }
+              tr { break-inside: avoid; }
+              .empty { padding: 28px; text-align: center; color: #78716c; }
+            </style>
+          </head>
+          <body>
+            <h1>${title}</h1>
+            ${subtitle ? `<p class="subtitle">${subtitle}</p>` : ''}
+            <div class="meta">
+              <span>${printRows.length} matching record(s)</span>
+              <span>Prepared ${generatedAt}</span>
+            </div>
+            <table>
+              ${printColumns.length ? `<thead><tr>${columnHeaders}</tr></thead>` : ''}
+              <tbody>${tableRows || emptyState}</tbody>
+            </table>
+          </body>
+        </html>`);
+      printWindow.document.close();
+      printWindow.focus();
+      window.setTimeout(() => printWindow.print(), 150);
+    } catch (error) {
+      printWindow.close();
+      toast.error('Unable to print report', { description: error.message });
+    }
   }
 
   if (loading) {
@@ -1872,7 +1894,7 @@ export default function ReportGeneration({
                           key={key}
                           className="whitespace-nowrap border-b border-stone-100 px-4 py-3 font-semibold"
                         >
-                          {formatHeader(key)}
+                          {reportColumns.find((column) => column.key === key)?.header || formatHeader(key)}
                         </th>
                       ))}
                     </tr>
@@ -1893,7 +1915,7 @@ export default function ReportGeneration({
                                 : 'whitespace-nowrap px-4 py-3 text-stone-600'
                             }
                           >
-                            {formatCellValue(row[key])}
+                            {formatCellValue(row[key], key)}
                           </td>
                         ))}
                       </tr>

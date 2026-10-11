@@ -81,12 +81,46 @@ function toRequiredYear(value, fieldName) {
     return num;
 }
 
+function validateAcademicDates(startDate, endDate, startYear, endYear, { allowPast = false, allowMissing = false } = {}) {
+    if (!startDate && !endDate && allowMissing) return { startDate: null, endDate: null };
+    for (const [value, year, label] of [[startDate, startYear, 'Start'], [endDate, endYear, 'End']]) {
+        const date = new Date(`${value}T00:00:00Z`);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '') ||
+            Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value ||
+            Number(value.slice(0, 4)) !== year) {
+            throw createHttpError(400, `${label} date must be a valid date within its academic year.`);
+        }
+    }
+    if (endDate <= startDate) throw createHttpError(400, 'End date must be after start date.');
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(new Date());
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    const today = `${values.year}-${values.month}-${values.day}`;
+    if (!allowPast && (startDate < today || endDate < today)) {
+        throw createHttpError(400, 'Academic year dates cannot be in the past. Select today or a future date.');
+    }
+    return { startDate, endDate };
+}
+
+function dateInputValue(value) {
+    if (!value) return null;
+    if (value instanceof Date) {
+        return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+    }
+    return String(value).slice(0, 10);
+}
+
+exports.validateAcademicDates = validateAcademicDates;
+
 // mapAcademicYear: maps map academic year for the Academic Periods flow.
 function mapAcademicYear(row = {}) {
     return {
         academic_year_id: row.academic_year_id,
         start_year: Number(row.start_year),
         end_year: Number(row.end_year),
+        start_date: dateInputValue(row.start_date),
+        end_date: dateInputValue(row.end_date),
         label: row.label || `${row.start_year}-${row.end_year}`,
         is_active: row.is_active === true,
         is_archived: row.is_archived === true,
@@ -609,6 +643,8 @@ exports.getAcademicYears = async () => {
             academic_year_id,
             start_year,
             end_year,
+            start_date,
+            end_date,
             label,
             is_active,
             is_archived
@@ -673,11 +709,12 @@ exports.calculateAcademicYearWindow = calculateAcademicYearWindow;
 exports.assertCurrentAcademicYear = assertCurrentAcademicYear;
 
 exports.createAcademicYear = async (payload = {}) => {
-    const startYear = toRequiredYear(payload.start_year, 'Start year');
-    const endYear = toRequiredYear(payload.end_year, 'End year');
+    const startYear = toRequiredYear(payload.start_date ? String(payload.start_date).slice(0, 4) : payload.start_year, 'Start year');
+    const endYear = toRequiredYear(payload.end_date ? String(payload.end_date).slice(0, 4) : payload.end_year, 'End year');
     const isActive = payload.is_active === true;
 
     validateYearRange(startYear, endYear);
+    const dates = validateAcademicDates(payload.start_date, payload.end_date, startYear, endYear);
 
     const client = await pool.connect();
 
@@ -707,19 +744,23 @@ exports.createAcademicYear = async (payload = {}) => {
             INSERT INTO academic_years (
                 start_year,
                 end_year,
+                start_date,
+                end_date,
                 is_active,
                 is_archived
             )
-            VALUES ($1, $2, $3, false)
+            VALUES ($1, $2, $4, $5, $3, false)
             RETURNING
                 academic_year_id,
                 start_year,
                 end_year,
+                start_date,
+                end_date,
                 label,
                 is_active,
                 is_archived
             `,
-            [startYear, endYear, isActive]
+            [startYear, endYear, isActive, dates.startDate, dates.endDate]
         );
 
         await ensureDefaultPeriods(
@@ -772,6 +813,8 @@ exports.updateAcademicYear = async (academicYearId, payload = {}) => {
                 academic_year_id,
                 start_year,
                 end_year,
+                start_date,
+                end_date,
                 label,
                 is_active,
                 is_archived
@@ -797,11 +840,13 @@ exports.updateAcademicYear = async (academicYearId, payload = {}) => {
         }
 
         const startYear =
+            payload.start_date ? toRequiredYear(String(payload.start_date).slice(0, 4), 'Start year') :
             payload.start_year !== undefined
                 ? toRequiredYear(payload.start_year, 'Start year')
                 : Number(existing.start_year);
 
         const endYear =
+            payload.end_date ? toRequiredYear(String(payload.end_date).slice(0, 4), 'End year') :
             payload.end_year !== undefined
                 ? toRequiredYear(payload.end_year, 'End year')
                 : Number(existing.end_year);
@@ -812,6 +857,15 @@ exports.updateAcademicYear = async (academicYearId, payload = {}) => {
                 : existing.is_active === true;
 
         validateYearRange(startYear, endYear);
+        const dates = validateAcademicDates(
+            payload.start_date !== undefined ? payload.start_date : dateInputValue(existing.start_date),
+            payload.end_date !== undefined ? payload.end_date : dateInputValue(existing.end_date),
+            startYear, endYear, {
+                allowPast: payload.start_date === undefined && payload.end_date === undefined &&
+                    startYear === Number(existing.start_year) && endYear === Number(existing.end_year),
+                allowMissing: payload.start_date === undefined && payload.end_date === undefined,
+            }
+        );
 
         await ensureUniqueRange(
             client,
@@ -844,6 +898,8 @@ exports.updateAcademicYear = async (academicYearId, payload = {}) => {
             SET
                 start_year = $1,
                 end_year = $2,
+                start_date = $5,
+                end_date = $6,
                 is_active = $3,
                 updated_at = NOW()
             WHERE academic_year_id = $4
@@ -851,11 +907,13 @@ exports.updateAcademicYear = async (academicYearId, payload = {}) => {
                 academic_year_id,
                 start_year,
                 end_year,
+                start_date,
+                end_date,
                 label,
                 is_active,
                 is_archived
             `,
-            [startYear, endYear, isActive, academicYearId]
+            [startYear, endYear, isActive, academicYearId, dates.startDate, dates.endDate]
         );
 
         await ensureDefaultPeriods(client, academicYearId);
@@ -904,6 +962,8 @@ exports.activateAcademicYear = async (academicYearId) => {
                 academic_year_id,
                 start_year,
                 end_year,
+                start_date,
+                end_date,
                 is_archived
             FROM academic_years
             WHERE academic_year_id = $1
@@ -966,6 +1026,8 @@ exports.activateAcademicYear = async (academicYearId) => {
                 academic_year_id,
                 start_year,
                 end_year,
+                start_date,
+                end_date,
                 label,
                 is_active,
                 is_archived
@@ -1264,6 +1326,8 @@ exports.archiveAcademicYear = async (academicYearId) => {
                 academic_year_id,
                 start_year,
                 end_year,
+                start_date,
+                end_date,
                 label,
                 is_active,
                 is_archived
@@ -1316,6 +1380,8 @@ exports.restoreAcademicYear = async (academicYearId) => {
                 academic_year_id,
                 start_year,
                 end_year,
+                start_date,
+                end_date,
                 label,
                 is_active,
                 is_archived

@@ -1,4 +1,5 @@
 import { useRbacPermissions } from '@/context/RbacPermissionContext';
+import { formatPeso } from '@/utils/currency';
 // SMaRT-PDM: Scholars — Scholarship Openings (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -151,15 +152,7 @@ function targetAudienceLabel(value) {
 
 // formatPesoAmount: formats format peso amount for the Scholars flow.
 function formatPesoAmount(value) {
-    const amount = Number(value);
-    if (!Number.isFinite(amount)) return '—';
-
-    return new Intl.NumberFormat('en-PH', {
-        style: 'currency',
-        currency: 'PHP',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    }).format(amount);
+  return formatPeso(value);
 }
 
 // getCurrentSchoolYearLabel: reads and returns get current school year label for the Scholars flow.
@@ -660,17 +653,18 @@ function OpeningModal({
                                         <div className="relative">
                                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-stone-400">₱</span>
                                             <Input
-                                                type="number"
-                                                min="0"
-                                                step="0.01"
-                                                value={form.financial_allocation ?? ''}
-                                                onChange={(e) =>
+                                                type="text"
+                                                inputMode="numeric"
+                                                value={form.financial_allocation === '' || form.financial_allocation == null ? '' : new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Number(form.financial_allocation))}
+                                                onChange={(e) => {
+                                                    const value = e.target.value.replace(/[₱,\s]/g, '');
+                                                    if (!/^\d*$/.test(value)) return;
                                                     setForm((prev) => ({
                                                         ...prev,
-                                                        financial_allocation: e.target.value,
-                                                    }))
-                                                }
-                                                placeholder="0.00"
+                                                        financial_allocation: value,
+                                                    }));
+                                                }}
+                                                placeholder="0"
                                                 className="h-10 rounded-lg border-stone-200 pl-8 text-sm"
                                             />
                                         </div>

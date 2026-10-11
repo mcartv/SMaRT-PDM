@@ -24,6 +24,14 @@ import { confirmArchive } from '@/utils/confirmArchive';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { MAINTENANCE_CARD_TITLE_CLASS } from './components/maintenanceTypography';
 
+function getTodayDateInputValue() {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(new Date());
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+}
+
 const C = {
     brown: 'var(--portal-base)',
 };
@@ -198,15 +206,16 @@ function AcademicYearModal({
     if (!open) return null;
 
     const isEdit = mode === 'edit';
-    const start = Number(form.start_year || 0);
-    const end = Number(form.end_year || 0);
+    const today = getTodayDateInputValue();
+    const start = Number(form.start_date?.slice(0, 4) || 0);
+    const end = Number(form.end_date?.slice(0, 4) || 0);
     const computedLabel =
         start > 0 && end > 0
             ? `${start}-${end}`
             : 'Preview not available';
     const canSubmit =
-        String(form.start_year || '').length === 4 &&
-        String(form.end_year || '').length === 4 &&
+        !!form.start_date && !!form.end_date &&
+        form.start_date >= today && form.end_date > form.start_date &&
         end === start + 1;
     const isCurrentAcademicWindow =
         start === Number(currentAcademicWindow?.start_year) &&
@@ -254,45 +263,21 @@ function AcademicYearModal({
 
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div className="space-y-1.5">
-                            <label className="text-xs font-medium uppercase tracking-wide text-stone-500">
-                                Start Year
-                            </label>
-                            <Input
-                                type="number"
-                                min="2000"
-                                max="9999"
-                                value={form.start_year}
-                                onChange={(e) => {
-                                    const value = e.target.value;
-                                    setForm((prev) => ({
-                                        ...prev,
-                                        start_year: value,
-                                        end_year: value
-                                            ? String(Number(value) + 1)
-                                            : '',
-                                    }));
-                                }}
-                                className="h-10 border-stone-200"
-                                disabled={saving}
-                            />
+                            <label htmlFor="academic-start-date" className="text-xs font-medium uppercase tracking-wide text-stone-500">Start Date</label>
+                            <Input id="academic-start-date" type="date" required
+                                min={today}
+                                value={form.start_date || ''}
+                                onChange={(e) => setForm((prev) => ({ ...prev, start_date: e.target.value }))}
+                                disabled={saving} className="h-10 border-stone-200" />
                         </div>
-
                         <div className="space-y-1.5">
-                            <label className="text-xs font-medium uppercase tracking-wide text-stone-500">
-                                End Year
-                            </label>
-                            <Input
-                                type="number"
-                                value={form.end_year}
-                                onChange={(e) =>
-                                    setForm((prev) => ({
-                                        ...prev,
-                                        end_year: e.target.value,
-                                    }))
-                                }
-                                className="h-10 border-stone-200"
-                                disabled={saving}
-                            />
+                            <label htmlFor="academic-end-date" className="text-xs font-medium uppercase tracking-wide text-stone-500">End Date</label>
+                            <Input id="academic-end-date" type="date" required
+                                min={form.start_date && start && `${start + 1}-01-01` > today ? `${start + 1}-01-01` : today}
+                                max={form.start_date && start ? `${start + 1}-12-31` : undefined}
+                                value={form.end_date || ''}
+                                onChange={(e) => setForm((prev) => ({ ...prev, end_date: e.target.value }))}
+                                disabled={saving} className="h-10 border-stone-200" />
                         </div>
                     </div>
 
@@ -413,6 +398,8 @@ export default function AcademicYearPanel() {
     const [form, setForm] = useState({
         start_year: '',
         end_year: '',
+        start_date: '',
+        end_date: '',
         is_active: false,
     });
     const [currentAcademicWindow, setCurrentAcademicWindow] =
@@ -589,6 +576,8 @@ export default function AcademicYearPanel() {
         setForm({
             start_year: '',
             end_year: '',
+            start_date: '',
+            end_date: '',
             is_active: false,
         });
     };
@@ -610,6 +599,8 @@ export default function AcademicYearPanel() {
             end_year: Number.isInteger(endYear)
                 ? String(endYear)
                 : '',
+            start_date: '',
+            end_date: '',
             is_active: !activeYear,
         });
         setModalOpen(true);
@@ -626,6 +617,8 @@ export default function AcademicYearPanel() {
             end_year: String(
                 row.end_year || ''
             ),
+            start_date: row.start_date || '',
+            end_date: row.end_date || '',
             is_active: !!row.is_active,
         });
         setModalOpen(true);
@@ -636,8 +629,8 @@ export default function AcademicYearPanel() {
         try {
             setSaving(true);
 
-            const start = Number(form.start_year);
-            const end = Number(form.end_year);
+            const start = Number(form.start_date?.slice(0, 4));
+            const end = Number(form.end_date?.slice(0, 4));
 
             if (
                 !Number.isInteger(start) ||
@@ -647,6 +640,17 @@ export default function AcademicYearPanel() {
                 throw new Error(
                     'End year must be exactly one year after the start year.'
                 );
+            }
+
+            if (!form.start_date || !form.end_date ||
+                Number(form.start_date.slice(0, 4)) !== start ||
+                Number(form.end_date.slice(0, 4)) !== end ||
+                form.end_date <= form.start_date) {
+                throw new Error('Select start and end dates within the corresponding academic years.');
+            }
+
+            if (form.start_date < getTodayDateInputValue() || form.end_date < getTodayDateInputValue()) {
+                throw new Error('Academic year dates cannot be in the past. Select today or a future date.');
             }
 
             const isEdit =
@@ -666,6 +670,8 @@ export default function AcademicYearPanel() {
                 body: JSON.stringify({
                     start_year: start,
                     end_year: end,
+                    start_date: form.start_date,
+                    end_date: form.end_date,
                     is_active:
                         !!form.is_active,
                 }),
@@ -1176,6 +1182,13 @@ export default function AcademicYearPanel() {
                                                 </Badge>
                                             ) : null}
                                         </div>
+                                        {year.start_date && year.end_date ? (
+                                            <p className="mt-1 text-xs text-stone-500">
+                                                {new Date(`${year.start_date}T00:00:00`).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                                {' ? '}
+                                                {new Date(`${year.end_date}T00:00:00`).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                            </p>
+                                        ) : null}
                                         <p className="mt-1 text-xs text-stone-500">
                                             Viewing a semester does not change system state. Only “Set Current” changes which cycle is actionable.
                                         </p>

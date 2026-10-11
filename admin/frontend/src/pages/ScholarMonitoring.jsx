@@ -1,3 +1,4 @@
+import { formatPeso } from '@/utils/currency';
 import { useListPage } from '../hooks/useListPage';
 // SMaRT-PDM: Scholars — Scholar Monitoring (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -2339,13 +2340,7 @@ function getProfileStatusTone(value) {
 
 // formatCurrency: formats format currency for the Scholars flow.
 function formatCurrency(value) {
-  const amount = Number(value);
-  if (!Number.isFinite(amount)) return '—';
-  return new Intl.NumberFormat('en-PH', {
-    style: 'currency',
-    currency: 'PHP',
-    minimumFractionDigits: 2,
-  }).format(amount);
+  return formatPeso(value);
 }
 
 // formatAcademicPeriod: formats format academic period for the Scholars flow.

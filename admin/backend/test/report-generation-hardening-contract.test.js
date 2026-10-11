@@ -68,7 +68,9 @@ test('RO compliance exposes the assigned PIC name in preview/export data', () =>
   const page = read('admin/frontend/src/pages/ReportGeneration.jsx');
 
   assert.match(service, /placement_details\.personnel_in_charge/);
-  assert.match(service, /header:\s*'PIC Name',\s*key:\s*'personnel_in_charge'/);
+  const columns = require('../services/reportColumns').getReportColumns('ro_compliance');
+  assert.deepEqual(columns.find((column) => column.key === 'personnel_in_charge'),
+    { header: 'PIC Name', key: 'personnel_in_charge' });
   assert.match(page, /personnel_in_charge:\s*'PIC Name'/);
 });
 
@@ -145,7 +147,7 @@ test('downloadable report layouts adapt column widths, wrapped row heights, and 
   assert.match(service, /function visualTextWidth/);
   assert.match(service, /function estimateWrappedLines/);
   assert.match(service, /column\.width = Math\.min\(maxWidth, Math\.max\(minWidth, bestWidth\)\)/);
-  assert.match(service, /row\.height = Math\.max\(18, Math\.min\(institutional \? 42 : 84,/);
+  assert.match(service, /row\.height = Math\.max\(20, Math\.min\(409,/);
   assert.match(service, /fitToPage:\s*true/);
   assert.match(service, /fitToWidth:\s*1/);
   assert.match(service, /printArea:/);

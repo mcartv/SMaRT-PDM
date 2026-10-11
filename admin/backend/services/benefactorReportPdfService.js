@@ -74,7 +74,7 @@ function resolveChartLayout(rows = []) {
     const countX = CONTENT_RIGHT - countWidth;
     const barX = CONTENT_LEFT + labelWidth + 12;
     const barMaxWidth = Math.max(120, countX - barX - 10);
-    const chartTop = 254;
+    const chartTop = 209;
     const chartBottom = 646;
     const rowsPerPage = Math.max(8, Math.floor((chartBottom - chartTop) / rowHeight));
 
@@ -98,74 +98,6 @@ function safeText(value, fallback = '') {
     if (value === null || value === undefined) return fallback;
     const normalized = String(value).trim();
     return normalized || fallback;
-}
-
-// resolveLabel: resolves resolve label for the Reports flow.
-function resolveLabel(items, idKey, labelKey, selectedValue, fallback) {
-    if (!selectedValue || selectedValue === 'all') return fallback;
-    const match = (items || []).find((item) => String(item?.[idKey]) === String(selectedValue));
-    return safeText(match?.[labelKey], fallback);
-}
-
-// buildFilterLabels: builds build filter labels for the Reports flow.
-function buildFilterLabels(query = {}, metadata = {}) {
-    const academicYear = resolveLabel(
-        metadata.academicYears,
-        'academic_year_id',
-        'label',
-        query.academicYearId,
-        'All Academic Years'
-    );
-    const semester = query.semester && query.semester !== 'all'
-        ? safeText(query.semester)
-        : 'All Semesters';
-    const benefactor = resolveLabel(
-        metadata.benefactors,
-        'benefactor_id',
-        'benefactor_name',
-        query.benefactorId,
-        'All Benefactors'
-    );
-    const program = resolveLabel(
-        metadata.programs,
-        'program_id',
-        'program_name',
-        query.programId,
-        'All Programs'
-    );
-    const course = resolveLabel(
-        metadata.courses,
-        'course_id',
-        'course_code',
-        query.courseId,
-        'All Courses'
-    );
-    const yearLevel = query.yearLevel && query.yearLevel !== 'all'
-        ? `Year ${safeText(query.yearLevel)}`
-        : 'All Year Levels';
-    const gender = query.gender && query.gender !== 'all'
-        ? safeText(query.gender)
-        : 'All Genders';
-
-    let dateRange = 'All Dates';
-    if (query.dateFrom && query.dateTo) {
-        dateRange = `${query.dateFrom} to ${query.dateTo}`;
-    } else if (query.dateFrom) {
-        dateRange = `From ${query.dateFrom}`;
-    } else if (query.dateTo) {
-        dateRange = `Up to ${query.dateTo}`;
-    }
-
-    return {
-        academicYear,
-        semester,
-        benefactor,
-        program,
-        course,
-        yearLevel,
-        gender,
-        dateRange,
-    };
 }
 
 // extractChartRows: handles extract chart rows for the Reports flow.
@@ -200,7 +132,7 @@ function drawTemplate(doc) {
 }
 
 // drawHeader: handles draw header for the Reports flow.
-function drawHeader(doc, { filters, groupedBy, totalScholars, pageNumber, totalPages }) {
+function drawHeader(doc, { groupedBy, totalScholars, pageNumber, totalPages }) {
     drawTemplate(doc);
 
     doc
@@ -228,26 +160,11 @@ function drawHeader(doc, { filters, groupedBy, totalScholars, pageNumber, totalP
         .strokeColor(BRAND_YELLOW)
         .stroke();
 
-    const summaryY = 179;
-    doc
-        .fillColor(TEXT_DARK)
-        .font('Helvetica-Bold')
-        .fontSize(8.2)
-        .text(`Academic Year: ${filters.academicYear}`, CONTENT_LEFT, summaryY, { width: 245 });
-    doc.text(`Semester: ${filters.semester}`, 313, summaryY, { width: 245 });
-
-    fitSingleLineText(doc, `Benefactor: ${filters.benefactor}`, CONTENT_LEFT, summaryY + 15, { width: 245 });
-    fitSingleLineText(doc, `Program: ${filters.program}`, 313, summaryY + 15, { width: 245 });
-    fitSingleLineText(doc, `Course: ${filters.course}`, CONTENT_LEFT, summaryY + 30, { width: 245 });
-    fitSingleLineText(doc, `Year Level: ${filters.yearLevel}`, 313, summaryY + 30, { width: 120 });
-    fitSingleLineText(doc, `Gender: ${filters.gender}`, 438, summaryY + 30, { width: 120 });
-    fitSingleLineText(doc, `Date Range: ${filters.dateRange}`, CONTENT_LEFT, summaryY + 45, { width: 330 });
-
     doc
         .font('Helvetica-Bold')
         .fillColor(BRAND_BROWN)
         .fontSize(8.2)
-        .text(`Total Active Scholars: ${totalScholars}`, 390, summaryY + 45, {
+        .text(`Total Active Scholars: ${totalScholars}`, 390, 179, {
             width: 168,
             align: 'right',
         });
@@ -269,11 +186,10 @@ function drawChartPage(doc, rows, {
     groupedBy,
     pageNumber,
     totalPages,
-    filters,
     totalScholars,
     layout,
 }) {
-    drawHeader(doc, { filters, groupedBy, totalScholars, pageNumber, totalPages });
+    drawHeader(doc, { groupedBy, totalScholars, pageNumber, totalPages });
 
     const {
         chartTop,
@@ -346,9 +262,8 @@ function drawChartPage(doc, rows, {
 }
 
 // drawEmptyState: handles draw empty state for the Reports flow.
-function drawEmptyState(doc, { groupedBy, filters }) {
+function drawEmptyState(doc, { groupedBy }) {
     drawHeader(doc, {
-        filters,
         groupedBy,
         totalScholars: 0,
         pageNumber: 1,
@@ -381,9 +296,8 @@ function drawEmptyState(doc, { groupedBy, filters }) {
 }
 
 // generateScholarCountPdf: handles generate scholar count pdf for the Reports flow.
-function generateScholarCountPdf({ workbook, query = {}, metadata = {} } = {}) {
+function generateScholarCountPdf({ workbook, query = {} } = {}) {
     const chartRows = extractChartRows(workbook, query);
-    const filters = buildFilterLabels(query, metadata);
     const groupedBy = query.benefactorId && query.benefactorId !== 'all' ? 'program' : 'benefactor';
     const totalScholars = chartRows.reduce((sum, row) => sum + Number(row.count || 0), 0);
     const layout = resolveChartLayout(chartRows);
@@ -414,7 +328,7 @@ function generateScholarCountPdf({ workbook, query = {}, metadata = {} } = {}) {
 
         if (chartRows.length === 0) {
             doc.addPage({ size: 'LETTER', margin: 0 });
-            drawEmptyState(doc, { groupedBy, filters });
+            drawEmptyState(doc, { groupedBy });
         } else {
             for (let pageIndex = 0; pageIndex < totalPages; pageIndex += 1) {
                 doc.addPage({ size: 'LETTER', margin: 0 });
@@ -426,7 +340,6 @@ function generateScholarCountPdf({ workbook, query = {}, metadata = {} } = {}) {
                     groupedBy,
                     pageNumber: pageIndex + 1,
                     totalPages,
-                    filters,
                     totalScholars,
                     layout,
                 });

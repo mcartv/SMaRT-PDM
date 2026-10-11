@@ -62,6 +62,13 @@ router.patch(
 );
 
 router.patch(
+    '/:payoutBatchId/venue',
+    ...adminOnly, requirePermission('payouts.manage'),
+    invalidatePayouts,
+    payoutController.updatePayoutVenue
+);
+
+router.patch(
     '/:payoutBatchId/restore',
     ...adminOnly, requirePermission('payouts.manage'),
     invalidatePayouts,

@@ -1,5 +1,6 @@
 // SMaRT-PDM: Scholars — payout schedule screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
+import 'package:intl/intl.dart';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -642,10 +643,17 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
 
   // _formatAmount: handles format amount for the Scholars flow.
   String _formatAmount(double value) {
-    return 'PHP ${value.toStringAsFixed(0)}';
+    if (!value.isFinite) return '—';
+    return NumberFormat.currency(locale: 'en_US', symbol: '₱', decimalDigits: 0).format(value);
   }
 
-  // _formatPayoutDate: handles format payout date for the Scholars flow.
+  String _formatPayoutTime(String value) {
+    final parts = value.split(':');
+    final hour = int.tryParse(parts.first);
+    if (hour == null || parts.length < 2) return value;
+    return '${hour % 12 == 0 ? 12 : hour % 12}:${parts[1]} ${hour >= 12 ? 'PM' : 'AM'}';
+  }
+
   String _formatPayoutDate(String value) {
     final raw = value.trim();
     if (raw.isEmpty) return 'TBA';
@@ -842,6 +850,17 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                                         _infoRow(
                                           'Payout Date',
                                           _formatPayoutDate(payout.payoutDate),
+                                          subtitleColor,
+                                        ),
+                                        if (payout.payoutTime.isNotEmpty)
+                                          _infoRow(
+                                            'Payout Time',
+                                            _formatPayoutTime(payout.payoutTime),
+                                            subtitleColor,
+                                          ),
+                                        _infoRow(
+                                          'Venue',
+                                          payout.payoutVenue,
                                           subtitleColor,
                                         ),
                                         _infoRow(

@@ -4227,3 +4227,36 @@ html.smartpdm-admin-active .portal-shell
     max-width: var(--department-sidebar-max-width) !important;
   }
 }
+
+/* Payout creation uses a definite viewport-bound height so the middle grid
+ * row can scroll while the heading and actions remain reachable. */
+html [data-slot="dialog-content"].payout-create-dialog {
+  --payout-dialog-gutter: 1.5rem;
+  --payout-dialog-height: calc(100dvh - max(var(--payout-dialog-gutter), env(safe-area-inset-top, 0px)) - max(var(--payout-dialog-gutter), env(safe-area-inset-bottom, 0px)));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(64rem, calc(100dvw - 2 * var(--payout-dialog-gutter)));
+  max-width: calc(100dvw - 2 * var(--payout-dialog-gutter));
+  height: min(54rem, var(--payout-dialog-height));
+  max-height: var(--payout-dialog-height) !important;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.payout-create-dialog > .payout-create-scroll {
+  min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 639px) {
+  html [data-slot="dialog-content"].payout-create-dialog {
+    --payout-dialog-gutter: 0.5rem;
+    height: var(--payout-dialog-height);
+  }
+}

@@ -1,4 +1,5 @@
 import { useRbacPermissions } from '@/context/RbacPermissionContext';
+import { formatPeso } from '@/utils/currency';
 import { useListPage } from '../hooks/useListPage';
 // SMaRT-PDM: Payout — Payout Management (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -8,6 +9,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
 import { useSocketEvent } from '@/hooks/useSocket';
 import {
   Loader2,
@@ -27,6 +33,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Info,
+  X,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import PayoutProofReviewPanel from '@/components/payout/PayoutProofReviewPanel';
@@ -50,6 +57,12 @@ function getManilaDateInputValue(value = new Date()) {
 
   const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   return `${byType.year}-${byType.month}-${byType.day}`;
+}
+
+function formatPayoutTime(value) {
+  if (!value) return '';
+  const [hours, minutes] = value.split(':').map(Number);
+  return `${hours % 12 || 12}:${String(minutes).padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`;
 }
 
 // formatPayoutDate: formats format payout date for the Payout flow.
@@ -105,6 +118,8 @@ const EMPTY_FORM = {
   school_year: '',
   payout_title: '',
   payout_date: getManilaDateInputValue(),
+  payout_time: '',
+  payout_venue: 'OSFA - Office of Scholarship and Financial Assistance',
   payment_mode: 'Cash',
   payment_mode_other: '',
   amount_per_scholar: '',
@@ -262,7 +277,7 @@ function hasManageablePayoutEntries(batch) {
 
 // formatMoney: formats format money for the Payout flow.
 function formatMoney(value) {
-  return `\u20B1${Number(value || 0).toLocaleString()}`;
+  return formatPeso(value || 0);
 }
 
 // getEntryId: reads and returns get entry id for the Payout flow.
@@ -305,9 +320,9 @@ function SmallMetric({ label, value }) {
 // ReadOnlyField: handles read only field for the Payout flow.
 function ReadOnlyField({ label, value }) {
   return (
-    <div className="rounded-xl border bg-stone-50 p-3">
-      <p className="text-[11px] text-stone-500">{label}</p>
-      <p className="mt-1 text-sm font-semibold">{value || EM_DASH}</p>
+    <div className="min-w-0 rounded-lg border border-border bg-muted/30 p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 break-words text-sm font-semibold text-foreground">{value || EM_DASH}</p>
     </div>
   );
 }
@@ -802,6 +817,8 @@ export default function PayoutManagement() {
 
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [eligibilityLoading, setEligibilityLoading] = useState(false);
+  const [eligibilityError, setEligibilityError] = useState('');
   const [workingEntryId, setWorkingEntryId] = useState(null);
   const [archivingBatchId, setArchivingBatchId] = useState(null);
   const [restoringBatchId, setRestoringBatchId] = useState(null);
@@ -819,7 +836,14 @@ export default function PayoutManagement() {
   const [search, setSearch] = useState('');
   const [activeSection, setActiveSection] = useState('batches');
   const [selectedBatch, setSelectedBatch] = useState(null);
+  const [venueEditor, setVenueEditor] = useState(null);
+  const [savingVenue, setSavingVenue] = useState(false);
+  const [venueError, setVenueError] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [payoutNotice, setPayoutNotice] = useState(null);
+  const showPayoutNotice = useCallback((message, title = 'Check payout details') => {
+    setPayoutNotice({ message, title });
+  }, []);
   const [academicYears, setAcademicYears] = useState([]);
 
   const [postCreateOpen, setPostCreateOpen] = useState(false);
@@ -827,6 +851,7 @@ export default function PayoutManagement() {
 
   const [form, setForm] = useState(EMPTY_FORM);
   const realtimeRefreshTimer = useRef(null);
+  const openingEligibilityRequest = useRef(0);
 
   const { page, setPage, query: listQuery, metadata: listMetadata, accept: acceptList, beginRequest } = useListPage({ search, tab: activeSection }, PAGE_SIZE);
   const loadBatches = useCallback(async () => {
@@ -889,6 +914,9 @@ export default function PayoutManagement() {
 
   useEffect(() => {
     if (!form.opening_id) {
+      openingEligibilityRequest.current += 1;
+      setEligibilityLoading(false);
+      setEligibilityError('');
       setEligiblePayload({ opening: null, scholars: [] });
       setForm((prev) => ({
         ...prev,
@@ -902,7 +930,9 @@ export default function PayoutManagement() {
       return;
     }
 
-    loadOpeningEligibility(form.opening_id);
+    const controller = new AbortController();
+    loadOpeningEligibility(form.opening_id, controller.signal);
+    return () => { controller.abort(); openingEligibilityRequest.current += 1; };
   }, [form.opening_id]);
 
   // loadAll: loads and returns load all for the Payout flow.
@@ -939,22 +969,53 @@ export default function PayoutManagement() {
       );
     } catch (err) {
       console.error('PAYOUT MANAGEMENT LOAD ERROR:', err);
-      alert(err.message || 'Failed to load payout module');
+      showPayoutNotice(err.message || 'Failed to load payout module', 'Unable to load payouts');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showPayoutNotice]);
 
   useEffect(() => { loadReferenceData(); }, [loadReferenceData]);
 
   const loadAll = () => Promise.all([loadBatches(), loadReferenceData()]);
 
+  async function handleSaveVenue(event) {
+    event.preventDefault();
+    if (!canPerformSensitiveAction('payouts.manage')) return;
+    if (!venueEditor || savingVenue) return;
+    const venue = venueEditor.value.trim();
+    if (!venue) { setVenueError('Please enter the payout venue.'); return; }
+    setSavingVenue(true);
+    setVenueError('');
+    try {
+      const res = await fetch(`${API_BASE}/payouts/${venueEditor.batchId}/venue`, {
+        method: 'PATCH', headers: getAuthHeaders(), body: JSON.stringify({ payout_venue: venue }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || data.error || 'Failed to update venue.');
+      const applyVenue = (batch) => batch?.payout_batch_id === venueEditor.batchId
+        ? { ...batch, payout_venue: data.payout_venue, updated_at: data.updated_at } : batch;
+      setBatches((previous) => previous.map(applyVenue));
+      setSelectedBatch(applyVenue);
+      setVenueEditor(null);
+      toast.success('Payout venue updated');
+      loadBatches();
+    } catch (error) {
+      setVenueError(error.message);
+    } finally { setSavingVenue(false); }
+  }
+
   // loadOpeningEligibility: loads and returns load opening eligibility for the Payout flow.
-  const loadOpeningEligibility = async (openingId) => {
+  const loadOpeningEligibility = async (openingId, signal) => {
+    const requestId = ++openingEligibilityRequest.current;
+    setEligibilityLoading(true);
+    setEligibilityError('');
+    setEligiblePayload({ opening: null, scholars: [] });
+    setForm((prev) => ({ ...prev, semester: '', academic_year_id: '', school_year: '', amount_per_scholar: '', scholar_ids: [] }));
     try {
       const res = await fetch(
         `${API_BASE}/payouts/eligible-scholars?opening_id=${encodeURIComponent(openingId)}`,
-        { headers: getAuthHeaders(false) }
+        { headers: getAuthHeaders(false), signal }
       );
 
       if (!res.ok) {
@@ -962,6 +1023,7 @@ export default function PayoutManagement() {
       }
 
       const data = await res.json();
+      if (signal?.aborted || requestId !== openingEligibilityRequest.current) return;
       const scholars = Array.isArray(data?.scholars) ? data.scholars : [];
       const opening = data?.opening || null;
 
@@ -985,8 +1047,12 @@ export default function PayoutManagement() {
         scholar_ids: filteredScholars.map((s) => s.scholar_id),
       }));
     } catch (err) {
+      if (signal?.aborted || requestId !== openingEligibilityRequest.current) return;
       console.error('OPENING ELIGIBILITY LOAD ERROR:', err);
+      setEligibilityError(err.message || 'Failed to load opening details.');
       setEligiblePayload({ opening: null, scholars: [] });
+    } finally {
+      if (!signal?.aborted && requestId === openingEligibilityRequest.current) setEligibilityLoading(false);
     }
   };
 
@@ -1000,8 +1066,8 @@ export default function PayoutManagement() {
 
   const selectedOpeningDetails = useMemo(() => {
     return (
+      (eligiblePayload.opening?.opening_id === form.opening_id ? eligiblePayload.opening : null) ||
       openings.find((o) => o.opening_id === form.opening_id) ||
-      eligiblePayload.opening ||
       null
     );
   }, [openings, form.opening_id, eligiblePayload.opening]);
@@ -1086,6 +1152,7 @@ export default function PayoutManagement() {
     setForm({
       ...EMPTY_FORM,
       payout_date: getManilaDateInputValue(),
+      payout_time: '',
     });
     setEligiblePayload({ opening: null, scholars: [] });
   };
@@ -1112,6 +1179,8 @@ export default function PayoutManagement() {
       `Please be informed that the payout batch for ${openingTitle} has been created.`,
       '',
       `Payout Date: ${payoutDate}`,
+      newPayoutForPrompt.payout_time ? `Payout Time: ${formatPayoutTime(newPayoutForPrompt.payout_time)}` : '',
+      `Venue: ${newPayoutForPrompt.payout_venue || 'OSFA - Office of Scholarship and Financial Assistance'}`,
       `Payout Mode: ${formatPaymentMode(
         newPayoutForPrompt.payment_mode,
         newPayoutForPrompt.payment_mode_other
@@ -1151,27 +1220,37 @@ export default function PayoutManagement() {
     if (!canPerformSensitiveAction('payouts.manage')) return;
     try {
       if (!form.opening_id) {
-        alert('Please select an opening first.');
+        showPayoutNotice('Please select an opening first.');
         return;
       }
 
       if (!form.semester) {
-        alert('Please select a semester.');
+        showPayoutNotice('Please select a semester.');
         return;
       }
 
       if (!form.scholar_ids.length) {
-        alert('No scholars selected.');
+        showPayoutNotice('No scholars selected.');
         return;
       }
 
       if (!form.payout_date) {
-        alert('Please select a payout date.');
+        showPayoutNotice('Please select a payout date.');
         return;
       }
 
       if (form.payout_date < getManilaDateInputValue()) {
-        alert('Payout date cannot be in the past. Please select today or a future date.');
+        showPayoutNotice('Payout date cannot be in the past. Please select today or a future date.');
+        return;
+      }
+
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(form.payout_time || '')) {
+        showPayoutNotice('Please select a payout time.');
+        return;
+      }
+
+      if (!form.payout_venue?.trim()) {
+        showPayoutNotice('Please enter a payout venue.');
         return;
       }
 
@@ -1183,6 +1262,8 @@ export default function PayoutManagement() {
         academic_year_id: form.academic_year_id,
         payout_title: form.payout_title,
         payout_date: form.payout_date,
+        payout_time: form.payout_time,
+        payout_venue: form.payout_venue.trim(),
         payment_mode: form.payment_mode,
         payment_mode_other: form.payment_mode_other,
         remarks: form.remarks,
@@ -1237,6 +1318,8 @@ export default function PayoutManagement() {
         semester: form.semester,
         payout_title: form.payout_title,
         payout_date: form.payout_date,
+        payout_time: form.payout_time,
+        payout_venue: form.payout_venue.trim(),
         payment_mode: form.payment_mode,
         payment_mode_other: form.payment_mode_other,
         amount_per_scholar: form.amount_per_scholar,
@@ -1253,7 +1336,7 @@ export default function PayoutManagement() {
       setActiveSection('batches');
     } catch (err) {
       console.error('CREATE PAYOUT BATCH ERROR:', err);
-      alert(err.message || 'Failed to create payout batch');
+      showPayoutNotice(err.message || 'Failed to create payout batch', 'Payout batch not saved');
     } finally {
       setCreating(false);
     }
@@ -1262,7 +1345,7 @@ export default function PayoutManagement() {
   // openStatusUpdate: handles open status update for the Payout flow.
   const openStatusUpdate = (entry, nextStatus) => {
     if (!getEntryId(entry)) {
-      alert('Missing payout entry ID.');
+      showPayoutNotice('Missing payout entry ID.');
       return;
     }
 
@@ -1502,7 +1585,7 @@ export default function PayoutManagement() {
       if (!batch?.payout_batch_id) return;
 
       if (!isBatchFinished(batch)) {
-        alert(
+        showPayoutNotice(
           'This payout batch is not ready to archive. Resolve every Pending or On Hold scholar first. Final statuses are Released, Absent, or Cancelled.'
         );
         return;
@@ -1537,7 +1620,7 @@ export default function PayoutManagement() {
       await loadAll();
     } catch (err) {
       console.error('ARCHIVE PAYOUT BATCH ERROR:', err);
-      alert(err.message || 'Failed to archive payout batch');
+      showPayoutNotice(err.message || 'Failed to archive payout batch', 'Unable to archive payout');
     } finally {
       setArchivingBatchId(null);
     }
@@ -1548,11 +1631,6 @@ export default function PayoutManagement() {
     if (!canPerformSensitiveAction('payouts.manage')) return;
     try {
       if (!batch?.payout_batch_id) return;
-
-      const confirmed = window.confirm(
-        `Restore "${batch.payout_title || 'this payout batch'}" to active payout records?`
-      );
-      if (!confirmed) return;
 
       setRestoringBatchId(batch.payout_batch_id);
 
@@ -1572,7 +1650,7 @@ export default function PayoutManagement() {
       setActiveSection('batches');
     } catch (err) {
       console.error('RESTORE PAYOUT BATCH ERROR:', err);
-      alert(err.message || 'Failed to restore payout batch');
+      showPayoutNotice(err.message || 'Failed to restore payout batch', 'Unable to restore payout');
     } finally {
       setRestoringBatchId(null);
     }
@@ -1693,8 +1771,9 @@ export default function PayoutManagement() {
                 </p>
 
                 <p className="mt-1 text-xs text-stone-400">
-                  {b.school_year || b.academic_year || EM_DASH} {BULLET} {formatPayoutDate(b.payout_date)}
+                  {b.school_year || b.academic_year || EM_DASH} {BULLET} {formatPayoutDate(b.payout_date)}{b.payout_time ? ` at ${formatPayoutTime(b.payout_time)}` : ''}
                 </p>
+                <p className="mt-1 break-words text-xs text-stone-500">Venue: {b.payout_venue || 'OSFA - Office of Scholarship and Financial Assistance'}</p>
 
                 <p className="mt-1 text-xs text-stone-400">
                   Payout Code: <span className="font-semibold text-stone-600">{b.payout_code || EM_DASH}</span>
@@ -1773,12 +1852,42 @@ export default function PayoutManagement() {
     );
   };
 
+  const noticeModal = (
+    <AlertDialog open={Boolean(payoutNotice)} onOpenChange={(open) => {
+      if (!open) setPayoutNotice(null);
+    }}>
+      <AlertDialogContent
+        className="z-[110] gap-0 border border-border bg-popover p-0 text-popover-foreground"
+        overlayClassName="z-[100] bg-black/25 backdrop-blur-none"
+      >
+        <AlertDialogHeader className="gap-2 px-5 py-5">
+          <AlertDialogTitle className="flex items-center gap-2 text-base font-semibold">
+            <Info className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+            {payoutNotice?.title}
+          </AlertDialogTitle>
+          <AlertDialogDescription className="whitespace-pre-line text-sm leading-6 text-muted-foreground">{payoutNotice?.message}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="border-border bg-muted/30 px-5 py-4">
+          {payoutNotice?.onConfirm ? <AlertDialogCancel className="h-9 rounded-lg border-border">Cancel</AlertDialogCancel> : null}
+          <AlertDialogAction className="h-9 min-w-20 rounded-lg border-none bg-primary px-4 text-primary-foreground hover:bg-primary/90" onClick={() => {
+            const onConfirm = payoutNotice?.onConfirm;
+            setPayoutNotice(null);
+            if (onConfirm) void onConfirm();
+          }}>
+            {payoutNotice?.confirmLabel || 'OK'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   if (loading || batchesLoading) {
-    return <PageLoadingSkeleton label="Loading payout management" showStats />;
+    return <>{noticeModal}<PageLoadingSkeleton label="Loading payout management" showStats /></>;
   }
 
   return (
     <div className="dark-mode-route-canvas space-y-4 py-3" style={{ background: C.bg }}>
+      {noticeModal}
       <PostPayoutCreatePrompt
         open={postCreateOpen}
         payout={newPayoutForPrompt}
@@ -1957,235 +2066,137 @@ export default function PayoutManagement() {
         onNext={() => setPage((prev) => Math.min(totalPages, prev + 1))}
       />
 
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[92vh] w-full max-w-5xl overflow-auto rounded-2xl border bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4">
-              <div>
-                <h2 className="text-xl font-semibold text-stone-900">
+      <Dialog open={showCreateModal} onOpenChange={(open) => {
+        if (creating) return;
+        setShowCreateModal(open);
+        if (!open) resetCreateForm();
+      }}>
+          <DialogContent showCloseButton={false} aria-describedby={undefined} className="payout-create-dialog gap-0 overflow-hidden rounded-xl p-0 sm:rounded-2xl">
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-4 py-3 sm:px-6 sm:py-4">
+              <div className="min-w-0">
+                <DialogTitle className="text-lg font-semibold text-foreground sm:text-xl">
                   Create Payout Batch
-                </h2>
-                <p className="text-sm text-stone-500">
-                  Select an opening. The system will auto-fill amount and eligible scholars.
-                </p>
+                </DialogTitle>
               </div>
 
               <Button
-                variant="outline"
+                variant="ghost"
+                size="icon"
+                aria-label="Close payout form"
+                title="Close"
                 onClick={() => {
                   setShowCreateModal(false);
                   resetCreateForm();
                 }}
-                className="rounded-xl"
+                className="shrink-0 rounded-lg"
+                disabled={creating}
               >
-                Close
+                <X className="h-5 w-5" aria-hidden="true" />
               </Button>
             </div>
 
-            <div className="space-y-6 p-6">
-              <div className="grid gap-6 lg:grid-cols-2">
-                <Card className="border-stone-200 shadow-none">
-                  <CardContent className="space-y-4 p-4">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4 text-stone-500" />
-                      <h3 className="font-semibold text-stone-900">
-                        Opening Source
-                      </h3>
+            <div className="payout-create-scroll min-h-0 space-y-4 p-3 sm:space-y-5 sm:p-6">
+              <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                <Card className="min-w-0 gap-0 border-border py-0 shadow-none">
+                  <CardContent className="space-y-4 p-4 sm:space-y-5 sm:p-5">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground"><Building2 className="h-4 w-4" /></div>
+                      <div>
+                        <h3 className="font-semibold text-foreground">Opening Source</h3>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">Choose the scholarship opening for this payout.</p>
+                      </div>
                     </div>
-
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium">Opening</label>
-                      <select
-                        className="h-11 w-full rounded-md border px-3"
-                        value={form.opening_id}
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            opening_id: e.target.value,
-                          }))
-                        }
-                      >
-                        <option value="">Select opening</option>
-                        {openings.map((o) => (
-                          <option key={o.opening_id} value={o.opening_id}>
-                            {o.opening_title} {EM_DASH} {o.benefactor_name || 'No Benefactor'}
-                          </option>
-                        ))}
+                    <div className="space-y-2">
+                      <label htmlFor="payout-opening" className="text-sm font-medium text-foreground">Opening</label>
+                      <select id="payout-opening" className="h-11 w-full min-w-0 max-w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        value={form.opening_id} disabled={creating}
+                        onChange={(e) => setForm((prev) => ({ ...prev, opening_id: e.target.value }))}>
+                        <option value="">Select an opening</option>
+                        {openings.map((o) => <option key={o.opening_id} value={o.opening_id}>{o.opening_title} {EM_DASH} {o.benefactor_name || 'No Benefactor'}</option>)}
                       </select>
                     </div>
-
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <ReadOnlyField
-                        label="Program"
-                        value={selectedOpeningDetails?.program_name || EM_DASH}
-                      />
-                      <ReadOnlyField
-                        label="Benefactor"
-                        value={selectedOpeningDetails?.benefactor_name || EM_DASH}
-                      />
-                      <ReadOnlyField
-                        label="Opening Status"
-                        value={formatOpeningStatus(
-                          selectedOpeningDetails?.status ||
-                            selectedOpeningDetails?.posting_status
-                        )}
-                      />
-                      <ReadOnlyField
-                        label="Amount per Scholar"
-                        value={
-                          form.amount_per_scholar !== ''
-                            ? formatMoney(form.amount_per_scholar)
-                            : EM_DASH
-                        }
-                      />
-                    </div>
+                    {eligibilityLoading ? (
+                      <div role="status" className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading opening details?</div>
+                    ) : eligibilityError ? (
+                      <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+                        <p>{eligibilityError}</p>
+                        <Button variant="outline" className="mt-3" onClick={() => loadOpeningEligibility(form.opening_id)}>Retry</Button>
+                      </div>
+                    ) : form.opening_id ? (
+                      <div className="space-y-3">
+                        <p className="text-xs font-medium text-muted-foreground">Details from the selected opening</p>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <ReadOnlyField label="Program" value={selectedOpeningDetails?.program_name || EM_DASH} />
+                          <ReadOnlyField label="Benefactor" value={selectedOpeningDetails?.benefactor_name || EM_DASH} />
+                          <ReadOnlyField label="Opening Status" value={formatOpeningStatus(selectedOpeningDetails?.status || selectedOpeningDetails?.posting_status)} />
+                          <ReadOnlyField label="Amount per Scholar" value={form.amount_per_scholar !== '' ? formatMoney(form.amount_per_scholar) : EM_DASH} />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4">
+                        <p className="text-sm font-medium text-foreground">Start with an opening</p>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">Program details, payout amount, and eligible scholars will appear here automatically.</p>
+                        {!openings.length ? <p className="mt-2 text-xs text-muted-foreground">No openings are currently available.</p> : null}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
-
-                <Card className="border-stone-200 shadow-none">
-                  <CardContent className="space-y-4 p-4">
-                    <div className="flex items-center gap-2">
-                      <Wallet className="h-4 w-4 text-stone-500" />
-                      <h3 className="font-semibold text-stone-900">
-                        Batch Details
-                      </h3>
-                    </div>
-
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium">Semester</label>
-                        <select
-                          className="h-11 w-full rounded-md border px-3"
-                          value={form.semester}
-                          onChange={(e) =>
-                            setForm((prev) => ({
-                              ...prev,
-                              semester: e.target.value,
-                            }))
-                          }
-                        >
-                          <option value="">Select semester</option>
-                          <option value="First Semester">First Semester</option>
-                          <option value="Second Semester">Second Semester</option>
-                        </select>
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium">School Year</label>
-                        <select
-                          className="h-11 w-full rounded-md border px-3"
-                          value={form.academic_year_id}
-                          onChange={(e) => {
-                            const selectedId = e.target.value;
-                            const selectedYear = academicYears.find(
-                              (ay) => ay.academic_year_id === selectedId
-                            );
-
-                            setForm((prev) => ({
-                              ...prev,
-                              academic_year_id: selectedId,
-                              school_year: selectedYear?.label || '',
-                            }));
-                          }}
-                        >
-                          <option value="">Select school year</option>
-                          {academicYears.map((ay) => (
-                            <option
-                              key={ay.academic_year_id}
-                              value={ay.academic_year_id}
-                            >
-                              {ay.label}
-                              {ay.is_active ? ' (Active)' : ''}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="space-y-1 md:col-span-2">
-                        <label className="text-sm font-medium">Payout Title</label>
-                        <Input
-                          value={form.payout_title}
-                          onChange={(e) =>
-                            setForm((prev) => ({
-                              ...prev,
-                              payout_title: e.target.value,
-                            }))
-                          }
-                          placeholder="Example: Kaizen First Semester Payout"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium">Payout Date</label>
-                        <Input
-                          type="date"
-                          min={getManilaDateInputValue()}
-                          required
-                          value={form.payout_date}
-                          onChange={(e) =>
-                            setForm((prev) => ({
-                              ...prev,
-                              payout_date: e.target.value,
-                            }))
-                          }
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium">Payout Mode</label>
-                        <select
-                          className="h-11 w-full rounded-md border px-3"
-                          value={form.payment_mode}
-                          onChange={(e) =>
-                            setForm((prev) => ({
-                              ...prev,
-                              payment_mode: e.target.value,
-                              payment_mode_other:
-                                e.target.value === 'Other' ? prev.payment_mode_other : '',
-                            }))
-                          }
-                        >
-                          <option value="Cash">Cash</option>
-                          <option value="Other">Other</option>
-                        </select>
+                <Card className="min-w-0 gap-0 border-border py-0 shadow-none">
+                  <CardContent className="space-y-4 p-4 sm:space-y-5 sm:p-5">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground"><Wallet className="h-4 w-4" /></div>
+                      <div>
+                        <h3 className="font-semibold text-foreground">Batch Details</h3>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">Set the payout schedule and release method.</p>
                       </div>
                     </div>
-
+                    <div className="space-y-2">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <ReadOnlyField label="Semester" value={form.semester || 'Select an opening first'} />
+                        <ReadOnlyField label="School Year" value={form.school_year || academicYears.find((year) => year.academic_year_id === form.academic_year_id)?.label || 'Select an opening first'} />
+                      </div>
+                      <p className="text-xs text-muted-foreground">Semester and school year follow the selected opening.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="payout-title" className="text-sm font-medium text-foreground">Payout Title</label>
+                      <Input id="payout-title" className="h-11 min-w-0 max-w-full rounded-lg" required disabled={creating} value={form.payout_title}
+                        onChange={(e) => setForm((prev) => ({ ...prev, payout_title: e.target.value }))} placeholder="Example: Kaizen First Semester Payout" />
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <label htmlFor="payout-date" className="text-sm font-medium text-foreground">Payout Date</label>
+                        <Input id="payout-date" className="h-11 min-w-0 max-w-full rounded-lg" type="date" min={getManilaDateInputValue()} required disabled={creating}
+                          value={form.payout_date} onChange={(e) => setForm((prev) => ({ ...prev, payout_date: e.target.value }))} />
+                      </div>
+                      <div className="space-y-2">
+                        <label htmlFor="payout-time" className="text-sm font-medium text-foreground">Payout Time</label>
+                        <Input id="payout-time" className="h-11 min-w-0 max-w-full rounded-lg" type="time" required disabled={creating}
+                          value={form.payout_time} onChange={(e) => setForm((prev) => ({ ...prev, payout_time: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="payout-mode" className="text-sm font-medium text-foreground">Payout Mode</label>
+                      <select id="payout-mode" className="h-11 w-full min-w-0 max-w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        value={form.payment_mode} disabled={creating} onChange={(e) => setForm((prev) => ({ ...prev, payment_mode: e.target.value, payment_mode_other: e.target.value === 'Other' ? prev.payment_mode_other : '' }))}>
+                        <option value="Cash">Cash</option><option value="Other">Other</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="payout-venue" className="text-sm font-medium text-foreground">Venue</label>
+                      <Input id="payout-venue" className="h-11 min-w-0 max-w-full rounded-lg" required maxLength={250} disabled={creating}
+                        value={form.payout_venue} onChange={(e) => setForm((prev) => ({ ...prev, payout_venue: e.target.value }))} />
+                    </div>
                     {form.payment_mode === 'Other' ? (
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium" htmlFor="other-payment-type">
-                          Specify Payout Type
-                        </label>
-                        <input
-                          id="other-payment-type"
-                          className="h-11 w-full rounded-md border px-3"
-                          value={form.payment_mode_other}
-                          onChange={(e) =>
-                            setForm((prev) => ({
-                              ...prev,
-                              payment_mode_other: e.target.value,
-                            }))
-                          }
-                          maxLength={60}
-                          required
-                          placeholder="Example: Check"
-                        />
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-foreground" htmlFor="other-payment-type">Specify Payout Type</label>
+                        <Input id="other-payment-type" className="h-11 min-w-0 max-w-full rounded-lg" value={form.payment_mode_other} disabled={creating}
+                          onChange={(e) => setForm((prev) => ({ ...prev, payment_mode_other: e.target.value }))} maxLength={60} required placeholder="Example: Check" />
                       </div>
                     ) : null}
-
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium">Remarks</label>
-                      <textarea
-                        className="min-h-[90px] w-full rounded-md border p-3 text-sm"
-                        value={form.remarks}
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            remarks: e.target.value,
-                          }))
-                        }
-                        placeholder="Optional notes for the payout batch"
-                      />
+                    <div className="space-y-2">
+                      <label htmlFor="payout-remarks" className="text-sm font-medium text-foreground">Remarks <span className="text-muted-foreground">(optional)</span></label>
+                      <textarea id="payout-remarks" className="min-h-20 w-full resize-y rounded-lg border border-input bg-background p-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                        value={form.remarks} disabled={creating} onChange={(e) => setForm((prev) => ({ ...prev, remarks: e.target.value }))} placeholder="Optional notes for the payout batch" />
                     </div>
                   </CardContent>
                 </Card>
@@ -2212,7 +2223,7 @@ export default function PayoutManagement() {
                   <div className="max-h-[320px] overflow-auto rounded-xl border">
                     {filteredEligibleScholars.length === 0 ? (
                       <div className="p-6 text-sm text-stone-400">
-                        Select an opening to load eligible scholars.
+                        {eligibilityLoading ? 'Loading eligible scholars?' : eligibilityError ? 'Unable to load scholars. Retry the opening above.' : form.opening_id ? 'No eligible scholars are available for this opening.' : 'Select an opening to load eligible scholars.'}
                       </div>
                     ) : (
                       filteredEligibleScholars.map((s) => {
@@ -2248,22 +2259,24 @@ export default function PayoutManagement() {
                 </CardContent>
               </Card>
 
-              <div className="flex justify-end gap-3">
+            </div>
+              <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-border px-4 py-3 sm:flex-row sm:justify-end sm:px-6 sm:py-4">
                 <Button
                   variant="outline"
                   onClick={() => {
                     setShowCreateModal(false);
                     resetCreateForm();
                   }}
-                  className="rounded-xl"
+                  className="h-10 w-full rounded-lg sm:w-auto"
+                  disabled={creating}
                 >
                   Cancel
                 </Button>
 
                 <Button
                   style={{ background: C.brownMid }}
-                  className="rounded-xl text-white"
-                  disabled={creating}
+                  className="h-10 w-full rounded-lg text-white sm:w-auto"
+                  disabled={creating || eligibilityLoading || Boolean(eligibilityError)}
                   onClick={handleCreateBatch}
                 >
                   {creating ? (
@@ -2272,10 +2285,30 @@ export default function PayoutManagement() {
                   Save Payout Batch
                 </Button>
               </div>
+          </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(venueEditor)} onOpenChange={(open) => { if (!open && !savingVenue) setVenueEditor(null); }}>
+        <DialogContent showCloseButton={false} overlayClassName="z-[110]" className="z-[111] w-[calc(100vw-2rem)] max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl p-5" aria-describedby={undefined}>
+          <form onSubmit={handleSaveVenue} className="space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <DialogTitle>Change payout venue</DialogTitle>
+              <Button type="button" variant="ghost" size="icon" aria-label="Close venue editor" disabled={savingVenue}
+                onClick={() => setVenueEditor(null)}><X className="h-4 w-4" /></Button>
             </div>
-          </div>
-        </div>
-      )}
+            <div className="space-y-2">
+              <label htmlFor="edit-payout-venue" className="text-sm font-medium">Venue</label>
+              <Input id="edit-payout-venue" required maxLength={250} disabled={savingVenue} value={venueEditor?.value || ''}
+                onChange={(event) => { setVenueError(''); setVenueEditor((previous) => ({ ...previous, value: event.target.value })); }} />
+              {venueError ? <p role="alert" className="text-sm text-destructive">{venueError}</p> : null}
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" variant="outline" disabled={savingVenue} onClick={() => setVenueEditor(null)}>Cancel</Button>
+              <Button type="submit" disabled={savingVenue || !hasPermission('payouts.manage')}>{savingVenue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Save venue</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {selectedBatch && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
@@ -2301,8 +2334,18 @@ export default function PayoutManagement() {
                     selectedBatch.benefactor_name
                   )}{' '}
                   {BULLET}{' '}
-                  {formatPayoutDate(selectedBatch.payout_date)}
+                  {formatPayoutDate(selectedBatch.payout_date)}{selectedBatch.payout_time ? ` at ${formatPayoutTime(selectedBatch.payout_time)}` : ''}
                 </p>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-stone-500">
+                  <p className="min-w-0 break-words">Venue: {selectedBatch.payout_venue || 'OSFA - Office of Scholarship and Financial Assistance'}</p>
+                  {!selectedBatch.is_archived && hasPermission('payouts.manage') ? (
+                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => {
+                      setVenueError('');
+                      setVenueEditor({ batchId: selectedBatch.payout_batch_id,
+                        value: selectedBatch.payout_venue || 'OSFA - Office of Scholarship and Financial Assistance' });
+                    }}>Change venue</Button>
+                  ) : null}
+                </div>
               </div>
 
               <div className="flex items-center gap-2">
@@ -2331,7 +2374,12 @@ export default function PayoutManagement() {
                     variant="outline"
                     className="rounded-xl border-stone-300"
                     disabled={restoringBatchId === selectedBatch.payout_batch_id}
-                    onClick={() => handleRestoreBatch(selectedBatch)}
+                    onClick={() => setPayoutNotice({
+                      title: 'Restore payout batch',
+                      message: `Restore "${selectedBatch.payout_title || 'this payout batch'}" to active payout records?`,
+                      confirmLabel: 'Restore batch',
+                      onConfirm: () => handleRestoreBatch(selectedBatch),
+                    })}
                   >
                     {restoringBatchId === selectedBatch.payout_batch_id ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

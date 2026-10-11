@@ -97,6 +97,9 @@ async function getMyPayouts(userId) {
       pb.payout_title,
       pb.payout_code,
       pb.payout_date,
+      pb.payout_time,
+
+      pb.payout_venue,
       pb.payment_mode,
       pb.payment_mode_other,
       pb.amount_per_scholar,
@@ -152,6 +155,9 @@ async function getMyPayouts(userId) {
         amount_per_scholar: Number(row.amount_per_scholar || 0),
 
         payout_date: row.payout_date || null,
+        payout_time: row.payout_time || null,
+
+        payout_venue: row.payout_venue,
         payment_mode: row.payment_mode || '-',
         payment_mode_other: row.payment_mode_other || '',
         batch_status: row.batch_status || 'Pending',

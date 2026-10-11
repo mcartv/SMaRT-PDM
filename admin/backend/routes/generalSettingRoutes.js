@@ -1,6 +1,7 @@
 // SMaRT-PDM: Return of Obligations — general Setting Routes (admin backend route); maps API endpoints to middleware and controllers.
 const express = require('express');
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const { requirePermission } = require('../middleware/rbacMiddleware');
 const adminOnly = [protect, authorizeRoles('admin')];
 const generalSettingController = require('../controllers/generalSettingController');
 const {
@@ -24,7 +25,7 @@ const invalidateGeneralSettings = invalidateCacheOnSuccess([
 ]);
 
 router.get('/public', publicGeneralCache, generalSettingController.getPublicGeneralSettings);
-router.get('/', ...adminOnly, adminGeneralCache, generalSettingController.getGeneralSettings);
-router.patch('/', ...adminOnly, invalidateGeneralSettings, generalSettingController.updateGeneralSettings);
+router.get('/', ...adminOnly, requirePermission('settings.view'), adminGeneralCache, generalSettingController.getGeneralSettings);
+router.patch('/', ...adminOnly, requirePermission('settings.manage'), invalidateGeneralSettings, generalSettingController.updateGeneralSettings);
 
 module.exports = router;

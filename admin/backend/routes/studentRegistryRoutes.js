@@ -5,6 +5,7 @@ const multer = require('multer');
 const router = express.Router();
 const studentRegistryController = require('../controllers/studentRegistryController');
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const { requirePermission } = require('../middleware/rbacMiddleware');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -13,11 +14,11 @@ const upload = multer({
   },
 });
 
-router.get('/', protect, authorizeRoles('admin'), studentRegistryController.getRegistry);
+router.get('/', protect, authorizeRoles('admin'), requirePermission('students.view'), studentRegistryController.getRegistry);
 router.post(
   '/import',
   protect,
-  authorizeRoles('admin'),
+  authorizeRoles('admin'), requirePermission('students.update'),
   upload.single('file'),
   studentRegistryController.importRegistry
 );

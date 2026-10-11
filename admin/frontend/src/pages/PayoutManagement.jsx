@@ -1,3 +1,4 @@
+import { useRbacPermissions } from '@/context/RbacPermissionContext';
 import { useListPage } from '../hooks/useListPage';
 // SMaRT-PDM: Payout — Payout Management (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -785,6 +786,8 @@ function BulkReleaseModal({
 }
 
 export default function PayoutManagement() {
+  // PHASE_5_3_PAYOUT_ACTIONS
+  const { hasPermission } = useRbacPermissions();
   const navigate = useNavigate();
 
   const [batches, setBatches] = useState([]);
@@ -1902,7 +1905,7 @@ export default function PayoutManagement() {
               className="h-10 rounded-xl text-white"
               onClick={() => {
                 resetCreateForm();
-                setShowCreateModal(true);
+                if (hasPermission('payouts.manage')) setShowCreateModal(true);
               }}
             >
               <Plus className="mr-2 h-4 w-4" />

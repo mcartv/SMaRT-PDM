@@ -4,6 +4,7 @@ const router = express.Router();
 
 const announcementController = require('../controllers/announcementController');
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const { requirePermission } = require('../middleware/rbacMiddleware');
 const {
     cacheJsonResponse,
     invalidateCacheOnSuccess,
@@ -18,49 +19,49 @@ const invalidateAnnouncements = invalidateCacheOnSuccess(['announcements']);
 
 router.get(
     '/',
-    ...adminOnly,
+    ...adminOnly, requirePermission('announcements.view'),
     announcementCache,
     announcementController.getAnnouncements
 );
 
 router.get(
     '/archived',
-    ...adminOnly,
+    ...adminOnly, requirePermission('announcements.view'),
     announcementCache,
     announcementController.getArchivedAnnouncements
 );
 
 router.post(
     '/',
-    ...adminOnly,
+    ...adminOnly, requirePermission('announcements.manage'),
     invalidateAnnouncements,
     announcementController.createAnnouncement
 );
 
 router.patch(
     '/:id',
-    ...adminOnly,
+    ...adminOnly, requirePermission('announcements.manage'),
     invalidateAnnouncements,
     announcementController.updateAnnouncement
 );
 
 router.patch(
     '/:id/publish',
-    ...adminOnly,
+    ...adminOnly, requirePermission('announcements.manage'),
     invalidateAnnouncements,
     announcementController.publishAnnouncement
 );
 
 router.patch(
     '/:id/archive',
-    ...adminOnly,
+    ...adminOnly, requirePermission('announcements.manage'),
     invalidateAnnouncements,
     announcementController.archiveAnnouncement
 );
 
 router.patch(
     '/:id/restore',
-    ...adminOnly,
+    ...adminOnly, requirePermission('announcements.manage'),
     invalidateAnnouncements,
     announcementController.restoreAnnouncement
 );

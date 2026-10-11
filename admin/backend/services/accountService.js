@@ -7,6 +7,7 @@ const { resolveStaffRole } = require('../utils/staffRoles');
 const { extractAvatarStoragePath, resolveAvatarUrl } = require('./avatarService');
 const pdCourseAssignmentService = require('./pdCourseAssignmentService');
 const adminSessionService = require('./adminSessionService');
+const { syncStaffReferences } = require('../utils/syncStaffReferences');
 
 const ROLE_CONFIG = {
     admin: {
@@ -701,6 +702,7 @@ async function createAccountFromParsedData(parsedData, rawPayload = {}, actorUse
             [user.user_id, firstName, lastName, department, position]
         );
 
+        await syncStaffReferences(client, user.user_id, { role, department, position });
         if (role === 'pd') {
             await pdCourseAssignmentService.syncAssignments({
                 userId: user.user_id,
@@ -1023,6 +1025,7 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             [userId, firstName, lastName, department, position, nextIsArchived]
         );
 
+        await syncStaffReferences(client, userId, { role: nextRole, department, position, archived: nextIsArchived });
         if (nextRole === 'pd' && !nextIsArchived) {
             const existingAssignments = await pdCourseAssignmentService.getAssignmentsForUser(userId, client);
             const courseIds = payload.course_ids !== undefined

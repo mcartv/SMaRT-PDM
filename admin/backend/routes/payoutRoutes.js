@@ -4,6 +4,7 @@ const router = express.Router();
 
 const payoutController = require('../controllers/payoutController');
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const { requirePermission } = require('../middleware/rbacMiddleware');
 const {
     cacheJsonResponse,
     invalidateCacheOnSuccess,
@@ -20,55 +21,55 @@ const invalidatePayouts = invalidateCacheOnSuccess([
 
 router.get(
     '/',
-    ...adminOnly,
+    ...adminOnly, requirePermission('payouts.view'),
     payoutCache,
     payoutController.getPayoutBatches
 );
 
 router.get(
     '/openings',
-    ...adminOnly,
+    ...adminOnly, requirePermission('payouts.view'),
     payoutCache,
     payoutController.getPayoutOpenings
 );
 
 router.get(
     '/eligible-scholars',
-    ...adminOnly,
+    ...adminOnly, requirePermission('payouts.view'),
     payoutCache,
     payoutController.getEligibleScholarsByOpening
 );
 
 router.post(
     '/',
-    ...adminOnly,
+    ...adminOnly, requirePermission('payouts.manage'),
     invalidatePayouts,
     payoutController.createPayoutBatch
 );
 
 router.patch(
     '/entries/:payoutEntryId/status',
-    ...adminOnly,
+    ...adminOnly, requirePermission('payouts.manage'),
     invalidatePayouts,
     payoutController.updateScholarStatus
 );
 
 router.patch(
     '/:payoutBatchId/archive',
-    ...adminOnly,
+    ...adminOnly, requirePermission('payouts.manage'),
     invalidatePayouts,
     payoutController.archivePayoutBatch
 );
 
 router.patch(
     '/:payoutBatchId/restore',
-    ...adminOnly,
+    ...adminOnly, requirePermission('payouts.manage'),
     invalidatePayouts,
     payoutController.restorePayoutBatch
 );
 
 
-router.get('/proofs', ...adminOnly, payoutCache, payoutController.getPayoutProofs);
-router.patch('/proofs/:proofId/review', ...adminOnly, invalidatePayouts, payoutController.reviewPayoutProof);
+router.get('/proofs', ...adminOnly, requirePermission('payouts.view'), payoutCache, payoutController.getPayoutProofs);
+router.patch('/proofs/:proofId/review', ...adminOnly, requirePermission('payouts.review_proofs'), invalidatePayouts, payoutController.reviewPayoutProof);
 
 module.exports = router;

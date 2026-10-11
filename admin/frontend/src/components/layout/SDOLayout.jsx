@@ -26,6 +26,8 @@ import { buildApiUrl } from '../../api';
 import { authService } from '../../services/authService';
 import { clearPortalSession } from '../../utils/authStorage';
 import ProfilePhotoPreviewDialog from '../profile/ProfilePhotoPreviewDialog';
+import { useRbacPermissions } from '../../context/RbacPermissionContext';
+import { canSeePath } from '../../utils/rbacNavigationPolicy';
 
 // resolveProfileImage: resolves resolve profile image for the SDOLayout flow.
 function resolveProfileImage(profile) {
@@ -54,6 +56,7 @@ const baseNavItems = [
 
 export default function SDOLayout() {
   const navigate = useNavigate();
+  const { status: rbacStatus, hasPermission: rbacHasPermission } = useRbacPermissions();
   const location = useLocation();
   const notifRef = useRef(null);
   const {
@@ -373,7 +376,7 @@ export default function SDOLayout() {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1.5">
-          {navItems.map((item) => (
+          {navItems.filter((item) => canSeePath(item.path, rbacStatus, rbacHasPermission)).map((item) => (
             <NavLink
               key={item.path}
               to={item.path}

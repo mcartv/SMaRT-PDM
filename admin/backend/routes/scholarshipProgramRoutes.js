@@ -12,6 +12,7 @@ const {
 } = require('../controllers/scholarshipProgramController');
 
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const { requirePermission } = require('../middleware/rbacMiddleware');
 const {
     cacheJsonResponse,
     invalidateCacheOnSuccess,
@@ -41,10 +42,10 @@ const invalidatePrograms = invalidateCacheOnSuccess([
 ]);
 
 // IMPORTANT: path must match frontend EXACTLY
-router.get('/', ...adminOnly, programCache, getScholarshipPrograms);
-router.post('/', ...adminOnly, invalidatePrograms, createScholarshipProgram);
-router.post('/:id/branding/:slot', ...adminOnly, brandingUpload.single('file'), invalidatePrograms, uploadProgramBranding);
-router.delete('/:id/branding/:slot', ...adminOnly, invalidatePrograms, removeProgramBranding);
-router.patch('/:id', ...adminOnly, invalidatePrograms, updateScholarshipProgram);
+router.get('/', ...adminOnly, requirePermission('programs.view'), programCache, getScholarshipPrograms);
+router.post('/', ...adminOnly, requirePermission('programs.manage'), invalidatePrograms, createScholarshipProgram);
+router.post('/:id/branding/:slot', ...adminOnly, requirePermission('programs.manage'), brandingUpload.single('file'), invalidatePrograms, uploadProgramBranding);
+router.delete('/:id/branding/:slot', ...adminOnly, requirePermission('programs.manage'), invalidatePrograms, removeProgramBranding);
+router.patch('/:id', ...adminOnly, requirePermission('programs.manage'), invalidatePrograms, updateScholarshipProgram);
 
 module.exports = router;

@@ -5,7 +5,8 @@ const multer = require('multer');
 
 const accountController = require('../controllers/accountController');
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
-const { authorizeRoleGroup } = require('../middleware/rbacMiddleware');
+// SMARTPDM_PHASE3_RBAC_AUDIT_V1
+const { authorizeRoleGroup, requirePermission } = require('../middleware/rbacMiddleware');
 const {
     adminAccountMutationLimiter,
     passwordActionLimiter,
@@ -36,11 +37,11 @@ router.patch(
 );
 router.delete('/me/profile-photo', protect, allStaff, profilePhotoLimiter, accountController.removeCurrentStaffProfilePhoto);
 
-router.get('/staff', protect, authorizeRoles('admin'), accountController.getStaffAccounts);
-router.post('/staff', protect, authorizeRoles('admin'), adminAccountMutationLimiter, accountController.createStaffAccount);
-router.post('/admin', protect, authorizeRoles('admin'), adminAccountMutationLimiter, accountController.createAdminAccount);
-router.patch('/staff/:id', protect, authorizeRoles('admin'), adminAccountMutationLimiter, accountController.updateStaffAccount);
-router.patch('/staff/:id/archive', protect, authorizeRoles('admin'), adminAccountMutationLimiter, accountController.archiveStaffAccount);
-router.patch('/staff/:id/restore', protect, authorizeRoles('admin'), adminAccountMutationLimiter, accountController.restoreStaffAccount);
+router.get('/staff', protect, authorizeRoles('admin'), requirePermission('accounts.view'), accountController.getStaffAccounts);
+router.post('/staff', protect, authorizeRoles('admin'), requirePermission('accounts.create'), adminAccountMutationLimiter, accountController.createStaffAccount);
+router.post('/admin', protect, authorizeRoles('admin'), requirePermission('accounts.create'), adminAccountMutationLimiter, accountController.createAdminAccount);
+router.patch('/staff/:id', protect, authorizeRoles('admin'), requirePermission('accounts.update'), adminAccountMutationLimiter, accountController.updateStaffAccount);
+router.patch('/staff/:id/archive', protect, authorizeRoles('admin'), requirePermission('accounts.archive'), adminAccountMutationLimiter, accountController.archiveStaffAccount);
+router.patch('/staff/:id/restore', protect, authorizeRoles('admin'), requirePermission('accounts.archive'), adminAccountMutationLimiter, accountController.restoreStaffAccount); // SMARTPDM_PHASE4_1_RESTORE_PERMISSION_V2
 
 module.exports = router;

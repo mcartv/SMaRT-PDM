@@ -2,6 +2,7 @@
 const express = require('express');
 const selectionController = require('../controllers/selectionController');
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const { requirePermission } = require('../middleware/rbacMiddleware');
 const {
     cacheJsonResponse,
     invalidateCacheOnSuccess,
@@ -20,9 +21,9 @@ const invalidateSelection = invalidateCacheOnSuccess([
 ]);
 
 router.use(protect, authorizeRoles('admin'));
-router.get('/openings/:openingId/preview', selectionPreviewCache, selectionController.getPreview);
-router.post('/openings/:openingId/finalize', invalidateSelection, selectionController.finalize);
-router.post('/openings/:openingId/promote-next', invalidateSelection, selectionController.promote);
-router.patch('/applications/:applicationId/qualify', invalidateSelection, selectionController.markQualified);
+router.get('/openings/:openingId/preview',  requirePermission('applications.view'),selectionPreviewCache, selectionController.getPreview);
+router.post('/openings/:openingId/finalize',  requirePermission('applications.finalize'),invalidateSelection, selectionController.finalize);
+router.post('/openings/:openingId/promote-next',  requirePermission('applications.finalize'),invalidateSelection, selectionController.promote);
+router.patch('/applications/:applicationId/qualify',  requirePermission('applications.review'),invalidateSelection, selectionController.markQualified);
 
 module.exports = router;

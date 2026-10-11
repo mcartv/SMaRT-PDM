@@ -3,6 +3,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import App from './App.jsx';
+import { RbacPermissionProvider } from './context/RbacPermissionContext.jsx';
 import './index.css';
 
 import NetworkGate from './components/system/NetworkGate.jsx';
@@ -41,7 +42,7 @@ async function bootstrap() {
   createRoot(document.getElementById('root')).render(
     <StrictMode>
       <NetworkGate>
-        <App />
+        <RbacPermissionProvider><App /></RbacPermissionProvider>
       </NetworkGate>
     </StrictMode>
   );

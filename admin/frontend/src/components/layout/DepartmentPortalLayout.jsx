@@ -27,6 +27,8 @@ import { buildApiUrl } from '../../api';
 import { authService } from '../../services/authService';
 import { clearPortalSession } from '../../utils/authStorage';
 import ProfilePhotoPreviewDialog from '../profile/ProfilePhotoPreviewDialog';
+import { useRbacPermissions } from '../../context/RbacPermissionContext';
+import { canSeePath } from '../../utils/rbacNavigationPolicy';
 
 // resolveProfileImage: resolves resolve profile image for the Department Portal Layout flow.
 function resolveProfileImage(profile) {
@@ -78,6 +80,7 @@ export default function DepartmentPortalLayout({
   roQueuePath = '',
 }) {
   const navigate = useNavigate();
+  const { status: rbacStatus, hasPermission: rbacHasPermission } = useRbacPermissions();
   const location = useLocation();
   const notifRef = useRef(null);
   const { theme, forceDarkMode } = usePortalTheme(portalKey, colors);
@@ -377,7 +380,7 @@ export default function DepartmentPortalLayout({
         </div>
 
         <nav className="flex-1 space-y-1.5 overflow-y-auto px-3 py-4">
-          {navItems.map((item) => (
+          {navItems.filter((item) => canSeePath(item.path, rbacStatus, rbacHasPermission)).map((item) => (
             <NavLink
               key={item.label}
               to={item.path}

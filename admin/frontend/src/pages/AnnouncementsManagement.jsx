@@ -35,6 +35,7 @@ import {
 import { buildApiUrl } from '@/api';
 import { showAppToast } from '@/utils/appToast';
 import { confirmArchive } from '@/utils/confirmArchive';
+import { useRbacPermissions } from '@/context/RbacPermissionContext';
 
 const C = {
   brown: 'var(--portal-base)',
@@ -933,6 +934,9 @@ function AnnouncementRow({
   onArchive,
   onRestore,
 }) {
+  // PHASE_5_3_ANNOUNCEMENT_ACTIONS
+  const { hasPermission } = useRbacPermissions();
+
   const effectiveStatus =
     announcement.is_archived || announcement.status === 'Archived'
       ? 'Archived'
@@ -989,6 +993,7 @@ function AnnouncementRow({
               <Button
                 variant="outline"
                 size="sm"
+                disabled={!hasPermission("announcements.manage")}
                 onClick={() => onEdit(announcement)}
                 className="h-8 rounded-md border-stone-200 bg-white px-2.5 text-xs font-medium text-stone-700 hover:bg-stone-50"
               >
@@ -1000,7 +1005,7 @@ function AnnouncementRow({
                 <Button
                   size="sm"
                   onClick={() => onPublish(announcement.id)}
-                  disabled={publishingId === announcement.id}
+                  disabled={!hasPermission("announcements.manage") || publishingId === announcement.id}
                   className="h-8 rounded-md border-none bg-green-600 px-2.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-60"
                 >
                   {publishingId === announcement.id ? (
@@ -1021,7 +1026,7 @@ function AnnouncementRow({
                 variant="outline"
                 size="sm"
                 onClick={() => onArchive(announcement.id)}
-                disabled={archivingId === announcement.id}
+                disabled={!hasPermission("announcements.manage") || archivingId === announcement.id}
                 className="h-8 rounded-md border-red-200 bg-white px-2.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-60"
               >
                 {archivingId === announcement.id ? (

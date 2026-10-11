@@ -2,6 +2,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Toaster } from './components/ui/sonner';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import PortalPermissionGuard from './components/auth/PortalPermissionGuard';
 import PublicVisitorTracker from './components/system/PublicVisitorTracker';
 import WebRealtimeToastBridge from './components/system/WebRealtimeToastBridge';
 import { getStoredPortalSession } from './utils/authStorage';
@@ -116,7 +117,7 @@ export default function App() {
           path="/admin"
           element={
             <ProtectedRoute storageKey="adminToken" redirectTo="/login">
-              <AdminLayout />
+              <PortalPermissionGuard><AdminLayout /></PortalPermissionGuard>
             </ProtectedRoute>
           }
         >
@@ -177,7 +178,7 @@ export default function App() {
           path="/pd"
           element={
             <ProtectedRoute storageKey="pdToken" redirectTo="/login">
-              <PDLayout />
+              <PortalPermissionGuard><PDLayout /></PortalPermissionGuard>
             </ProtectedRoute>
           }
         >
@@ -238,7 +239,7 @@ export default function App() {
           path="/guidance"
           element={
             <ProtectedRoute storageKey="guidanceToken" redirectTo="/login">
-              <GuidanceLayout />
+              <PortalPermissionGuard><GuidanceLayout /></PortalPermissionGuard>
             </ProtectedRoute>
           }
         >
@@ -299,7 +300,7 @@ export default function App() {
           path="/sdo"
           element={
             <ProtectedRoute storageKey="sdoToken" redirectTo="/login">
-              <SDOLayout />
+              <PortalPermissionGuard><SDOLayout /></PortalPermissionGuard>
             </ProtectedRoute>
           }
         >
@@ -361,7 +362,7 @@ export default function App() {
           path="/ro-coordinator"
           element={
             <ProtectedRoute storageKey="roCoordinatorToken" redirectTo="/login">
-              <ROCoordinatorLayout />
+              <PortalPermissionGuard><ROCoordinatorLayout /></PortalPermissionGuard>
             </ProtectedRoute>
           }
         >

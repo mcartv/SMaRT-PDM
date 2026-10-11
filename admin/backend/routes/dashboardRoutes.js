@@ -4,11 +4,12 @@ const router = express.Router();
 
 const dashboardController = require('../controllers/dashboardController');
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const { requirePermission } = require('../middleware/rbacMiddleware');
 const adminOnly = [protect, authorizeRoles('admin')];
 
 router.get(
     '/',
-    ...adminOnly,
+    ...adminOnly, requirePermission('reports.view'),
     dashboardController.getAdminDashboard
 );
 

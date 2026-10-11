@@ -11,6 +11,7 @@ const {
 } = require('../controllers/courseController');
 
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const { requirePermission } = require('../middleware/rbacMiddleware');
 const {
     cacheJsonResponse,
     invalidateCacheOnSuccess,
@@ -22,13 +23,13 @@ const courseCache = cacheJsonResponse({
 });
 const invalidateCourses = invalidateCacheOnSuccess(['courses']);
 
-router.get('/', protect, authorizeRoles('admin'), courseCache, getCourses);
-router.post('/', protect, authorizeRoles('admin'), invalidateCourses, createCourse);
-router.patch('/:id', protect, authorizeRoles('admin'), invalidateCourses, updateCourse);
-router.patch('/:id/archive', protect, authorizeRoles('admin'), invalidateCourses, archiveCourse);
-router.patch('/:id/restore', protect, authorizeRoles('admin'), invalidateCourses, restoreCourse);
+router.get('/', protect, authorizeRoles('admin'), requirePermission('courses.view'), courseCache, getCourses);
+router.post('/', protect, authorizeRoles('admin'), requirePermission('courses.manage'), invalidateCourses, createCourse);
+router.patch('/:id', protect, authorizeRoles('admin'), requirePermission('courses.manage'), invalidateCourses, updateCourse);
+router.patch('/:id/archive', protect, authorizeRoles('admin'), requirePermission('courses.manage'), invalidateCourses, archiveCourse);
+router.patch('/:id/restore', protect, authorizeRoles('admin'), requirePermission('courses.manage'), invalidateCourses, restoreCourse);
 
 // Safe delete: this archives instead of hard-deleting.
-router.delete('/:id', protect, authorizeRoles('admin'), invalidateCourses, archiveCourse);
+router.delete('/:id', protect, authorizeRoles('admin'), requirePermission('courses.manage'), invalidateCourses, archiveCourse);
 
 module.exports = router;

@@ -4,6 +4,7 @@ const router = express.Router();
 
 const renewalController = require('../controllers/renewalController');
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const { requirePermission } = require('../middleware/rbacMiddleware');
 const {
     cacheJsonResponse,
     invalidateCacheOnSuccess,
@@ -23,8 +24,8 @@ const invalidateRenewals = invalidateCacheOnSuccess([
     'scholars',
 ]);
 
-router.get('/', adminOnly, renewalCache, renewalController.getRenewals);
-router.get('/:id', adminOnly, renewalCache, renewalController.getRenewalDetails);
-router.post('/:id/review', adminOnly, invalidateRenewals, renewalController.saveRenewalReview);
+router.get('/', adminOnly, requirePermission('applications.view'), renewalCache, renewalController.getRenewals);
+router.get('/:id', adminOnly, requirePermission('applications.view'), renewalCache, renewalController.getRenewalDetails);
+router.post('/:id/review', adminOnly, requirePermission('applications.review'), invalidateRenewals, renewalController.saveRenewalReview);
 
 module.exports = router;

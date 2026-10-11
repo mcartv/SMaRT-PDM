@@ -4,25 +4,26 @@ const express = require('express');
 const router = express.Router();
 const auditLogController = require('../controllers/auditLogController');
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const { requirePermission } = require('../middleware/rbacMiddleware');
 
 router.get(
     '/recent-activity',
     protect,
-    authorizeRoles('admin'),
+    authorizeRoles('admin'), requirePermission('audit.view'),
     auditLogController.getMyRecentActivity
 );
 
 router.post(
     '/verify-password',
     protect,
-    authorizeRoles('admin'),
+    authorizeRoles('admin'), requirePermission('audit.view'),
     auditLogController.verifyAuditPassword
 );
 
 router.get(
     '/',
     protect,
-    authorizeRoles('admin'),
+    authorizeRoles('admin'), requirePermission('audit.view'),
     auditLogController.getAuditLogs
 );
 

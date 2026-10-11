@@ -4,6 +4,7 @@ const router = express.Router();
 
 const programOpeningController = require('../controllers/programOpeningController');
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const { requirePermission } = require('../middleware/rbacMiddleware');
 const {
     validateOpeningUniqueness,
 } = require('../middleware/programOpeningUniquenessMiddleware');
@@ -29,7 +30,7 @@ const invalidateOpenings = invalidateCacheOnSuccess([
 
 router.get(
     '/admin/applications-summary',
-    ...adminOnly,
+    ...adminOnly, requirePermission('programs.view'),
     openingCache,
     programOpeningController.getOpeningsApplicationSummary
 );
@@ -42,28 +43,28 @@ router.get(
 
 router.get(
     '/',
-    ...adminOnly,
+    ...adminOnly, requirePermission('programs.view'),
     openingCache,
     programOpeningController.getAllProgramOpenings
 );
 
 router.get(
     '/:openingId',
-    ...adminOnly,
+    ...adminOnly, requirePermission('programs.view'),
     openingCache,
     programOpeningController.getProgramOpeningById
 );
 
 router.get(
     '/:openingId/applications',
-    ...adminOnly,
+    ...adminOnly, requirePermission('applications.view'),
     openingCache,
     programOpeningController.getApplicationsByOpeningId
 );
 
 router.post(
     '/',
-    ...adminOnly,
+    ...adminOnly, requirePermission('programs.manage'),
     invalidateOpenings,
     validateOpeningUniqueness,
     programOpeningController.createProgramOpening
@@ -71,7 +72,7 @@ router.post(
 
 router.patch(
     '/:openingId',
-    ...adminOnly,
+    ...adminOnly, requirePermission('programs.manage'),
     invalidateOpenings,
     validateOpeningUniqueness,
     programOpeningController.updateProgramOpening
@@ -79,7 +80,7 @@ router.patch(
 
 router.patch(
     '/:openingId/close',
-    ...adminOnly,
+    ...adminOnly, requirePermission('programs.manage'),
     invalidateOpenings,
     programOpeningController.closeProgramOpening
 );

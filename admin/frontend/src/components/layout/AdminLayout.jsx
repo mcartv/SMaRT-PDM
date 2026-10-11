@@ -29,6 +29,8 @@ import { useSocketEvent } from '../../hooks/useSocket';
 import { authService } from '../../services/authService';
 import { clearPortalSession } from '../../utils/authStorage';
 import ProfilePhotoPreviewDialog from '../profile/ProfilePhotoPreviewDialog';
+import { useRbacPermissions } from '../../context/RbacPermissionContext';
+import { canSeePath } from '../../utils/rbacNavigationPolicy';
 
 // resolveProfileImage: resolves resolve profile image for the Admin Layout flow.
 function resolveProfileImage(profile) {
@@ -81,6 +83,7 @@ function getStoredAdminSidebarWidth() {
 
 export default function AdminLayout() {
   const navigate = useNavigate();
+  const { status: rbacStatus, hasPermission: rbacHasPermission } = useRbacPermissions();
   const location = useLocation();
   const notifRef = useRef(null);
   const sidebarResizeRef = useRef(null);
@@ -445,7 +448,7 @@ export default function AdminLayout() {
         </div>
 
         <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 py-4">
-          {navItems.map((item) => (
+          {navItems.filter((item) => canSeePath(item.path, rbacStatus, rbacHasPermission)).map((item) => (
             <NavLink
               key={item.path}
               to={item.path}

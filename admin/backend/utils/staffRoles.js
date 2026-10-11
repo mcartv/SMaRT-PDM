@@ -10,6 +10,8 @@ function includesAny(haystack, terms) {
 
 // resolveStaffRole: resolves resolve staff role for the staff Roles flow.
 function resolveStaffRole(profile = {}) {
+    const assignedRole = safeText(profile.rbac_staff_role).toLowerCase();
+    if (['admin','sdo','guidance','pd','ro_coordinator'].includes(assignedRole)) return assignedRole;
     const explicitUserRole = safeText(profile.user_role || profile.role).toLowerCase();
     const department = safeText(profile.department).toLowerCase();
     const position = safeText(profile.position).toLowerCase();

@@ -6,6 +6,7 @@ const {
     protect,
     authorizeRoles,
 } = require('../middleware/authMiddleware');
+const { requirePermission } = require('../middleware/rbacMiddleware');
 const academicYearController = require('../controllers/academicYearController');
 const {
     cacheJsonResponse,
@@ -28,70 +29,70 @@ const invalidateAcademic = invalidateCacheOnSuccess([
 
 router.get(
     '/periods',
-    ...adminOnly,
+    ...adminOnly, requirePermission('settings.view'),
     academicCache,
     academicYearController.getAcademicPeriods
 );
 
 router.get(
     '/current-window',
-    ...adminOnly,
+    ...adminOnly, requirePermission('settings.view'),
     academicCache,
     academicYearController.getCurrentAcademicYearWindow
 );
 
 router.patch(
     '/periods/:periodId/activate',
-    ...adminOnly,
+    ...adminOnly, requirePermission('settings.manage'),
     invalidateAcademic,
     academicYearController.activateAcademicPeriod
 );
 
 router.post(
     '/periods/:periodId/reset-test',
-    ...adminOnly,
+    ...adminOnly, requirePermission('settings.manage'),
     invalidateAcademic,
     academicYearController.resetAcademicPeriodForTesting
 );
 
 router.get(
     '/',
-    ...adminOnly,
+    ...adminOnly, requirePermission('settings.view'),
     academicCache,
     academicYearController.getAcademicYears
 );
 
 router.post(
     '/',
-    ...adminOnly,
+    ...adminOnly, requirePermission('settings.manage'),
     invalidateAcademic,
     academicYearController.createAcademicYear
 );
 
 router.patch(
     '/:id',
-    ...adminOnly,
+    ...adminOnly, requirePermission('settings.manage'),
     invalidateAcademic,
     academicYearController.updateAcademicYear
 );
 
 router.patch(
     '/:id/activate',
-    ...adminOnly,
+    ...adminOnly, requirePermission('settings.manage'),
     invalidateAcademic,
     academicYearController.activateAcademicYear
 );
 
 router.patch(
     '/:id/archive',
-    ...adminOnly,
+    ...adminOnly, requirePermission('settings.manage'),
     invalidateAcademic,
     academicYearController.archiveAcademicYear
 );
 
 router.patch(
     '/:id/restore',
-    ...adminOnly,
+    ...adminOnly, requirePermission('settings.manage'),
     invalidateAcademic,
     academicYearController.restoreAcademicYear
 );

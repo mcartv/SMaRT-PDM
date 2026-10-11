@@ -165,55 +165,65 @@ function buildAudienceOptions(programs = [], currentValue = '') {
   return options;
 }
 
+// SMARTPDM_USEFUL_ANNOUNCEMENT_TEMPLATES_V1
+// Older template keys remain available for records already saved in the database,
+// but are hidden from the create/edit selection list for new announcements.
 const ANNOUNCEMENT_TEMPLATES = {
-  blank: {
-    label: 'Blank',
-    title: '',
-    content: '',
-    audience: 'all',
-    isRoVoluntary: 'false',
+  blank: { label: 'Blank', title: '', content: '', audience: 'all', isRoVoluntary: 'false' },
+  scholarship_orientation: {
+    label: 'Scholarship Orientation',
+    title: 'Scholarship Orientation Schedule',
+    content: 'An orientation for scholarship applicants and scholars will be held on [date] at [time] in [venue]. Please review the requirements and bring any needed documents. Additional details will be announced by OSFA.',
+    audience: 'all', isRoVoluntary: 'false',
   },
-  document_reupload: {
-    label: 'Document Re-upload Request',
-    title: 'Document Re-upload Requested',
-    content:
-      'Please re-upload the required document for your scholarship application. Review the feedback provided in the system and submit the corrected file as soon as possible.',
-    audience: 'applicants',
-    isRoVoluntary: 'false',
+  scholarship_application_period: {
+    label: 'Scholarship Application Period',
+    title: 'Scholarship Application Period Advisory',
+    content: 'The scholarship application period is [opening date] to [deadline]. Eligible applicants should review the requirements and submit their applications through SMaRT-PDM before the deadline.',
+    audience: 'applicants', isRoVoluntary: 'false',
   },
-  application_update: {
-    label: 'Application Update',
-    title: 'Scholarship Application Update',
-    content:
-      'Your scholarship application is currently being reviewed. Please monitor the system regularly for status updates and additional instructions.',
-    audience: 'applicants',
-    isRoVoluntary: 'false',
-  },
-  payout_notice: {
-    label: 'Payout Notice',
-    title: 'Scholarship Payout Schedule',
-    content:
-      'Scholarship payout for the current release period is now scheduled. Please monitor your account and ensure that your records are complete and updated.',
-    audience: 'scholars',
-    isRoVoluntary: 'false',
+  academic_schedule_advisory: {
+    label: 'Academic Schedule Advisory',
+    title: 'Important Academic Schedule Advisory',
+    content: 'Please take note of the upcoming academic schedule: [event], [date], [time/location if applicable]. Check official school announcements for any changes that may affect scholarship-related activities.',
+    audience: 'all', isRoVoluntary: 'false',
   },
   ro_reminder: {
     label: 'RO Reminder',
     title: 'Return of Obligation Reminder',
-    content:
-      'All concerned scholars are reminded to complete their required return of obligation tasks on or before the announced deadline. Please coordinate with the office for any clarifications.',
-    audience: 'scholars',
-    isRoVoluntary: 'true',
+    content: 'All concerned scholars are reminded to complete their required return of obligation tasks on or before the announced deadline. Please coordinate with the office for any clarifications.',
+    audience: 'scholars', isRoVoluntary: 'true',
   },
   general_advisory: {
     label: 'General Advisory',
     title: 'Important Scholarship Advisory',
-    content:
-      'Please be advised of the latest scholarship-related updates. Read this announcement carefully and follow the indicated instructions where applicable.',
-    audience: 'all',
-    isRoVoluntary: 'false',
+    content: 'Please be advised of the latest scholarship-related updates. Read this announcement carefully and follow the indicated instructions where applicable.',
+    audience: 'all', isRoVoluntary: 'false',
+  },
+  // Legacy entries: retain the old keys for editing and backend compatibility.
+  document_reupload: {
+    label: 'Document Re-upload Request (Legacy)',
+    title: 'Document Re-upload Requested',
+    content: 'Please re-upload the required document for your scholarship application. Review the feedback provided in the system and submit the corrected file as soon as possible.',
+    audience: 'applicants', isRoVoluntary: 'false',
+  },
+  application_update: {
+    label: 'Application Update (Legacy)',
+    title: 'Scholarship Application Update',
+    content: 'Your scholarship application is currently being reviewed. Please monitor the system regularly for status updates and additional instructions.',
+    audience: 'applicants', isRoVoluntary: 'false',
+  },
+  payout_notice: {
+    label: 'Payout Notice (Legacy)',
+    title: 'Scholarship Payout Schedule',
+    content: 'Scholarship payout for the current release period is now scheduled. Please monitor your account and ensure that your records are complete and updated.',
+    audience: 'scholars', isRoVoluntary: 'false',
   },
 };
+const LEGACY_ANNOUNCEMENT_TEMPLATE_KEYS = new Set([
+  'document_reupload', 'application_update', 'payout_notice',
+]);
+
 
 // resolveAnnouncementTemplate: resolves resolve announcement template for the Announcements flow.
 function resolveAnnouncementTemplate(announcement = {}) {
@@ -378,7 +388,9 @@ function ComposeAnnouncementModal({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(ANNOUNCEMENT_TEMPLATES).map(([key, template]) => (
+                      {Object.entries(ANNOUNCEMENT_TEMPLATES)
+                        .filter(([key]) => !LEGACY_ANNOUNCEMENT_TEMPLATE_KEYS.has(key) || (isEditing && selectedTemplate === key))
+                        .map(([key, template]) => (
                         <SelectItem key={key} value={key} className="text-sm">
                           {template.label}
                         </SelectItem>

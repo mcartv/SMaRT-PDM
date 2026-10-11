@@ -381,6 +381,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       return;
     }
 
+    // SMARTPDM_NOTIFICATION_ROUTE_DEDUP_V1: structured payout references take priority.
+    if (referenceType == 'payout_batch' ||
+        referenceType == 'payout' ||
+        referenceType == 'payout_entry') {
+      Navigator.pushNamed(context, AppRoutes.payouts);
+      return;
+    }
+
     if (notification.isOfficeUpdate ||
         referenceType.contains('announcement') ||
         referenceType.contains('opening') ||

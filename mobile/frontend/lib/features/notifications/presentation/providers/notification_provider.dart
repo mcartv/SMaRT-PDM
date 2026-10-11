@@ -83,15 +83,22 @@ class NotificationProvider extends ChangeNotifier {
 
   VoidCallback? _stopRealtimeListener;
 
-  List<AppNotification> get notifications =>
-      List.unmodifiable(_composeNotifications());
+  // SMARTPDM_ANNOUNCEMENT_PUSH_DASHBOARD_ONLY_V1
+  // Announcements remain available in dashboard Office Updates and via push,
+  // but are not duplicated in the Notifications inbox.
+  List<AppNotification> get notifications => List.unmodifiable(
+    _composeNotifications()
+        .where((item) => !item.isAnnouncementNotification)
+        .toList(growable: false),
+  );
 
   List<AppNotification> get items => notifications;
 
   List<AppNotification> get officeUpdatesItems => _composeOfficeUpdates();
 
   List<AppNotification> get generalNotificationItems =>
-      _notifications.where((item) => !item.isOfficeUpdate).toList();
+      _notifications.where((item) => !item.isOfficeUpdate &&
+          !item.isAnnouncementNotification).toList();
 
   List<AppNotification> get homeOfficeUpdatesItems =>
       officeUpdatesItems.take(2).toList();
@@ -109,7 +116,13 @@ class NotificationProvider extends ChangeNotifier {
 
   bool get hasError => _errorMessage != null;
 
-  int get unreadCount => _unreadCount;
+  // Announcement push alerts do not generate a second in-app bell entry.
+  int get unreadCount {
+    final hiddenUnread = _notifications
+        .where((item) => item.isAnnouncementNotification && !item.isRead)
+        .length;
+    return (_unreadCount - hiddenUnread).clamp(0, 2147483647).toInt();
+  }
 
   int get unreadPayoutCount => _notifications
       .where((item) => item.isPayoutNotification && !item.isRead)
@@ -1105,12 +1118,27 @@ class NotificationProvider extends ChangeNotifier {
       return true;
     });
 
+    // SMARTPDM_NOTIFICATION_ROUTE_DEDUP_V1: show one card for each actual
+    // notification, preferring database-backed rows over fallback cards.
+    // Keep different event types for the same record if they truly represent
+    // separate actions, e.g. payout scheduled vs payout released.
     final combined = <AppNotification>[
       ..._notifications,
       ...fallbackAnnouncements,
-    ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-    return combined;
+    ];
+    final seen = <String>{};
+    final unique = combined.where((item) {
+      final ref = (item.referenceId ?? '').trim();
+      final kind = (item.referenceType ?? item.type).trim().toLowerCase();
+      final id = item.notificationId.trim();
+      final key = ref.isNotEmpty &&
+              (kind.contains('announcement') || kind == 'program_opening')
+          ? 'content:$kind:$ref'
+          : 'id:$id';
+      return seen.add(key);
+    }).toList();
+    unique.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return unique;
   }
 
   // _composeOfficeUpdates: handles compose office updates for the Notifications flow.

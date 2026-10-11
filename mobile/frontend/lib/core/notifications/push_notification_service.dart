@@ -1,5 +1,9 @@
 // SMaRT-PDM: Notifications — push notification service (mobile frontend); supports mobile UI behavior.
 import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:smartpdm_mobileapp/app/app.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -91,10 +95,17 @@ class PushNotificationService {
     await _localNotifications.initialize(
       settings: initializationSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) {
-        debugPrint(
-          '[FCM] Local notification tapped: '
-          '${response.payload}',
-        );
+        final payload = response.payload;
+        if (payload == null || payload.isEmpty) return;
+        try {
+          final decoded = jsonDecode(payload);
+          if (decoded is Map) {
+            _openFromData(decoded.map((key, value) =>
+                MapEntry(key.toString(), value.toString())));
+          }
+        } catch (error) {
+          debugPrint('[FCM] Invalid notification payload: $error');
+        }
       },
     );
 
@@ -224,21 +235,54 @@ class PushNotificationService {
       title: title,
       body: body,
       notificationDetails: notificationDetails,
-      payload: message.data['referenceId']?.toString(),
+      payload: jsonEncode(message.data),
     );
   }
 
-  // _handleNotificationTap: handles handle notification tap for the Notifications flow.
+  // SMARTPDM_NOTIFICATION_ROUTE_DEDUP_V1: both FCM system alerts and
+  // foreground local alerts use the same reference-based destination.
   void _handleNotificationTap(RemoteMessage message) {
-    debugPrint(
-      '[FCM] Notification opened: '
-      'type=${message.data['referenceType']} '
-      'reference=${message.data['referenceId']}',
-    );
+    _openFromData(message.data);
+  }
 
-    // We'll connect this to SMaRT-PDM
-    // navigation after basic push delivery
-    // is confirmed working.
+  void _openFromData(Map<String, dynamic> data) {
+    final kind = (data['referenceType'] ?? data['reference_type'] ?? '').toString().toLowerCase();
+    final ref = (data['referenceId'] ?? data['reference_id'] ?? '').toString();
+    final type = (data['type'] ?? '').toString().toLowerCase();
+    String destination = AppRoutes.notifications;
+    Map<String, dynamic>? args;
+    if (kind == 'payout_batch' || kind == 'payout' || type.contains('payout')) {
+      destination = AppRoutes.payouts;
+    } else if (kind.contains('announcement')) {
+      // Open the notification inbox for announcement article navigation;
+      // never navigate to an unverified or inaccessible record from a push.
+      destination = AppRoutes.notifications;
+    } else if (kind.contains('chat_room') || kind == 'room' || kind == 'group_message') {
+      destination = AppRoutes.chatThread;
+      args = {'roomId': ref};
+    } else if (kind.contains('endorsement') || kind.contains('application')) {
+      destination = AppRoutes.status;
+    } else if (kind.contains('document')) {
+      destination = AppRoutes.documents;
+    } else if (kind.contains('renewal')) {
+      destination = AppRoutes.renewalDocuments;
+    } else if (kind.contains('opening')) {
+      destination = AppRoutes.scholarshipOpenings;
+    } else if (kind.contains('profile') || kind.contains('account')) {
+      destination = AppRoutes.profile;
+    }
+    // Wait until MaterialApp has installed its navigator (cold app startup).
+    void navigate(int tries) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final nav = smartPdmNavigatorKey.currentState;
+        if (nav != null) {
+          nav.pushNamed(destination, arguments: args);
+        } else if (tries < 20) {
+          navigate(tries + 1);
+        }
+      });
+    }
+    navigate(0);
   }
 
   // dispose: handles dispose for the Notifications flow.

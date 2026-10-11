@@ -287,6 +287,25 @@ async function readXlsxRowsWithZipFallback(buffer) {
   return rows;
 }
 
+// ExcelJS 3.x recognizes unprefixed SpreadsheetML element names. Some valid
+// exporters use x:worksheet, x:workbook, etc. Normalize only those element
+// prefixes for the reader; preserve relationship attributes, styles and values.
+async function normalizeSpreadsheetXmlPrefixes(buffer) {
+  const zip = await JSZip.loadAsync(buffer);
+  let changed = false;
+  for (const entry of Object.values(zip.files)) {
+    if (entry.dir || !entry.name.endsWith('.xml')) continue;
+    const xml = await entry.async('string');
+    let normalized = xml;
+    for (const match of xml.matchAll(/xmlns:([\w.-]+)\s*=\s*(["'])http:\/\/schemas\.openxmlformats\.org\/spreadsheetml\/2006\/main\2/g)) {
+      const prefix = match[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      normalized = normalized.replace(new RegExp(`(<\\/?)${prefix}:`, 'g'), '$1');
+    }
+    if (normalized !== xml) { zip.file(entry.name, normalized); changed = true; }
+  }
+  return changed ? zip.generateAsync({ type: 'nodebuffer' }) : null;
+}
+
 // readWorkbookRows: handles read workbook rows for the Student Registry flow.
 async function readWorkbookRows(file) {
   const fileName = String(file.originalname || '').toLowerCase();
@@ -306,8 +325,19 @@ async function readWorkbookRows(file) {
     throw buildError('Unsupported file type.', 400);
   }
 
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(file.buffer);
+  let workbook = new ExcelJS.Workbook();
+  try {
+    await workbook.xlsx.load(file.buffer);
+  } catch {
+    try {
+      const compatibleBuffer = await normalizeSpreadsheetXmlPrefixes(file.buffer);
+      if (!compatibleBuffer) throw new Error('No compatible worksheet XML found');
+      workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(compatibleBuffer);
+    } catch {
+      throw buildError('Unable to read this Excel file. Please save it as a new .xlsx or .csv file and try again.', 400);
+    }
+  }
 
   const worksheet = workbook.worksheets[0];
   if (!worksheet) {
@@ -1687,6 +1717,9 @@ async function saveSdoRecords(payload, recordId = null) {
       await client.query('ROLLBACK');
       if (error.code === '23505') {
         throw buildError('This record conflicts with existing disciplinary history. Review the Student ID and incident date.', 409);
+      }
+      if (error.code === '42P10') {
+        throw buildError('Disciplinary imports need the active Student ID index. Ask the administrator to apply migration 20261011000300_sdo_unique_active_student.sql, then try again.', 503);
       }
       if (['42P01', 'PGRST205'].includes(error.code)) {
         throw buildError('SDO records table is missing. Run the SDO disciplinary records migration first.', 503);

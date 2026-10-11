@@ -372,7 +372,7 @@ export default function SDOScholarList({ embedded = false, searchValue = '', fil
       setPendingStanding(null);
       setConfirmationRemarks('');
     } catch (err) {
-      setError(err.message || 'Failed to save scholar update.');
+      toast.error('Unable to update disciplinary standing', { description: err.message || 'Failed to save scholar update.' });
     } finally {
       setSavingId(null);
     }

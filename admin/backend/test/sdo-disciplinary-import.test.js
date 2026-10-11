@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-function harness({ studentCount = 9, failUpdate = false, failLinkedUpdate = false, failInsertBatch = 0 } = {}) {
+function harness({ studentCount = 9, failUpdate = false, failLinkedUpdate = false, failInsertBatch = 0, failInsertCode = '23505' } = {}) {
   const saved = [];
   const updates = [];
   const linkedUpdates = [];
@@ -22,7 +22,7 @@ function harness({ studentCount = 9, failUpdate = false, failLinkedUpdate = fals
       }
       if (sql.includes('INSERT INTO public.sdo_student_records')) {
         insertBatches += 1;
-        if (insertBatches === failInsertBatch) throw Object.assign(new Error('Duplicate ID'), { code: '23505' });
+        if (insertBatches === failInsertBatch) throw Object.assign(new Error('Insert failed'), { code: failInsertCode });
         const batch = JSON.parse(params[0]);
         const rows = batch.map(row => {
           const existing = saved.find(record => record.student_number === row.student_number);
@@ -121,6 +121,20 @@ test('failed master synchronization or concurrent duplicate rolls back every bat
     assert.equal(updates.length, 0);
     assert.deepEqual(writes.slice(-2), ['ROLLBACK', 'RELEASE']);
   }
+});
+
+test('missing active Student ID index rolls back and identifies the required migration', async () => {
+  const { service, saved, updates, writes } = harness({ failInsertBatch: 1, failInsertCode: '42P10' });
+  await assert.rejects(service.importSdoDisciplinaryRecordsFile({ file: {
+    originalname: 'cases.csv', buffer: Buffer.from('Student Number,Offense Type\nPDM-2023-000001,Major Offense'),
+  } }), error => {
+    assert.equal(error.statusCode, 503);
+    assert.match(error.message, /20261011000300_sdo_unique_active_student.sql/);
+    return true;
+  });
+  assert.equal(saved.length, 0);
+  assert.equal(updates.length, 0);
+  assert.deepEqual(writes.slice(-2), ['ROLLBACK', 'RELEASE']);
 });
 
 test('scholar edits, imports, and record edits share one case and synchronized mobile and scholar standing', async () => {

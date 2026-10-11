@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { buildApiUrl } from '@/api';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import StudentRecordsPagination from '@/components/StudentRecordsPagination';
 import { Input } from '@/components/ui/input';
@@ -12,7 +13,7 @@ import { useSocketEvent } from '@/hooks/useSocket';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getImportPreviewPage } from '@/utils/sdoImportPreview';
 import { validateSdoImportFile, buildImportIssuesCsv } from '@/utils/sdoImportFile';
-import { Upload, Download, CheckCircle2, Loader2, X, Pencil, Inbox, FileUp, AlertCircle } from 'lucide-react';
+import { Upload, Download, Loader2, X, Pencil, Inbox, FileUp } from 'lucide-react';
 
 const PAGE_SIZE = 20;
 
@@ -23,6 +24,7 @@ function downloadCsv(name, content) {
   link.download = name;
   link.click();
   URL.revokeObjectURL(url);
+  toast.success('Download started', { description: name });
 }
 
 function RecordCards({ rows, preview = false, onEdit }) {
@@ -82,12 +84,9 @@ export default function SDODisciplinaryCases({ embedded = false, search = '', fi
   const [previewStatus, setPreviewStatus] = useState('all');
   const [busy, setBusy] = useState(false);
   const [operation, setOperation] = useState('');
-  const [error, setError] = useState('');
-  const [result, setResult] = useState(null);
   const [importOpen, setImportOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [editError, setEditError] = useState('');
   const [saving, setSaving] = useState(false);
   const fileInput = useRef(null);
   const fileRequestVersion = useRef(0);
@@ -103,7 +102,7 @@ export default function SDODisciplinaryCases({ embedded = false, search = '', fi
       const query = new URLSearchParams({ limit: PAGE_SIZE, offset: page * PAGE_SIZE, search: caseSearch, offense });
       const data = await request(`?${query}`);
       if (version === requestVersion.current) { setRecords(data); }
-    } catch (err) { if (version === requestVersion.current) setError(err.message); }
+    } catch (err) { if (version === requestVersion.current) toast.error('Unable to load disciplinary records', { id: 'sdo-records-load-error', description: err.message }); }
   }, [page, caseSearch, offense]);
   useSocketEvent('scholar:updated', () => load(), [load]);
 
@@ -122,22 +121,29 @@ export default function SDODisciplinaryCases({ embedded = false, search = '', fi
   async function importSelectedFile() {
     if (!file || !allowed || busy) return;
     const fileError = validateSdoImportFile(file);
-    if (fileError) { setError(fileError); return; }
+    if (fileError) { toast.error('Unable to import file', { description: fileError }); return; }
     setBusy(true);
     setOperation('import');
-    setError('');
-    setResult(null);
     const body = new FormData();
     body.append('file', file);
     try {
       const data = await request('/import', { method: 'POST', body });
-        setResult(data);
+        const skippedRows = [
+          ...(data.invalid_rows || []).map(row => ({ ...row, status: 'invalid' })),
+          ...(data.unmatched_rows || []).map(row => ({ ...row, status: 'unmatched', reason: 'Student ID was not found in the Student Registry.' })),
+          ...(data.duplicate_details || []).map(row => ({ ...row, status: 'duplicate' })),
+        ];
+        const skipped = (data.duplicate_rows || 0) + (data.invalid_rows?.length || 0) + (data.unmatched_rows?.length || 0);
+        toast[skipped ? 'warning' : 'success'](skipped ? 'Import completed with issues' : 'Disciplinary records imported', {
+          description: `${data.added || 0} students added, ${data.updated || 0} updated${skipped ? `, ${skipped} rows skipped` : ''}.`,
+          ...(skippedRows.length ? { action: { label: 'Download skipped rows', onClick: () => downloadCsv('SDO-import-issues.csv', buildImportIssuesCsv(skippedRows)) } } : {}),
+        });
         setPreview(null);
         setFile(null);
         setImportOpen(false);
         if (fileInput.current) fileInput.current.value = '';
         await load();
-    } catch (err) { setError(err.message); }
+    } catch (err) { toast.error('Disciplinary import failed', { description: err.message }); }
     finally { setBusy(false); }
   }
 
@@ -145,26 +151,27 @@ export default function SDODisciplinaryCases({ embedded = false, search = '', fi
     if (busy) return;
     const version = ++fileRequestVersion.current;
     setPreview(null);
-    setResult(null);
     const message = validateSdoImportFile(nextFile);
-    setError(message);
     setFile(message ? null : nextFile);
     setPreviewOffense('all');
     setPreviewStatus('all');
-    if (message || !nextFile) return;
+    if (message) { toast.error('Unable to read file', { description: message }); return; }
+    if (!nextFile) return;
     setBusy(true);
     setOperation('preview');
     const body = new FormData();
     body.append('file', nextFile);
     try {
       const data = await request('/preview', { method: 'POST', body });
-      if (version === fileRequestVersion.current) setPreview(data);
-    } catch (err) { if (version === fileRequestVersion.current) setError(err.message); }
+      if (version === fileRequestVersion.current) {
+        setPreview(data);
+        toast.success('Import preview ready', { description: `${data.counts.ready} of ${data.counts.total} rows are ready to import.` });
+      }
+    } catch (err) { if (version === fileRequestVersion.current) toast.error('Unable to preview file', { description: err.message }); }
     finally { if (version === fileRequestVersion.current) setBusy(false); }
   }
 
   function openEdit(row) {
-    setEditError('');
     setEditing({ ...row, course_code: row.course_code || '', year_level: String(row.year_level || ''), offense_incident_date: row.offense_incident_date || '', remarks: row.remarks || '' });
   }
 
@@ -172,15 +179,15 @@ export default function SDODisciplinaryCases({ embedded = false, search = '', fi
     event.preventDefault();
     if (!editing || saving) return;
     setSaving(true);
-    setEditError('');
     try {
       await request(`/${editing.record_id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
         course_code: editing.course_code, year_level: editing.year_level,
         offense_type: editing.offense_type, offense_incident_date: editing.offense_incident_date, remarks: editing.remarks,
       }) });
       setEditing(null);
+      toast.success('Disciplinary record updated', { description: editing.student_number });
       await load();
-    } catch (err) { setEditError(err.message); }
+    } catch (err) { toast.error('Unable to update disciplinary record', { description: err.message }); }
     finally { setSaving(false); }
   }
 
@@ -192,19 +199,8 @@ export default function SDODisciplinaryCases({ embedded = false, search = '', fi
         <h1 className="text-2xl font-semibold">Disciplinary Records</h1>
         <p className="mt-1 text-sm text-muted-foreground">Manage disciplinary standing for students, including those without scholarships.</p>
       </div>}
-      {error && <p role="alert" className="rounded-lg border border-destructive p-3 text-destructive">{error}</p>}
-      {result && <div role="status" className="rounded-xl border bg-card p-4 text-sm space-y-2">
-        <p className="flex items-center gap-2 font-semibold"><CheckCircle2 className="size-5 shrink-0" />Import complete</p>
-        <p>{result.added || 0} students added, {result.updated || 0} updated. {result.duplicate_rows} duplicate rows skipped.</p>
-        <p>{result.invalid_rows.length} invalid rows and {result.unmatched_rows.length} unmatched students skipped.</p>
-        <details><summary className="cursor-pointer">View skipped rows</summary><div className="mt-2 max-h-48 space-y-2 overflow-y-auto break-words">
-          {result.invalid_rows.map(row => <p key={`invalid-${row.row_number}`}>Row {row.row_number}: {row.reason}</p>)}
-          {result.unmatched_rows.map(row => <p key={`unmatched-${row.row_number}`}>Row {row.row_number}: {row.student_number} is not in the Student Registry.</p>)}
-          {(result.duplicate_details || []).map(row => <p key={`duplicate-${row.row_number}`}>Row {row.row_number}: {row.reason}</p>)}
-        </div></details>
-      </div>}
       {preview && <Card>
-        <CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">Import preview</h2><Button variant="outline" disabled={busy} onClick={() => { setPreview(null); setFile(null); setError(''); }}>Dismiss preview</Button></div></CardHeader>
+        <CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">Import preview</h2><Button variant="outline" disabled={busy} onClick={() => { setPreview(null); setFile(null); }}>Dismiss preview</Button></div></CardHeader>
         <CardContent className="min-w-0 space-y-4">
           {filtersOpen && <div id="import-filters" className="grid gap-3 sm:grid-cols-2">
             <OffenseFilter id="import-offense-filter" value={previewOffense} onChange={setPreviewOffense} />
@@ -238,7 +234,7 @@ export default function SDODisciplinaryCases({ embedded = false, search = '', fi
         </CardContent>
       </Card>}
       <Card>
-        <CardHeader><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h2 className="font-semibold">Disciplinary Records ({records.total})</h2><p className="mt-1 text-sm text-muted-foreground">Student offenses, incident dates, and remarks.</p></div><div className="flex flex-wrap gap-2"><Button onClick={() => { setError(''); setImportOpen(true); }}><Upload className="size-4" />Import</Button><Button variant="outline" onClick={() => downloadCsv('SDO-import-template.csv', 'Student Number,Offense Type,Course,Year Level,Incident Date,Remarks\r\n')}><Download className="size-4" />Download template</Button></div></div></CardHeader>
+        <CardHeader><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h2 className="font-semibold">Disciplinary Records ({records.total})</h2><p className="mt-1 text-sm text-muted-foreground">Student offenses, incident dates, and remarks.</p></div><div className="flex flex-wrap gap-2"><Button onClick={() => { setImportOpen(true); }}><Upload className="size-4" />Import</Button><Button variant="outline" onClick={() => downloadCsv('SDO-import-template.csv', 'Student Number,Offense Type,Course,Year Level,Incident Date,Remarks\r\n')}><Download className="size-4" />Download template</Button></div></div></CardHeader>
         <CardContent className="space-y-4">
           {filtersOpen && <div id="cases-filters" className="max-w-sm">
             <OffenseFilter id="offense-filter" value={offense} onChange={setOffense} />
@@ -271,10 +267,9 @@ export default function SDODisciplinaryCases({ embedded = false, search = '', fi
             </button>
             {file && <div className="flex min-w-0 items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2">
               <div className="min-w-0 text-xs"><p className="break-all font-medium">{file.name}</p><span className="block text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</span></div>
-              <Button variant="ghost" size="icon-sm" aria-label="Remove file" disabled={busy} onClick={() => { setFile(null); setPreview(null); setError(''); if (fileInput.current) fileInput.current.value = ''; }} className="shrink-0 text-muted-foreground"><X className="size-4" /></Button>
+              <Button variant="ghost" size="icon-sm" aria-label="Remove file" disabled={busy} onClick={() => { setFile(null); setPreview(null); if (fileInput.current) fileInput.current.value = ''; }} className="shrink-0 text-muted-foreground"><X className="size-4" /></Button>
             </div>}
             {busy && operation === 'preview' && <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="size-4 animate-spin" />Loading file preview...</p>}
-            {error && <div role="alert" className="flex items-start gap-2 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive"><AlertCircle className="mt-0.5 size-4 shrink-0" /><span className="break-words">{error}</span></div>}
             <div className="flex min-w-0 items-start gap-2 rounded-xl border bg-muted/30 px-4 py-3">
               <FileUp className="mt-1 size-4 shrink-0 text-muted-foreground" /><p className="min-w-0 break-words text-xs leading-6 text-muted-foreground">Upload a .xlsx or .csv disciplinary file. The selected file will be previewed before import.</p>
             </div>
@@ -299,7 +294,6 @@ export default function SDODisciplinaryCases({ embedded = false, search = '', fi
               <div className="space-y-2"><label htmlFor="edit-incident" className="text-sm font-medium">Incident Date</label><Input id="edit-incident" type="date" min={records.incident_date_bounds?.earliest} max={records.incident_date_bounds?.today} value={editing.offense_incident_date} disabled={saving} onChange={event => setEditing(row => ({ ...row, offense_incident_date: event.target.value }))} /></div>
             </div>
             <div className="space-y-2"><label htmlFor="edit-remarks" className="text-sm font-medium">Remarks</label><Textarea id="edit-remarks" value={editing.remarks} disabled={saving} onChange={event => setEditing(row => ({ ...row, remarks: event.target.value }))} /></div>
-            {editError && <p role="alert" className="break-words text-sm text-destructive">{editError}</p>}
             <DialogFooter><Button type="button" variant="outline" disabled={saving} onClick={() => setEditing(null)}>Cancel</Button><Button type="submit" disabled={saving}>{saving && <Loader2 className="size-4 animate-spin" />}Save changes</Button></DialogFooter>
           </form>}
         </DialogContent>

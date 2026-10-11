@@ -8,6 +8,8 @@ const {
 } = require('../middleware/authMiddleware');
 const { requirePermission } = require('../middleware/rbacMiddleware');
 const academicYearController = require('../controllers/academicYearController');
+// SMARTPDM_SEMESTER_AUTO_V1
+const semesterAuto = require('../services/academicSemesterAutomationService');
 const {
     cacheJsonResponse,
     invalidateCacheOnSuccess,
@@ -26,6 +28,9 @@ const invalidateAcademic = invalidateCacheOnSuccess([
     'academic-years',
     'program-openings',
 ]);
+
+router.get('/auto-schedule', ...adminOnly, requirePermission('settings.view'), async (req,res)=>{try{res.json(await semesterAuto.getSchedules())}catch(e){res.status(500).json({error:e.message})}});
+router.put('/auto-schedule/:academicYearId',...adminOnly,requirePermission('settings.manage'),async(req,res)=>{try{res.json(await semesterAuto.saveYear(req.params.academicYearId,req.body||{}))}catch(e){res.status(400).json({error:e.message})}});
 
 router.get(
     '/periods',

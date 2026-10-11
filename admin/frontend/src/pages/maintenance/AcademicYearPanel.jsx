@@ -358,6 +358,16 @@ function AcademicYearModal({
 export default function AcademicYearPanel() {
     const [years, setYears] = useState([]);
     const [periods, setPeriods] = useState([]);
+    // SMARTPDM_SEMESTER_AUTO_V1
+    const [autoSchedules,setAutoSchedules]=useState([]);
+    const [autoSaving,setAutoSaving]=useState(false);
+    const [autoYear,setAutoYear]=useState('');
+    const [autoEnabled,setAutoEnabled]=useState(false);
+    const [autoWindows,setAutoWindows]=useState({first:['',''],second:['','']});
+    const loadAutoSchedules=useCallback(async()=>{try{const r=await fetch(buildApiUrl('/api/academic-years/auto-schedule'),{headers:authHeaders()});if(r.ok)setAutoSchedules(await r.json());}catch(e){console.error('AUTO SCHEDULE LOAD',e)}},[]);
+    useEffect(()=>{loadAutoSchedules()},[loadAutoSchedules]);
+    const saveAutoSchedule=async()=>{if(!autoYear)return;setAutoSaving(true);try{const payload={auto_enabled:autoEnabled,windows:[{term:'First Semester',start_date:autoWindows.first[0],end_date:autoWindows.first[1]},{term:'Second Semester',start_date:autoWindows.second[0],end_date:autoWindows.second[1]}]};const r=await fetch(buildApiUrl('/api/academic-years/auto-schedule/'+autoYear),{method:'PUT',headers:authHeaders(),body:JSON.stringify(payload)});const data=await r.json();if(!r.ok)throw Error(data.error||'Failed to save');await loadAutoSchedules();showAppToast('success','Semester schedule saved','Automatic transition uses safety checks.');}catch(e){showAppToast('error','Cannot save semester schedule',e.message)}finally{setAutoSaving(false)}};
+
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [actionId, setActionId] = useState(null);
@@ -1023,7 +1033,15 @@ export default function AcademicYearPanel() {
                 onSave={saveYear}
             />
 
-            <section className="rounded-xl border border-stone-200 bg-white p-3.5">
+                        {/* SMARTPDM_SEMESTER_AUTO_V1 — additive card; original Academic Years layout preserved. */}
+            <section className="rounded-xl border border-stone-200 bg-white p-3.5 space-y-3">
+                <div><h2 className={MAINTENANCE_CARD_TITLE_CLASS}>Automatic Semester Schedule</h2><p className="text-xs text-stone-500">Asia/Manila dates. Transitions run only after safety checks; outstanding applications or openings block automation.</p></div>
+                <select className="rounded-lg border border-stone-200 p-2 text-sm" value={autoYear} onChange={e=>{const id=e.target.value;setAutoYear(id);const year=years.find(y=>String(y.academic_year_id)===id);const byTerm=t=>autoSchedules.find(x=>String(x.academic_year_label)===(year?.label||year?.start_year+'-'+year?.end_year)&&x.term===t);const first=byTerm('First Semester'),second=byTerm('Second Semester');setAutoEnabled(first?.auto_enabled===true&&second?.auto_enabled===true);setAutoWindows({first:[first?.start_date||'',first?.end_date||''],second:[second?.start_date||'',second?.end_date||'']})}}><option value="">Select academic year</option>{years.filter(y=>!y.is_archived).map(y=><option key={y.academic_year_id} value={y.academic_year_id}>{y.label||y.start_year+'-'+y.end_year}</option>)}</select>
+                {autoYear&&<><div className="grid gap-3 md:grid-cols-2">{[['first','First Semester'],['second','Second Semester']].map(([key,label])=><div key={key} className="rounded-lg border border-stone-200 p-3"><p className="text-sm font-semibold">{label}</p><div className="mt-2 grid grid-cols-2 gap-2">{[0,1].map(i=><label key={i} className="text-xs text-stone-500">{i===0?'Start':'End'}<input type="date" className="mt-1 w-full rounded border border-stone-200 p-2 text-sm" value={autoWindows[key][i]} onChange={e=>setAutoWindows(old=>({...old,[key]:old[key].map((v,j)=>i===j?e.target.value:v)}))}/></label>)}</div></div>)}</div><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={autoEnabled} onChange={e=>setAutoEnabled(e.target.checked)}/>Enable guarded automatic transitions</label><button type="button" disabled={autoSaving} onClick={saveAutoSchedule} className="rounded-lg bg-[var(--portal-base)] px-3 py-2 text-sm text-white disabled:opacity-50">{autoSaving?'Saving...':'Save Schedule'}</button></>}
+                {autoSchedules.filter(x=>x.last_error).map(x=><p key={x.period_id} className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">{x.academic_year_label} {x.term}: {x.last_error}</p>)}
+            </section>
+
+<section className="rounded-xl border border-stone-200 bg-white p-3.5">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                         <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>

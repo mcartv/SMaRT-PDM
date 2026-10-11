@@ -666,6 +666,23 @@ if (!global._announcementSchedulerRunning) {
   runAnnouncementScheduler();
   runReminderScheduler();
   runDigestScheduler();
+  // SMARTPDM_SEMESTER_AUTO_V1: existing scheduler leader prevents duplicate activation.
+  const semesterAuto = require('../services/academicSemesterAutomationService');
+  let semesterAutoBusy = false;
+  const runSemesterAuto = async () => {
+    if (!global._applicationStartupReady || semesterAutoBusy) return;
+    semesterAutoBusy=true;
+    try {if (!(await ensureSchedulerLeadership())) return;
+      const result=await semesterAuto.tick();
+      if (result.status==='activated') {
+        socketEvents.maintenanceUpdated(io,{module:'academic_periods',action:'auto_activate',academic_period:result.period});
+        if (socketEvents?.dashboardUpdated) socketEvents.dashboardUpdated(io,{source:'academic-period',action:'auto_activate',period_id:result.period.period_id});
+      }
+      if (result.status==='blocked'||result.status==='failed') console.warn('[Semester Auto]',result.reason);
+    }catch(e){console.error('[Semester Auto]',e.message)}finally{semesterAutoBusy=false}
+  };
+  runSemesterAuto();
+  setInterval(runSemesterAuto,BACKGROUND_SCHEDULER_INTERVAL_MS);
 
   // Realtime delivery remains handled by configureRealtimeBridge()/Socket.IO.
   // These timers only perform clock-based work.

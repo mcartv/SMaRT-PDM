@@ -63,7 +63,7 @@ test('Renewal Availability by Semester checklist remains enforced across the sta
 
   assert.ok(mobileModel.includes('final bool isRenewalAvailable;'));
   assert.ok(mobileModel.includes('final String availabilityReason;'));
-  assert.ok(mobileScreen.includes('Renewal Not Yet Available'));
+  assert.ok(mobileScreen.includes('Renewal is not currently available for this academic semester.'));
   assert.ok(mobileScreen.includes('availabilityReason'));
 
   assert.ok(

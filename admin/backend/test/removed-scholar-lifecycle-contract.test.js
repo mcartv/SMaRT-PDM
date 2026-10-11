@@ -57,7 +57,7 @@ test('removed scholars have an explicit Mobile lifecycle and cannot silently sta
   assert.match(openings, /Contact OSFA for an eligibility review before applying again/);
   assert.match(dashboard, /scholarPrivilegeRemoved\s*==\s*true/);
   assert.match(dashboard, /Privilege Removed/);
-  assert.match(profile, /Removed Scholar/);
+  assert.match(profile, /_scholarPrivilegeRemoved[\s\S]*?'Scholar Access Removed'/);
 });
 
 

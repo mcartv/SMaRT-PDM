@@ -34,7 +34,9 @@ test('removed member cutoff is backend-enforced and includes the final removal a
 
 test('web shows removal activity distinctly and former history stays read-only', () => {
   const ui = adminUi();
-  assert.match(ui, /removed\\b.*from the group/);
+  assert.match(ui, /const systemMessage = String\(message\.subject \|\| ''\)\.toLowerCase\(\) === 'system'/);
+  assert.match(ui, /\{message\.messageBody\}/);
+  assert.match(ui, /You were removed from this group/);
   assert.match(ui, /UserMinus/);
   assert.match(ui, /Read-only history/);
   assert.match(ui, /newer messages and member updates are not available/i);

@@ -11,7 +11,7 @@ test('only OSFA/Admin can download an endorsement slip PDF', () => {
 
   assert.match(
     routes,
-    /router\.get\('\/:slipId\/pdf', protect, authorizeRoles\('admin'\), endorsementSlipController\.downloadSlipPdf\)/,
+    /router\.get\('\/:slipId\/pdf', protect, authorizeRoles\('admin'\), requirePermission\('endorsements\.view'\), endorsementSlipController\.downloadSlipPdf\)/,
   );
 });
 

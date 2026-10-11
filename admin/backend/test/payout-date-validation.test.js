@@ -47,5 +47,5 @@ test('payout dates still reject missing, malformed and impossible dates', () => 
 test('create payout form limits the calendar and validates before sending', () => {
   assert.match(page, /min=\{getManilaDateInputValue\(\)\}/);
   assert.match(page, /form\.payout_date < getManilaDateInputValue\(\)/);
-  assert.match(page, /resetCreateForm\(\);\s*setShowCreateModal\(true\)/);
+  assert.match(page, /resetCreateForm\(\);\s*if \(hasPermission\('payouts\.manage'\)\) setShowCreateModal\(true\)/);
 });

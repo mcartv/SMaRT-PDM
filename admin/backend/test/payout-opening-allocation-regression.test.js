@@ -104,7 +104,10 @@ test('payout code migration creates immutable SPP codes and services expose them
   assert.match(service, /pb\.payout_code/);
   assert.match(mobilePayoutService, /payout_code: row\.payout_code/);
   assert.match(mobilePayoutScreen, /'Payout Code'/);
-  assert.match(mobilePayoutScreen, /'Proof of Payout Required'/);
+  assert.match(mobilePayoutScreen, /'Upload Proof'/);
+  assert.match(mobilePayoutScreen, /'Replace Proof'/);
+  assert.match(mobilePayoutScreen, /'New Proof Needed'/);
+  assert.match(mobilePayoutScreen, /'Under Review'/);
   assert.doesNotMatch(mobilePayoutScreen, /'Payment Mode'/);
   assert.doesNotMatch(mobilePayoutScreen, /'Reference'/);
 });

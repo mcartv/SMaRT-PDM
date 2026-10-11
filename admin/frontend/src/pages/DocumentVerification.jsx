@@ -157,7 +157,7 @@ const IOT_OCR_STATUS_MESSAGES = {
   previewing: 'Position the document on the scanner',
   focusing: 'Preparing the camera',
   capturing: 'Capturing the document',
-  processing: 'OCR processing continues in the background',
+  processing: 'Processing OCR — OCR processing continues in the background',
   review_required: 'Ready for review',
   completed: 'OCR confirmed',
   cancelled: 'Capture cancelled',
@@ -2698,7 +2698,7 @@ function OCRPanel({
           <p className="mb-1 text-xs uppercase tracking-wide text-stone-400">
             {isBirthReview
               ? reviewCandidate?.ocr_version === 'v2'
-                ? 'Full-Page Transcription'
+                ? 'Full-page OCR transcription'
                 : 'Raw OCR Snapshot'
               : 'Raw OCR Snapshot'}
           </p>

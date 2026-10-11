@@ -58,7 +58,7 @@ test('RO routes preserve existing mutation/invalidation workflow', () => {
 
   assert.match(
     routes,
-    /router\.get\('\/scholars', adminOnly, roCache, roPaginationController\.getROScholars\)/
+    /router\.get\('\/scholars', adminOnly, requirePermission\('ro\.view'\), roCache, roPaginationController\.getROScholars\)/
   );
   assert.match(routes, /namespace:\s*'ro'/);
   assert.match(routes, /ttlMs:\s*3000/);

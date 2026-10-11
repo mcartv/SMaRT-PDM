@@ -28,7 +28,7 @@ test('clients render unsent state and mobile action notices have no dividers', (
   );
   const systemBranch = mobileUi.slice(
     mobileUi.indexOf("if (message.subject?.toLowerCase() == 'system')"),
-    mobileUi.indexOf('final isDark', mobileUi.indexOf("if (message.subject?.toLowerCase() == 'system')"))
+    mobileUi.indexOf('// _privateContactIcon:', mobileUi.indexOf("if (message.subject?.toLowerCase() == 'system')"))
   );
 
   assert.match(adminUi, /Unsend message\?/);

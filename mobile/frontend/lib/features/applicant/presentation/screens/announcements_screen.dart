@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/announcement_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
@@ -33,6 +34,9 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   Timer? _liveSyncTimer;
   bool _fetchInProgress = false;
   bool _pendingLiveRefresh = false;
+  String? _pendingAnnouncementId;
+  // SMARTPDM_NOTIFICATION_FINAL_V2: push-notification destination.
+  String? _openedPushAnnouncementId;
 
   @override
   // initState: handles init state for the Announcements flow.
@@ -50,6 +54,12 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   // didChangeDependencies: handles did change dependencies for the Announcements flow.
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map && _pendingAnnouncementId == null) {
+      final id = args['announcementId']?.toString().trim() ?? '';
+      if (id.isNotEmpty) _pendingAnnouncementId = id;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _openPushAnnouncementIfReady());
 
     final provider = context.read<NotificationProvider>();
     if (_notificationProvider == provider) return;
@@ -82,6 +92,8 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
         _announcements = items;
         _errorMessage = null;
       });
+      _openPendingAnnouncement(items);
+      _openPushAnnouncementIfReady();
     } catch (error) {
       if (!mounted) return;
       debugPrint('ANNOUNCEMENT LOAD ERROR: $error');
@@ -98,6 +110,33 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
         _pendingLiveRefresh = false;
         scheduleMicrotask(() => _loadAnnouncements(silent: true));
       }
+    }
+  }
+
+  void _openPushAnnouncementIfReady() {
+    if (!mounted) return;
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is! Map) return;
+    final wanted = (args['announcementId'] ?? '').toString().trim();
+    if (wanted.isEmpty || wanted == _openedPushAnnouncementId) return;
+    for (final announcement in _announcements) {
+      if (announcement.announcementId == wanted) {
+        _openedPushAnnouncementId = wanted;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _openAnnouncement(announcement);
+        });
+        return;
+      }
+    }
+    if (!_isLoading && _errorMessage == null) {
+      _openedPushAnnouncementId = wanted;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('This announcement is no longer available for your account.'),
+          ));
+        }
+      });
     }
   }
 
@@ -309,7 +348,44 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   }
 
   // _openAnnouncement: handles open announcement for the Announcements flow.
+  // SMARTPDM_ANNOUNCEMENT_CONTEXT_ROUTE_V1
+  void _openPendingAnnouncement(List<MobileAnnouncement> announcements) {
+    final id = _pendingAnnouncementId;
+    if (id == null || id.isEmpty) return;
+    _pendingAnnouncementId = null;
+    MobileAnnouncement? match;
+    for (final item in announcements) {
+      if (item.announcementId == id) { match = item; break; }
+    }
+    if (match == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('This announcement is unavailable or not intended for your account.'),
+        ));
+      });
+      return;
+    }
+    final selected = match;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _openAnnouncement(selected!);
+    });
+  }
+
   Future<void> _openAnnouncement(MobileAnnouncement announcement) async {
+    // Routes are based on the stored template type, not fragile title matching.
+    final destination = switch (announcement.templateKey.toLowerCase()) {
+      'payout_notice' => AppRoutes.payouts,
+      'document_reupload' => AppRoutes.documents,
+      'application_update' => AppRoutes.status,
+      'scholarship_application_period' => AppRoutes.scholarshipOpenings,
+      'ro_reminder' => AppRoutes.roAssignment,
+      _ => null,
+    };
+    if (destination != null) {
+      Navigator.pushNamed(context, destination);
+      return;
+    }
     _announcementService
         .markViewed(announcement.announcementId)
         .catchError(

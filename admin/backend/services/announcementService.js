@@ -227,6 +227,8 @@ async function mapSingleAnnouncementRow(row) {
 
 // createAnnouncementNotifications: creates create announcement notifications for the Announcements flow.
 async function createAnnouncementNotifications(announcementRow) {
+    // SMARTPDM_NOTIFICATION_FINAL_V2: legacy payout notice is dashboard-only.
+    if (String(announcementRow.template_key || "").toLowerCase() === "payout_notice") return 0;
     const rows = await notificationService.createNotificationsForAudience({
         audience: announcementRow.target_audience,
         programId: announcementRow.target_program_id || null,
@@ -242,6 +244,7 @@ async function createAnnouncementNotifications(announcementRow) {
 
 // syncPublishedAnnouncementNotifications: synchronizes sync published announcement notifications for the Announcements flow.
 async function syncPublishedAnnouncementNotifications(announcementRow) {
+    if (String(announcementRow.template_key || "").toLowerCase() === "payout_notice") return { inserted: 0, updated: 0 };
     return notificationService.syncAnnouncementNotifications({
         audience: announcementRow.target_audience,
         programId: announcementRow.target_program_id || null,

@@ -184,6 +184,8 @@ function mapAnnouncementRow(row = {}) {
     title: row.subject?.toString() || 'Announcement',
     content: row.content?.toString() || '',
     audienceKey: row.target_audience?.toString() || 'all',
+    // SMARTPDM_ANNOUNCEMENT_CONTEXT_ROUTE_V1
+    templateKey: row.template_key?.toString() || 'blank',
     targetProgramId: row.target_program_id?.toString() || null,
     date: date ? date.toISOString() : new Date().toISOString(),
   };

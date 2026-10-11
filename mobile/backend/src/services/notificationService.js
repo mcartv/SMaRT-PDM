@@ -523,7 +523,9 @@ async function getMyNotifications(userId, query = {}) {
 
   if (error) throw error;
 
-  const filtered = await filterLiveNotificationRows(data || []);
+  // SMARTPDM_NOTIFICATION_FINAL_V2: announcements are dashboard/push only.
+  const filtered = (await filterLiveNotificationRows(data || []))
+    .filter((row) => !isAnnouncementNotification(row));
   const paginated = filtered.slice(offset, offset + limit);
 
   const items = paginated.map(normalizeNotification);
@@ -552,7 +554,8 @@ async function getUnreadCount(userId) {
 
   if (error) throw error;
 
-  const filtered = await filterLiveNotificationRows(data || []);
+  const filtered = (await filterLiveNotificationRows(data || []))
+    .filter((row) => !isAnnouncementNotification(row));
 
   return {
     unreadCount: filtered.length,

@@ -8,6 +8,7 @@ class MobileAnnouncement {
     required this.title,
     required this.content,
     required this.audienceKey,
+    this.templateKey = 'blank',
     required this.date,
   });
 
@@ -15,6 +16,8 @@ class MobileAnnouncement {
   final String title;
   final String content;
   final String audienceKey;
+  // SMARTPDM_ANNOUNCEMENT_CONTEXT_ROUTE_V1
+  final String templateKey;
   final DateTime date;
 
   factory MobileAnnouncement.fromJson(Map<String, dynamic> json) {
@@ -23,6 +26,7 @@ class MobileAnnouncement {
       title: json['title']?.toString() ?? 'Announcement',
       content: json['content']?.toString() ?? '',
       audienceKey: json['audienceKey']?.toString() ?? 'all',
+      templateKey: json['templateKey']?.toString() ?? 'blank',
       date: DateTime.tryParse(json['date']?.toString() ?? '') ?? DateTime.now(),
     );
   }

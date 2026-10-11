@@ -254,9 +254,9 @@ class PushNotificationService {
     if (kind == 'payout_batch' || kind == 'payout' || type.contains('payout')) {
       destination = AppRoutes.payouts;
     } else if (kind.contains('announcement')) {
-      // Open the notification inbox for announcement article navigation;
-      // never navigate to an unverified or inaccessible record from a push.
-      destination = AppRoutes.notifications;
+      // SMARTPDM_ANNOUNCEMENT_CONTEXT_ROUTE_V1
+      destination = AppRoutes.announcements;
+      args = {'announcementId': ref};
     } else if (kind.contains('chat_room') || kind == 'room' || kind == 'group_message') {
       destination = AppRoutes.chatThread;
       args = {'roomId': ref};

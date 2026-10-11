@@ -40,6 +40,48 @@ class _OfficeUpdateArticleScreenState extends State<OfficeUpdateArticleScreen> {
     }
   }
 
+  // SMARTPDM_ANNOUNCEMENT_MODULE_CTA_V1
+  // Show module actions only when the announcement actually describes that workflow.
+  // The generated payout batch notice does not carry a payout reference type,
+  // so specific phrases from its body are used as a compatibility fallback.
+  ({String label, IconData icon, String route})? _relatedModule() {
+    final notification = widget.notification;
+    final title = notification.title.toLowerCase();
+    final message = notification.message.toLowerCase();
+    final kind = (notification.referenceType ?? '').toLowerCase();
+    final combined = '$title $message';
+
+    if (kind == 'payout_batch' ||
+        kind == 'payout' ||
+        (message.contains('payout batch') &&
+            (message.contains('payout date') ||
+                message.contains('payout time') ||
+                message.contains('amount per scholar'))) ||
+        (title.contains('payout') &&
+            (message.contains('payout date') || message.contains('payout schedule')))) {
+      return (label: 'View Payout Details', icon: Icons.payments_outlined, route: AppRoutes.payouts);
+    }
+    if (kind == 'program_opening' || notification.isOpeningUpdate) {
+      return (label: 'View Scholarship Openings', icon: Icons.school_outlined, route: AppRoutes.scholarshipOpenings);
+    }
+    if (combined.contains('return of obligation') &&
+        (combined.contains('assignment') || combined.contains('community service') || combined.contains('ro reminder'))) {
+      return (label: 'View Return of Obligations', icon: Icons.assignment_turned_in_outlined, route: AppRoutes.roAssignment);
+    }
+    if (combined.contains('document re-upload') || combined.contains('re-upload the required document')) {
+      return (label: 'View Documents', icon: Icons.description_outlined, route: AppRoutes.documents);
+    }
+    if (combined.contains('scholarship application period') ||
+        (combined.contains('application period') && combined.contains('deadline'))) {
+      return (label: 'View Scholarship Openings', icon: Icons.school_outlined, route: AppRoutes.scholarshipOpenings);
+    }
+    if (combined.contains('scholarship application update') &&
+        combined.contains('being reviewed')) {
+      return (label: 'View Application Status', icon: Icons.fact_check_outlined, route: AppRoutes.status);
+    }
+    return null;
+  }
+
   @override
   // build: builds build for the office update article screen flow.
   Widget build(BuildContext context) {
@@ -123,6 +165,20 @@ class _OfficeUpdateArticleScreenState extends State<OfficeUpdateArticleScreen> {
                       ),
                 ),
               ),
+              if (!notification.isOpeningUpdate && _relatedModule() != null) ...[
+                const SizedBox(height: AppSpacing.lg),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.pushNamed(
+                      context,
+                      _relatedModule()!.route,
+                    ),
+                    icon: Icon(_relatedModule()!.icon),
+                    label: Text(_relatedModule()!.label),
+                  ),
+                ),
+              ],
               if (notification.isOpeningUpdate) ...[
                 const SizedBox(height: AppSpacing.lg),
                 AppSurfaceCard(

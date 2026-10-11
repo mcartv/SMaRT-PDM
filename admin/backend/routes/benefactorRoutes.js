@@ -14,6 +14,7 @@ const {
 } = require('../controllers/benefactorController');
 
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const { requirePermission } = require('../middleware/rbacMiddleware');
 const {
     cacheJsonResponse,
     invalidateCacheOnSuccess,
@@ -49,11 +50,11 @@ const invalidateBenefactors = invalidateCacheOnSuccess([
 ]);
 
 router.get('/public', publicBenefactorCache, getPublicBenefactors);
-router.get('/', ...adminOnly, benefactorCache, getBenefactors);
-router.post('/with-program', ...adminOnly, invalidateBenefactors, createBenefactorWithProgram);
-router.post('/', ...adminOnly, invalidateBenefactors, createBenefactor);
-router.post('/:id/branding/:slot', ...adminOnly, brandingUpload.single('file'), invalidateBenefactors, uploadBenefactorBranding);
-router.delete('/:id/branding/:slot', ...adminOnly, invalidateBenefactors, removeBenefactorBranding);
-router.patch('/:id', ...adminOnly, invalidateBenefactors, updateBenefactor);
+router.get('/', ...adminOnly, requirePermission('programs.view'), benefactorCache, getBenefactors);
+router.post('/with-program', ...adminOnly, requirePermission('programs.manage'), invalidateBenefactors, createBenefactorWithProgram);
+router.post('/', ...adminOnly, requirePermission('programs.manage'), invalidateBenefactors, createBenefactor);
+router.post('/:id/branding/:slot', ...adminOnly, requirePermission('programs.manage'), brandingUpload.single('file'), invalidateBenefactors, uploadBenefactorBranding);
+router.delete('/:id/branding/:slot', ...adminOnly, requirePermission('programs.manage'), invalidateBenefactors, removeBenefactorBranding);
+router.patch('/:id', ...adminOnly, requirePermission('programs.manage'), invalidateBenefactors, updateBenefactor);
 
 module.exports = router;

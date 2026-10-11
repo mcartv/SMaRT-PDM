@@ -1426,6 +1426,49 @@ function AccountProfileModal({ account, onClose, onEdit }) {
 }
 
 export default function AccountsPanel() {
+    // SMARTPDM_DYNAMIC_STAFF_CATALOG_V1: populate display choices from active PostgreSQL references.
+    const [, refreshStaffCatalog] = useState(0);
+    const [staffCatalogError,setStaffCatalogError] = useState('');
+    useEffect(() => {
+      let cancelled=false;
+      const token=sessionStorage.getItem('adminToken');
+      if (!token) return;
+      fetch(buildApiUrl('/api/accounts/staff-catalog'), {
+        headers:{Authorization: 'Bearer ' + token}, cache:'no-store'
+      }).then(async response => {
+        if(!response.ok) throw Error('Catalog unavailable (' + response.status + ')');
+        return response.json();
+      }).then(data => {
+        if(cancelled)return;
+        const codes={admin:'admin',sdo:'sdo',gco:'guidance',pd:'pd',ro_personnel:'ro_coordinator'};
+        const supported=(data.roles||[]).filter(r=>codes[r.role_code]).map(r=>({
+          value:codes[r.role_code],label:r.role_code==='admin'?'OSFA Coordinator':r.role_name,department:''
+        }));
+        const officeRows=(data.offices||[]).map(o=>({
+          value:o.office_name,label:o.office_name,code:o.office_code
+        }));
+        if(!supported.length||!officeRows.length)throw Error('Staff catalog is incomplete');
+        const group={
+          admin:officeRows.filter(o=>/scholarship|financial assistance|osfa/i.test(o.value+' '+o.code)),
+          guidance:officeRows.filter(o=>/guidance|counsel/i.test(o.value+' '+o.code)),
+          sdo:officeRows.filter(o=>/student welfare|discipline|swdo/i.test(o.value+' '+o.code)),
+          pd:officeRows.filter(o=>/college|program head|teacher education|hospitality|computer studies/i.test(o.value+' '+o.code)),
+          ro_coordinator:[]
+        };
+        // Do not introduce unknown custom roles into the existing fixed-role login system.
+        ROLE_OPTIONS.splice(0,ROLE_OPTIONS.length,...supported.map(r=>({
+          ...r,department:group[r.value]?.[0]?.value||''
+        })));
+        OPERATIONAL_ROLE_OPTIONS.splice(0,OPERATIONAL_ROLE_OPTIONS.length,...ROLE_OPTIONS.filter(r=>r.value!=='admin'));
+        Object.keys(DEPARTMENT_OPTIONS).forEach(key=>{
+          if(key!=='ro_coordinator')DEPARTMENT_OPTIONS[key]=group[key]||[];
+        });
+        setStaffCatalogError('');
+        refreshStaffCatalog(v=>v+1);
+      }).catch(error=>{if(!cancelled)setStaffCatalogError(error.message)});
+      return()=>{cancelled=true};
+    },[]);
+
     const [accounts, setAccounts] = useState([]);
     const [courses, setCourses] = useState([]);
     const [roAreas, setRoAreas] = useState([]);

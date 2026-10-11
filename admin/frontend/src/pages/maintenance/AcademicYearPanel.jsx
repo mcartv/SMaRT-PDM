@@ -207,16 +207,28 @@ function AcademicYearModal({
 
     const isEdit = mode === 'edit';
     const today = getTodayDateInputValue();
-    const start = Number(form.start_date?.slice(0, 4) || 0);
-    const end = Number(form.end_date?.slice(0, 4) || 0);
-    const computedLabel =
-        start > 0 && end > 0
-            ? `${start}-${end}`
-            : 'Preview not available';
-    const canSubmit =
+    // SMARTPDM_ACADEMIC_UNIFIED_FORM_V1
+    const start = Number(form.start_year || 0);
+    const end = start + 1;
+    const computedLabel = start > 0 ? `${start}-${end}` : 'Select a starting year';
+    const schedule = form.semesters || {first:['',''], second:['','']};
+    const first = schedule.first || ['',''];
+    const second = schedule.second || ['',''];
+    // SMARTPDM_ACADEMIC_CALENDAR_CROSS_YEAR_V2: school calendar spans the second half of the starting year and first half of the next.
+    const isValidSchedule = !!(first[0] && first[1] && second[0] && second[1] &&
+        first[0] >= `${start}-07-01` && first[0] <= `${start}-12-31` &&
+        first[1] >= first[0] && first[1] <= `${start}-12-31` &&
+        second[0] > first[1] && second[0] >= `${start}-12-01` &&
+        second[0] <= `${end}-06-30` &&
+        second[1] >= second[0] && second[1] >= `${end}-01-01` &&
+        second[1] <= `${end}-06-30` &&
+        form.start_date <= first[0] && form.end_date >= second[1]);
+    const canSubmit = Number.isInteger(start) && start >= 2000 &&
         !!form.start_date && !!form.end_date &&
-        form.start_date >= today && form.end_date > form.start_date &&
-        end === start + 1;
+        form.start_date.slice(0,4) === String(start) &&
+        form.end_date.slice(0,4) === String(end) &&
+        form.end_date > form.start_date &&
+        (isEdit || form.start_date >= today) && isValidSchedule;
     const isCurrentAcademicWindow =
         start === Number(currentAcademicWindow?.start_year) &&
         end === Number(currentAcademicWindow?.end_year);
@@ -262,25 +274,32 @@ function AcademicYearModal({
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div className="space-y-1.5">
-                            <label htmlFor="academic-start-date" className="text-xs font-medium uppercase tracking-wide text-stone-500">Start Date</label>
-                            <Input id="academic-start-date" type="date" required
-                                min={today}
-                                value={form.start_date || ''}
-                                onChange={(e) => setForm((prev) => ({ ...prev, start_date: e.target.value }))}
-                                disabled={saving} className="h-10 border-stone-200" />
-                        </div>
-                        <div className="space-y-1.5">
-                            <label htmlFor="academic-end-date" className="text-xs font-medium uppercase tracking-wide text-stone-500">End Date</label>
-                            <Input id="academic-end-date" type="date" required
-                                min={form.start_date && start && `${start + 1}-01-01` > today ? `${start + 1}-01-01` : today}
-                                max={form.start_date && start ? `${start + 1}-12-31` : undefined}
-                                value={form.end_date || ''}
-                                onChange={(e) => setForm((prev) => ({ ...prev, end_date: e.target.value }))}
-                                disabled={saving} className="h-10 border-stone-200" />
-                        </div>
+                        <label className="text-xs font-medium uppercase tracking-wide text-stone-500">Starting Year
+                            <select className="mt-1 h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm" value={form.start_year || ''} disabled={saving || isEdit} onChange={e => setForm(p => ({...p, start_year:e.target.value, end_year:String(Number(e.target.value)+1), start_date:'', end_date:'', semesters:{first:['',''],second:['','']}}))}>
+                                <option value="">Choose starting year</option>
+                                {Array.from({length:16},(_,i)=>Number(currentAcademicWindow?.start_year || new Date().getFullYear())-1+i).map(y => <option key={y} value={String(y)}>{y}</option>)}
+                            </select>
+                        </label>
+                        <label className="text-xs font-medium uppercase tracking-wide text-stone-500">Ending Year (automatic)
+                            <Input className="mt-1 h-10 border-stone-200 bg-stone-50" value={start ? String(end) : ''} readOnly />
+                        </label>
+                        <label className="text-xs font-medium uppercase tracking-wide text-stone-500">Academic Year Start
+                            <Input type="date" className="mt-1 h-10 border-stone-200" disabled={saving || !start} min={isEdit ? undefined : today} max={start ? `${start}-12-31` : undefined} value={form.start_date || ''} onChange={e=>setForm(p=>({...p,start_date:e.target.value,end_date:p.end_date && p.end_date <= e.target.value ? '' : p.end_date}))}/>
+                        </label>
+                        <label className="text-xs font-medium uppercase tracking-wide text-stone-500">Academic Year End
+                            <Input type="date" className="mt-1 h-10 border-stone-200" disabled={saving || !form.start_date} min={start ? `${end}-01-01` : undefined} max={start ? `${end}-12-31` : undefined} value={form.end_date || ''} onChange={e=>setForm(p=>({...p,end_date:e.target.value}))}/>
+                        </label>
                     </div>
-
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {[['first','First Semester'],['second','Second Semester']].map(([key,label])=><div key={key} className="rounded-xl border border-stone-200 p-3">
+                        <p className="text-sm font-semibold text-stone-800">{label} Dates</p>
+                        <div className="mt-2 space-y-2">
+                          {[0,1].map(i=><label key={i} className="block text-xs text-stone-500">{i===0?'Start':'End'}
+                            <input type="date" className="mt-1 w-full rounded-lg border border-stone-200 p-2 text-sm" disabled={saving || !start || (i===1 && !schedule[key]?.[0])} min={i===0 ? (key==='first' ? `${start}-07-01` : first[1] ? new Date(Date.parse(first[1]+'T00:00:00Z')+86400000).toISOString().slice(0,10) : `${start}-12-01`) : schedule[key]?.[0]} max={i===0 ? (key==='first' ? `${start}-12-31` : `${end}-06-30`) : (key==='first' ? `${start}-12-31` : `${end}-06-30`)} value={schedule[key]?.[i] || ''} onChange={e=>setForm(p=>{const old=p.semesters || {first:['',''],second:['','']};const next=[...(old[key] || ['',''])];next[i]=e.target.value;if(i===0 && next[1] && next[1]<next[0])next[1]='';const updated={...old,[key]:next};if(key==='first' && updated.second?.[0] && updated.second[0] <= updated.first[1]) updated.second=['',''];return {...p,semesters:updated};})}/>
+                          </label>)}
+                        </div>
+                      </div>)}
+                    </div>
                     <label className="flex items-start gap-3 rounded-xl border border-stone-200 bg-white px-4 py-4">
                         <input
                             type="checkbox"
@@ -317,9 +336,10 @@ function AcademicYearModal({
                         </div>
                     </label>
 
+                    <label className="flex items-center gap-2 text-sm text-stone-700"><input type="checkbox" checked={form.auto_enabled===true} onChange={e=>setForm(p=>({...p,auto_enabled:e.target.checked}))} disabled={saving}/>Enable automatic semester transitions after safety checks</label>
                     {!canSubmit ? (
                         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                            End year must be exactly one year after the start year.
+                            First Semester must run July–December of the starting year. Second Semester may start after First Semester ends (late December or the next year) and must finish by June. Check that the overall academic year ends in the next calendar year.
                         </div>
                     ) : null}
                 </CardContent>
@@ -410,8 +430,7 @@ export default function AcademicYearPanel() {
         end_year: '',
         start_date: '',
         end_date: '',
-        is_active: false,
-    });
+        is_active: false, semesters:{first:['',''],second:['','']}, auto_enabled:false, });
     const [currentAcademicWindow, setCurrentAcademicWindow] =
         useState(null);
 
@@ -589,6 +608,7 @@ export default function AcademicYearPanel() {
             start_date: '',
             end_date: '',
             is_active: false,
+            semesters:{first:['',''],second:['','']}, auto_enabled:false,
         });
     };
 
@@ -612,6 +632,7 @@ export default function AcademicYearPanel() {
             start_date: '',
             end_date: '',
             is_active: !activeYear,
+            semesters:{first:['',''],second:['','']}, auto_enabled:false,
         });
         setModalOpen(true);
     };
@@ -630,6 +651,10 @@ export default function AcademicYearPanel() {
             start_date: row.start_date || '',
             end_date: row.end_date || '',
             is_active: !!row.is_active,
+            semesters:{
+              first:['First Semester'].map(t => autoSchedules.find(q => q.academic_year_label === (row.label || (row.start_year+'-'+row.end_year)) && q.term === t)).reduce((_,q)=>[q?.start_date || '',q?.end_date || ''],[]),
+              second:['Second Semester'].map(t => autoSchedules.find(q => q.academic_year_label === (row.label || (row.start_year+'-'+row.end_year)) && q.term === t)).reduce((_,q)=>[q?.start_date || '',q?.end_date || ''],[]),
+            }, auto_enabled: autoSchedules.some(q => q.academic_year_label === (row.label || (row.start_year+'-'+row.end_year)) && q.auto_enabled === true),
         });
         setModalOpen(true);
     };
@@ -638,34 +663,35 @@ export default function AcademicYearPanel() {
     const saveYear = async () => {
         try {
             setSaving(true);
-
-            const start = Number(form.start_date?.slice(0, 4));
-            const end = Number(form.end_date?.slice(0, 4));
-
-            if (
-                !Number.isInteger(start) ||
-                !Number.isInteger(end) ||
-                end !== start + 1
-            ) {
-                throw new Error(
-                    'End year must be exactly one year after the start year.'
-                );
+            // SMARTPDM_EXACT_SEMESTER_SAVE_V5: use the chosen year, not the date field, as the academic year identity.
+            const start = Number(form.start_year);
+            const end = start + 1;
+            if (!Number.isInteger(start) || start < 2000) {
+                throw new Error('Select a valid starting academic year.');
             }
-
             if (!form.start_date || !form.end_date ||
-                Number(form.start_date.slice(0, 4)) !== start ||
-                Number(form.end_date.slice(0, 4)) !== end ||
+                form.start_date.slice(0, 4) !== String(start) ||
+                form.end_date.slice(0, 4) !== String(end) ||
                 form.end_date <= form.start_date) {
-                throw new Error('Select start and end dates within the corresponding academic years.');
+                throw new Error('Academic year dates must start in the selected year and end in the following year.');
             }
-
-            if (form.start_date < getTodayDateInputValue() || form.end_date < getTodayDateInputValue()) {
-                throw new Error('Academic year dates cannot be in the past. Select today or a future date.');
+            if (modalMode !== 'edit' && form.start_date < getTodayDateInputValue()) {
+                throw new Error('New academic years cannot start in the past.');
             }
-
-            const isEdit =
-                modalMode === 'edit' &&
-                editingId;
+            const sem = form.semesters || {};
+            const first = sem.first || [];
+            const second = sem.second || [];
+            if (!(first[0] && first[1] && second[0] && second[1] &&
+                first[0] >= `${start}-07-01` && first[1] <= `${start}-12-31` &&
+                first[0] <= first[1] &&
+                second[0] > first[1] && second[0] >= `${start}-12-01` &&
+                second[0] <= `${end}-06-30` &&
+                second[1] >= second[0] && second[1] >= `${end}-01-01` &&
+                second[1] <= `${end}-06-30` &&
+                form.start_date <= first[0] && form.end_date >= second[1])) {
+                throw new Error('Enter non-overlapping semester dates within the academic year.');
+            }
+            const isEdit = modalMode === 'edit' && editingId;
             const url = isEdit
                 ? buildApiUrl(
                       `/api/academic-years/${editingId}`
@@ -699,6 +725,20 @@ export default function AcademicYearPanel() {
                 );
             }
 
+            // Semester windows are saved against existing periods. If this step fails,
+            // keep the year and report the configuration failure for retry.
+            const savedYearId = isEdit ? editingId : payload?.academic_year_id;
+            if (!savedYearId) throw new Error('Academic year saved but no ID was returned. Please refresh and configure its semester schedule.');
+            const newSchedule = {
+              auto_enabled: form.auto_enabled === true,
+              windows: [
+                {term:'First Semester', start_date:form.semesters.first[0], end_date:form.semesters.first[1]},
+                {term:'Second Semester', start_date:form.semesters.second[0], end_date:form.semesters.second[1]},
+              ],
+            };
+            const scheduleResponse = await fetch(buildApiUrl(`/api/academic-years/auto-schedule/${savedYearId}`), {method:'PUT',headers:authHeaders(),body:JSON.stringify(newSchedule)});
+            const schedulePayload = await scheduleResponse.json().catch(()=>({}));
+            if (!scheduleResponse.ok) throw new Error('Academic year saved, but semester schedule failed: '+(schedulePayload.error || schedulePayload.message || 'Please retry from Edit.'));
             resetModal();
             await loadData();
         } catch (error) {

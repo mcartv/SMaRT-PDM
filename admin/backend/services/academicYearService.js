@@ -839,18 +839,12 @@ exports.updateAcademicYear = async (academicYearId, payload = {}) => {
             );
         }
 
-        const startYear =
-            payload.start_date ? toRequiredYear(String(payload.start_date).slice(0, 4), 'Start year') :
-            payload.start_year !== undefined
-                ? toRequiredYear(payload.start_year, 'Start year')
-                : Number(existing.start_year);
-
-        const endYear =
-            payload.end_date ? toRequiredYear(String(payload.end_date).slice(0, 4), 'End year') :
-            payload.end_year !== undefined
-                ? toRequiredYear(payload.end_year, 'End year')
-                : Number(existing.end_year);
-
+        const startYear = payload.start_year !== undefined
+            ? toRequiredYear(payload.start_year, 'Start year')
+            : Number(existing.start_year);
+        const endYear = payload.end_year !== undefined
+            ? toRequiredYear(payload.end_year, 'End year')
+            : Number(existing.end_year);
         const isActive =
             payload.is_active !== undefined
                 ? payload.is_active === true
@@ -861,8 +855,9 @@ exports.updateAcademicYear = async (academicYearId, payload = {}) => {
             payload.start_date !== undefined ? payload.start_date : dateInputValue(existing.start_date),
             payload.end_date !== undefined ? payload.end_date : dateInputValue(existing.end_date),
             startYear, endYear, {
-                allowPast: payload.start_date === undefined && payload.end_date === undefined &&
-                    startYear === Number(existing.start_year) && endYear === Number(existing.end_year),
+                // SMARTPDM_ACADEMIC_CALENDAR_CROSS_YEAR_V2: allow correcting dates for an existing calendar-year pair only.
+                // SMARTPDM_EXACT_SEMESTER_SAVE_V5: historical corrections allowed only for the same existing year pair.
+                allowPast: startYear === Number(existing.start_year) && endYear === Number(existing.end_year),
                 allowMissing: payload.start_date === undefined && payload.end_date === undefined,
             }
         );

@@ -19,9 +19,8 @@ async function saveYear(academicYearId, payload) {
   const client = await pool.connect(); try {
     await client.query('BEGIN');
     const { rows: periods } = await client.query('SELECT ap.period_id,ap.term,ay.start_year,ay.end_year,ay.is_archived FROM academic_period ap JOIN academic_years ay USING(academic_year_id) WHERE ap.academic_year_id=$1 FOR UPDATE OF ap,ay', [academicYearId]);
-    if (periods.length !== 2 || periods.some(p => p.is_archived)) throw Error('Select a non-archived academic year with both semesters.');
-    const windows = validate(periods.map(p => { const input = (payload.windows || []).find(w => w.term === p.term); if (!input) throw Error('Missing schedule for ' + p.term); const start = fmt(input.start_date), end = fmt(input.end_date); if (Number(start.slice(0, 4)) < p.start_year || Number(start.slice(0, 4)) > p.end_year || Number(end.slice(0, 4)) < p.start_year || Number(end.slice(0, 4)) > p.end_year) throw Error('Date outside academic year.'); return { period_id: p.period_id, term: p.term, start_date: start, end_date: end }; }));
-    // SMARTPDM_FLEXIBLE_SEMESTER_V7: preserve administrator-selected semester dates without month restrictions.
+     return { period_id: p.period_id, term: p.term, start_date: start, end_date: end }; }));
+    // SMARTPDM_SCHEDULE_BASED_ROLLOVER_V13: admin-selectable dates, ordered and non-overlapping.
  const first=windows.find(w=>w.term==='First Semester');
  const second=windows.find(w=>w.term==='Second Semester');
  if (!first || !second || first.start_date > first.end_date ||
@@ -47,8 +46,17 @@ async function tick() {
       'SELECT s.period_id,ap.academic_year_id,s.start_date,s.end_date,ap.is_active,ap.term,ay.is_archived,ay.start_year,ay.end_year FROM academic_semester_schedules s JOIN academic_period ap USING(period_id) JOIN academic_years ay USING(academic_year_id) WHERE s.auto_enabled=true AND s.start_date<=$1 AND s.end_date>=$1 ORDER BY s.start_date DESC', [today]);
     if (q.rows.length !== 1) return { status: q.rows.length ? 'ambiguous' : 'no-due-window' };
     const target = q.rows[0]; if (target.is_archived) return { status: 'archived' }; if (target.is_active) return { status: 'already-current' };
-    const currentYear = Number(today.slice(0, 4)); if (currentYear < target.start_year || currentYear > target.end_year) return { status: 'year-mismatch' };
+     // SMARTPDM_SCHEDULE_BASED_ROLLOVER_V13: schedule dates decide when an academic year starts.
     // Safety checks: never silently detach pending applicant work or close live openings.
+    // SMARTPDM_SCHEDULE_BASED_ROLLOVER_V13: never move automatically backward to an earlier configured cycle.
+    const active = await client.query('SELECT ap.period_id,ay.start_year,ap.term FROM academic_period ap JOIN academic_years ay USING(academic_year_id) WHERE ap.is_active=true');
+    if(active.rows.length>1)return {status:'ambiguous-active-periods'};
+    if(active.rows.length===1){
+      const current=active.rows[0];
+      if(current.period_id===target.period_id)return {status:'already-current'};
+      if(Number(target.start_year)<Number(current.start_year) ||
+        (Number(target.start_year)===Number(current.start_year) && target.term==='First Semester' && current.term==='Second Semester'))return {status:'historical-target'};
+    }
     const unfinished = await client.query("SELECT COUNT(*)::int AS n FROM applications a JOIN program_openings o ON o.opening_id=a.opening_id WHERE o.period_id IS DISTINCT FROM $1 AND COALESCE(a.is_archived,false)=false AND LOWER(COALESCE(a.application_status,'')) IN ('pending review','requires reupload')", [target.period_id]);
     const openings = await client.query("SELECT COUNT(*)::int AS n FROM program_openings WHERE period_id IS DISTINCT FROM $1 AND COALESCE(is_archived,false)=false AND LOWER(COALESCE(posting_status,'')) IN ('draft','open')", [target.period_id]);
     if (unfinished.rows[0].n || openings.rows[0].n) {
@@ -56,7 +64,7 @@ async function tick() {
       await client.query('UPDATE academic_semester_schedules SET last_error=$2,last_attempt_at=NOW() WHERE period_id=$1', [target.period_id, detail]); return { status: 'blocked', reason: detail };
     }
     try {
-      const outcome = await academic.activateAcademicPeriod(target.period_id, null);
+      const outcome = await academic.activateAcademicPeriod(target.period_id,null,{scheduled:true});
       await client.query('UPDATE academic_semester_schedules SET last_error=NULL,last_attempt_at=NOW(),last_transition_at=NOW() WHERE period_id=$1', [target.period_id]);
       return { status: 'activated', period: outcome.period };
     } catch (e) { await client.query('UPDATE academic_semester_schedules SET last_error=$2,last_attempt_at=NOW() WHERE period_id=$1', [target.period_id, e.message]); return { status: 'failed', reason: e.message }; }

@@ -1045,10 +1045,8 @@ exports.activateAcademicYear = async (academicYearId) => {
     }
 };
 
-exports.activateAcademicPeriod = async (
-    periodId,
-    actorUserId = null
-) => {
+// SMARTPDM_SCHEDULE_BASED_ROLLOVER_V13: scheduled transitions may use an admin-approved academic-year calendar.
+exports.activateAcademicPeriod = async (periodId, actorUserId = null, options = {}) => {
     const client = await pool.connect();
 
     try {
@@ -1073,11 +1071,9 @@ exports.activateAcademicPeriod = async (
             );
         }
 
-        await assertCurrentAcademicYear(
-            client,
-            Number(period.start_year),
-            Number(period.end_year)
-        );
+        if (options.scheduled !== true) {
+            await assertCurrentAcademicYear(client, Number(period.start_year), Number(period.end_year));
+        }
 
         await client.query(
             `

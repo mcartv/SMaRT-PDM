@@ -19,7 +19,7 @@ import ScholarshipProgramsPanel from './ScholarshipProgramsPanel';
 import CoursesPanel from './CoursesPanel';
 import AuditPanel from './AuditPanel';
 import AcademicYearPanel from './AcademicYearPanel';
-import AccountsPanel from './AccountsPanel';
+import RBACPanel from './RBACPanel';
 import ThemePanel from './ThemePanel';
 import LandingThemePanel from './LandingThemePanel';
 import ROSettingsPanel from './ROSettingsPanel';
@@ -31,7 +31,7 @@ import {
 
 const TABS = [
   { key: 'general', label: 'General', icon: Settings },
-  { key: 'accounts', label: 'Accounts', icon: UsersRound },
+  { key: 'accounts', label: 'RBAC & Accounts', icon: UsersRound },
   { key: 'theme', label: 'Theme', icon: Palette },
   { key: 'scholarship-programs', label: 'Scholarship Programs', icon: GraduationCap },
   { key: 'academic-years', label: 'Academic Years', icon: CalendarRange },
@@ -86,7 +86,7 @@ export default function Maintenance() {
         return <GeneralPanel />;
 
       case 'accounts':
-        return <AccountsPanel />;
+        return <RBACPanel />;
 
       case 'theme':
         return (

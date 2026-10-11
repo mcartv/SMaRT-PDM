@@ -1651,7 +1651,7 @@ async function fetchScholarPage(source, query, removed = false) {
   };
   const result = await queryPage(db, { source, query, ...filters,
     order: `${sorts[query.sort] || sorts['Name A-Z']}, student_id ASC`,
-    facets: { programs: "coalesce(program_name, 'N/A')", years: 'academic_year', semesters: 'semester', statuses: 'status' },
+    facets: { programs: "coalesce(program_name, 'N/A')", courses: 'course_code', years: 'academic_year', semesters: 'semester', statuses: 'status' },
     summary: { total: 'count(*)', clear: "count(*) FILTER (WHERE sdo_status IS NULL OR sdo_status NOT IN ('Minor Offense', 'Major Offense'))",
       minor: "count(*) FILTER (WHERE sdo_status = 'Minor Offense')", major: "count(*) FILTER (WHERE sdo_status = 'Major Offense')" },
   });

@@ -76,8 +76,9 @@ test('RO compliance exposes the assigned PIC name in preview/export data', () =>
 
 test('all Excel reports use the clean institutional banner/title while preserving report-specific tables', () => {
   const service = read('admin/backend/services/reportService.js');
+  const template = read('admin/backend/services/reportWorksheetTemplate.js');
 
-  assert.match(service, /pdm-excel-header\.png/);
+  assert.match(template, /pdm-excel-header\.png/);
   assert.match(service, /APPLICATION REGISTRY REPORT/);
   assert.match(service, /FINANCIAL ASSISTANCE BENEFICIARIES/);
   assert.match(service, /PAYOUT BATCH REPORT/);
@@ -91,7 +92,7 @@ test('all Excel reports use the clean institutional banner/title while preservin
   assert.match(service, /filename = 'scholarship_renewal_report\.xlsx'/);
   assert.match(service, /filename = 'scholarship_slot_report\.xlsx'/);
   assert.match(service, /styleInstitutionalTable/);
-  assert.match(service, /ext:\s*\{\s*width:\s*662,\s*height:\s*140\s*\}/);
+  assert.match(template, /ext:\s*\{\s*width:\s*662,\s*height:\s*140\s*\}/);
   assert.match(service, /INSTITUTIONAL_EXCEL_COLUMN_MAX_WIDTHS/);
   assert.match(service, /state:\s*'normal'[\s\S]*showGridLines:\s*true[\s\S]*zoomScale:\s*85/);
   assert.match(service, /freezeRow:\s*0/);
@@ -141,11 +142,12 @@ test('date validation and responsive report UI safeguards remain present', () =>
 
 test('downloadable report layouts adapt column widths, wrapped row heights, and print scaling', () => {
   const service = read('admin/backend/services/reportService.js');
+  const template = read('admin/backend/services/reportWorksheetTemplate.js');
   const pdfService = read('admin/backend/services/benefactorReportPdfService.js');
 
   assert.match(service, /function applyAdaptiveWorksheetLayout/);
-  assert.match(service, /function visualTextWidth/);
-  assert.match(service, /function estimateWrappedLines/);
+  assert.match(template, /function visualTextWidth/);
+  assert.match(template, /function estimateWrappedLines/);
   assert.match(service, /column\.width = Math\.min\(maxWidth, Math\.max\(minWidth, bestWidth\)\)/);
   assert.match(service, /row\.height = Math\.max\(20, Math\.min\(409,/);
   assert.match(service, /fitToPage:\s*true/);

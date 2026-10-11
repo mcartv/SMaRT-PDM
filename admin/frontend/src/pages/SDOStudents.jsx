@@ -37,11 +37,11 @@ export default function SDOStudents() {
           <TabsList aria-label="Student record views" style={{ height: 'auto' }} className="w-full max-w-full flex-wrap gap-1 rounded-xl p-1 sm:w-auto">
             {views.map(item => <TabsTrigger key={item.value} value={item.value} style={{ minHeight: 40, height: 'auto' }} className="min-w-0 whitespace-normal rounded-lg px-3 py-2 text-center leading-snug">{item.label}</TabsTrigger>)}
           </TabsList>
-          <Button variant="outline" aria-expanded={filtersOpen} aria-controls={`${view}-filters`} onClick={() => setFiltersOpen(value => !value)} className="h-10 rounded-xl"><SlidersHorizontal className="size-4" />Filters</Button>
+          <Button variant="outline" aria-haspopup="dialog" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(true)} className="h-10 rounded-xl"><SlidersHorizontal className="size-4" />Filters</Button>
         </div>
       </div>
-      {hasPermission('students.view') && <TabsContent value="scholars" forceMount hidden={view !== 'scholars'}><SDOScholarList embedded onSummaryChange={setSummary} searchValue={view === 'scholars' ? search : ''} filtersOpen={filtersOpen && view === 'scholars'} /></TabsContent>}
-      {hasPermission('discipline.manage') && <TabsContent value="cases" forceMount hidden={view !== 'cases'}><SDODisciplinaryCases embedded search={view === 'cases' ? search : ''} filtersOpen={filtersOpen && view === 'cases'} /></TabsContent>}
+      {hasPermission('students.view') && <TabsContent value="scholars" forceMount hidden={view !== 'scholars'}><SDOScholarList embedded onSummaryChange={setSummary} searchValue={view === 'scholars' ? search : ''} filtersOpen={filtersOpen && view === 'scholars'} onFiltersOpenChange={setFiltersOpen} /></TabsContent>}
+      {hasPermission('discipline.manage') && <TabsContent value="cases" forceMount hidden={view !== 'cases'}><SDODisciplinaryCases embedded search={view === 'cases' ? search : ''} filtersOpen={filtersOpen && view === 'cases'} onFiltersOpenChange={setFiltersOpen} /></TabsContent>}
     </Tabs>
   </div>;
 }

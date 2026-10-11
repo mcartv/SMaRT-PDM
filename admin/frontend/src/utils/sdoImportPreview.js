@@ -1,8 +1,8 @@
-export function getImportPreviewPage(rows, { search = '', offense = 'all', status = 'all', page = 0, pageSize = 20 } = {}) {
+export function getImportPreviewPage(rows, { search = '', offense = 'all', course = 'all', status = 'all', page = 0, pageSize = 20 } = {}) {
   const query = search.trim().toLowerCase();
   const filtered = rows.filter(row => {
     const text = [row.student_number, row.first_name, row.middle_name, row.last_name, row.course_code, row.year_level].filter(Boolean).join(' ').toLowerCase();
-    return (!query || text.includes(query)) && (offense === 'all' || row.offense_type === offense) && (status === 'all' || row.status === status);
+    return (!query || text.includes(query)) && (offense === 'all' || row.offense_type === offense) && (course === 'all' || row.course_code?.toLowerCase() === course.toLowerCase()) && (status === 'all' || row.status === status);
   });
   const total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));

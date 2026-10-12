@@ -53,25 +53,7 @@ export default function RBACPanel(){
   const label = p => typeof formatPermissionLabel === 'function' ? formatPermissionLabel(p.permission_code) : p.permission_code;
   return label(a).localeCompare(label(b));
  }), [data?.permissions, grants]);
- // SMARTPDM_STAFF_ACCESS_GROUPED_V1
- // Account classifications are hidden in Staff Access, but remain intact in the database.
- const staffAccessRows = useMemo(() => {
-  const staffRoleIds = new Set((data?.roles || []).filter(r => r.role_scope === 'staff').map(r => r.role_id));
-  const byUser = new Map();
-  for (const assignment of (data?.assignments || [])) {
-   if (!staffRoleIds.has(assignment.role_id) || assignment.is_active !== true) continue;
-   const id = String(assignment.user_id || '');
-   if (!id) continue;
-   if (!byUser.has(id)) byUser.set(id, { user_id: id, username: assignment.username || '', roles: new Set() });
-   const entry = byUser.get(id);
-   if (!entry.username && assignment.username) entry.username = assignment.username;
-   const role = (data?.roles || []).find(r => r.role_id === assignment.role_id);
-   if (role && role.is_active !== false) entry.roles.add(role.role_code === 'admin' ? 'System Administrator' : role.role_name);
-  }
-  return [...byUser.values()].map(entry => ({ ...entry, roles: [...entry.roles].sort((a,b) => a.localeCompare(b)) }))
-   .filter(entry => entry.roles.length)
-   .sort((a,b) => (a.username || a.user_id).localeCompare(b.username || b.user_id));
- }, [data]);
+ // SMARTPDM_FIVE_PHASE_RBAC_V1: remove orphaned legacy Staff Access UI data.
  async function change(path,method,payload){if(!window.confirm('Apply this RBAC change? It may affect active permissions.'))return;setBusy(true);setError('');try{await request(path,{method,body:JSON.stringify(payload)});await reload()}catch(e){setError(e.message)}finally{setBusy(false)}}
  return <div className="space-y-4">
   <div className="rounded-2xl border border-stone-200 bg-white p-4">
@@ -90,7 +72,7 @@ export default function RBACPanel(){
     <div className="rounded-lg border border-stone-200 p-3 space-y-2"><h4 className="font-semibold text-sm">Portal access (database-configured)</h4><div className="flex flex-wrap gap-3">{['sdo','guidance','pd','ro_coordinator'].map(portal=><label key={portal} className="flex gap-2 text-xs items-center"><input type="checkbox" disabled={busy||selected?.role_code==='admin'||!selected?.is_active} checked={(capabilities?.portals||[]).some(x=>x.role_id===selected?.role_id&&x.portal_code===portal)} onChange={e=>change('/roles/'+selected.role_id+'/portals/'+portal,'PUT',{granted:e.target.checked})}/>{portal.replaceAll('_',' ')}</label>)}</div><h4 className="font-semibold text-sm">Role groups (database-configured)</h4><div className="flex flex-wrap gap-3">{(capabilities?.groups||[]).filter(g=>g.group_code!=='ADMIN_ONLY').map(g=><label key={g.group_id} className="flex gap-2 text-xs items-center"><input type="checkbox" disabled={busy||selected?.role_code==='admin'||!selected?.is_active} checked={(capabilities?.groupMembers||[]).some(x=>x.role_id===selected?.role_id&&x.group_id===g.group_id)} onChange={e=>change('/roles/'+selected.role_id+'/groups/'+g.group_id,'PUT',{granted:e.target.checked})}/>{g.group_code.replaceAll('_',' ')}</label>)}</div></div>
     <p className="text-xs font-medium text-[#704b35]">Granted permissions are listed first and highlighted in brown.</p>
     <div className="grid gap-2 sm:grid-cols-2">{sortedRolePermissions.map(p=><label key={p.permission_id} className={`flex items-center gap-2 rounded-lg border p-2 text-sm ${grants.has(p.permission_code) ? 'border-[#cfb19c] bg-[#f7f0e9]' : 'border-stone-200 bg-white'}`}><span className="relative flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden="true"><span className={`flex h-4 w-4 items-center justify-center rounded border ${grants.has(p.permission_code) ? 'border-[#704b35] bg-[#704b35]' : 'border-stone-400 bg-white'}`}>{grants.has(p.permission_code) ? <svg viewBox="0 0 16 16" className="h-3 w-3 text-white" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 8 3 3 7-7"/></svg> : null}</span></span><input type="checkbox" className="sr-only" checked={grants.has(p.permission_code)} disabled={busy||selected?.role_code==='admin'||!selected?.is_active} onChange={e=>change(`/roles/${selected.role_id}/permissions/${p.permission_id}`,'PUT',{granted:e.target.checked})}/><span title={p.description || p.permission_code}>{formatPermissionLabel(p.permission_code)}</span></label>)}</div>
-   </>:<><p className="text-sm text-stone-600">These are the roles currently linked to staff accounts. Manage staff details in Staff Accounts. Direct role changes are restricted to keep sign-in access consistent.</p><div className="overflow-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b"><th className="p-2">Username</th><th>Staff roles</th><th>Active</th></tr></thead><tbody>{staffAccessRows.map(a=><tr key={a.user_id} className="border-b"><td className="p-2"><span className="block font-semibold text-stone-800">{a.username || 'Username unavailable'}</span><span className="block break-all font-mono text-[10px] text-stone-400" title="Account ID">{a.user_id}</span></td><td>{a.roles.join(', ')}</td><td>Yes</td></tr>)}{staffAccessRows.length===0?<tr><td colSpan={3} className="p-4 text-center text-stone-500">No active staff role assignments found.</td></tr>:null}</tbody></table></div></>}
+   </>:null}
   </div>}
  </div>
 }

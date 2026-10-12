@@ -9,6 +9,7 @@ router.use(protect, authorizeRoles('admin'));
 const view = requirePermission('accounts.view');
 const manage = requirePermission('accounts.update');
 const safe = fn => async (req,res) => { try { await fn(req,res); } catch(e) { console.error('[RBAC Management]',e.message); res.status(e.code==='23505'?409:500).json({error:e.code==='23505'?'Duplicate record.':'RBAC operation failed.'}); } };
+const crypto = require('crypto');
 const coreCodes = ['admin','sdo','guidance','pd','ro_coordinator','student','benefactor'];
 const isUuid = x => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(x||''));
 router.get('/overview',view,safe(async(req,res)=>{
@@ -20,26 +21,38 @@ router.get('/overview',view,safe(async(req,res)=>{
   ]);
   res.set('Cache-Control','no-store');res.json({roles:roles.rows,permissions:permissions.rows,rolePermissions:links.rows,assignments:assignments.rows});
 }));
+// Role codes are internal identifiers; administrators only supply names.
 router.post('/roles',manage,safe(async(req,res)=>{
- const code=String(req.body?.role_code||'').trim().toLowerCase(),name=String(req.body?.role_name||'').trim();
- if(!/^custom_[a-z0-9_]{2,36}$/.test(code)||name.length<3||name.length>80)return res.status(400).json({error:'Use custom_ role code and a name between 3 and 80 characters.'});
- const r=await db.query(`INSERT INTO public.rbac_roles(role_code,role_name,role_scope,is_active) VALUES ($1,$2,'staff',true) RETURNING role_id,role_code,role_name,is_active`,[code,name]);res.status(201).json(r.rows[0]);
+ const name=String(req.body?.role_name||'').trim();
+ if(name.length<3||name.length>80)return res.status(400).json({error:'Role name must be 3–80 characters.'});
+ const code='custom_'+crypto.randomUUID().replace(/-/g,'').slice(0,24);
+ const r=await db.query(`INSERT INTO public.rbac_roles(role_code,role_name,role_scope,is_active) VALUES ($1,$2,'staff',true) RETURNING role_id,role_code,role_name,role_scope,is_active`,[code,name]);
+ res.status(201).json(r.rows[0]);
 }));
 router.patch('/roles/:id',manage,safe(async(req,res)=>{
  if(!isUuid(req.params.id))return res.status(400).json({error:'Invalid role ID'});
- const name=String(req.body?.role_name||'').trim();if(name.length<3||name.length>80)return res.status(400).json({error:'Name must be 3–80 characters.'});
- const r=await db.query(`UPDATE public.rbac_roles SET role_name=$2 WHERE role_id=$1 AND role_code LIKE 'custom_%' RETURNING role_id,role_name`,[req.params.id,name]);if(!r.rowCount)return res.status(403).json({error:'Core roles cannot be edited.'});res.json(r.rows[0]);
+ const name=String(req.body?.role_name||'').trim();
+ if(name.length<3||name.length>80)return res.status(400).json({error:'Name must be 3–80 characters.'});
+ const r=await db.query(`UPDATE public.rbac_roles SET role_name=$2 WHERE role_id=$1 AND role_code LIKE 'custom_%' RETURNING role_id,role_name`,[req.params.id,name]);
+ if(!r.rowCount)return res.status(403).json({error:'Only custom roles can be renamed; built-in role identifiers are reserved.'});
+ res.json(r.rows[0]);
 }));
 router.patch('/roles/:id/status',manage,safe(async(req,res)=>{
  if(!isUuid(req.params.id)||typeof req.body?.is_active!=='boolean')return res.status(400).json({error:'Invalid role/status.'});
- const r=await db.query(`UPDATE public.rbac_roles SET is_active=$2 WHERE role_id=$1 AND role_code LIKE 'custom_%' RETURNING role_id,is_active`,[req.params.id,req.body.is_active]);if(!r.rowCount)return res.status(403).json({error:'Core roles cannot be archived.'});res.json(r.rows[0]);
+ const r=await db.query(`UPDATE public.rbac_roles SET is_active=$2 WHERE role_id=$1 AND role_code LIKE 'custom_%' RETURNING role_id,is_active`,[req.params.id,req.body.is_active]);
+ if(!r.rowCount)return res.status(403).json({error:'Built-in roles cannot be archived.'});
+ res.json(r.rows[0]);
 }));
-// Core role permissions are intentionally read-only. Changing them while enforce is live can lock out staff.
+// Built-in operational roles support configurable grants. The administrator role
+// remains protected to prevent permanent loss of management access.
 router.put('/roles/:id/permissions/:permissionId',manage,safe(async(req,res)=>{
  if(!isUuid(req.params.id)||!isUuid(req.params.permissionId)||typeof req.body?.granted!=='boolean')return res.status(400).json({error:'Invalid permission change.'});
- const allowed=await db.query(`SELECT 1 FROM public.rbac_roles WHERE role_id=$1 AND role_code LIKE 'custom_%' AND is_active=true`,[req.params.id]);
- if(!allowed.rowCount)return res.status(403).json({error:'Core/inactive roles cannot be modified.'});
- const exists=await db.query('SELECT 1 FROM public.rbac_permissions WHERE permission_id=$1',[req.params.permissionId]);if(!exists.rowCount)return res.status(404).json({error:'Permission not found.'});
+ const role=await db.query('SELECT role_code,role_scope,is_active FROM public.rbac_roles WHERE role_id=$1',[req.params.id]);
+ if(!role.rowCount)return res.status(404).json({error:'Role not found.'});
+ const target=role.rows[0];
+ if(target.role_code==='admin'||target.role_scope!=='staff'||!target.is_active)return res.status(403).json({error:'Administrator, non-user, and inactive role grants are protected.'});
+ const exists=await db.query('SELECT 1 FROM public.rbac_permissions WHERE permission_id=$1',[req.params.permissionId]);
+ if(!exists.rowCount)return res.status(404).json({error:'Permission not found.'});
  if(req.body.granted)await db.query('INSERT INTO public.rbac_role_permissions(role_id,permission_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',[req.params.id,req.params.permissionId]);
  else await db.query('DELETE FROM public.rbac_role_permissions WHERE role_id=$1 AND permission_id=$2',[req.params.id,req.params.permissionId]);
  res.json({ok:true});

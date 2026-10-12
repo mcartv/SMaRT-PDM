@@ -14,7 +14,7 @@ const coreCodes = ['admin','sdo','guidance','pd','ro_coordinator','student','ben
 const isUuid = x => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(x||''));
 router.get('/overview',view,safe(async(req,res)=>{
   const [roles,permissions,links,assignments] = await Promise.all([
-    db.query('SELECT role_id,role_code,role_name,role_scope,is_active FROM public.rbac_roles ORDER BY role_scope,role_name'),
+    db.query("SELECT role_id,role_code,role_name,role_scope,is_active FROM public.rbac_roles WHERE role_code <> 'benefactor' ORDER BY role_scope,role_name"),
     db.query('SELECT permission_id,permission_code,description FROM public.rbac_permissions ORDER BY permission_code'),
     db.query('SELECT rp.role_id,p.permission_code FROM public.rbac_role_permissions rp JOIN public.rbac_permissions p ON p.permission_id=rp.permission_id ORDER BY p.permission_code'),
     db.query(`SELECT ur.user_id, u.username, ur.role_id, ur.is_active, r.role_name FROM public.rbac_user_roles ur JOIN public.rbac_roles r ON r.role_id=ur.role_id LEFT JOIN public.users u ON u.user_id=ur.user_id ORDER BY r.role_name, u.username NULLS LAST LIMIT 500`)

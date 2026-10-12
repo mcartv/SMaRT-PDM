@@ -42,8 +42,8 @@ export default function RBACPanel(){
  const request=useCallback(async(path,init={})=>{const res=await fetch(buildApiUrl('/api/rbac-management'+path),{...init,headers:{Authorization:`Bearer ${sessionStorage.getItem('adminToken')||''}`,'Content-Type':'application/json',...(init.headers||{})}});const body=await res.json().catch(()=>({}));if(!res.ok)throw new Error(body.error||`Request failed (${res.status})`);return body;},[]);
  const reload=useCallback(async()=>{setError('');try{const [overview,access]=await Promise.all([request('/overview'),request('/capabilities')]);setData(overview);setCapabilities(access)}catch(e){setError(e.message)}},[request]);
  useEffect(()=>{if(tab!=='accounts')reload()},[tab,reload]);
- const staffRoles=(data?.roles||[]).filter(r=>r.role_scope==='staff');
- const selected=staffRoles.find(r=>r.role_id===role)||staffRoles[0];
+ const userRoles=(data?.roles||[]).filter(r=>r.role_scope==='staff'&&r.role_code!=='benefactor');
+ const selected=userRoles.find(r=>r.role_id===role)||userRoles[0];
  const grants=useMemo(()=>new Set((data?.rolePermissions||[]).filter(x=>x.role_id===selected?.role_id).map(x=>x.permission_code)),[data,selected]);
  // Granted permissions appear first. Sorting is display-only; grants and codes are unchanged.
  const sortedRolePermissions = useMemo(() => [...(data?.permissions || [])].sort((a,b) => {
@@ -53,7 +53,7 @@ export default function RBACPanel(){
   const label = p => typeof formatPermissionLabel === 'function' ? formatPermissionLabel(p.permission_code) : p.permission_code;
   return label(a).localeCompare(label(b));
  }), [data?.permissions, grants]);
- // SMARTPDM_FIVE_PHASE_RBAC_V1: remove orphaned legacy Staff Access UI data.
+ // Account roles and permissions are managed here; user records remain under User Accounts.
  async function change(path,method,payload){if(!window.confirm('Apply this RBAC change? It may affect active permissions.'))return;setBusy(true);setError('');try{await request(path,{method,body:JSON.stringify(payload)});await reload()}catch(e){setError(e.message)}finally{setBusy(false)}}
  return <div className="space-y-4">
   <div className="rounded-2xl border border-stone-200 bg-white p-4">
@@ -65,7 +65,7 @@ export default function RBACPanel(){
    {error?<p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error} {error.includes('401') ? 'Please sign out and sign in again if your Admin session has expired.' : ''}</p>:null}
    {!data&&!error?<p className="text-sm text-stone-500">Loading...</p>:tab==='roles'?<>
     <div className="flex flex-wrap gap-2"><input className="min-w-64 flex-1 rounded-lg border p-2 text-sm" placeholder="New role name" value={name} onChange={e=>setName(e.target.value)}/><button disabled={busy||name.trim().length<3} onClick={async()=>{await change('/roles','POST',{role_name:name});setName('')}} className="rounded-lg bg-stone-800 px-3 py-2 text-sm text-white"><Plus size={14} className="inline"/> Add Role</button></div>
-    <div className="overflow-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b text-stone-500"><th className="p-2">Role</th><th>Scope</th><th>Status</th><th>Action</th></tr></thead><tbody>{data.roles.map(r=><tr key={r.role_id} className="border-b"><td className="p-2">{r.role_name}</td><td>{r.role_scope}</td><td>{r.is_active?'Active':'Archived'}</td><td>{r.role_code.startsWith('custom_')?<div className="flex gap-3"><button className="text-sm underline" disabled={busy} onClick={()=>{const value=window.prompt('Role name',r.role_name);if(value&&value.trim()!==r.role_name)change('/roles/'+r.role_id,'PATCH',{role_name:value.trim()})}}>Edit</button><button className="text-sm underline" disabled={busy} onClick={()=>change('/roles/'+r.role_id+'/status','PATCH',{is_active:!r.is_active})}>{r.is_active?'Archive':'Restore'}</button></div>:<span className="text-xs text-stone-500">Built-in</span>}</td></tr>)}</tbody></table></div>
+    <div className="overflow-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b text-stone-500"><th className="p-2">Role</th><th>Status</th><th>Action</th></tr></thead><tbody>{(data.roles||[]).filter(r=>r.role_scope==='staff'&&r.role_code!=='benefactor').map(r=><tr key={r.role_id} className="border-b"><td className="p-2">{r.role_name}</td><td><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${r.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{r.is_active ? 'Active' : 'Archived'}</span></td><td>{r.role_code.startsWith('custom_')?<div className="flex gap-3"><button className="text-sm underline" disabled={busy} onClick={()=>{const value=window.prompt('Role name',r.role_name);if(value&&value.trim()!==r.role_name)change('/roles/'+r.role_id,'PATCH',{role_name:value.trim()})}}>Edit</button><button className="text-sm underline" disabled={busy} onClick={()=>change('/roles/'+r.role_id+'/status','PATCH',{is_active:!r.is_active})}>{r.is_active?'Archive':'Restore'}</button></div>:<span className="text-xs text-stone-500">Built-in</span>}</td></tr>)}</tbody></table></div>
    </>:tab==='permissions'?<>
     <select value={selected?.role_id||''} onChange={e=>setRole(e.target.value)} className="max-w-md rounded-lg border p-2 text-sm">{staffRoles.map(r=><option key={r.role_id} value={r.role_id}>{r.role_name}</option>)}</select>
     <p className="text-xs text-stone-500">Operational user roles have configurable permissions. System Administrator permissions stay protected against lockout.</p>

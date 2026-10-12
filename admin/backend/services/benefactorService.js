@@ -167,6 +167,24 @@ async function updateBenefactor(benefactorId, payload = {}) {
         throw new Error(error.message);
     }
 
+    // Archiving a benefactor also archives every linked scholarship program.
+    // Do not automatically restore programs on unarchive: some may have been
+    // archived independently before the benefactor was archived.
+    if (data && updateData.is_archived === true) {
+        const { error: programError } = await supabase
+            .from('scholarship_programs')
+            .update({ is_archived: true })
+            .eq('benefactor_id', benefactorId)
+            .eq('is_archived', false);
+
+        if (programError) {
+            console.error('ARCHIVE LINKED SCHOLARSHIP PROGRAMS ERROR:', programError);
+            // Report the failure; a database transaction should eventually
+            // replace this two-operation workflow to guarantee atomicity.
+            throw new Error('Benefactor was archived, but linked programs could not be archived: ' + programError.message);
+        }
+    }
+
     return data ? mapBenefactorRow(data) : null;
 }
 

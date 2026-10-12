@@ -19,7 +19,7 @@ const PERMISSION_ACTIONS = Object.freeze({
   review_sdo: 'Review as Student Discipline Officer',
 });
 const PERMISSION_SUBJECTS = Object.freeze({
-  accounts: 'Staff Accounts', announcements: 'Announcements', applications: 'Applications',
+  accounts: 'User Accounts', announcements: 'Announcements', applications: 'Applications',
   audit: 'System Logs', courses: 'Courses', discipline: 'Discipline Records',
   documents: 'Documents', endorsements: 'Endorsements', payouts: 'Payouts',
   programs: 'Scholarship Programs', reports: 'Reports', ro: 'Community Service',
@@ -34,7 +34,7 @@ function formatPermissionLabel(code) {
   return verb + ' ' + noun;
 }
 
-const tabs=[['accounts','Staff Accounts'],['roles','Roles'],['permissions','Role Permissions'],['assignments','Staff Access']];
+const tabs=[['accounts','User Accounts'],['roles','Roles'],['permissions','Role Permissions']];
 export default function RBACPanel(){
  const [tab,setTab]=useState('accounts'),[data,setData]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[role,setRole]=useState(''),[code,setCode]=useState(''),[name,setName]=useState('');
  const token=sessionStorage.getItem('adminToken');
@@ -74,11 +74,11 @@ export default function RBACPanel(){
  async function change(path,method,payload){if(!window.confirm('Apply this RBAC change? It may affect active permissions.'))return;setBusy(true);setError('');try{await request(path,{method,body:JSON.stringify(payload)});await reload()}catch(e){setError(e.message)}finally{setBusy(false)}}
  return <div className="space-y-4">
   <div className="rounded-2xl border border-stone-200 bg-white p-4">
-   <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>RBAC &amp; Account Management</h2><p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>Manage staff accounts, review access grants, and maintain custom roles. Built-in roles are protected while enforcement is active.</p>
+   <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>RBAC &amp; Account Management</h2><p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>Manage user accounts, review access grants, and maintain custom roles. Built-in roles are protected while enforcement is active.</p>
    <div className="mt-4 flex flex-wrap gap-2">{tabs.map(([key,label])=><button key={key} onClick={()=>setTab(key)} className={`rounded-lg px-3 py-2 text-sm font-semibold ${tab===key?'text-white shadow-sm':'bg-stone-100 text-stone-600 hover:bg-stone-200'}`} style={tab===key?{background:'var(--portal-base)'}:{}}>{label}</button>)}</div>
   </div>
   {tab==='accounts'?<AccountsPanel/>:<div className="rounded-2xl border border-stone-200 bg-white p-4 space-y-4">
-   <div className="flex items-center justify-between gap-2"><div><h3 className={MAINTENANCE_CARD_TITLE_CLASS}>{tabs.find(x=>x[0]===tab)?.[1]}</h3><p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>Review staff roles and their access permissions</p></div><button onClick={reload} className="rounded-lg border border-stone-200 p-2" title="Refresh"><RefreshCw size={16}/></button></div>
+   <div className="flex items-center justify-between gap-2"><div><h3 className={MAINTENANCE_CARD_TITLE_CLASS}>{tabs.find(x=>x[0]===tab)?.[1]}</h3><p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>Review user roles and their access permissions</p></div><button onClick={reload} className="rounded-lg border border-stone-200 p-2" title="Refresh"><RefreshCw size={16}/></button></div>
    {error?<p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error} {error.includes('401') ? 'Please sign out and sign in again if your Admin session has expired.' : ''}</p>:null}
    {!data&&!error?<p className="text-sm text-stone-500">Loading...</p>:tab==='roles'?<>
     <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto]"><input className="rounded-lg border p-2 text-sm" placeholder="custom_role_code" value={code} onChange={e=>setCode(e.target.value)}/><input className="rounded-lg border p-2 text-sm" placeholder="New role name" value={name} onChange={e=>setName(e.target.value)}/><button disabled={busy} onClick={()=>change('/roles','POST',{role_code:code,role_name:name})} className="rounded-lg bg-stone-800 px-3 py-2 text-sm text-white"><Plus size={14} className="inline"/> Add Custom Role</button></div>

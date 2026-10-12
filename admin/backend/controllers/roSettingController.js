@@ -404,7 +404,23 @@ async function toggleDepartment(req, res) {
     }
 }
 
+
+async function getDepartmentCourses(req,res){
+ try {return res.json(await roSettingService.getDepartmentCourses());}
+ catch(error){return res.status(getSafeStatusCode(error)).json({error:error.message});}
+}
+async function setDepartmentCourses(req,res){
+ try {
+  const result=await roSettingService.setDepartmentCourses(req.params.departmentId,req.body?.course_ids);
+  emitRoSettingUpdate(req,{source:'ro_course_mapping',action:'update',department_id:req.params.departmentId});
+  await writeRoSettingAudit(req,'UPDATE_RO_COURSE_MAPPING','Updated eligible courses for Community Service area.','ro_area',req.params.departmentId,result,{course_ids:req.body?.course_ids});
+  return res.json(result);
+ }catch(error){return res.status(getSafeStatusCode(error)).json({error:error.message});}
+}
+
 module.exports = {
+    getDepartmentCourses,
+    setDepartmentCourses,
     getSettings,
     getActiveSetting,
     createSetting,

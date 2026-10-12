@@ -42,6 +42,11 @@ router.put(
     requirePermission('ro.settings_manage'), roSettingController.setDepartmentCoordinator
 );
 
+
+// Phase 2: dynamic course eligibility by Community Service area.
+router.get('/department-courses',adminOnly,requirePermission('ro.view'),roSettingController.getDepartmentCourses);
+router.put('/departments/:departmentId/courses',adminOnly,requirePermission('ro.settings_manage'),roSettingController.setDepartmentCourses);
+
 router.post('/', adminOnly, requirePermission('ro.settings_manage'), roSettingController.createSetting);
 router.patch('/:settingId', adminOnly, requirePermission('ro.settings_manage'), roSettingController.updateSetting);
 router.patch('/:settingId/activate', adminOnly, requirePermission('ro.settings_manage'), roSettingController.activateSetting);

@@ -181,6 +181,12 @@ function DepartmentModal({
 export default function ROSettingsPanel() {
     const [, setSettings] = useState([]);
     const [activeSetting, setActiveSetting] = useState(null);
+    const [courseCatalog,setCourseCatalog]=useState([]);
+    const [courseLinks,setCourseLinks]=useState([]);
+    const [courseSaving,setCourseSaving]=useState('');
+    const loadCourseLinks=async()=>{try{const r=await fetch(buildApiUrl('/api/ro-settings/department-courses'),{headers:getHeaders()});if(!r.ok)return;const d=await r.json();setCourseCatalog(d.courses||[]);setCourseLinks(d.mappings||[]);}catch(e){console.error('LOAD AREA COURSES',e)}};
+    useEffect(()=>{loadCourseLinks()},[]);
+    const saveCourseLinks=async(id,ids)=>{setCourseSaving(id);try{const r=await fetch(buildApiUrl('/api/ro-settings/departments/'+id+'/courses'),{method:'PUT',headers:getHeaders(),body:JSON.stringify({course_ids:ids})});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'Save failed');await loadCourseLinks();showAppToast('success','Eligible courses saved','Community Service mapping updated.');}catch(e){showAppToast('error','Cannot update eligible courses',e.message)}finally{setCourseSaving('')}};
     const [departments, setDepartments] = useState([]);
     const [coordinatorCandidates, setCoordinatorCandidates] = useState([]);
 
@@ -796,6 +802,15 @@ export default function ROSettingsPanel() {
                                         <p className="mt-1 truncate text-xs text-stone-400">
                                             Updated {formatDateTime(department.updated_at || department.created_at)}
                                         </p>
+                                        <div className="mt-2 rounded-lg border border-stone-200 p-2">
+                                            <label className="text-xs font-semibold text-stone-700">Eligible courses (Ctrl/Cmd + click to select multiple)</label>
+                                            <select multiple size={Math.min(5,Math.max(2,courseCatalog.length))} className="mt-1 w-full rounded border p-1 text-xs" disabled={!!courseSaving}
+                                                value={courseLinks.filter(m=>m.department_id===department.department_id).map(m=>m.course_id)}
+                                                onChange={e=>saveCourseLinks(department.department_id,Array.from(e.target.selectedOptions,x=>x.value))}>
+                                                {courseCatalog.map(c=><option key={c.course_id} value={c.course_id}>{c.course_code} — {c.course_name}</option>)}
+                                            </select>
+                                            <p className="text-[10px] text-stone-500">No selected courses = unrestricted (legacy behavior). Configure eligible courses to restrict an area.</p>
+                                        </div>
                                         <p className={`mt-1 truncate text-xs font-medium ${department.coordinator ? 'text-cyan-700' : 'text-amber-700'}`}>
                                             {department.coordinator
                                                 ? `Personnel-In-Charge: ${department.coordinator.name}`

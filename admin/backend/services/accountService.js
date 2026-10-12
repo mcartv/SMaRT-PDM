@@ -9,49 +9,20 @@ const pdCourseAssignmentService = require('./pdCourseAssignmentService');
 const adminSessionService = require('./adminSessionService');
 const { syncStaffReferences } = require('../utils/syncStaffReferences');
 
-const ROLE_CONFIG = {
-    admin: {
-        dbRole: 'Admin',
-        department: 'Office for Scholarship and Financial Assistance (OSFA)',
-        position: 'OSFA Coordinator',
-    },
-    pd: {
-        dbRole: 'Admin',
-        department: '',
-        position: 'Program Director',
-    },
-    guidance: {
-        dbRole: 'Admin',
-        department: 'Guidance and Counseling Office',
-        position: 'Guidance Counselor',
-    },
-    sdo: {
-        dbRole: 'SDO',
-        department: 'Student Welfare and Development Office',
-        position: 'Student Discipline Officer',
-    },
-    ro_coordinator: {
-        dbRole: 'Admin',
-        department: '',
-        position: 'RO Personnel-In-Charge',
-    },
-};
-
-const DEPARTMENTS_BY_ROLE = {
-    admin: ['Office for Scholarship and Financial Assistance (OSFA)'],
-    pd: [
-        'Office of the College of Hospitality and Tourism Management',
-        'Office of the College of Computer Studies',
-        'Office of the Program Head - Office Administration',
-        'Office of the Program Head - Teacher Education Program',
-    ],
-    guidance: ['Guidance and Counseling Office'],
-    sdo: ['Student Welfare and Development Office'],
-    ro_coordinator: [],
-};
-
-const ROLE_VALUES = Object.keys(ROLE_CONFIG);
-const OPERATIONAL_ROLE_VALUES = ['pd', 'guidance', 'sdo', 'ro_coordinator'];
+// SMARTPDM_DB_STAFF_CATALOG_V1: legacy codes remain for existing auth/portal compatibility.
+const ROLE_VALUES = ['admin', 'pd', 'guidance', 'sdo', 'ro_coordinator'];
+async function loadRoleConfig(role, client=db) {
+    const result=await client.query(`
+      SELECT c.db_user_role AS "dbRole",c.default_position AS position,
+        COALESCE((SELECT o.office_name FROM public.rbac_staff_role_offices x
+         JOIN public.ref_offices o ON o.office_id=x.office_id
+         WHERE x.app_role_code=c.app_role_code AND o.is_active=true ORDER BY o.office_name LIMIT 1),'') AS department
+      FROM public.rbac_staff_role_catalog c JOIN public.rbac_roles r ON r.role_id=c.role_id
+      WHERE c.app_role_code=$1 AND c.is_active=true AND r.is_active=true AND r.role_scope='staff'
+    `,[role]);
+    if(!result.rows.length)throw createHttpError(400,'Select an active staff role from Role Management.');
+    return result.rows[0];
+}
 
 const passwordSchema = z
     .string()
@@ -118,9 +89,7 @@ const staffAccountSchema = z
         username: usernameSchema,
         email: staffEmailSchema,
         phone_number: optionalPhoneNumberSchema,
-        role: z.enum(OPERATIONAL_ROLE_VALUES, {
-            error: 'Select Program Director, SDO, Guidance, or RO Personnel-In-Charge.',
-        }),
+        role: z.string().trim().min(1, 'Select an active staff role.'),
         department: z.string().trim().optional().default(''),
         password: passwordSchema,
         confirm_password: z.string(),
@@ -224,23 +193,21 @@ function validateOptionalPhoneNumber(value) {
 }
 
 // validateDepartment: validates validate department for the Accounts flow.
-function validateDepartment(role, value) {
-    const department = safeText(value);
-    const allowedDepartments = DEPARTMENTS_BY_ROLE[role] || [];
-
-    if (!department) {
-        throw createHttpError(400, 'Select a department or office.');
-    }
-
-    if (role === 'ro_coordinator') {
-        return department;
-    }
-
-    if (!allowedDepartments.includes(department)) {
-        throw createHttpError(400, 'The selected department or office is not valid for this role.');
-    }
-
-    return department;
+async function validateDepartment(role, value, client=db) {
+    const department=safeText(value);
+    if(!department)throw createHttpError(400,'Select a department or office.');
+    if(role==='ro_coordinator')return department; // validated against ro_departments below
+    const result=await client.query(`
+      SELECT o.office_name FROM public.rbac_staff_role_offices x
+      JOIN public.ref_offices o ON o.office_id=x.office_id
+      JOIN public.rbac_staff_role_catalog c ON c.app_role_code=x.app_role_code
+      JOIN public.rbac_roles r ON r.role_id=c.role_id
+      WHERE x.app_role_code=$1 AND o.office_name=$2 AND o.is_active=true
+        AND c.is_active=true AND r.is_active=true
+      LIMIT 1
+    `,[role,department]);
+    if(!result.rows.length)throw createHttpError(400,'Select an active office assigned to this staff role.');
+    return result.rows[0].office_name;
 }
 
 // validateRoCoordinatorDepartment: validates validate ro coordinator department for the Accounts flow.
@@ -628,13 +595,13 @@ async function createAccountFromParsedData(parsedData, rawPayload = {}, actorUse
         password,
     } = parsedData;
 
-    const config = ROLE_CONFIG[role];
+    const config = await loadRoleConfig(role);
     if (!config) {
         throw createHttpError(400, 'Invalid role selected.');
     }
 
     const phoneNumber = safeText(phoneNumberInput) || null;
-    let department = validateDepartment(role, rawPayload.department || parsedData.department || config.department);
+    let department = await validateDepartment(role, rawPayload.department || parsedData.department || config.department);
     const position = config.position;
     const passwordHash = await bcrypt.hash(password, 12);
 
@@ -776,7 +743,7 @@ async function createAdminAccount(payload, actorUserId = null) {
         throw createHttpError(400, firstIssue?.message || 'Invalid Admin account details.');
     }
 
-    const config = ROLE_CONFIG.admin;
+    const config = await loadRoleConfig('admin');
 
     return createAccountFromParsedData(
         {
@@ -835,9 +802,7 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             ? safeText(payload.role).toLowerCase()
             : currentRole;
 
-        if (!ROLE_CONFIG[nextRole]) {
-            throw createHttpError(400, 'Invalid role selected.');
-        }
+        const nextRoleConfig = await loadRoleConfig(nextRole, client);
 
         const crossesAdminBoundary =
             (currentRole === 'admin' && nextRole !== 'admin') ||
@@ -851,7 +816,7 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
         }
 
         const roleChanged = nextRole !== currentRole;
-        const config = ROLE_CONFIG[nextRole];
+        const config = nextRoleConfig;
 
         const firstName = payload.first_name !== undefined
             ? safeText(payload.first_name)
@@ -880,7 +845,7 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             : roleChanged
                 ? config.department
                 : safeText(current.department) || config.department;
-        let department = validateDepartment(nextRole, departmentInput);
+        let department = await validateDepartment(nextRole, departmentInput, client);
         if (nextRole === 'ro_coordinator') {
             department = await validateRoCoordinatorDepartment(department, client);
         }

@@ -45,21 +45,24 @@ router.patch('/staff/:id/archive', protect, authorizeRoles('admin'), requirePerm
 router.patch('/staff/:id/restore', protect, authorizeRoles('admin'), requirePermission('accounts.archive'), adminAccountMutationLimiter, accountController.restoreStaffAccount); // SMARTPDM_PHASE4_1_RESTORE_PERMISSION_V2
 
 
-// SMARTPDM_DYNAMIC_STAFF_CATALOG_V1: read-only live staff catalog. Keep legacy account role codes for auth compatibility.
-router.get('/staff-catalog', protect, authorizeRoles('admin'), requirePermission('accounts.view'), async (req,res) => {
-  try {
-    const db=require('../config/db');
-    const [roles,offices,positions]=await Promise.all([
-      db.query("SELECT role_code, role_name FROM public.rbac_roles WHERE role_scope='staff' AND is_active=true ORDER BY role_name"),
-      db.query("SELECT office_id,office_code,office_name FROM public.ref_offices WHERE is_active=true ORDER BY office_name"),
-      db.query("SELECT position_id,position_name FROM public.ref_staff_positions WHERE is_active=true ORDER BY position_name")
-    ]);
-    res.set('Cache-Control','no-store');
-    res.json({roles:roles.rows,offices:offices.rows,positions:positions.rows});
-  } catch(error) {
-    console.error('[Staff Catalog]',error.message);
-    res.status(503).json({error:'Staff catalog temporarily unavailable.'});
-  }
+// SMARTPDM_DB_STAFF_CATALOG_V1 — managed staff roles and permitted offices.
+router.get('/staff-catalog', protect, authorizeRoles('admin'), requirePermission('accounts.view'), async(req,res)=>{
+ try {
+  const db=require('../config/db');
+  const [roles,offices,positions]=await Promise.all([
+   db.query(`SELECT c.app_role_code AS value,r.role_name AS label,
+     c.default_position,c.db_user_role,c.is_active
+     FROM public.rbac_staff_role_catalog c JOIN public.rbac_roles r ON r.role_id=c.role_id
+     WHERE c.is_active=true AND r.is_active=true AND r.role_scope='staff' ORDER BY r.role_name`),
+   db.query(`SELECT x.app_role_code AS role,o.office_id,o.office_name,o.office_code
+     FROM public.rbac_staff_role_offices x JOIN public.ref_offices o ON o.office_id=x.office_id
+     JOIN public.rbac_staff_role_catalog c ON c.app_role_code=x.app_role_code
+     JOIN public.rbac_roles r ON r.role_id=c.role_id
+     WHERE o.is_active=true AND c.is_active=true AND r.is_active=true ORDER BY o.office_name`),
+   db.query('SELECT position_id,position_name FROM public.ref_staff_positions WHERE is_active=true ORDER BY position_name')
+  ]);
+  res.set('Cache-Control','no-store');res.json({roles:roles.rows,offices:offices.rows,positions:positions.rows});
+ }catch(error){console.error('[Staff Catalog]',error.message);res.status(503).json({error:'Staff catalog temporarily unavailable.'});}
 });
 
 module.exports = router;

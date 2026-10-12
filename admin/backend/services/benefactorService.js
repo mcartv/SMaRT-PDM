@@ -172,7 +172,7 @@ async function updateBenefactor(benefactorId, payload = {}) {
     // archived independently before the benefactor was archived.
     if (data && updateData.is_archived === true) {
         const { error: programError } = await supabase
-            .from('scholarship_programs')
+            .from('scholarship_program')
             .update({ is_archived: true })
             .eq('benefactor_id', benefactorId)
             .eq('is_archived', false);

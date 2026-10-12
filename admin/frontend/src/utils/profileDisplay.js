@@ -12,14 +12,14 @@ const PROFILE_DISPLAY = {
     organizationalUnit: 'Guidance and Counseling Office',
   },
   pd: { accountRole: 'Program Director' },
-  ro_coordinator: { accountRole: 'RO Personnel-In-Charge', position: 'RO Personnel-In-Charge' },
+  ro_coordinator: { accountRole: 'Community Service Personnel-In-Charge', position: 'RO Personnel-In-Charge' },
 };
 
 const SYSTEM_LABELS = {
   pending_sdo: 'Pending SDO',
   pending_guidance: 'Pending Guidance',
   pending_pd: 'Pending Program Director',
-  ro_coordinator: 'RO Personnel-In-Charge',
+  ro_coordinator: 'Community Service Personnel-In-Charge',
   sdo: 'SDO',
   pd: 'Program Director',
 };

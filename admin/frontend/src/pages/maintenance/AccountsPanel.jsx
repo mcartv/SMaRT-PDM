@@ -90,7 +90,7 @@ const ROLE_OPTIONS = [
     },
     {
         value: 'ro_coordinator',
-        label: 'RO Personnel-In-Charge',
+        label: 'Community Service Personnel-In-Charge',
         department: '',
     },
 ];
@@ -580,7 +580,7 @@ function validateCreateForm(form, roAreas = [], accounts = []) {
     }
 
     if (!OPERATIONAL_ROLE_OPTIONS.some((option) => option.value === form.role)) {
-        return 'Create Account is only for Program Director, Student Discipline Officer, Guidance Counselor, or RO Personnel-In-Charge.';
+        return 'Create Account is only for Program Director, Student Discipline Officer, Guidance Counselor, or Community Service Personnel-In-Charge.';
     }
     const departmentOptions = form.role === 'ro_coordinator'
         ? roAreas.filter((area) => area.is_active !== false).map((area) => area.department_name)

@@ -89,7 +89,7 @@ export default function ROCoordinatorDashboard() {
       setSummary(summaryPayload);
       setRequests(Array.isArray(queuePayload.items) ? queuePayload.items.slice(0, 5) : []);
     } catch (loadError) {
-      setError(loadError.message || 'Failed to load RO Personnel-In-Charge dashboard.');
+      setError(loadError.message || 'Failed to load Community Service Personnel-In-Charge dashboard.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -103,7 +103,7 @@ export default function ROCoordinatorDashboard() {
   useSocketEvent('ro:updated', () => loadDashboard({ soft: true }), [loadDashboard]);
 
   if (loading) {
-    return <PageLoadingSkeleton label="Loading RO Personnel-In-Charge dashboard" variant="dashboard" />;
+    return <PageLoadingSkeleton label="Loading Community Service Personnel-In-Charge dashboard" variant="dashboard" />;
   }
 
   return (
@@ -116,7 +116,7 @@ export default function ROCoordinatorDashboard() {
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/65">Assigned Community Service Area</p>
             <h1 className="mt-2 max-w-3xl text-2xl font-semibold md:text-3xl">
-              {summary.department || 'RO Personnel-In-Charge Dashboard'}
+              {summary.department || 'Community Service Personnel-In-Charge Dashboard'}
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-white/75">
               Review incoming Community Service requests before scholars begin their assigned work.
@@ -136,7 +136,7 @@ export default function ROCoordinatorDashboard() {
       <div className="grid gap-3 sm:grid-cols-3">
         <SummaryCard icon={FileClock} label="Attendance Validation" value={summary.pending_validation || 0} detail="Attendance records waiting for validation" theme={theme} />
         <SummaryCard icon={Clock3} label="Scholar Requests" value={summary.pending_ro_requests || 0} detail="Requests awaiting Admin action" theme={theme} />
-        <SummaryCard icon={UsersRound} label="Assigned Scholars" value={summary.assigned_scholars || 0} detail="Scholars assigned to your RO area" theme={theme} />
+        <SummaryCard icon={UsersRound} label="Assigned Scholars" value={summary.assigned_scholars || 0} detail="Scholars assigned to your Community Service area" theme={theme} />
       </div>
 
       <Card className="overflow-hidden rounded-[24px] border-stone-200 shadow-none">

@@ -745,7 +745,7 @@ function ObligationHistoryPanel({ studentId }) {
           throw new Error(
             payload?.error ||
             payload?.message ||
-            'Unable to load obligation history.'
+            'Unable to load Community Service history.'
           );
         }
 
@@ -756,7 +756,7 @@ function ObligationHistoryPanel({ studentId }) {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err?.message || 'Unable to load obligation history.');
+          setError(err?.message || 'Unable to load Community Service history.');
         }
       } finally {
         if (!cancelled) {
@@ -786,7 +786,7 @@ function ObligationHistoryPanel({ studentId }) {
           </div>
           <div className="min-w-0">
             <h4 className="text-sm font-semibold text-stone-800 sm:text-base">
-              Obligation History
+              Community Service History
             </h4>
             <p className="mt-1 text-xs leading-5 text-stone-500">
               Semester-by-semester Return of Obligation record

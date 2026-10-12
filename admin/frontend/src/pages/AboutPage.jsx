@@ -392,11 +392,11 @@ const systemBuildCards = [
   {
     chapter: 'We connected the participating PDM offices',
     title: 'Building the role-based web administration and monitoring platform',
-    body: 'The team translated the institutional workflow into role-appropriate web workspaces. OSFA, Student Discipline Officers, Guidance Counselors, Program Directors, and RO Personnel-In-Charge can perform their assigned responsibilities while working from synchronized scholarship records instead of recreating the same information in disconnected files.',
+    body: 'The team translated the institutional workflow into role-appropriate web workspaces. OSFA, Student Discipline Officers, Guidance Counselors, Program Directors, and Community Service Personnel-In-Charge can perform their assigned responsibilities while working from synchronized scholarship records instead of recreating the same information in disconnected files.',
     items: [
       'Role-based access to applications, documents, endorsements, scholars, reports, and maintenance functions',
       'Office-specific actions that preserve one application record and its review history',
-      'Centralized monitoring of renewals, payout schedules, obligations, and system activity',
+      'Centralized monitoring of renewals, payout schedules, Community Service, and system activity',
     ],
     icon: Route,
   },
@@ -407,7 +407,7 @@ const systemBuildCards = [
     items: [
       'Structured application forms, documentary requirements, deficiencies, and progress tracking',
       'Announcements, notifications, scholarship information, schedules, and account services',
-      'Renewal requirements, payout schedules, scholar responsibilities, obligations, and monitoring information',
+      'Renewal requirements, payout schedules, scholar responsibilities, Community Service, and monitoring information',
     ],
     icon: GraduationCap,
   },

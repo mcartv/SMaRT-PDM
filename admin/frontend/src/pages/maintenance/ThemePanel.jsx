@@ -18,7 +18,7 @@ const PORTAL_LABELS = {
   sdo: 'SDO',
   guidance: 'Guidance',
   pd: 'Program Director',
-  ro_coordinator: 'RO Personnel-In-Charge',
+  ro_coordinator: 'Community Service Personnel-In-Charge',
 };
 
 const PORTAL_HELPERS = {
@@ -26,7 +26,7 @@ const PORTAL_HELPERS = {
   sdo: 'Your signed-in SDO queue, dashboard, and reports',
   guidance: 'Your signed-in Guidance queue, dashboard, and reports',
   pd: 'Your signed-in PD queue, dashboard, and reports',
-  ro_coordinator: 'Your signed-in RO request queue and dashboard',
+  ro_coordinator: 'Your signed-in Community Service request queue and dashboard',
 };
 
 

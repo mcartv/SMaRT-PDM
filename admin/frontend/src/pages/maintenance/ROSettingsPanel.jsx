@@ -476,7 +476,7 @@ export default function ROSettingsPanel() {
                 throw new Error(data.error || 'Failed to save Community Service Area.');
             }
 
-            showAppToast('success', 'RO area saved', data.message || 'Community Service Area saved successfully.');
+            showAppToast('success', 'Community Service area saved', data.message || 'Community Service Area saved successfully.');
             closeDepartmentModal();
             await loadSettings();
         } catch (err) {
@@ -494,7 +494,7 @@ export default function ROSettingsPanel() {
             showAppToast(
                 'warning',
                 'Community Service Area cannot be deactivated',
-                `${department.coordinator.name || 'An RO personnel in charge'} is still assigned to ${department.department_name}. Remove or reassign that person before deactivating this Community Service Area.`
+                `${department.coordinator.name || 'An Community Service personnel in charge'} is still assigned to ${department.department_name}. Remove or reassign that person before deactivating this Community Service Area.`
             );
             return false;
         }
@@ -517,7 +517,7 @@ export default function ROSettingsPanel() {
                 throw new Error(data.error || 'Failed to update Community Service Area status.');
             }
 
-            showAppToast('success', 'RO area updated', data.message || 'Community Service Area status updated successfully.');
+            showAppToast('success', 'Community Service area updated', data.message || 'Community Service Area status updated successfully.');
             await loadSettings();
             return true;
         } catch (err) {
@@ -536,7 +536,7 @@ export default function ROSettingsPanel() {
             showAppToast(
                 'warning',
                 'Community Service Area cannot be deactivated',
-                `Remove or reassign ${department.coordinator.name || 'the RO personnel in charge'} before deactivating ${department.department_name}.`
+                `Remove or reassign ${department.coordinator.name || 'the Community Service personnel in charge'} before deactivating ${department.department_name}.`
             );
             return;
         }
@@ -694,7 +694,7 @@ export default function ROSettingsPanel() {
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
                             <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
-                                RO Areas
+                                Community Service Areas
                             </h2>
                             <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
                                 {currentCount} active · {inactiveCount} inactive

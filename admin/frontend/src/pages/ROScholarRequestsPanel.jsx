@@ -501,7 +501,7 @@ export default function ROScholarRequestsPanel({ token }) {
       ) : null}
 
       {loading ? (
-        <SectionLoadingSkeleton label="Loading RO scholar requests" rows={4} />
+        <SectionLoadingSkeleton label="Loading Community Service scholar requests" rows={4} />
       ) : items.length ? (
         <div className="grid gap-3 xl:grid-cols-2">
           {items.map((request) => {
@@ -517,7 +517,7 @@ export default function ROScholarRequestsPanel({ token }) {
                       {request.assigned_area}
                     </p>
                     <p className="mt-1 text-xs text-stone-400">
-                      {request.requested_by_name || 'RO Personnel-In-Charge'} - {formatDate(request.created_at, true)}
+                      {request.requested_by_name || 'Community Service Personnel-In-Charge'} - {formatDate(request.created_at, true)}
                     </p>
                   </div>
                   <span

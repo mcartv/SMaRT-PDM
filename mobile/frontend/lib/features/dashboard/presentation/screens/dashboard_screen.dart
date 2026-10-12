@@ -821,7 +821,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                           _scholarPrivilegeRemoved
                               ? 'Your previous scholarship history remains on file. Contact OSFA regarding eligibility or future applications.'
                               : _hasScholarAccess
-                              ? 'Monitor your status, requirements, payouts, obligations, and important OSFA notices in one place.'
+                              ? 'Monitor your status, requirements, payouts, Community Service, and important OSFA notices in one place.'
                               : 'Follow your application, complete requirements, and stay informed about important OSFA announcements.',
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(
@@ -929,7 +929,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
             title: 'Community Service',
             subtitle:
                 obligation?.previewText ??
-                'No new obligation update has been posted.',
+                'No new Community Service update has been posted.',
             isDark: _isDark,
             onTap: () {
               AppNavigator.goToTopLevel(context, AppRoutes.roAssignment);

@@ -679,7 +679,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                   const SizedBox(height: 4),
                                   Text(
                                     selectedPhoto == null
-                                        ? 'Take a live photo for attendance. The photo will include the date, time, assigned RO area, and location for verification.'
+                                        ? 'Take a live photo for attendance. The photo will include the date, time, assigned Community Service area, and location for verification.'
                                         : 'Attendance photo ready',
                                     style: TextStyle(
                                       fontSize: 12,
@@ -1116,7 +1116,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     if (_isSubmitting || _isConcernSheetOpen || item.hasConflict) {
       if (item.hasConflict) {
         _showSnack(
-          'A concern has already been submitted for this RO assignment.',
+          'A concern has already been submitted for this Community Service assignment.',
         );
       }
       return;
@@ -1191,7 +1191,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
       final choice = await showDialog<RoPlacement>(
         context: context,
         builder: (context) => SimpleDialog(
-          title: const Text('Select your RO area'),
+          title: const Text('Select your Community Service area'),
           children: approvedPlacements
               .map(
                 (placement) => SimpleDialogOption(
@@ -2861,7 +2861,7 @@ class _ObligationActionFooter extends StatelessWidget {
             const SizedBox(height: 9),
             Semantics(
               button: true,
-              label: 'Report a concern about this RO assignment',
+              label: 'Report a concern about this Community Service assignment',
               child: InkWell(
                 onTap: !isSubmitting && canReportConcern
                     ? onReportConcern

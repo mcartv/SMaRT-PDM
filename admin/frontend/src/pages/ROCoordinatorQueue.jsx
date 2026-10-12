@@ -78,7 +78,7 @@ function DecisionModal({ request, decision, loading, onClose, onConfirm, theme }
               {rejecting ? <RotateCcw className="h-5 w-5" /> : <Check className="h-5 w-5" />}
             </span>
             <div>
-              <h2 className="text-base font-semibold text-stone-900">{rejecting ? 'Return request to Admin' : 'Approve RO request'}</h2>
+              <h2 className="text-base font-semibold text-stone-900">{rejecting ? 'Return request to Admin' : 'Approve Community Service request'}</h2>
               <p className="mt-1 text-xs text-stone-500">
                 {request.first_name} {request.last_name} · {request.pdm_id}
               </p>
@@ -92,7 +92,7 @@ function DecisionModal({ request, decision, loading, onClose, onConfirm, theme }
           <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
             {rejecting
               ? 'Admin will receive your remarks and can correct or reassign this request. The scholar will not be notified.'
-              : 'The scholar and Admin will be notified, and this RO assignment will become active.'}
+              : 'The scholar and Admin will be notified, and this Community Service assignment will become active.'}
           </div>
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold text-stone-700">
@@ -352,11 +352,11 @@ export default function ROCoordinatorQueue({
         headers: authHeaders(tokenStorageKey),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.message || 'Failed to load RO requests.');
+      if (!response.ok) throw new Error(payload.message || 'Failed to load Community Service requests.');
       setDepartment(payload.department || '');
       setItems(Array.isArray(payload.items) ? payload.items : []);
     } catch (loadError) {
-      setError(loadError.message || 'Failed to load RO requests.');
+      setError(loadError.message || 'Failed to load Community Service requests.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -469,9 +469,9 @@ export default function ROCoordinatorQueue({
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message || 'Failed to save RO decision.');
       setDecisionState({ request: null, decision: '' });
-      toast.success(decision === 'approve' ? 'RO request approved' : 'RO request returned to Admin', {
+      toast.success(decision === 'approve' ? 'RO request approved' : 'Community Service request returned to Admin', {
         description: decision === 'approve'
-          ? 'The scholar can now begin the approved RO assignment.'
+          ? 'The scholar can now begin the approved Community Service assignment.'
           : 'Admin received your remarks for correction or reassignment.',
       });
       await loadRequests({ soft: true });
@@ -684,7 +684,7 @@ export default function ROCoordinatorQueue({
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--portal-fg-accent)' }}>Completion Validation</p>
           <h2 className="mt-1 text-xl font-semibold text-stone-900">Attendance Evidence</h2>
-          <p className="mt-1 text-sm text-stone-500">Validate the scholar's time-in and time-out evidence before OSFA can mark the obligation cleared.</p>
+          <p className="mt-1 text-sm text-stone-500">Validate the scholar's time-in and time-out evidence before OSFA can mark the Community Service cleared.</p>
         </div>
 
         {attendanceLoading ? (

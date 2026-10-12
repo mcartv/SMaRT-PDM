@@ -127,7 +127,7 @@ function RequestModal({ open, areas, loading, onClose, onSubmit, theme }) {
               onChange={(event) => setRoAreaId(event.target.value)}
               className="h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm outline-none"
             >
-              <option value="">Select an Community Service Area</option>
+              <option value="">Select a Community Service Area</option>
               {areas.map((area) => (
                 <option key={area.ro_area_id} value={area.ro_area_id}>
                   {area.department_name}
@@ -307,7 +307,7 @@ export default function ROCoordinatorScholarRequests({
             </AlertDialogMedia>
             <AlertDialogTitle>Cancel scholar request?</AlertDialogTitle>
             <AlertDialogDescription>
-              This withdraws the request for {pendingCancellation?.assigned_area || 'this RO area'}.
+              This withdraws the request for {pendingCancellation?.assigned_area || 'this Community Service area'}.
               Admin will no longer be able to assign scholars to it.
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -265,7 +265,7 @@ function getRoMetrics(scholar) {
     approvedDepartmentLogs.length > 0 &&
     pendingDepartmentLogs.length === 0;
   const clearanceBlockedReason = isCleared
-    ? 'This obligation is already cleared.'
+    ? 'This Community Service is already cleared.'
     : completedLogs.length === 0
       ? 'No completed attendance logs yet.'
       : pendingDepartmentLogs.length > 0
@@ -762,7 +762,7 @@ function AssignModal({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-stone-400">
-                RO Area
+                Community Service Area
               </span>
 
               <select
@@ -770,7 +770,7 @@ function AssignModal({
                 onChange={(e) => setAssignedArea(e.target.value)}
                 className="h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none focus:border-orange-800 focus:ring-2 focus:ring-orange-800/20"
               >
-                <option value="">Select an Community Service Area</option>
+                <option value="">Select a Community Service Area</option>
 
                 {assignedArea && !currentDepartmentExists ? (
                   <option value={assignedArea}>{assignedArea}</option>
@@ -783,7 +783,7 @@ function AssignModal({
                     disabled={!department.coordinator}
                   >
                     {department.department_name}
-                    {department.coordinator ? ` — ${department.coordinator.name}` : ' — No RO Personnel-In-Charge'}
+                    {department.coordinator ? ` — ${department.coordinator.name}` : ' — No Community Service Personnel-In-Charge'}
                   </option>
                 ))}
               </select>
@@ -902,7 +902,7 @@ function BatchAssignModal({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-stone-400">
-                RO Area
+                Community Service Area
               </span>
 
               <select
@@ -910,7 +910,7 @@ function BatchAssignModal({
                 onChange={(e) => setAssignedArea(e.target.value)}
                 className="h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none focus:border-orange-800 focus:ring-2 focus:ring-orange-800/20"
               >
-                <option value="">Select an Community Service Area</option>
+                <option value="">Select a Community Service Area</option>
 
                 {departments.map((department) => (
                   <option
@@ -919,7 +919,7 @@ function BatchAssignModal({
                     disabled={!department.coordinator}
                   >
                     {department.department_name}
-                    {department.coordinator ? ` — ${department.coordinator.name}` : ' — No RO Personnel-In-Charge'}
+                    {department.coordinator ? ` — ${department.coordinator.name}` : ' — No Community Service Personnel-In-Charge'}
                   </option>
                 ))}
               </select>
@@ -1339,7 +1339,7 @@ function RoDetailsModal({
             <div className="divide-y divide-stone-100">
             <div className="flex items-center justify-between gap-4 py-3">
               <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
-                RO Areas
+                Community Service Areas
               </p>
               <p className="text-sm font-semibold text-stone-900">
                 {placements.length || (hasAssignment ? 1 : 0)}
@@ -1395,7 +1395,7 @@ function RoDetailsModal({
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-semibold text-stone-900">
-                    RO Areas
+                    Community Service Areas
                   </p>
                   <p className="mt-1 text-xs text-stone-500">
                     Approved locations where service hours may be completed.
@@ -1778,7 +1778,7 @@ export default function ROAdmin() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        throw new Error(data.error || data.message || 'Failed to load RO scholars');
+        throw new Error(data.error || data.message || 'Failed to load Community Service scholars');
       }
 
       if (requestSequence !== scholarRequestSequenceRef.current) return;
@@ -1819,7 +1819,7 @@ export default function ROAdmin() {
     } catch (err) {
       if (requestSequence !== scholarRequestSequenceRef.current) return;
       console.error('LOAD RO SCHOLARS ERROR:', err);
-      setError(err.message || 'Failed to load RO scholars');
+      setError(err.message || 'Failed to load Community Service scholars');
       setScholars([]);
       setPagination({
         page: 1,
@@ -2721,7 +2721,7 @@ export default function ROAdmin() {
               disabled={filterLoading || !pagination.hasPrevious}
               onClick={() => setActivePage(currentPage - 1)}
               className="h-8 w-8 rounded-full border-stone-200 text-stone-600 disabled:opacity-50"
-              aria-label="Previous RO scholars page"
+              aria-label="Previous Community Service scholars page"
             >
               <ChevronLeft className="h-3.5 w-3.5" />
             </Button>
@@ -2737,7 +2737,7 @@ export default function ROAdmin() {
               disabled={filterLoading || !pagination.hasNext}
               onClick={() => setActivePage(currentPage + 1)}
               className="h-8 w-8 rounded-full border-stone-200 text-stone-600 disabled:opacity-50"
-              aria-label="Next RO scholars page"
+              aria-label="Next Community Service scholars page"
             >
               <ChevronRight className="h-3.5 w-3.5" />
             </Button>

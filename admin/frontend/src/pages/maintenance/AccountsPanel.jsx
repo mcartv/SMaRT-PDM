@@ -735,7 +735,7 @@ function AccountCreateModal({
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
                     <div>
                         <h3 className="text-sm font-semibold text-stone-800">
-                            Create Account
+                            Create Staff Account
                         </h3>
                         <p className="mt-0.5 text-xs text-stone-500">
                             Create a Program Director, Student Discipline Officer, Guidance Counselor, or RO Personnel-In-Charge account.
@@ -951,7 +951,7 @@ function AdminCreateModal({
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
                     <div>
                         <h3 className="text-sm font-semibold text-stone-800">
-                            Create Admin Account
+                            Create OSFA Admin Account
                         </h3>
                         <p className="mt-0.5 text-xs text-stone-500">
                             Creates a high-privilege OSFA Coordinator account.
@@ -2159,7 +2159,7 @@ export default function AccountsPanel() {
                                     className="h-8 rounded-lg border-amber-200 bg-amber-50 px-3 text-xs font-semibold text-amber-800 hover:-translate-y-px hover:border-amber-300 hover:bg-amber-100 hover:text-amber-900 hover:shadow-sm"
                                 >
                                     <Plus className="mr-1.5 h-3.5 w-3.5" />
-                                    Create Admin Account
+                                    Create OSFA Account
                                 </Button>
 
                                 <Button
@@ -2169,7 +2169,7 @@ export default function AccountsPanel() {
                                     style={{ background: C.brownMid }}
                                 >
                                     <Plus className="mr-1.5 h-3.5 w-3.5" />
-                                    Create Account
+                                    Create Staff Account
                                 </Button>
                             </div>
                         </div>

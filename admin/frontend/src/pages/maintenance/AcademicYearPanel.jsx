@@ -369,6 +369,11 @@ function AcademicYearModal({
 export default function AcademicYearPanel() {
     const [years, setYears] = useState([]);
     const [periods, setPeriods] = useState([]);
+    // SMARTPDM_READONLY_DRYRUN_V1
+    const [dryDate,setDryDate]=useState('2026-12-29');
+    const [dryBusy,setDryBusy]=useState(false);
+    const [dryResult,setDryResult]=useState(null);
+    const runDry=async()=>{setDryBusy(true);setDryResult(null);try {const r=await fetch(buildApiUrl('/api/academic-years/auto-schedule/dry-run?date='+encodeURIComponent(dryDate)),{headers:authHeaders()});const data=await r.json().catch(()=>({}));if(!r.ok)throw Error(data.error||'Dry-run failed');setDryResult(data);}catch(e){setDryResult({status:'error',reason:e.message});}finally{setDryBusy(false);}};
     // SMARTPDM_SEMESTER_AUTO_V1
     const [autoSchedules,setAutoSchedules]=useState([]);
     const [autoSaving,setAutoSaving]=useState(false);
@@ -1065,7 +1070,13 @@ export default function AcademicYearPanel() {
                 onSave={saveYear}
             />
 
-                        {/* SMARTPDM_SEMESTER_AUTO_V1 — additive card; original Academic Years layout preserved. */}
+                        {/* SMARTPDM_READONLY_DRYRUN_V1 */}
+            <section className="rounded-xl border border-stone-200 bg-white p-3.5 space-y-3">
+              <div><h2 className={MAINTENANCE_CARD_TITLE_CLASS}>Test Semester Automation (Read Only)</h2><p className="text-xs text-stone-500">Simulate a Manila calendar date using current database schedules. This does not activate a semester or write Renewal/RO records. Enable automatic transitions on a schedule to make it eligible.</p></div>
+              <div className="flex flex-wrap items-end gap-2"><label className="text-xs text-stone-600">Simulated date<input type="date" className="mt-1 block rounded-lg border border-stone-200 p-2 text-sm" value={dryDate} onChange={e=>{setDryDate(e.target.value);setDryResult(null)}} /></label><Button onClick={runDry} disabled={!dryDate||dryBusy}>{dryBusy?'Checking...':'Test Automation'}</Button></div>
+              {dryResult && <div className="rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm" role="status"><p className="font-semibold">Status: {dryResult.status}</p><p className="mt-1">{dryResult.reason}</p>{dryResult.target&&<p className="mt-1">{dryResult.target.term} · AY {dryResult.target.academic_year}</p>}{dryResult.blockers&&<p className="mt-1">Unfinished applications: {dryResult.blockers.unfinished_applications}; Open/draft openings: {dryResult.blockers.open_or_draft_openings}</p>}<p className="mt-1 text-xs text-stone-500">Read-only preview. No database writes.</p></div>}
+            </section>
+            {/* SMARTPDM_SEMESTER_AUTO_V1 — additive card; original Academic Years layout preserved. */}
             <section className="rounded-xl border border-stone-200 bg-white p-3.5 space-y-3">
                 <div><h2 className={MAINTENANCE_CARD_TITLE_CLASS}>Automatic Semester Schedule</h2><p className="text-xs text-stone-500">Asia/Manila dates. Transitions run only after safety checks; outstanding applications or openings block automation.</p></div>
                 <select className="rounded-lg border border-stone-200 p-2 text-sm" value={autoYear} onChange={e=>{const id=e.target.value;setAutoYear(id);const year=years.find(y=>String(y.academic_year_id)===id);const byTerm=t=>autoSchedules.find(x=>String(x.academic_year_label)===(year?.label||year?.start_year+'-'+year?.end_year)&&x.term===t);const first=byTerm('First Semester'),second=byTerm('Second Semester');setAutoEnabled(first?.auto_enabled===true&&second?.auto_enabled===true);setAutoWindows({first:[first?.start_date||'',first?.end_date||''],second:[second?.start_date||'',second?.end_date||'']})}}><option value="">Select academic year</option>{years.filter(y=>!y.is_archived).map(y=><option key={y.academic_year_id} value={y.academic_year_id}>{y.label||y.start_year+'-'+y.end_year}</option>)}</select>

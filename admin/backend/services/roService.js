@@ -1,3 +1,4 @@
+const roCourseEligibilityService = require('./roCourseEligibilityService');
 // SMaRT-PDM: Return of Obligations — ro Service (admin backend service); contains business logic and data operations.
 const supabase = require('../config/supabase');
 const db = require('../config/db');
@@ -2266,6 +2267,7 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
     const assignedDepartment = scholarRequest
         ? await resolveAssignedDepartment(scholarRequest.assigned_area)
         : await resolveAssignedDepartment(payload.assignedArea || payload.assigned_area);
+    await roCourseEligibilityService.assertEligible({ studentId, departmentId: assignedDepartment.department_id, client });
     const assignedDepartmentName = assignedDepartment.department_name;
     const coordinator = scholarRequest
         ? {

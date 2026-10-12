@@ -393,7 +393,7 @@ export default function AcademicYearPanel() {
         end_year: '',
         start_date: '',
         end_date: '',
-        is_active: false, semesters:{first:['',''],second:['','']}, auto_enabled:false, });
+        is_active: false,  });
     const [currentAcademicWindow, setCurrentAcademicWindow] =
         useState(null);
 
@@ -571,7 +571,7 @@ export default function AcademicYearPanel() {
             start_date: '',
             end_date: '',
             is_active: false,
-            semesters:{first:['',''],second:['','']}, auto_enabled:false,
+            
         });
     };
 
@@ -595,7 +595,7 @@ export default function AcademicYearPanel() {
             start_date: '',
             end_date: '',
             is_active: !activeYear,
-            semesters:{first:['',''],second:['','']}, auto_enabled:false,
+            
         });
         setModalOpen(true);
     };

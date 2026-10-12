@@ -241,7 +241,7 @@ class AppNotification {
   }
 
   String get badgeLabel {
-    if (isRoNotification) return 'RO ASSIGNMENT';
+    if (isRoNotification) return 'COMMUNITY SERVICE ASSIGNMENT';
 
     if (isPayoutNotification) {
       if (normalizedType.contains('scheduled')) return 'PAYOUT SCHEDULED';

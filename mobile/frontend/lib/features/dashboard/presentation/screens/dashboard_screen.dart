@@ -1277,7 +1277,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                     icon: Icons.bolt_outlined,
                     title: 'Scholar Updates',
                     subtitle:
-                        'Your latest renewal, obligation, and payout updates.',
+                        'Your latest renewal, Community Service, and payout updates.',
                     isDark: _isDark,
                   ),
                   const SizedBox(height: 10),

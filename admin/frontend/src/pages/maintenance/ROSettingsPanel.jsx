@@ -121,7 +121,7 @@ function DepartmentModal({
             >
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
                     <h3 className="text-sm font-semibold text-stone-800">
-                        {isEdit ? 'Edit RO Area' : 'Add Community Service Area'}
+                        {isEdit ? 'Edit Community Service Area' : 'Add Community Service Area'}
                     </h3>
 
                     <button
@@ -603,7 +603,7 @@ export default function ROSettingsPanel() {
                                 {departmentActionId === deactivationTarget.department_id && (
                                     <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                                 )}
-                                Deactivate RO Area
+                                Deactivate Community Service Area
                             </Button>
                         </AlertDialogFooter>
                     </AlertDialogContent>
@@ -769,7 +769,7 @@ export default function ROSettingsPanel() {
                         <Building2 size={42} className="mb-4 opacity-50" />
                         <p className="text-sm font-medium">No Community Service Areas found</p>
                         <p className="mt-1 text-xs">
-                            Add a department, office, or faculty area that can receive RO requests.
+                            Add a department, office, or faculty area that can receive Community Service requests.
                         </p>
                     </div>
                 ) : (

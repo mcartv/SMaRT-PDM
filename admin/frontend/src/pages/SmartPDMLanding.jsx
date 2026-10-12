@@ -607,7 +607,7 @@ function ScholarshipProcessModal({ steps, theme, onClose, obligationsOnly = fals
             </span>
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/60">{obligationsOnly ? 'Active Scholar Guide' : 'Applicant to Scholar'}</p>
-              <h2 id="process-modal-title" className="mt-1 text-xl font-bold md:text-2xl">{obligationsOnly ? 'Scholar obligations' : 'Complete scholarship process'}</h2>
+              <h2 id="process-modal-title" className="mt-1 text-xl font-bold md:text-2xl">{obligationsOnly ? 'Scholar Community Service responsibilities' : 'Complete scholarship process'}</h2>
             </div>
           </div>
           <button type="button" onClick={onClose} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white transition hover:bg-white/20" aria-label="Close scholarship process">
@@ -1428,7 +1428,7 @@ export default function SmartPDMLanding() {
                   'Apply using your official PDM Student ID',
                   'Track application and requirement progress',
                   'Receive official scholarship updates',
-                  'Manage scholar documents and obligations',
+                  'Manage scholar documents and Community Service responsibilities',
                 ].map((item) => (
                   <div key={item} className="flex items-start gap-2.5">
                     <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full" style={{ background: theme.accent, color: theme.dark }}>

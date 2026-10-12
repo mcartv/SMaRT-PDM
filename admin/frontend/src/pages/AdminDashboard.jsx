@@ -812,7 +812,7 @@ export default function AdminDashboard() {
         key: 'ro_attention',
         label: 'RO Community Service',
         value: 0,
-        sub: 'Active obligations or logs requiring attention',
+        sub: 'Active Community Service records or logs requiring attention',
         path: '/admin/obligations',
       },
       {

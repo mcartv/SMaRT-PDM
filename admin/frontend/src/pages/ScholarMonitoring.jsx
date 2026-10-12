@@ -789,7 +789,7 @@ function ObligationHistoryPanel({ studentId }) {
               Community Service History
             </h4>
             <p className="mt-1 text-xs leading-5 text-stone-500">
-              Semester-by-semester Return of Obligation record
+              Semester-by-semester Community Service record
             </p>
           </div>
         </div>
@@ -806,7 +806,7 @@ function ObligationHistoryPanel({ studentId }) {
         {loading ? (
           <div className="flex min-h-[120px] items-center justify-center gap-2 text-sm text-stone-500">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Loading obligation history...
+            Loading Community Service history...
           </div>
         ) : error ? (
           <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -816,7 +816,7 @@ function ObligationHistoryPanel({ studentId }) {
           <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50 px-4 py-6 text-center">
             <History className="mx-auto mb-2 h-5 w-5 text-stone-300" />
             <p className="text-sm font-medium text-stone-500">
-              No obligation cycle has been recorded yet.
+              No Community Service cycle has been recorded yet.
             </p>
           </div>
         ) : (

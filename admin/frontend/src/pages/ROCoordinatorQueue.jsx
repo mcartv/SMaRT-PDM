@@ -469,7 +469,7 @@ export default function ROCoordinatorQueue({
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message || 'Failed to save RO decision.');
       setDecisionState({ request: null, decision: '' });
-      toast.success(decision === 'approve' ? 'RO request approved' : 'Community Service request returned to Admin', {
+      toast.success(decision === 'approve' ? 'Community Service request approved' : 'Community Service request returned to Admin', {
         description: decision === 'approve'
           ? 'The scholar can now begin the approved Community Service assignment.'
           : 'Admin received your remarks for correction or reassignment.',

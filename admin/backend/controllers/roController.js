@@ -122,7 +122,7 @@ exports.getROScholars = async (req, res) => {
     const data = await roService.getROScholars(req.query);
     return res.status(200).json({ scholars: data });
   } catch (err) {
-    console.error('GET RO SCHOLARS ERROR:', err.message);
+    console.error('GET SERVICE SCHOLARS ERROR:', err.message);
     return res.status(getSafeStatusCode(err)).json({ error: err.message });
   }
 };
@@ -132,7 +132,7 @@ exports.getScholarRequests = async (req, res) => {
     const data = await roService.getScholarRequests(req.query || {});
     return res.status(200).json(data);
   } catch (err) {
-    console.error('GET RO SCHOLAR REQUESTS ERROR:', err.message);
+    console.error('GET SERVICE SCHOLAR REQUESTS ERROR:', err.message);
     return res.status(getSafeStatusCode(err)).json({ error: err.message });
   }
 };

@@ -727,7 +727,7 @@ function AssignModal({
       <Card className="relative w-full max-w-xl overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-5 py-4">
           <h3 className="text-sm font-semibold text-stone-900">
-            {hasAssignment ? 'Add RO Area' : 'Send Community Service Request'}
+            {hasAssignment ? 'Add Community Service Area' : 'Send Community Service Request'}
           </h3>
 
           <button
@@ -1523,7 +1523,7 @@ function RoDetailsModal({
             className="h-9 rounded-xl border-stone-200 px-4 text-xs font-medium"
           >
             <Send className="mr-2 h-3.5 w-3.5" />
-            {hasAssignment ? 'Add RO Area' : 'Assign Community Service Area'}
+            {hasAssignment ? 'Add Community Service Area' : 'Assign Community Service Area'}
           </Button>
 
           {hasAssignment && !isCleared ? (
@@ -1818,7 +1818,7 @@ export default function ROAdmin() {
       // or pagination refreshes.
     } catch (err) {
       if (requestSequence !== scholarRequestSequenceRef.current) return;
-      console.error('LOAD RO SCHOLARS ERROR:', err);
+      console.error('LOAD SERVICE SCHOLARS ERROR:', err);
       setError(err.message || 'Failed to load Community Service scholars');
       setScholars([]);
       setPagination({
@@ -2499,7 +2499,7 @@ export default function ROAdmin() {
         <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>
-            Set and activate the required hours in Maintenance &gt; Obligation before sending RO requests.
+            Set and activate the required hours in Maintenance &gt; Community Service before sending Community Service requests.
           </span>
         </div>
       ) : null}

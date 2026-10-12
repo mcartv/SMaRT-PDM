@@ -106,7 +106,7 @@ function RequestModal({ open, areas, loading, onClose, onSubmit, theme }) {
           <div>
             <h2 className="text-base font-semibold text-stone-900">Request Scholars</h2>
             <p className="mt-1 text-xs text-stone-500">
-              Tell Admin how many scholars your RO Area currently needs.
+              Tell Admin how many scholars your Community Service Area currently needs.
             </p>
           </div>
           <button
@@ -517,7 +517,7 @@ export default function ROCoordinatorScholarRequests({
           <Users className="mx-auto h-9 w-9 text-stone-300" />
           <p className="mt-3 text-sm font-semibold text-stone-800">No scholar requests yet</p>
           <p className="mt-1 text-xs text-stone-500">
-            Create one when your RO Area needs scholar assistance.
+            Create one when your Community Service Area needs scholar assistance.
           </p>
         </div>
       )}

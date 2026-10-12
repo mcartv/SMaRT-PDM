@@ -45,7 +45,7 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
     'Must pass all subjects and maintain a general weighted average of at least 2.00 (preferably 1.00-1.99);',
     'Must submit copy of registration form for recording and monitoring purposes;',
     'Must submit copy of grades or any valid proof of grades obtained in the previous semester for renewal of grant;',
-    'Must agree to render not less than ten (10) hours per semester of “return obligation” (RO) to PDM as student assistant;',
+    'Must agree to render not less than ten (10) hours per semester of “Community Service” to PDM as student assistant;',
     'Must render the RO within the semester. If not, inform the coordinator as soon as possible;',
     'Must possess Good Moral Character and Right Conduct. Be honest, courteous and polite especially to the faculty and school personnel;',
     'Must finish the course within the prescribed curriculum period;',

@@ -334,7 +334,7 @@ function DepartmentField({
                 </p>
             ) : role === 'ro_coordinator' ? (
                 <p className="mt-1 text-[11px] text-stone-500">
-                    Select an active RO Area managed in Maintenance &gt; Obligation.
+                    Select an active Community Service Area managed in Maintenance &gt; Community Service.
                 </p>
             ) : null}
         </div>

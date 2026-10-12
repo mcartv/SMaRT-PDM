@@ -1,13 +1,10 @@
 // SMaRT-PDM: rbac Middleware — rbac Middleware (admin backend middleware); validates or transforms requests before controller handling.
 // SMARTPDM_PHASE3_RBAC_AUDIT_V1
 const rbacService = require('../services/rbacService');
-const ROLE_GROUPS = Object.freeze({
-  ALL_STAFF: Object.freeze(['admin', 'sdo', 'guidance', 'pd', 'ro_coordinator']),
-  ENDORSEMENT_STAFF: Object.freeze(['admin', 'sdo', 'guidance', 'pd']),
-  REPORT_STAFF: Object.freeze(['admin', 'sdo', 'guidance', 'pd', 'ro_coordinator']),
-  RO_COORDINATOR_CAPABLE: Object.freeze(['sdo', 'guidance', 'pd', 'ro_coordinator']),
-  ADMIN_ONLY: Object.freeze(['admin']),
-});
+const db = require('../config/db');
+// Named capability groups are configured in rbac_role_groups/
+// rbac_role_group_members; no JavaScript membership arrays.
+const ROLE_GROUPS = Object.freeze({});
 
 // normalizeRole: normalizes normalize role for the rbac Middleware flow.
 function normalizeRole(value) {
@@ -16,18 +13,19 @@ function normalizeRole(value) {
 
 // authorizeRoleGroup: handles authorize role group for the rbac Middleware flow.
 function authorizeRoleGroup(groupName) {
-  const allowed = ROLE_GROUPS[groupName];
-  if (!allowed) throw new Error(`Unknown RBAC role group: ${groupName}`);
-
-  return (req, res, next) => {
-    const role = normalizeRole(req.user?.role);
-    if (!role || !allowed.includes(role)) {
-      return res.status(403).json({
-        code: 'RBAC_ACCESS_DENIED',
-        message: 'Access denied for this account.',
-      });
-    }
-    return next();
+  return async (req,res,next)=>{
+    const userId=req.user?.user_id||req.user?.userId||req.user?.sub;
+    if(!userId)return res.status(401).json({message:'Authentication required'});
+    try {
+      const result=await db.query(`SELECT 1 FROM public.rbac_user_roles ur
+        JOIN public.rbac_roles r ON r.role_id=ur.role_id
+        JOIN public.rbac_role_group_members m ON m.role_id=r.role_id
+        JOIN public.rbac_role_groups g ON g.group_id=m.group_id
+        WHERE ur.user_id=$1 AND ur.is_active=TRUE AND r.is_active=TRUE
+        AND g.group_code=$2 LIMIT 1`,[userId,groupName]);
+      if(result.rowCount)return next();
+      return res.status(403).json({code:'RBAC_ACCESS_DENIED',message:'Access denied'});
+    }catch(err){console.error('[RBAC group lookup]',err.message);return res.status(503).json({code:'RBAC_UNAVAILABLE',message:'Authorization unavailable'});}
   };
 }
 

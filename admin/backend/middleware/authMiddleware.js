@@ -104,20 +104,33 @@ const protect = async (req, res, next) => {
 };
 
 // authorizeRoles: handles authorize roles for the Authentication flow.
-const authorizeRoles = (...roles) => (req, res, next) => {
-    const userRole = String(req.user?.role || '').trim().toLowerCase();
-
-    const allowedRoles = roles.map((role) =>
-        String(role || '').trim().toLowerCase()
-    );
-
-    if (!userRole || !allowedRoles.includes(userRole)) {
-        return res.status(403).json({
-            message: 'Access denied for this account',
-        });
+// Database-backed compatibility for existing portal role guards. The requested
+// legacy portal role is a capability, not a hardcoded list of allowed users.
+// The admin portal is deliberately NOT delegable to other roles.
+const db = require('../config/db');
+const authorizeRoles = (...roles) => async (req,res,next) => {
+    const userId=req.user?.user_id || req.user?.userId || req.user?.sub;
+    if (!userId) return res.status(401).json({message:'Authentication required'});
+    const required=roles.map(x=>String(x||'').trim().toLowerCase());
+    const tokenRole=String(req.user?.role||'').toLowerCase();
+    if (required.includes('admin')) {
+        if(tokenRole!=='admin')return res.status(403).json({message:'Administrator access required'});
+        return next();
     }
-
-    next();
+    try {
+        const q=await db.query(
+          `SELECT 1 FROM public.rbac_user_roles ur
+             JOIN public.rbac_roles r ON r.role_id=ur.role_id
+             JOIN public.rbac_role_portals p ON p.role_id=r.role_id
+             WHERE ur.user_id=$1 AND ur.is_active=TRUE AND r.is_active=TRUE
+               AND r.role_scope='staff' AND p.portal_code=ANY($2::text[]) LIMIT 1`,
+          [userId,required]);
+        if(q.rowCount)return next();
+        return res.status(403).json({message:'Access denied for this account'});
+    }catch(err){
+        console.error('[RBAC portal access]',err.message);
+        return res.status(503).json({message:'Authorization temporarily unavailable'});
+    }
 };
 
 module.exports = { protect, authorizeRoles };

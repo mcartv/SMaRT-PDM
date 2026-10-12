@@ -57,4 +57,33 @@ router.put('/roles/:id/permissions/:permissionId',manage,safe(async(req,res)=>{
  else await db.query('DELETE FROM public.rbac_role_permissions WHERE role_id=$1 AND permission_id=$2',[req.params.id,req.params.permissionId]);
  res.json({ok:true});
 }));
+// Configure legacy portal access and named role groups without source edits.
+router.get('/capabilities',view,safe(async(req,res)=>{
+ const [portals,groups,groupMembers]=await Promise.all([
+ db.query('SELECT role_id,portal_code FROM public.rbac_role_portals ORDER BY portal_code'),
+ db.query('SELECT group_id,group_code FROM public.rbac_role_groups ORDER BY group_code'),
+ db.query('SELECT group_id,role_id FROM public.rbac_role_group_members')
+ ]);res.json({portals:portals.rows,groups:groups.rows,groupMembers:groupMembers.rows});
+}));
+router.put('/roles/:id/portals/:portal',manage,safe(async(req,res)=>{
+ if(!isUuid(req.params.id)||typeof req.body?.granted!=='boolean')return res.status(400).json({error:'Invalid request'});
+ const portal=String(req.params.portal||'').toLowerCase();
+ if(!['sdo','guidance','pd','ro_coordinator'].includes(portal))return res.status(400).json({error:'Unknown or protected portal'});
+ const role=await db.query("SELECT role_scope,is_active FROM public.rbac_roles WHERE role_id=$1 AND role_code<>'admin'",[req.params.id]);
+ if(!role.rowCount||role.rows[0].role_scope!=='staff'||!role.rows[0].is_active)return res.status(403).json({error:'Role is unavailable'});
+ if(req.body.granted)await db.query('INSERT INTO public.rbac_role_portals(role_id,portal_code) VALUES($1,$2) ON CONFLICT DO NOTHING',[req.params.id,portal]);
+ else await db.query('DELETE FROM public.rbac_role_portals WHERE role_id=$1 AND portal_code=$2',[req.params.id,portal]);
+ res.json({ok:true});
+}));
+router.put('/roles/:id/groups/:groupId',manage,safe(async(req,res)=>{
+ if(!isUuid(req.params.id)||!isUuid(req.params.groupId)||typeof req.body?.granted!=='boolean')return res.status(400).json({error:'Invalid request'});
+ const group=await db.query('SELECT group_code FROM public.rbac_role_groups WHERE group_id=$1',[req.params.groupId]);
+ if(!group.rowCount)return res.status(404).json({error:'Group not found'});
+ if(group.rows[0].group_code==='ADMIN_ONLY')return res.status(403).json({error:'Administrator-only group is protected'});
+ const role=await db.query("SELECT role_scope,is_active FROM public.rbac_roles WHERE role_id=$1 AND role_code<>'admin'",[req.params.id]);
+ if(!role.rowCount||role.rows[0].role_scope!=='staff'||!role.rows[0].is_active)return res.status(403).json({error:'Role is unavailable'});
+ if(req.body.granted)await db.query('INSERT INTO public.rbac_role_group_members(group_id,role_id) VALUES($1,$2) ON CONFLICT DO NOTHING',[req.params.groupId,req.params.id]);
+ else await db.query('DELETE FROM public.rbac_role_group_members WHERE group_id=$1 AND role_id=$2',[req.params.groupId,req.params.id]);
+ res.json({ok:true});
+}));
 module.exports=router;

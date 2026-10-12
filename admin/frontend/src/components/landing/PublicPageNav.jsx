@@ -40,7 +40,7 @@ export default function PublicPageNav({ theme }) {
           <Link to="/landing#benefactors" className={`${mobileBaseClass} border-transparent text-white/75 hover:border-[var(--public-accent)] hover:text-white`}>Benefactors</Link>
           <NavLink className={mobileNavClass} to="/how-to-apply/process">Process</NavLink>
           <NavLink className={mobileNavClass} to="/how-to-apply/requirements">Requirements</NavLink>
-          <NavLink className={mobileNavClass} to="/how-to-apply/obligations">Obligations</NavLink>
+          <NavLink className={mobileNavClass} to="/how-to-apply/obligations">Community Service</NavLink>
           <NavLink className={mobileNavClass} to="/about/pdm">About PDM</NavLink>
           <NavLink className={mobileNavClass} to="/about/smart-pdm">SMaRT-PDM</NavLink>
           <NavLink className={mobileNavClass} to="/about/developers">Developers</NavLink>
@@ -55,7 +55,7 @@ export default function PublicPageNav({ theme }) {
         <NavGroup label="How to Apply" theme={theme} active={howToApplyActive}>
           <NavLink className={dropdownLinkClass} to="/how-to-apply/process">Scholarship Process</NavLink>
           <NavLink className={dropdownLinkClass} to="/how-to-apply/requirements">Scholar Requirements</NavLink>
-          <NavLink className={dropdownLinkClass} to="/how-to-apply/obligations">Scholar Obligations</NavLink>
+          <NavLink className={dropdownLinkClass} to="/how-to-apply/obligations">Scholar Community Service</NavLink>
         </NavGroup>
         <NavGroup label="About" theme={theme} active={aboutActive}>
           <NavLink className={dropdownLinkClass} to="/about/pdm">About PDM</NavLink>

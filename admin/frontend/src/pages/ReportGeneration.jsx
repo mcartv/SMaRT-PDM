@@ -82,7 +82,7 @@ const OFFICE_REPORT_FILTERS = {
     { value: 'completed', label: 'Completed Slip' },
   ],
   ro: [
-    { value: 'all', label: 'All RO Records' },
+    { value: 'all', label: 'All Community Service Records' },
     { value: 'pending_validation', label: 'Pending Validation' },
     { value: 'assigned', label: 'Assigned Scholars' },
     { value: 'completed', label: 'Cleared RO' },
@@ -252,8 +252,8 @@ function formatHeader(key) {
     academic_year: 'Academic Year',
     scholarship_status: 'Scholarship Status',
     date_awarded: 'Date Awarded',
-    ro_status: 'RO Status',
-    assigned_areas: 'Assigned RO Area',
+    ro_status: 'Community Service Status',
+    assigned_areas: 'Assigned Community Service Area',
     personnel_in_charge: 'PIC Name',
     compliance_status: 'Compliance Status',
     completion_percentage: 'Completion %',
@@ -1406,7 +1406,7 @@ export default function ReportGeneration({
                   ) : null}
 
                   {supportsRoAreaFilter ? (
-                    <FilterField label="Assigned RO Area">
+                    <FilterField label="Assigned Community Service Area">
                       <Select
                         value={roAreaId}
                         onValueChange={setRoAreaId}

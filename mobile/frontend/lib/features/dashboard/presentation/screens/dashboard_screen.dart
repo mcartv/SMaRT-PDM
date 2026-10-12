@@ -926,7 +926,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
           ),
           _ResponsibilityRow(
             icon: Icons.work_history_rounded,
-            title: 'Return of Obligation',
+            title: 'Community Service',
             subtitle:
                 obligation?.previewText ??
                 'No new obligation update has been posted.',

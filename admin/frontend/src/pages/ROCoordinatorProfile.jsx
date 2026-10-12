@@ -12,7 +12,7 @@ const roCoordinatorAccountConfig = {
     email: 'ro.coordinator@pdm.edu.ph',
     phone_number: '',
     position: 'RO Personnel-In-Charge',
-    department: 'Assigned RO Area',
+    department: 'Assigned Community Service Area',
     role: 'RO Personnel-In-Charge',
   },
 };

@@ -53,7 +53,7 @@ const navItems = [
   { path: '/admin/applications', icon: FileText, label: 'Applications' },
   { path: '/admin/endorsements', icon: ClipboardCheck, label: 'Endorsements' },
   { path: '/admin/scholars', icon: Users, label: 'Scholars' },
-  { path: '/admin/obligations', icon: CheckSquare, label: 'Obligations' },
+  { path: '/admin/obligations', icon: CheckSquare, label: 'Community Service' },
   { path: '/admin/payout', icon: Wallet, label: 'Payout' },
   { path: '/admin/reports', icon: BarChart3, label: 'Reports' },
   { path: '/admin/openings', icon: Briefcase, label: 'Openings' },

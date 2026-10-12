@@ -190,8 +190,8 @@ const ANNOUNCEMENT_TEMPLATES = {
   },
   ro_reminder: {
     label: 'RO Reminder',
-    title: 'Return of Obligation Reminder',
-    content: 'All concerned scholars are reminded to complete their required return of obligation tasks on or before the announced deadline. Please coordinate with the office for any clarifications.',
+    title: 'Community Service Reminder',
+    content: 'All concerned scholars are reminded to complete their required Community Service tasks on or before the announced deadline. Please coordinate with the office for any clarifications.',
     audience: 'scholars', isRoVoluntary: 'true',
   },
   general_advisory: {

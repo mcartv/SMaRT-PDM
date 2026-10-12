@@ -121,13 +121,13 @@ function RequestModal({ open, areas, loading, onClose, onSubmit, theme }) {
 
         <div className="grid gap-4 p-5 sm:grid-cols-2">
           <label className="block sm:col-span-2">
-            <span className="mb-1.5 block text-xs font-semibold text-stone-700">RO Area</span>
+            <span className="mb-1.5 block text-xs font-semibold text-stone-700">Community Service Area</span>
             <select
               value={roAreaId}
               onChange={(event) => setRoAreaId(event.target.value)}
               className="h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm outline-none"
             >
-              <option value="">Select an RO Area</option>
+              <option value="">Select an Community Service Area</option>
               {areas.map((area) => (
                 <option key={area.ro_area_id} value={area.ro_area_id}>
                   {area.department_name}

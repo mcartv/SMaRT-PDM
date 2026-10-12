@@ -97,12 +97,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     return type.contains('ro') ||
         type.contains('obligation') ||
-        type.contains('return of obligation') ||
+        type.contains('Community Service') ||
         referenceType.contains('return_of_obligation') ||
         referenceType.contains('ro') ||
         title.contains('return') ||
         title.contains('obligation') ||
-        message.contains('return of obligation');
+        message.contains('Community Service');
   }
 
   // _isRenewalNotification: handles is renewal notification for the Notifications flow.
@@ -154,7 +154,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       case _NotificationFilter.payouts:
         return 'Payouts';
       case _NotificationFilter.ro:
-        return 'Obligation';
+        return 'Community Service';
     }
   }
 
@@ -245,7 +245,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       return 'Payout';
     }
     if (_isRenewalNotification(notification)) return 'Renewal';
-    if (_isRoNotification(notification)) return 'Obligation';
+    if (_isRoNotification(notification)) return 'Community Service';
     if (notification.isAnnouncementNotification ||
         referenceType.contains('announcement') ||
         type.contains('announcement')) {

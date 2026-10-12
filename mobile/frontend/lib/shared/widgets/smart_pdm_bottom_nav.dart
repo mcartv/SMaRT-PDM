@@ -44,7 +44,7 @@ class SmartPdmBottomNav extends StatelessWidget {
   static const List<String> _labels = <String>[
     'Dashboard',
     'Payout',
-    'Obligation',
+    'Community Service',
     'Renewal',
     'Menu',
   ];

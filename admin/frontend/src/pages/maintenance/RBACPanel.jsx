@@ -9,7 +9,7 @@ const SPECIAL_PERMISSION_LABELS = Object.freeze({
   'endorsements.review_gco': 'Review Endorsements (Guidance)',
   'endorsements.review_sdo': 'Review Endorsements (Student Discipline)',
   'payouts.review_proofs': 'Review Payment Proofs',
-  'ro.settings_manage': 'Manage Obligation Settings',
+  'ro.settings_manage': 'Manage Community Service Settings',
 });
 const PERMISSION_ACTIONS = Object.freeze({
   view: 'View', create: 'Create', update: 'Edit', manage: 'Manage', archive: 'Archive',
@@ -22,7 +22,7 @@ const PERMISSION_SUBJECTS = Object.freeze({
   accounts: 'Staff Accounts', announcements: 'Announcements', applications: 'Applications',
   audit: 'System Logs', courses: 'Courses', discipline: 'Discipline Records',
   documents: 'Documents', endorsements: 'Endorsements', payouts: 'Payouts',
-  programs: 'Scholarship Programs', reports: 'Reports', ro: 'Obligations',
+  programs: 'Scholarship Programs', reports: 'Reports', ro: 'Community Service',
   settings: 'System Settings', students: 'Students',
 });
 function formatPermissionLabel(code) {

@@ -64,7 +64,7 @@ class _OfficeUpdateArticleScreenState extends State<OfficeUpdateArticleScreen> {
     if (kind == 'program_opening' || notification.isOpeningUpdate) {
       return (label: 'View Scholarship Openings', icon: Icons.school_outlined, route: AppRoutes.scholarshipOpenings);
     }
-    if (combined.contains('return of obligation') &&
+    if (combined.contains('Community Service') &&
         (combined.contains('assignment') || combined.contains('community service') || combined.contains('ro reminder'))) {
       return (label: 'View Community Service', icon: Icons.assignment_turned_in_outlined, route: AppRoutes.roAssignment);
     }

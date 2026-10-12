@@ -300,7 +300,7 @@ export default function DepartmentPortalLayout({
     ...(trackerPath ? [{ path: trackerPath, label: 'All Applicants', icon: FileText }] : []),
     ...(reportsPath ? [{ path: reportsPath, label: 'Reports', icon: BarChart3 }] : []),
     ...(roQueuePath && hasRoCoordinatorAccess
-      ? [{ path: roQueuePath, label: 'RO Requests', icon: ClipboardCheck }]
+      ? [{ path: roQueuePath, label: 'Community Service Requests', icon: ClipboardCheck }]
       : []),
     ...(maintenancePath ? [{ path: maintenancePath, label: 'Settings', icon: Settings }] : []),
   ];

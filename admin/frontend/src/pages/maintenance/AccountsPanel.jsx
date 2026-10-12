@@ -1583,7 +1583,7 @@ export default function AccountsPanel() {
                 );
             }
             if (!courseResponse.ok) throw new Error(courseData.message || 'Failed to load courses.');
-            if (!roAreaResponse.ok) throw new Error(roAreaData.error || 'Failed to load RO Areas.');
+            if (!roAreaResponse.ok) throw new Error(roAreaData.error || 'Failed to load Community Service Areas.');
 
             setAccounts(deduplicateAccounts(Array.isArray(data.data) ? data.data : []));
             setCourses((Array.isArray(courseData) ? courseData : []).filter((course) => !course.is_archived));
@@ -2079,7 +2079,7 @@ export default function AccountsPanel() {
                                                         <SelectItem value="sdo">Student Discipline Officer</SelectItem>
                                                         <SelectItem value="guidance">Guidance Counselor (GCO)</SelectItem>
                                                         <SelectItem value="pd">Program Director</SelectItem>
-                                                        <SelectItem value="ro_coordinator">RO Personnel-In-Charge</SelectItem>
+                                                        <SelectItem value="ro_coordinator">Community Service Personnel-In-Charge</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                                 <p className="mt-1.5 text-[11px] leading-4 text-stone-500">

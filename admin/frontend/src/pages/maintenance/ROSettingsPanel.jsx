@@ -121,7 +121,7 @@ function DepartmentModal({
             >
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
                     <h3 className="text-sm font-semibold text-stone-800">
-                        {isEdit ? 'Edit RO Area' : 'Add RO Area'}
+                        {isEdit ? 'Edit RO Area' : 'Add Community Service Area'}
                     </h3>
 
                     <button
@@ -276,7 +276,7 @@ export default function ROSettingsPanel() {
 
             if (!departmentsResponse.ok) {
                 throw new Error(
-                    departmentsPayload.error || 'Failed to load RO Areas.'
+                    departmentsPayload.error || 'Failed to load Community Service Areas.'
                 );
             }
 
@@ -401,13 +401,13 @@ export default function ROSettingsPanel() {
             );
             const payload = await response.json().catch(() => ({}));
             if (!response.ok) {
-                throw new Error(payload.error || 'Failed to update the RO Area personnel-in-charge.');
+                throw new Error(payload.error || 'Failed to update the Community Service Area personnel-in-charge.');
             }
 
-            showAppToast('success', 'Personnel-In-Charge updated', payload.message || 'RO Area personnel-in-charge updated.');
+            showAppToast('success', 'Personnel-In-Charge updated', payload.message || 'Community Service Area personnel-in-charge updated.');
             await loadSettings();
         } catch (actionError) {
-            setError(actionError.message || 'Failed to update the RO Area personnel-in-charge.');
+            setError(actionError.message || 'Failed to update the Community Service Area personnel-in-charge.');
         } finally {
             setDepartmentActionId('');
         }
@@ -450,7 +450,7 @@ export default function ROSettingsPanel() {
             const name = String(departmentName || '').trim();
 
             if (!name) {
-                throw new Error('RO Area name is required.');
+                throw new Error('Community Service Area name is required.');
             }
 
             const isEdit = modalMode === 'edit' && editingDepartmentId;
@@ -473,15 +473,15 @@ export default function ROSettingsPanel() {
             const data = await response.json().catch(() => ({}));
 
             if (!response.ok) {
-                throw new Error(data.error || 'Failed to save RO Area.');
+                throw new Error(data.error || 'Failed to save Community Service Area.');
             }
 
-            showAppToast('success', 'RO area saved', data.message || 'RO Area saved successfully.');
+            showAppToast('success', 'RO area saved', data.message || 'Community Service Area saved successfully.');
             closeDepartmentModal();
             await loadSettings();
         } catch (err) {
             console.error('SAVE RO DEPARTMENT ERROR:', err);
-            setError(err.message || 'Failed to save RO Area.');
+            setError(err.message || 'Failed to save Community Service Area.');
         } finally {
             setDepartmentSaving(false);
         }
@@ -493,8 +493,8 @@ export default function ROSettingsPanel() {
         if (isDeactivating && department.coordinator) {
             showAppToast(
                 'warning',
-                'RO Area cannot be deactivated',
-                `${department.coordinator.name || 'An RO personnel in charge'} is still assigned to ${department.department_name}. Remove or reassign that person before deactivating this RO Area.`
+                'Community Service Area cannot be deactivated',
+                `${department.coordinator.name || 'An RO personnel in charge'} is still assigned to ${department.department_name}. Remove or reassign that person before deactivating this Community Service Area.`
             );
             return false;
         }
@@ -514,16 +514,16 @@ export default function ROSettingsPanel() {
             const data = await response.json().catch(() => ({}));
 
             if (!response.ok) {
-                throw new Error(data.error || 'Failed to update RO Area status.');
+                throw new Error(data.error || 'Failed to update Community Service Area status.');
             }
 
-            showAppToast('success', 'RO area updated', data.message || 'RO Area status updated successfully.');
+            showAppToast('success', 'RO area updated', data.message || 'Community Service Area status updated successfully.');
             await loadSettings();
             return true;
         } catch (err) {
             console.error('TOGGLE RO DEPARTMENT ERROR:', err);
-            const message = err.message || 'Failed to update RO Area status.';
-            showAppToast('error', 'RO Area status not updated', message);
+            const message = err.message || 'Failed to update Community Service Area status.';
+            showAppToast('error', 'Community Service Area status not updated', message);
             return false;
         } finally {
             setDepartmentActionId('');
@@ -535,7 +535,7 @@ export default function ROSettingsPanel() {
         if (department.coordinator) {
             showAppToast(
                 'warning',
-                'RO Area cannot be deactivated',
+                'Community Service Area cannot be deactivated',
                 `Remove or reassign ${department.coordinator.name || 'the RO personnel in charge'} before deactivating ${department.department_name}.`
             );
             return;
@@ -587,7 +587,7 @@ export default function ROSettingsPanel() {
                 {deactivationTarget && (
                     <AlertDialogContent className="gap-0 p-0">
                         <AlertDialogHeader className="gap-2 px-5 py-4">
-                            <AlertDialogTitle>Deactivate RO Area?</AlertDialogTitle>
+                            <AlertDialogTitle>Deactivate Community Service Area?</AlertDialogTitle>
                             <AlertDialogDescription>
                                 {deactivationTarget.department_name} will move to Inactive. You can restore it later.
                             </AlertDialogDescription>
@@ -623,7 +623,7 @@ export default function ROSettingsPanel() {
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
                             <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
-                                RO Configuration
+                                Community Service Configuration
                             </h2>
                             <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
                                 Required hours: {Number(requiredHours || 0)} · Carry-over {allowCarryOver ? 'allowed' : 'not allowed'}
@@ -704,7 +704,7 @@ export default function ROSettingsPanel() {
                         <div className="relative w-full md:w-[320px]">
                             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                             <Input
-                                placeholder="Search RO Area..."
+                                placeholder="Search Community Service Area..."
                                 value={search}
                                 onChange={(event) => setSearch(event.target.value)}
                                 className="h-9 rounded-lg border-stone-200 bg-white pl-9 text-sm"
@@ -767,7 +767,7 @@ export default function ROSettingsPanel() {
                 {filteredDepartments.length === 0 ? (
                     <div className="flex min-h-[220px] flex-col items-center justify-center px-4 text-center text-stone-400">
                         <Building2 size={42} className="mb-4 opacity-50" />
-                        <p className="text-sm font-medium">No RO Areas found</p>
+                        <p className="text-sm font-medium">No Community Service Areas found</p>
                         <p className="mt-1 text-xs">
                             Add a department, office, or faculty area that can receive RO requests.
                         </p>

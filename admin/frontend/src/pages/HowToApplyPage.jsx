@@ -348,7 +348,7 @@ function ObligationsGuide({ theme }) {
             theme={theme}
             icon={ShieldCheck}
             eyebrow="Official OSFA Guidelines"
-            title="Scholar's Obligations"
+            title="Scholar's Community Service"
             description="One complete list of the responsibilities every active scholar must observe throughout the grant."
           />
         </div>

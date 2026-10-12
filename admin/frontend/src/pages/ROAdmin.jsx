@@ -448,7 +448,7 @@ function EmptyState({ onAssignMode }) {
       </div>
 
       <h3 className="text-sm font-semibold text-stone-800">
-        No RO scholar records found
+        No Community Service scholars record found
       </h3>
 
       <p className="mt-1 max-w-md text-xs leading-6 text-stone-500">
@@ -516,7 +516,7 @@ function FilterModal({
 
       <Card className="relative w-full max-w-xl overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/80 px-5 py-4">
-          <h3 className="text-sm font-semibold text-stone-900">Filter RO Scholars</h3>
+          <h3 className="text-sm font-semibold text-stone-900">Filter Community Service Scholars</h3>
 
           <button
             type="button"
@@ -727,7 +727,7 @@ function AssignModal({
       <Card className="relative w-full max-w-xl overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-5 py-4">
           <h3 className="text-sm font-semibold text-stone-900">
-            {hasAssignment ? 'Add RO Area' : 'Send RO Request'}
+            {hasAssignment ? 'Add RO Area' : 'Send Community Service Request'}
           </h3>
 
           <button
@@ -770,7 +770,7 @@ function AssignModal({
                 onChange={(e) => setAssignedArea(e.target.value)}
                 className="h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none focus:border-orange-800 focus:ring-2 focus:ring-orange-800/20"
               >
-                <option value="">Select an RO Area</option>
+                <option value="">Select an Community Service Area</option>
 
                 {assignedArea && !currentDepartmentExists ? (
                   <option value={assignedArea}>{assignedArea}</option>
@@ -799,7 +799,7 @@ function AssignModal({
                   {obligationHours > 0 ? `${obligationHours} hours total` : 'Not configured'}
                 </span>
                 <span className="text-[10px] font-medium text-stone-400">
-                  {hasAssignment ? 'Shared across all placements' : 'From Obligation settings'}
+                  {hasAssignment ? 'Shared across all placements' : 'From Community Service settings'}
                 </span>
               </div>
             </div>
@@ -880,7 +880,7 @@ function BatchAssignModal({
 
       <Card className="relative w-full max-w-xl overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-5 py-4">
-          <h3 className="text-sm font-semibold text-stone-900">Send Batch RO Requests</h3>
+          <h3 className="text-sm font-semibold text-stone-900">Send Batch Community Service Requests</h3>
 
           <button
             type="button"
@@ -910,7 +910,7 @@ function BatchAssignModal({
                 onChange={(e) => setAssignedArea(e.target.value)}
                 className="h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none focus:border-orange-800 focus:ring-2 focus:ring-orange-800/20"
               >
-                <option value="">Select an RO Area</option>
+                <option value="">Select an Community Service Area</option>
 
                 {departments.map((department) => (
                   <option
@@ -934,7 +934,7 @@ function BatchAssignModal({
                 <span className="text-sm font-semibold text-stone-700">
                   {defaultRequiredHours > 0 ? `${defaultRequiredHours} hours` : 'Not configured'}
                 </span>
-                <span className="text-[10px] font-medium text-stone-400">From Obligation settings</span>
+                <span className="text-[10px] font-medium text-stone-400">From Community Service settings</span>
               </div>
             </label>
 
@@ -1425,7 +1425,7 @@ function RoDetailsModal({
                       >
                         <div className="flex items-start justify-between gap-2">
                           <p className="text-sm font-medium text-stone-800">
-                            {placement.assigned_area || 'RO Area'}
+                            {placement.assigned_area || 'Community Service Area'}
                           </p>
                           <StatusChip tone={tone}>{status}</StatusChip>
                         </div>
@@ -1523,7 +1523,7 @@ function RoDetailsModal({
             className="h-9 rounded-xl border-stone-200 px-4 text-xs font-medium"
           >
             <Send className="mr-2 h-3.5 w-3.5" />
-            {hasAssignment ? 'Add RO Area' : 'Assign RO Area'}
+            {hasAssignment ? 'Add RO Area' : 'Assign Community Service Area'}
           </Button>
 
           {hasAssignment && !isCleared ? (
@@ -2437,7 +2437,7 @@ export default function ROAdmin() {
           </div>
           ) : (
             <div>
-              <p className="text-sm font-semibold text-stone-900">RO Area Requests</p>
+              <p className="text-sm font-semibold text-stone-900">Community Service Area Requests</p>
               <p className="mt-1 text-sm text-stone-500">
                 Review offices requesting scholars for RO service.
               </p>
@@ -2511,10 +2511,10 @@ export default function ROAdmin() {
         <div className="flex items-center justify-between gap-3 border-b border-stone-100 px-5 py-4">
           <h2 className="truncate text-sm font-semibold leading-5 text-stone-900">
             {topTab === 'assigned'
-              ? 'Assigned RO Scholars'
+              ? 'Assigned Community Service Scholars'
               : topTab === 'unassigned'
-                ? 'Unassigned RO Scholars'
-                : 'Cleared RO Scholars'}
+                ? 'Unassigned Community Service Scholars'
+                : 'Cleared Community Service Scholars'}
           </h2>
 
           {!['cleared', 'requests'].includes(topTab) ? (
@@ -2681,7 +2681,7 @@ export default function ROAdmin() {
                             disabled={actionLoading || (!hasAssignment && activeRequiredHours <= 0)}
                             title={
                               !hasAssignment && activeRequiredHours <= 0
-                                ? 'Configure required hours in Maintenance > Obligation first.'
+                                ? 'Configure required hours in Maintenance > Community Service first.'
                                 : undefined
                             }
                             className="h-9 rounded-lg border-stone-200 px-3.5 text-xs whitespace-nowrap"

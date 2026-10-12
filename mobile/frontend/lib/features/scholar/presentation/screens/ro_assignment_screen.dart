@@ -371,7 +371,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
       _captureAction,
       'Date/Time: ${localTime.year.toString().padLeft(4, '0')}-${localTime.month.toString().padLeft(2, '0')}-${localTime.day.toString().padLeft(2, '0')} '
           '${localTime.hour.toString().padLeft(2, '0')}:${localTime.minute.toString().padLeft(2, '0')}:${localTime.second.toString().padLeft(2, '0')}',
-      'RO Area: ${_captureArea.isEmpty ? 'Assigned Department' : _captureArea}',
+      'Community Service Area: ${_captureArea.isEmpty ? 'Assigned Department' : _captureArea}',
       'Location: ${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}',
       'Accuracy: ±${position.accuracy.toStringAsFixed(1)} m',
     ];
@@ -1349,7 +1349,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
       'Location / Transportation',
       'Medical / Health',
       'Academic Conflict',
-      'RO Area / Assignment Issue',
+      'Community Service Area / Assignment Issue',
       'Other',
     ];
 
@@ -2064,7 +2064,7 @@ class RoPlacement {
   factory RoPlacement.fromJson(Map<String, dynamic> json) {
     return RoPlacement(
       placementId: json['placementId']?.toString() ?? '',
-      areaName: json['areaName']?.toString() ?? 'RO Area',
+      areaName: json['areaName']?.toString() ?? 'Community Service Area',
       status: json['status']?.toString() ?? 'Pending',
       coordinatorRemarks: json['coordinatorRemarks']?.toString() ?? '',
     );
@@ -2516,7 +2516,7 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                       const SizedBox(height: 12),
                       const _InfoBox(
                         icon: Icons.gavel_rounded,
-                        title: 'Required Scholarship Obligation',
+                        title: 'Required Scholarship Community Service',
                         message:
                             'This assignment is required. If you have a valid conflict, report it to OSFA. You still need attendance proof unless the Community Service Coordinator approves an exception.',
                         color: Color(0xFF8A4B08),

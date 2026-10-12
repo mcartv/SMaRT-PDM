@@ -105,7 +105,7 @@ const VISUAL_RULES = [
     {
         match: /return of obligation|ro coordinator|\bro\b|placement|assignment/i,
         icon: ClipboardCheck,
-        label: 'Return of Obligation activity',
+        label: 'Community Service activity',
         className: 'border-cyan-100 bg-cyan-50 text-cyan-700',
     },
     {

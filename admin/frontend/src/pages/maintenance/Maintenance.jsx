@@ -36,7 +36,7 @@ const TABS = [
   { key: 'scholarship-programs', label: 'Scholarship Programs', icon: GraduationCap },
   { key: 'academic-years', label: 'Academic Years', icon: CalendarRange },
   { key: 'courses', label: 'Courses', icon: BookOpen },
-  { key: 'ro-settings', label: 'Obligation', icon: Clock3 },
+  { key: 'ro-settings', label: 'Community Service', icon: Clock3 },
   { key: 'registry', label: 'Student Registry', icon: Database },
   { key: 'audit', label: 'System Logs', icon: ClipboardList },
 ];

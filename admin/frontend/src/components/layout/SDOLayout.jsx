@@ -311,7 +311,7 @@ export default function SDOLayout() {
   const navItems = [
     ...baseNavItems.filter((item) => item.path !== '/sdo/settings'),
     ...(hasRoCoordinatorAccess
-      ? [{ path: '/sdo/ro-requests', label: 'RO Requests', icon: ClipboardCheck }]
+      ? [{ path: '/sdo/ro-requests', label: 'Community Service Requests', icon: ClipboardCheck }]
       : []),
     ...baseNavItems.filter((item) => item.path === '/sdo/settings'),
   ];

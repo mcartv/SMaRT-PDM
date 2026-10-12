@@ -42,7 +42,7 @@ class ScholarAccessService {
       case AppRoutes.payouts:
         return 'Payout';
       case AppRoutes.roAssignment:
-        return 'Obligation';
+        return 'Community Service';
       case AppRoutes.renewalDocuments:
         return 'Renewal';
       default:

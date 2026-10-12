@@ -219,7 +219,7 @@ class AppNotification {
         normalizedType.contains('ro_') ||
         normalizedType.contains('return') ||
         normalizedType.contains('obligation') ||
-        normalizedTitle.contains('return of obligation') ||
+        normalizedTitle.contains('Community Service') ||
         normalizedTitle.contains('obligation');
   }
 
@@ -263,7 +263,7 @@ class AppNotification {
     if (trimmedMessage.isNotEmpty) return trimmedMessage;
 
     if (isRoNotification) {
-      return 'You have a Return of Obligation update.';
+      return 'You have a Community Service update.';
     }
 
     if (isOpeningUpdate) {

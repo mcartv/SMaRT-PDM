@@ -403,7 +403,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen>
       case 1:
         return 'Payout Schedule';
       case 2:
-        return 'Return of Obligation';
+        return 'Community Service';
       case 3:
         return 'Renewal Requirements';
       case 4:

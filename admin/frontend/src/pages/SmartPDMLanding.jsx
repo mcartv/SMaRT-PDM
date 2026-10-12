@@ -584,7 +584,7 @@ function ScholarshipProcessModal({ steps, theme, onClose, obligationsOnly = fals
       description: 'Eligible active scholars receive payout schedules and release-status updates in the system. Follow official announcements and complete any requested payout confirmation.',
     },
     {
-      title: 'Return of Obligation (RO)',
+      title: 'Community Service (RO)',
       icon: Clock3,
       description: 'Scholars may be assigned service hours and a placement. Coordinate with the RO Personnel-In-Charge, submit valid time records, and complete the required hours for clearance.',
     },
@@ -698,7 +698,7 @@ function AboutInfoModal({ type, theme, onClose }) {
         },
         {
           title: 'Support That Continues Beyond Approval',
-          body: 'The relationship continues after a student becomes a scholar. SMaRT-PDM brings together payout schedules, academic and scholarship monitoring, Return of Obligation assignments, renewal requirements, announcements, official communication, and record history. For OSFA and partner offices, role-based workspaces, reports, notifications, and audit trails create a dependable source of information while keeping every important decision in the hands of authorized personnel.',
+          body: 'The relationship continues after a student becomes a scholar. SMaRT-PDM brings together payout schedules, academic and scholarship monitoring, Community Service assignments, renewal requirements, announcements, official communication, and record history. For OSFA and partner offices, role-based workspaces, reports, notifications, and audit trails create a dependable source of information while keeping every important decision in the hands of authorized personnel.',
         },
       ],
     },
@@ -1290,7 +1290,7 @@ export default function SmartPDMLanding() {
               />
               <NavDropdownLink
                 href="/how-to-apply/obligations"
-                title="Scholar Obligations"
+                title="Scholar Community Service"
               />
             </NavDropdown>
             <NavDropdown label="About" href="#about" active={activeSection === 'about'}>

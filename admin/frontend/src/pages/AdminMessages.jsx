@@ -1569,7 +1569,7 @@ function MemberProfileModal({ member, onClose, onMessage }) {
         <div className="mt-5 grid gap-3 rounded-2xl bg-stone-50 p-4 text-sm">
           {member.position ? <div><span className="text-stone-500">Position</span><p className="font-medium text-stone-900">{member.position}</p></div> : null}
           {member.department ? <div><span className="text-stone-500">Office</span><p className="font-medium text-stone-900">{member.department}</p></div> : null}
-          {member.roArea ? <div><span className="text-stone-500">RO Area</span><p className="font-medium text-stone-900">{member.roArea}</p></div> : null}
+          {member.roArea ? <div><span className="text-stone-500">Community Service Area</span><p className="font-medium text-stone-900">{member.roArea}</p></div> : null}
           {member.role ? <div><span className="text-stone-500">Role</span><p className="font-medium text-stone-900">{member.role}</p></div> : null}
           {member.email ? <div><span className="text-stone-500">Email</span><p className="break-all font-medium text-stone-900">{member.email}</p></div> : null}
         </div>

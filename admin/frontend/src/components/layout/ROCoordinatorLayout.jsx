@@ -10,7 +10,7 @@ export default function ROCoordinatorLayout() {
       dashboardPath="/ro-coordinator/dashboard"
       profilePath="/ro-coordinator/profile"
       queuePath="/ro-coordinator/queue"
-      queueLabel="RO Request"
+      queueLabel="Community Service Request"
       reportsPath="/ro-coordinator/reports"
       maintenancePath="/ro-coordinator/settings"
       tokenStorageKey="roCoordinatorToken"

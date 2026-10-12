@@ -114,7 +114,7 @@ export default function ROCoordinatorDashboard() {
       >
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/65">Assigned RO Area</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/65">Assigned Community Service Area</p>
             <h1 className="mt-2 max-w-3xl text-2xl font-semibold md:text-3xl">
               {summary.department || 'RO Personnel-In-Charge Dashboard'}
             </h1>

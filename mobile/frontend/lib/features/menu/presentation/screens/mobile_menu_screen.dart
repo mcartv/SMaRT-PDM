@@ -312,7 +312,7 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
             const SizedBox(height: 14),
             Text(
               hasScholarAccess
-                  ? 'Payout, Obligation, and Renewal are available from the navigation bar.'
+                  ? 'Payout, Community Service, and Renewal are available from the navigation bar.'
                   : 'Scholar features become available after your scholarship is approved.',
               textAlign: TextAlign.center,
               style: Theme.of(
@@ -485,7 +485,7 @@ class _ScholarResponsibilitiesScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "Scholar's Obligations",
+                        "Scholar's Community Service",
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
                               color: titleColor,

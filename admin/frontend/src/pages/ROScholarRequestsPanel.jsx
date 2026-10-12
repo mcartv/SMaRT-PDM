@@ -443,7 +443,7 @@ export default function ROScholarRequestsPanel({ token }) {
       <div className="rounded-2xl border border-stone-200 bg-white p-3 sm:p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-sm font-semibold leading-5 text-stone-900">RO Area Requests</h2>
+            <h2 className="text-sm font-semibold leading-5 text-stone-900">Community Service Area Requests</h2>
             <p className="mt-1 text-sm text-stone-500">
               Offices requesting scholars for Community Service service.
             </p>

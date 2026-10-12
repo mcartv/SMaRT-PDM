@@ -139,7 +139,7 @@ class _AboutHeroSection extends StatelessWidget {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'Your scholarship companion at Pambayang Dalubhasaan ng Marilao. Use SMaRT-PDM to follow scholarship requirements, updates, payouts, renewal, and Return of Obligation activities.',
+                'Your scholarship companion at Pambayang Dalubhasaan ng Marilao. Use SMaRT-PDM to follow scholarship requirements, updates, payouts, renewal, and Community Service activities.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Colors.white.withValues(alpha: isDark ? 0.78 : 0.86),
                   height: 1.5,
@@ -278,7 +278,7 @@ class _WhatYouCanDoRows extends StatelessWidget {
         _FeatureDivider(),
         _FeatureRow(
           icon: Icons.schedule_outlined,
-          title: 'Return of Obligation',
+          title: 'Community Service',
           body: 'View assignments, record attendance, and follow completed hours.',
         ),
       ],

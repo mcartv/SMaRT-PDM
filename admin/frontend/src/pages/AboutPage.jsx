@@ -46,7 +46,7 @@ const smartStory = [
   },
   {
     title: 'Support That Continues Beyond Approval',
-    body: 'The journey continues after activation. SMaRT-PDM brings together payout schedules, academic monitoring, Return of Obligation assignments, renewal requirements, announcements, official communication, and scholarship history. Role-based workspaces, reports, notifications, and audit trails give OSFA and partner offices one dependable source of information while authorized personnel retain responsibility for every important decision.',
+    body: 'The journey continues after activation. SMaRT-PDM brings together payout schedules, academic monitoring, Community Service assignments, renewal requirements, announcements, official communication, and scholarship history. Role-based workspaces, reports, notifications, and audit trails give OSFA and partner offices one dependable source of information while authorized personnel retain responsibility for every important decision.',
     icon: GraduationCap,
   },
 ];
@@ -373,7 +373,7 @@ const systemScope = [
   },
   {
     label: 'Scholar Monitoring & Continuing Services',
-    body: 'Continues beyond applicant approval through scholar activation, payout schedules, renewal requirements, Return of Obligation activities, announcements, notifications, monitoring records, reports, and account services.',
+    body: 'Continues beyond applicant approval through scholar activation, payout schedules, renewal requirements, Community Service activities, announcements, notifications, monitoring records, reports, and account services.',
   },
 ];
 
@@ -381,11 +381,11 @@ const systemBuildCards = [
   {
     chapter: 'We started with the scholarship process',
     title: 'Turning separate scholarship activities into one monitored lifecycle',
-    body: 'The project began by studying how scholarship programs, openings, applications, documentary requirements, verification, endorsements, scholar activation, renewals, payout schedules, Return of Obligation, and continuing monitoring were handled across separate records and office activities. These stages became the foundation of one connected SMaRT-PDM workflow.',
+    body: 'The project began by studying how scholarship programs, openings, applications, documentary requirements, verification, endorsements, scholar activation, renewals, payout schedules, Community Service, and continuing monitoring were handled across separate records and office activities. These stages became the foundation of one connected SMaRT-PDM workflow.',
     items: [
       'Scholarship programs, benefactors, openings, application periods, and capacity',
       'Applications, documentary requirements, deficiencies, verification, and endorsements',
-      'Scholar activation, renewals, payouts, Return of Obligation, and continuing monitoring',
+      'Scholar activation, renewals, payouts, Community Service, and continuing monitoring',
     ],
     icon: FileText,
   },
@@ -629,7 +629,7 @@ function AboutSystemSection({ theme }) {
     {
       number: '01',
       title: 'Unified Scholarship Lifecycle',
-      body: 'SMaRT-PDM digitizes and connects scholarship programs and openings, applicant intake, documentary requirements, verification, inter-office endorsement, scholar activation, renewals, payout schedules, Return of Obligation, and continuing scholar monitoring. These activities are maintained as related stages of one scholarship record instead of separate manual files and disconnected office processes.',
+      body: 'SMaRT-PDM digitizes and connects scholarship programs and openings, applicant intake, documentary requirements, verification, inter-office endorsement, scholar activation, renewals, payout schedules, Community Service, and continuing scholar monitoring. These activities are maintained as related stages of one scholarship record instead of separate manual files and disconnected office processes.',
       icon: Route,
     },
     {

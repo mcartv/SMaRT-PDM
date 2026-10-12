@@ -1,4 +1,4 @@
-// SMaRT-PDM: Return of Obligations — ROCoordinator Dashboard (admin frontend page); loads data, handles page actions, and renders the admin view.
+// SMaRT-PDM: Community Service — ROCoordinator Dashboard (admin frontend page); loads data, handles page actions, and renders the admin view.
 import { createElement, useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
@@ -20,7 +20,7 @@ import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
 const tokenKey = 'roCoordinatorToken';
 
-// authHeaders: handles auth headers for the Return of Obligations flow.
+// authHeaders: handles auth headers for the Community Service flow.
 function authHeaders() {
   return {
     Authorization: `Bearer ${sessionStorage.getItem(tokenKey) || ''}`,
@@ -28,7 +28,7 @@ function authHeaders() {
   };
 }
 
-// formatDate: formats format date for the Return of Obligations flow.
+// formatDate: formats format date for the Community Service flow.
 function formatDate(value) {
   if (!value) return 'Not available';
   const date = new Date(value);
@@ -42,7 +42,7 @@ function formatDate(value) {
   });
 }
 
-// SummaryCard: handles summary card for the Return of Obligations flow.
+// SummaryCard: handles summary card for the Community Service flow.
 function SummaryCard({ icon, label, value, detail, theme }) {
   return (
     <Card className="rounded-2xl border-stone-200 bg-white shadow-none">
@@ -119,7 +119,7 @@ export default function ROCoordinatorDashboard() {
               {summary.department || 'RO Personnel-In-Charge Dashboard'}
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-white/75">
-              Review incoming Return of Obligation requests before scholars begin their assigned work.
+              Review incoming Community Service requests before scholars begin their assigned work.
             </p>
           </div>
           <Button
@@ -127,7 +127,7 @@ export default function ROCoordinatorDashboard() {
             onClick={() => navigate('/ro-coordinator/queue')}
             className="border border-white/20 bg-white text-stone-900 hover:bg-white/90"
           >
-            Open RO Management
+            Open Community Service Management
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>

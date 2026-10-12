@@ -445,7 +445,7 @@ export default function ROScholarRequestsPanel({ token }) {
           <div>
             <h2 className="text-sm font-semibold leading-5 text-stone-900">RO Area Requests</h2>
             <p className="mt-1 text-sm text-stone-500">
-              Offices requesting scholars for Return of Obligation service.
+              Offices requesting scholars for Community Service service.
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">

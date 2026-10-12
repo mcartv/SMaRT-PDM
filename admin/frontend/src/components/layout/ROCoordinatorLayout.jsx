@@ -1,11 +1,11 @@
-// SMaRT-PDM: Return of Obligations — ROCoordinator Layout (admin frontend component); renders reusable UI and handles local interactions.
+// SMaRT-PDM: Community Service — ROCoordinator Layout (admin frontend component); renders reusable UI and handles local interactions.
 import DepartmentPortalLayout from './DepartmentPortalLayout';
 
 export default function ROCoordinatorLayout() {
   return (
     <DepartmentPortalLayout
       portalKey="ro_coordinator"
-      officeName="Return of Obligation"
+      officeName="Community Service"
       loginPath="/ro-coordinator/login"
       dashboardPath="/ro-coordinator/dashboard"
       profilePath="/ro-coordinator/profile"

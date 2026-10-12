@@ -1,4 +1,4 @@
-// SMaRT-PDM: Return of Obligations — ROAdmin (admin frontend page); loads data, handles page actions, and renders the admin view.
+// SMaRT-PDM: Community Service — ROAdmin (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { buildApiUrl } from '@/api';
@@ -55,12 +55,12 @@ const TOP_TABS = [
 
 const RO_PAGE_SIZE = 10;
 
-// normalizeStatus: normalizes normalize status for the Return of Obligations flow.
+// normalizeStatus: normalizes normalize status for the Community Service flow.
 function normalizeStatus(value) {
   return String(value || '').trim().toLowerCase();
 }
 
-// getPlacementApprovalState: reads and returns get placement approval state for the Return of Obligations flow.
+// getPlacementApprovalState: reads and returns get placement approval state for the Community Service flow.
 function getPlacementApprovalState(scholar = {}) {
   const placements = Array.isArray(scholar.placements) ? scholar.placements : [];
   const statuses = placements.map((placement) =>
@@ -111,7 +111,7 @@ function hasRoAssignment(scholar = {}) {
   ].includes(assignmentStatus);
 }
 
-// getDepartmentValidationStatus: reads and returns get department validation status for the Return of Obligations flow.
+// getDepartmentValidationStatus: reads and returns get department validation status for the Community Service flow.
 function getDepartmentValidationStatus(log = {}) {
   const raw = normalizeStatus(
     log.departmentValidationStatus ||
@@ -125,7 +125,7 @@ function getDepartmentValidationStatus(log = {}) {
   return 'Pending';
 }
 
-// getScholarName: reads and returns get scholar name for the Return of Obligations flow.
+// getScholarName: reads and returns get scholar name for the Community Service flow.
 function getScholarName(scholar) {
   return (
     scholar.name ||
@@ -137,7 +137,7 @@ function getScholarName(scholar) {
   );
 }
 
-// formatYearLevel: formats format year level for the Return of Obligations flow.
+// formatYearLevel: formats format year level for the Community Service flow.
 function formatYearLevel(value) {
   if (!value) return 'N/A';
 
@@ -156,7 +156,7 @@ function formatYearLevel(value) {
   return map[raw] || `${raw} Year`;
 }
 
-// formatDateTime: formats format date time for the Return of Obligations flow.
+// formatDateTime: formats format date time for the Community Service flow.
 function formatDateTime(value) {
   if (!value) return 'N/A';
 
@@ -167,7 +167,7 @@ function formatDateTime(value) {
   }
 }
 
-// formatMinutes: formats format minutes for the Return of Obligations flow.
+// formatMinutes: formats format minutes for the Community Service flow.
 function formatMinutes(value) {
   const minutes = Math.max(0, Number(value || 0));
   const hours = Math.floor(minutes / 60);
@@ -178,7 +178,7 @@ function formatMinutes(value) {
   return `${hours}h ${mins}m`;
 }
 
-// formatHoursCompact: formats format hours compact for the Return of Obligations flow.
+// formatHoursCompact: formats format hours compact for the Community Service flow.
 function formatHoursCompact(minutes) {
   const safeMinutes = Math.max(0, Number(minutes || 0));
   const hours = safeMinutes / 60;
@@ -188,12 +188,12 @@ function formatHoursCompact(minutes) {
   return hours.toFixed(1).replace(/\.0$/, '');
 }
 
-// clampPercent: handles clamp percent for the Return of Obligations flow.
+// clampPercent: handles clamp percent for the Community Service flow.
 function clampPercent(value) {
   return Math.min(100, Math.max(0, Number(value || 0)));
 }
 
-// compactProgressText: handles compact progress text for the Return of Obligations flow.
+// compactProgressText: handles compact progress text for the Community Service flow.
 function compactProgressText({
   requiredMinutes,
   submittedMinutes,
@@ -215,7 +215,7 @@ function compactProgressText({
   return `${clampPercent(percent)}% (${formatHoursCompact(usedMinutes)}/${formatHoursCompact(required)}hrs)`;
 }
 
-// getRoMetrics: reads and returns get ro metrics for the Return of Obligations flow.
+// getRoMetrics: reads and returns get ro metrics for the Community Service flow.
 function getRoMetrics(scholar) {
   const requiredMinutes =
     scholar.requiredMinutes ||
@@ -301,7 +301,7 @@ function getRoMetrics(scholar) {
   };
 }
 
-// getMainStatusCapsule: reads and returns get main status capsule for the Return of Obligations flow.
+// getMainStatusCapsule: reads and returns get main status capsule for the Community Service flow.
 function getMainStatusCapsule(scholar) {
   const assignmentStatus = normalizeStatus(
     scholar.assignment_status || scholar.assignmentStatus
@@ -367,7 +367,7 @@ function getMainStatusCapsule(scholar) {
   return { label: 'Assigned', tone: 'amber' };
 }
 
-// StatusChip: handles status chip for the Return of Obligations flow.
+// StatusChip: handles status chip for the Community Service flow.
 function StatusChip({ children, tone = 'default' }) {
   const styles = {
     default: {
@@ -414,7 +414,7 @@ function StatusChip({ children, tone = 'default' }) {
   );
 }
 
-// ProgressLine: handles progress line for the Return of Obligations flow.
+// ProgressLine: handles progress line for the Community Service flow.
 function ProgressLine({ label, value, caption, color }) {
   const percent = clampPercent(value);
 
@@ -439,7 +439,7 @@ function ProgressLine({ label, value, caption, color }) {
   );
 }
 
-// EmptyState: handles empty state for the Return of Obligations flow.
+// EmptyState: handles empty state for the Community Service flow.
 function EmptyState({ onAssignMode }) {
   return (
     <div className="flex min-h-[320px] flex-col items-center justify-center px-6 py-10 text-center">
@@ -467,7 +467,7 @@ function EmptyState({ onAssignMode }) {
   );
 }
 
-// ToolbarSegment: handles toolbar segment for the Return of Obligations flow.
+// ToolbarSegment: handles toolbar segment for the Community Service flow.
 function ToolbarSegment({ options, value, onChange }) {
   return (
     <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
@@ -492,7 +492,7 @@ function ToolbarSegment({ options, value, onChange }) {
   );
 }
 
-// FilterModal: handles filter modal for the Return of Obligations flow.
+// FilterModal: handles filter modal for the Community Service flow.
 function FilterModal({
   open,
   onClose,
@@ -640,7 +640,7 @@ function FilterModal({
   );
 }
 
-// ConfirmClearModal: handles confirm clear modal for the Return of Obligations flow.
+// ConfirmClearModal: handles confirm clear modal for the Community Service flow.
 function ConfirmClearModal({ open, scholar, loading, onClose, onConfirm }) {
   if (!open || !scholar) return null;
 
@@ -679,7 +679,7 @@ function ConfirmClearModal({ open, scholar, loading, onClose, onConfirm }) {
   );
 }
 
-// AssignModal: handles assign modal for the Return of Obligations flow.
+// AssignModal: handles assign modal for the Community Service flow.
 function AssignModal({
   open,
   scholar,
@@ -705,7 +705,7 @@ function AssignModal({
     ? Number(scholar.required_hours || scholar.requiredHours || 0)
     : Number(defaultRequiredHours || 0);
 
-  // submit: handles submit for the Return of Obligations flow.
+  // submit: handles submit for the Community Service flow.
   const submit = () => {
     onSubmit({
       applicationId: scholar.application_id || null,
@@ -858,7 +858,7 @@ function AssignModal({
   );
 }
 
-// BatchAssignModal: handles batch assign modal for the Return of Obligations flow.
+// BatchAssignModal: handles batch assign modal for the Community Service flow.
 function BatchAssignModal({
   open,
   selectedCount,
@@ -997,7 +997,7 @@ function BatchAssignModal({
   );
 }
 
-// LogsModal: handles logs modal for the Return of Obligations flow.
+// LogsModal: handles logs modal for the Community Service flow.
 function LogsModal({ open, scholar, loading, error, onClose, onBackToDetails }) {
   if (!open || !scholar) return null;
 
@@ -1233,7 +1233,7 @@ function LogsModal({ open, scholar, loading, error, onClose, onBackToDetails }) 
   );
 }
 
-// RoDetailsModal: handles ro details modal for the Return of Obligations flow.
+// RoDetailsModal: handles ro details modal for the Community Service flow.
 function RoDetailsModal({
   open,
   scholar,
@@ -1282,7 +1282,7 @@ function RoDetailsModal({
           style={{ background: C.brownSoft, borderColor: C.line }}
         >
           <div className="min-w-0">
-            <h3 id="ro-details-title" className="text-lg font-semibold text-stone-900">Return of Obligation</h3>
+            <h3 id="ro-details-title" className="text-lg font-semibold text-stone-900">Community Service</h3>
             <p className="mt-1 text-sm text-stone-500">
               Review service areas, logged hours, and clearance readiness.
             </p>
@@ -1581,14 +1581,14 @@ export default function ROAdmin() {
 
   const currentPage = topTab === 'requests' ? 1 : pageByTab[topTab] || 1;
 
-  // setActivePage: sets set active page for the Return of Obligations flow.
+  // setActivePage: sets set active page for the Community Service flow.
   const setActivePage = (nextPage) => {
     if (!['assigned', 'unassigned', 'cleared'].includes(topTab)) return;
     const safePage = Math.max(1, Number(nextPage) || 1);
     setPageByTab((current) => ({ ...current, [topTab]: safePage }));
   };
 
-  // resetActivePage: resets reset active page for the Return of Obligations flow.
+  // resetActivePage: resets reset active page for the Community Service flow.
   const resetActivePage = () => setActivePage(1);
 
   const [selectedIds, setSelectedIds] = useState([]);
@@ -1629,7 +1629,7 @@ export default function ROAdmin() {
     statusFilter !== 'all',
   ].filter(Boolean).length;
 
-  // parseScholarRows: parses parse scholar rows for the Return of Obligations flow.
+  // parseScholarRows: parses parse scholar rows for the Community Service flow.
   const parseScholarRows = (data) => {
     return Array.isArray(data)
       ? data
@@ -1640,7 +1640,7 @@ export default function ROAdmin() {
           : [];
   };
 
-  // isBatchSelectable: checks whether is batch selectable for the Return of Obligations flow.
+  // isBatchSelectable: checks whether is batch selectable for the Community Service flow.
   const isBatchSelectable = (scholar) => {
     const assignmentStatus = normalizeStatus(
       scholar.assignment_status || scholar.assignmentStatus
@@ -1668,7 +1668,7 @@ export default function ROAdmin() {
     );
 
 
-  // buildScholarQuery: builds build scholar query for the Return of Obligations flow.
+  // buildScholarQuery: builds build scholar query for the Community Service flow.
   const buildScholarQuery = (page = currentPage) => {
     const params = new URLSearchParams();
 
@@ -1686,7 +1686,7 @@ export default function ROAdmin() {
     return params.toString();
   };
 
-  // loadFilterData: loads and returns load filter data for the Return of Obligations flow.
+  // loadFilterData: loads and returns load filter data for the Community Service flow.
   const loadFilterData = async () => {
     try {
       const [coursesRes, openingsRes, departmentsRes, activeSettingRes] =
@@ -1757,7 +1757,7 @@ export default function ROAdmin() {
     }
   };
 
-  // loadScholars: loads and returns load scholars for the Return of Obligations flow.
+  // loadScholars: loads and returns load scholars for the Community Service flow.
   const loadScholars = async ({ initial = false, page = currentPage } = {}) => {
     if (topTab === 'requests') return;
 
@@ -1839,12 +1839,12 @@ export default function ROAdmin() {
     }
   };
 
-  // refreshAll: refreshes refresh all for the Return of Obligations flow.
+  // refreshAll: refreshes refresh all for the Community Service flow.
   const refreshAll = async () => {
     await Promise.all([loadFilterData(), loadScholars()]);
   };
 
-  // refreshFromRealtime: refreshes refresh from realtime for the Return of Obligations flow.
+  // refreshFromRealtime: refreshes refresh from realtime for the Community Service flow.
   const refreshFromRealtime = async () => {
     await refreshAll();
 
@@ -1921,7 +1921,7 @@ export default function ROAdmin() {
     ]
   );
 
-  // handleResetFilters: handles handle reset filters for the Return of Obligations flow.
+  // handleResetFilters: handles handle reset filters for the Community Service flow.
   const handleResetFilters = () => {
     setSearch('');
     setCourseId('all');
@@ -1932,7 +1932,7 @@ export default function ROAdmin() {
     setSelectedIds([]);
   };
 
-  // handleTopTabChange: handles handle top tab change for the Return of Obligations flow.
+  // handleTopTabChange: handles handle top tab change for the Community Service flow.
   const handleTopTabChange = (nextTab) => {
     if (nextTab === topTab) return;
 
@@ -1955,7 +1955,7 @@ export default function ROAdmin() {
     }
   };
 
-  // toggleSelected: handles toggle selected for the Return of Obligations flow.
+  // toggleSelected: handles toggle selected for the Community Service flow.
   const toggleSelected = (studentId) => {
     const id = String(studentId);
 
@@ -1966,7 +1966,7 @@ export default function ROAdmin() {
     );
   };
 
-  // toggleSelectAllVisible: handles toggle select all visible for the Return of Obligations flow.
+  // toggleSelectAllVisible: handles toggle select all visible for the Community Service flow.
   const toggleSelectAllVisible = () => {
     const visibleIds = selectableScholars.map((scholar) => String(scholar.student_id));
 
@@ -1980,7 +1980,7 @@ export default function ROAdmin() {
   };
 
 
-  // closeAllModals: handles close all modals for the Return of Obligations flow.
+  // closeAllModals: handles close all modals for the Community Service flow.
   const closeAllModals = () => {
     setAssignModalOpen(false);
     setLogsModalOpen(false);
@@ -1988,14 +1988,14 @@ export default function ROAdmin() {
     setActionError('');
   };
 
-  // openAssignModal: handles open assign modal for the Return of Obligations flow.
+  // openAssignModal: handles open assign modal for the Community Service flow.
   const openAssignModal = (scholar) => {
     closeAllModals();
     setSelectedScholar(scholar);
     setAssignModalOpen(true);
   };
 
-  // loadScholarDetails: loads and returns load scholar details for the Return of Obligations flow.
+  // loadScholarDetails: loads and returns load scholar details for the Community Service flow.
   async function loadScholarDetails(scholar, { openModal = false, silent = false } = {}) {
     if (!scholar?.student_id) return;
 
@@ -2130,12 +2130,12 @@ export default function ROAdmin() {
     }
   }
 
-  // openDetailsModal: handles open details modal for the Return of Obligations flow.
+  // openDetailsModal: handles open details modal for the Community Service flow.
   async function openDetailsModal(scholar) {
     await loadScholarDetails(scholar, { openModal: true });
   }
 
-  // closeAssignModal: handles close assign modal for the Return of Obligations flow.
+  // closeAssignModal: handles close assign modal for the Community Service flow.
   const closeAssignModal = () => {
     if (actionLoading) return;
     setAssignModalOpen(false);
@@ -2143,7 +2143,7 @@ export default function ROAdmin() {
     setActionError('');
   };
 
-  // closeLogsModal: handles close logs modal for the Return of Obligations flow.
+  // closeLogsModal: handles close logs modal for the Community Service flow.
   const closeLogsModal = () => {
     if (actionLoading) return;
     setLogsModalOpen(false);
@@ -2151,7 +2151,7 @@ export default function ROAdmin() {
     setActionError('');
   };
 
-  // closeDetailsModal: handles close details modal for the Return of Obligations flow.
+  // closeDetailsModal: handles close details modal for the Community Service flow.
   const closeDetailsModal = () => {
     if (actionLoading) return;
     detailsRequestSequenceRef.current += 1;
@@ -2161,7 +2161,7 @@ export default function ROAdmin() {
     setActionError('');
   };
 
-  // openAssignFromDetails: handles open assign from details for the Return of Obligations flow.
+  // openAssignFromDetails: handles open assign from details for the Community Service flow.
   const openAssignFromDetails = () => {
     if (!detailsScholar) return;
     setDetailsModalOpen(false);
@@ -2169,7 +2169,7 @@ export default function ROAdmin() {
     setAssignModalOpen(true);
   };
 
-  // openLogsFromDetails: handles open logs from details for the Return of Obligations flow.
+  // openLogsFromDetails: handles open logs from details for the Community Service flow.
   const openLogsFromDetails = () => {
     if (!detailsScholar) return;
     setDetailsModalOpen(false);
@@ -2177,7 +2177,7 @@ export default function ROAdmin() {
     setLogsModalOpen(true);
   };
 
-  // backToDetailsFromLogs: handles back to details from logs for the Return of Obligations flow.
+  // backToDetailsFromLogs: handles back to details from logs for the Community Service flow.
   const backToDetailsFromLogs = () => {
     if (!selectedScholar) return;
     setLogsModalOpen(false);
@@ -2185,7 +2185,7 @@ export default function ROAdmin() {
     setDetailsModalOpen(true);
   };
 
-  // handleAssign: handles handle assign for the Return of Obligations flow.
+  // handleAssign: handles handle assign for the Community Service flow.
   const handleAssign = async (payload) => {
     if (!selectedScholar?.student_id) return;
 
@@ -2221,7 +2221,7 @@ export default function ROAdmin() {
     }
   };
 
-  // handleBatchAssign: handles handle batch assign for the Return of Obligations flow.
+  // handleBatchAssign: handles handle batch assign for the Community Service flow.
   const handleBatchAssign = async ({ assignedArea, remarks }) => {
     try {
       setActionLoading(true);
@@ -2273,7 +2273,7 @@ export default function ROAdmin() {
     }
   };
 
-  // handleClear: handles handle clear for the Return of Obligations flow.
+  // handleClear: handles handle clear for the Community Service flow.
   const handleClear = async (scholar) => {
     if (!scholar?.student_id) return;
 
@@ -2314,7 +2314,7 @@ export default function ROAdmin() {
   };
 
   if (loading) {
-    return <PageLoadingSkeleton label="Loading Return of Obligation administration" showStats />;
+    return <PageLoadingSkeleton label="Loading Community Service administration" showStats />;
   }
 
   return (

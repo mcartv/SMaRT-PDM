@@ -221,7 +221,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
         debugPrint('RO LOAD ERROR: $error');
         setState(
           () => _errorMessage =
-              'We could not load your Return of Obligation details. Check your connection and try again.',
+              'We could not load your Community Service details. Check your connection and try again.',
         );
       }
     } finally {
@@ -1062,7 +1062,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
         return AlertDialog(
           title: const Text('Acknowledge RO notice?'),
           content: Text(
-            'You are acknowledging the required Return of Obligation assignment at ${item.assignedArea}. Failure to complete it may be reported to OSFA for review.',
+            'You are acknowledging the required Community Service assignment at ${item.assignedArea}. Failure to complete it may be reported to OSFA for review.',
           ),
           actions: [
             TextButton(
@@ -1663,7 +1663,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
               backgroundColor: AppSurfacePalette.surface(context),
               foregroundColor: AppSurfacePalette.text(context),
               title: const Text(
-                'Return of Obligation',
+                'Community Service',
                 style: TextStyle(fontWeight: FontWeight.w900),
               ),
             )
@@ -1706,7 +1706,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
               icon: Icons.lock_outline_rounded,
               title: 'For approved scholars only',
               message:
-                  'Return of Obligation is shown only after your scholarship application has been approved.',
+                  'Community Service is shown only after your scholarship application has been approved.',
             ),
           ],
         ),
@@ -1723,7 +1723,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
               icon: Icons.assignment_outlined,
               title: 'No RO notice yet',
               message:
-                  'Your Return of Obligation notice will appear here once OSFA assigns it.',
+                  'Your Community Service notice will appear here once OSFA assigns it.',
             ),
           ],
         ),
@@ -1739,7 +1739,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         AppSectionHeading(
-          title: 'My Return of Obligation',
+          title: 'My Community Service',
           subtitle:
               '${_activeItems.length} active • ${_completedItems.length} completed',
         ),
@@ -1878,8 +1878,8 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                 : Icons.assignment_outlined,
             title: completed ? 'No completed RO yet' : 'No active RO',
             message: completed
-                ? 'Cleared Return of Obligation records will appear here.'
-                : 'Active Return of Obligation records will appear here.',
+                ? 'Cleared Community Service records will appear here.'
+                : 'Active Community Service records will appear here.',
           ),
         ],
       );
@@ -1992,7 +1992,7 @@ class RoAssignment {
   factory RoAssignment.fromJson(Map<String, dynamic> json) {
     return RoAssignment(
       roId: json['roId']?.toString() ?? json['id']?.toString() ?? '',
-      title: json['title']?.toString() ?? 'Return of Obligation Notice',
+      title: json['title']?.toString() ?? 'Community Service Notice',
       programName: json['programName']?.toString() ?? '',
       openingTitle: json['openingTitle']?.toString() ?? '',
       academicYear:
@@ -2459,7 +2459,7 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                   children: [
                     Text(
                       item.assignedArea.trim().isEmpty
-                          ? 'Return of Obligation'
+                          ? 'Community Service'
                           : item.assignedArea,
                       style: Theme.of(context).textTheme.headlineSmall
                           ?.copyWith(
@@ -2518,7 +2518,7 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                         icon: Icons.gavel_rounded,
                         title: 'Required Scholarship Obligation',
                         message:
-                            'This assignment is required. If you have a valid conflict, report it to OSFA. You still need attendance proof unless the RO Coordinator approves an exception.',
+                            'This assignment is required. If you have a valid conflict, report it to OSFA. You still need attendance proof unless the Community Service Coordinator approves an exception.',
                         color: Color(0xFF8A4B08),
                       ),
                     ],
@@ -2608,10 +2608,10 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                         title:
                             validationFeedbackStatus == 'returned' ||
                                 validationFeedbackStatus == 'rejected'
-                            ? 'RO Coordinator Feedback - Returned'
+                            ? 'Community Service Coordinator Feedback - Returned'
                             : validationFeedbackStatus == 'approved'
-                            ? 'RO Coordinator Feedback - Verified'
-                            : 'RO Coordinator Feedback',
+                            ? 'Community Service Coordinator Feedback - Verified'
+                            : 'Community Service Coordinator Feedback',
                         message: validationFeedback,
                         color: validationFeedbackColor,
                       ),

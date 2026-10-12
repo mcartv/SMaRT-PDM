@@ -1,4 +1,4 @@
-// SMaRT-PDM: Return of Obligations — ROCoordinator Queue (admin frontend page); loads data, handles page actions, and renders the admin view.
+// SMaRT-PDM: Community Service — ROCoordinator Queue (admin frontend page); loads data, handles page actions, and renders the admin view.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
@@ -29,7 +29,7 @@ const FILTERS = [
   { key: 'all', label: 'All Requests' },
 ];
 
-// getInitials: reads and returns get initials for the Return of Obligations flow.
+// getInitials: reads and returns get initials for the Community Service flow.
 function getInitials(name = '') {
   return (name || 'NA')
     .split(' ')
@@ -40,7 +40,7 @@ function getInitials(name = '') {
     .toUpperCase();
 }
 
-// authHeaders: handles auth headers for the Return of Obligations flow.
+// authHeaders: handles auth headers for the Community Service flow.
 function authHeaders(tokenStorageKey) {
   return {
     Authorization: `Bearer ${sessionStorage.getItem(tokenStorageKey) || ''}`,
@@ -48,7 +48,7 @@ function authHeaders(tokenStorageKey) {
   };
 }
 
-// formatDate: formats format date for the Return of Obligations flow.
+// formatDate: formats format date for the Community Service flow.
 function formatDate(value) {
   if (!value) return 'Not available';
   const date = new Date(value);
@@ -62,7 +62,7 @@ function formatDate(value) {
   });
 }
 
-// DecisionModal: handles decision modal for the Return of Obligations flow.
+// DecisionModal: handles decision modal for the Community Service flow.
 function DecisionModal({ request, decision, loading, onClose, onConfirm, theme }) {
   const [remarks, setRemarks] = useState('');
 
@@ -134,7 +134,7 @@ const MANUAL_ADJUSTMENT_REASONS = [
   'Other',
 ];
 
-// AttendanceDecisionModal: handles attendance decision modal for the Return of Obligations flow.
+// AttendanceDecisionModal: handles attendance decision modal for the Community Service flow.
 function AttendanceDecisionModal({
   state,
   loading,
@@ -455,7 +455,7 @@ export default function ROCoordinatorQueue({
     if (viewMode === 'attendance') loadAttendance();
   }, [loadRequests, loadAttendance, viewMode]);
 
-  // submitDecision: handles submit decision for the Return of Obligations flow.
+  // submitDecision: handles submit decision for the Community Service flow.
   const submitDecision = async (remarks) => {
     const { request, decision } = decisionState;
     if (!request?.placement_id || !decision) return;
@@ -693,7 +693,7 @@ export default function ROCoordinatorQueue({
           <div className="space-y-3">
             {attendance.map((log) => {
               const proofs = Array.isArray(log.proofs) ? log.proofs : [];
-              // hasValidProof: checks whether has valid proof for the Return of Obligations flow.
+              // hasValidProof: checks whether has valid proof for the Community Service flow.
               const hasValidProof = (type) =>
                 proofs.some((proof) => {
                   const proofStatus = String(

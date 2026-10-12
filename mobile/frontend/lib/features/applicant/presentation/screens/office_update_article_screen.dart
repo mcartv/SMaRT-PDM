@@ -66,7 +66,7 @@ class _OfficeUpdateArticleScreenState extends State<OfficeUpdateArticleScreen> {
     }
     if (combined.contains('return of obligation') &&
         (combined.contains('assignment') || combined.contains('community service') || combined.contains('ro reminder'))) {
-      return (label: 'View Return of Obligations', icon: Icons.assignment_turned_in_outlined, route: AppRoutes.roAssignment);
+      return (label: 'View Community Service', icon: Icons.assignment_turned_in_outlined, route: AppRoutes.roAssignment);
     }
     if (combined.contains('document re-upload') || combined.contains('re-upload the required document')) {
       return (label: 'View Documents', icon: Icons.description_outlined, route: AppRoutes.documents);

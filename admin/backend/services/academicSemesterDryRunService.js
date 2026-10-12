@@ -19,9 +19,9 @@ function evaluate({date, candidates, active, unfinishedCount, openingCount}) {
   if (active.length > 1) return {...base,status:'ambiguous-active-periods',reason:'More than one current semester exists.'};
   if (target.is_active || active.some(a=>String(a.period_id)===String(target.period_id))) return {...base,status:'already-current',reason:'Target is already current.'};
   if (active.length && orderNumber(target) <= orderNumber(active[0])) return {...base,status:'historical-target',reason:'Automatic activation cannot move backward or repeat an older semester.'};
-  const blocked={unfinished_applications:unfinishedCount,open_or_draft_openings:openingCount};
-  if (unfinishedCount || openingCount) return {...base,status:'blocked',reason:'Unfinished applications or open/draft openings require admin review.',blockers:blocked};
-  return {...base,status:'ready',would_activate:true,reason:'Schedule and preliminary checks pass. Actual activation may still fail transaction-time checks.',blockers:blocked};
+  // SMARTPDM_HISTORY_SAFE_ROLLOVER_V15: pending old-cycle work stays recorded; draft/open old openings close transactionally.
+  const projected_effects={historical_unfinished_applications:unfinishedCount,open_or_draft_openings_to_close:openingCount};
+  return {...base,status:'ready',would_activate:true,reason:'Preliminary schedule checks pass. Previous-cycle openings will close; applications and uploaded requirements stay in history. Actual activation remains transactional and may fail additional checks.',projected_effects};
 }
 async function preview(simulatedDate) {
  const date=parseDate(simulatedDate);

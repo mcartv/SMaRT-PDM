@@ -81,12 +81,9 @@ async function tick() {
       if (Number(target.start_year) < Number(current.start_year) ||
         (Number(target.start_year) === Number(current.start_year) && target.term === 'First Semester' && current.term === 'Second Semester')) return { status: 'historical-target' };
     }
-    const unfinished = await client.query("SELECT COUNT(*)::int AS n FROM applications a JOIN program_openings o ON o.opening_id=a.opening_id WHERE o.period_id IS DISTINCT FROM $1 AND COALESCE(a.is_archived,false)=false AND LOWER(COALESCE(a.application_status,'')) IN ('pending review','requires reupload')", [target.period_id]);
-    const openings = await client.query("SELECT COUNT(*)::int AS n FROM program_openings WHERE period_id IS DISTINCT FROM $1 AND COALESCE(is_archived,false)=false AND LOWER(COALESCE(posting_status,'')) IN ('draft','open')", [target.period_id]);
-    if (unfinished.rows[0].n || openings.rows[0].n) {
-      const detail = 'Blocked: ' + unfinished.rows[0].n + ' incomplete applications; ' + openings.rows[0].n + ' open/draft openings. Review and use manual Set Current after resolving.';
-      await client.query('UPDATE academic_semester_schedules SET last_error=$2,last_attempt_at=NOW() WHERE period_id=$1', [target.period_id, detail]); return { status: 'blocked', reason: detail };
-    }
+    // SMARTPDM_HISTORY_SAFE_ROLLOVER_V15: prior-cycle applications and openings are historical, not blockers.
+    // The existing activation transaction closes old openings and creates missing Renewal/RO cycles.
+    // Its failure still rolls back all activation-side mutations.
     try {
       const outcome = await academic.activateAcademicPeriod(target.period_id, null, { scheduled: true });
       await client.query('UPDATE academic_semester_schedules SET last_error=NULL,last_attempt_at=NOW(),last_transition_at=NOW() WHERE period_id=$1', [target.period_id]);

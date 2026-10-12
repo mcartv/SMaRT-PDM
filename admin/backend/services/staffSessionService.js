@@ -1,3 +1,4 @@
+// SMARTPDM_RBAC_MIGRATION_20261013_V1
 // SMaRT-PDM: staff Session Service — staff Session Service (admin backend service); contains business logic and data operations.
 const db = require('../config/db');
 
@@ -7,13 +8,8 @@ const TOKEN_VERSION_FALLBACK = 1;
 // under users.role = 'Admin'. SDO uses users.role = 'SDO'. The portal role is
 // carried in the JWT and is revoked with users.token_version when Admin changes
 // that primary role through Account Maintenance.
-const ROLE_BACKING = Object.freeze({
-    admin: 'admin',
-    pd: 'admin',
-    guidance: 'admin',
-    ro_coordinator: 'admin',
-    sdo: 'sdo',
-});
+// A compatibility export only. Role backing is resolved from the RBAC catalog.
+const ROLE_BACKING = Object.freeze({});
 
 class StaffSessionError extends Error {
     constructor(message, { statusCode = 401, code = 'STAFF_SESSION_ERROR' } = {}) {
@@ -60,8 +56,17 @@ function getDecodedTokenVersion(decoded = {}) {
 }
 
 // expectedBackingRole: handles expected backing role for the staff Session Service flow.
-function expectedBackingRole(tokenRole) {
-    return ROLE_BACKING[normalizeRole(tokenRole)] || null;
+async function expectedBackingRole(tokenRole, userId) {
+    const role = normalizeRole(tokenRole);
+    if (!role || !userId) return null;
+    const result = await db.query(`SELECT c.db_user_role
+      FROM public.rbac_staff_role_catalog c
+      JOIN public.rbac_roles r ON r.role_id=c.role_id
+      JOIN public.rbac_user_roles ur ON ur.role_id=r.role_id
+      WHERE ur.user_id=$1 AND ur.is_active=true
+        AND c.app_role_code=$2 AND c.is_active=true AND r.is_active=true
+      LIMIT 1`, [userId, role]);
+    return result.rows[0]?.db_user_role ? normalizeRole(result.rows[0].db_user_role) : null;
 }
 
 // loadCurrentStaffAccount: loads and returns load current staff account for the staff Session Service flow.
@@ -94,7 +99,7 @@ async function loadCurrentStaffAccount(userId) {
 async function assertCurrentStaffSession({ decoded = {} } = {}) {
     const userId = resolveUserId(decoded);
     const tokenRole = normalizeRole(decoded.role);
-    const backingRole = expectedBackingRole(tokenRole);
+    const backingRole = await expectedBackingRole(tokenRole, userId);
 
     if (!userId || !backingRole) {
         throw new StaffSessionError('This session is invalid. Please sign in again.', {

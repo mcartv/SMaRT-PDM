@@ -113,9 +113,15 @@ const authorizeRoles = (...roles) => async (req,res,next) => {
     if (!userId) return res.status(401).json({message:'Authentication required'});
     const required=roles.map(x=>String(x||'').trim().toLowerCase());
     const tokenRole=String(req.user?.role||'').toLowerCase();
-    if (required.includes('admin')) {
-        if(tokenRole!=='admin')return res.status(403).json({message:'Administrator access required'});
-        return next();
+    // Admin is a protected capability, not a reason to deny another
+    // explicitly requested office role. An Admin-only route remains Admin-only.
+    if (required.includes('admin') && tokenRole === 'admin') return next();
+    if (required.length === 1 && required[0] === 'admin') {
+        return res.status(403).json({message:'Administrator access required'});
+    }
+    const permittedPortals = required.filter(role => role !== 'admin');
+    if (!permittedPortals.length) {
+        return res.status(403).json({message:'Access denied for this account'});
     }
     try {
         const q=await db.query(
@@ -124,7 +130,7 @@ const authorizeRoles = (...roles) => async (req,res,next) => {
              JOIN public.rbac_role_portals p ON p.role_id=r.role_id
              WHERE ur.user_id=$1 AND ur.is_active=TRUE AND r.is_active=TRUE
                AND r.role_scope='staff' AND p.portal_code=ANY($2::text[]) LIMIT 1`,
-          [userId,required]);
+          [userId,permittedPortals]);
         if(q.rowCount)return next();
         return res.status(403).json({message:'Access denied for this account'});
     }catch(err){

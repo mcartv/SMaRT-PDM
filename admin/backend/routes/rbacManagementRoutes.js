@@ -1,3 +1,4 @@
+// SMARTPDM_RBAC_MIGRATION_20261013_V1
 'use strict';
 // Admin-only RBAC management. Core roles are immutable to prevent production lockout.
 const express = require('express');
@@ -68,7 +69,8 @@ router.get('/capabilities',view,safe(async(req,res)=>{
 router.put('/roles/:id/portals/:portal',manage,safe(async(req,res)=>{
  if(!isUuid(req.params.id)||typeof req.body?.granted!=='boolean')return res.status(400).json({error:'Invalid request'});
  const portal=String(req.params.portal||'').toLowerCase();
- if(!['sdo','guidance','pd','ro_coordinator'].includes(portal))return res.status(400).json({error:'Unknown or protected portal'});
+ const availablePortal=await db.query("SELECT 1 FROM public.rbac_staff_role_catalog WHERE app_role_code=$1 AND is_active=true AND app_role_code<>'admin' LIMIT 1",[portal]);
+ if(!availablePortal.rowCount)return res.status(400).json({error:'Unknown or protected portal'});
  const role=await db.query("SELECT role_scope,is_active FROM public.rbac_roles WHERE role_id=$1 AND role_code<>'admin'",[req.params.id]);
  if(!role.rowCount||role.rows[0].role_scope!=='staff'||!role.rows[0].is_active)return res.status(403).json({error:'Role is unavailable'});
  if(req.body.granted)await db.query('INSERT INTO public.rbac_role_portals(role_id,portal_code) VALUES($1,$2) ON CONFLICT DO NOTHING',[req.params.id,portal]);

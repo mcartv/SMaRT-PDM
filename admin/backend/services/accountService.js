@@ -1,3 +1,4 @@
+// SMARTPDM_RBAC_MIGRATION_20261013_V1
 // SMaRT-PDM: Accounts — account Service (admin backend service); contains business logic and data operations.
 const bcrypt = require('bcryptjs');
 const { z } = require('zod');
@@ -10,7 +11,7 @@ const adminSessionService = require('./adminSessionService');
 const { syncStaffReferences } = require('../utils/syncStaffReferences');
 
 // SMARTPDM_DB_STAFF_CATALOG_V1: legacy codes remain for existing auth/portal compatibility.
-const ROLE_VALUES = ['admin', 'pd', 'guidance', 'sdo', 'ro_coordinator'];
+// Roles come from the active RBAC catalog, not a source-code allowlist.
 async function loadRoleConfig(role, client=db) {
     const result=await client.query(`
       SELECT c.db_user_role AS "dbRole",c.default_position AS position,
@@ -20,7 +21,7 @@ async function loadRoleConfig(role, client=db) {
       FROM public.rbac_staff_role_catalog c JOIN public.rbac_roles r ON r.role_id=c.role_id
       WHERE c.app_role_code=$1 AND c.is_active=true AND r.is_active=true AND r.role_scope='staff'
     `,[role]);
-    if(!result.rows.length)throw createHttpError(400,'Select an active staff role from Role Management.');
+    if(!result.rows.length)throw createHttpError(400,'Select an active user role from Role Management.');
     return result.rows[0];
 }
 
@@ -89,7 +90,7 @@ const staffAccountSchema = z
         username: usernameSchema,
         email: staffEmailSchema,
         phone_number: optionalPhoneNumberSchema,
-        role: z.string().trim().min(1, 'Select an active staff role.'),
+        role: z.string().trim().min(1, 'Select an active user role.'),
         department: z.string().trim().optional().default(''),
         password: passwordSchema,
         confirm_password: z.string(),
@@ -539,7 +540,11 @@ async function listStaffAccounts() {
             u.created_at DESC
     `);
 
-    const accounts = result.rows.map(mapStaffAccount).filter((account) => ROLE_VALUES.includes(account.role));
+    const activeRolesResult = await db.query(`SELECT c.app_role_code FROM public.rbac_staff_role_catalog c
+      JOIN public.rbac_roles r ON r.role_id=c.role_id
+      WHERE c.is_active=true AND r.is_active=true`);
+    const activeRoles = new Set(activeRolesResult.rows.map(row => String(row.app_role_code).toLowerCase()));
+    const accounts = result.rows.map(mapStaffAccount).filter(account => activeRoles.has(String(account.role || '').toLowerCase()));
     const pdIds = accounts.filter((account) => account.role === 'pd').map((account) => account.user_id);
     const coordinatorIds = accounts
         .filter((account) => ['pd', 'sdo', 'guidance', 'ro_coordinator'].includes(account.role))

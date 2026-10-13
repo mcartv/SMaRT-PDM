@@ -194,7 +194,7 @@ function DepartmentModal({
     );
 }
 
-export default function ROSettingsPanel() {
+export default function ROSettingsPanel({ departmentsOnly = false }) {
     const [, setSettings] = useState([]);
     const [activeSetting, setActiveSetting] = useState(null);
     const [courseCatalog,setCourseCatalog]=useState([]);
@@ -653,7 +653,7 @@ export default function ROSettingsPanel() {
             ) : null}
 
 
-            <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
+            {!departmentsOnly && <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
                 <div className="flex flex-col gap-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
@@ -682,7 +682,7 @@ export default function ROSettingsPanel() {
                     <div className="grid gap-3 border-t border-stone-100 pt-3 md:grid-cols-[220px_1fr_auto] md:items-end">
                         <div>
                             <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                Required RO Hours
+                                Required Community Service Hours
                             </label>
 
                             <Input
@@ -722,14 +722,14 @@ export default function ROSettingsPanel() {
                         </Button>
                     </div>
                 </div>
-            </div>
+            </div>}
 
             <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
                 <div className="flex flex-col gap-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
                             <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
-                                Community Service Areas
+                                {departmentsOnly ? "Offices & Departments" : "Community Service Areas"}
                             </h2>
                             <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
                                 {currentCount} active · {inactiveCount} inactive
@@ -739,7 +739,7 @@ export default function ROSettingsPanel() {
                         <div className="relative w-full md:w-[320px]">
                             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                             <Input
-                                placeholder="Search Community Service Area..."
+                                placeholder="Search offices and departments..."
                                 value={search}
                                 onChange={(event) => setSearch(event.target.value)}
                                 className="h-9 rounded-lg border-stone-200 bg-white pl-9 text-sm"

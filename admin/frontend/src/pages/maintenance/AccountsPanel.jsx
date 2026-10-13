@@ -736,7 +736,7 @@ function AccountCreateModal({
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
                     <div>
                         <h3 className="text-sm font-semibold text-stone-800">
-                            Create Staff Account
+                            Create User Account
                         </h3>
                         <p className="mt-0.5 text-xs text-stone-500">
                             Create a Program Director, Student Discipline Officer, Guidance Counselor, or RO Personnel-In-Charge account.
@@ -1443,7 +1443,7 @@ export default function AccountsPanel() {
         if(cancelled)return;
         // SMARTPDM_DB_STAFF_CATALOG_V1: role names and permitted offices come from the database.
         const supported=(data.roles||[]).map(r=>({value:r.value,label:r.label,department:''}));
-        if(!supported.some(r=>r.value==='admin') || !supported.some(r=>r.value!=='admin')) throw Error('Staff roles not configured');
+        if(!supported.some(r=>r.value==='admin') || !supported.some(r=>r.value!=='admin')) throw Error('user roles not configured');
         const group={};
         for(const office of (data.offices||[])){
           if(!group[office.role])group[office.role]=[];
@@ -2171,7 +2171,7 @@ export default function AccountsPanel() {
                                     style={{ background: C.brownMid }}
                                 >
                                     <Plus className="mr-1.5 h-3.5 w-3.5" />
-                                    Create Staff Account
+                                    Create User Account
                                 </Button>
                             </div>
                         </div>

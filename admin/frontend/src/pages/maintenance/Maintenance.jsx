@@ -37,6 +37,7 @@ const TABS = [
   { key: 'academic-years', label: 'Academic Years', icon: CalendarRange },
   { key: 'courses', label: 'Courses', icon: BookOpen },
   { key: 'ro-settings', label: 'Community Service', icon: Clock3 },
+  { key: 'offices-departments', label: 'Offices & Departments', icon: UsersRound },
   { key: 'registry', label: 'Student Registry', icon: Database },
   { key: 'audit', label: 'System Logs', icon: ClipboardList },
 ];
@@ -159,6 +160,9 @@ export default function Maintenance() {
 
       case 'ro-settings':
         return <ROSettingsPanel />;
+
+      case 'offices-departments':
+        return <ROSettingsPanel departmentsOnly />;
 
       case 'registry':
         return <StudentRegistryPanel />;

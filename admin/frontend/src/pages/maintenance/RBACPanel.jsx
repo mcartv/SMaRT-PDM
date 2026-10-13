@@ -131,8 +131,8 @@ export default function RBACPanel(){
     </div>
     
     <div className="overflow-x-auto rounded-2xl border border-stone-200 bg-white">
-     <table className="w-full min-w-[680px] text-left text-sm">
-      <thead className="bg-stone-50 text-xs font-bold uppercase tracking-wide text-stone-500"><tr><th className="px-4 py-3">Role</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Permissions</th><th className="px-4 py-3 text-right">Actions</th></tr></thead>
+     <table className="w-full min-w-[360px] text-left text-sm">
+      <thead className="bg-stone-50 text-xs font-bold uppercase tracking-wide text-stone-500"><tr><th className="px-4 py-3">User Role</th><th className="px-4 py-3">Granted Permissions</th></tr></thead>
       <tbody className="divide-y divide-stone-100">{visibleRoles.map(r=><tr key={r.role_id} className="transition-colors hover:bg-[#faf7f4]">
        <td className="px-4 py-4 font-semibold text-stone-800">{r.role_name}</td>
        <td className="px-4 py-4"><span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${r.is_active?'bg-emerald-100 text-emerald-800':'bg-stone-100 text-stone-600'}`}>{r.is_active?'Active':'Archived'}</span></td>
@@ -148,8 +148,8 @@ export default function RBACPanel(){
    </>:tab==='permissions'?<>
     <select value={selected?.role_id||''} onChange={e=>setRole(e.target.value)} className="max-w-md rounded-lg border p-2 text-sm">{userRoles.map(r=><option key={r.role_id} value={r.role_id}>{r.role_name}</option>)}</select>
     <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 space-y-2">
-     <h4 className="text-sm font-semibold text-stone-800">Assign selected role to a user</h4>
-     <p className="text-xs text-stone-500">Additional permissions only. This does not change the user's primary login portal or administrator status.</p>
+     <h4 className="text-sm font-semibold text-stone-800">Assign role to a user</h4>
+     <p className="text-xs text-stone-500">Additional access only. This does not change the user's primary login portal or administrator status.</p>
      <div className="flex flex-wrap gap-2">
       <select className="min-w-56 flex-1 rounded-lg border border-stone-200 p-2 text-sm" value={selectedUser} onChange={e=>setSelectedUser(e.target.value)}>
        <option value="">Select an existing active user</option>

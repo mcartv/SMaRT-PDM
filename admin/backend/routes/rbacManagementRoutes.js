@@ -22,6 +22,56 @@ router.get('/overview',view,safe(async(req,res)=>{
   ]);
   res.set('Cache-Control','no-store');res.json({roles:roles.rows,permissions:permissions.rows,rolePermissions:links.rows,assignments:assignments.rows});
 }));
+// SMARTPDM_CONSOLIDATED_ROLE_ASSIGNMENTS_V1
+// Supplemental RBAC role assignments; existing account sign-in identity remains unchanged.
+router.get('/eligible-users',view,safe(async(req,res)=>{
+ const result=await db.query(`SELECT u.user_id,u.username,u.email,
+   concat_ws(' ',ap.first_name,ap.last_name) AS display_name,
+   COALESCE(ap.is_archived,false) AS is_archived
+   FROM public.users u JOIN public.admin_profiles ap ON ap.user_id=u.user_id
+   ORDER BY COALESCE(ap.is_archived,false),u.username LIMIT 500`);
+ res.set('Cache-Control','no-store');res.json({users:result.rows});
+}));
+router.put('/roles/:id/users/:userId',manage,safe(async(req,res)=>{
+ if(!isUuid(req.params.id)||!isUuid(req.params.userId)||typeof req.body?.granted!=='boolean')
+  return res.status(400).json({error:'Invalid role assignment request.'});
+ const client=await db.connect();
+ try {
+  await client.query('BEGIN');
+  const role=await client.query('SELECT role_code,role_scope,is_active FROM public.rbac_roles WHERE role_id=$1 FOR UPDATE',[req.params.id]);
+  if(!role.rowCount){const e=new Error('Role not found.');e.httpStatus=404;throw e;}
+  const target=role.rows[0];
+  if(target.role_code==='admin'||target.role_scope!=='staff'||!target.is_active)
+    {const e=new Error('System administrator and unavailable roles cannot be assigned here.');e.httpStatus=403;throw e;}
+  const user=await client.query(`SELECT u.user_id,COALESCE(a.is_archived,false) AS is_archived
+    FROM public.users u JOIN public.admin_profiles a ON a.user_id=u.user_id
+    WHERE u.user_id=$1 FOR UPDATE OF u,a`,[req.params.userId]);
+  if(!user.rowCount||user.rows[0].is_archived)
+    {const e=new Error('An active user account is required.');e.httpStatus=404;throw e;}
+  if(req.body.granted) await client.query(`INSERT INTO public.rbac_user_roles(user_id,role_id,is_active)
+     VALUES($1,$2,TRUE) ON CONFLICT(user_id,role_id) DO UPDATE SET is_active=TRUE`,[req.params.userId,req.params.id]);
+  else await client.query('UPDATE public.rbac_user_roles SET is_active=FALSE WHERE user_id=$1 AND role_id=$2',[req.params.userId,req.params.id]);
+  await client.query('COMMIT');
+  return res.json({ok:true});
+ } catch(e){await client.query('ROLLBACK');if(e.httpStatus)return res.status(e.httpStatus).json({error:e.message});throw e} finally{client.release()}
+}));
+// SMARTPDM_ATOMIC_CREATE_ROLE_MODAL_V1: create the role and all selected permissions atomically.
+router.post('/roles/with-permissions',manage,safe(async(req,res)=>{
+ const name=String(req.body?.role_name||'').trim();
+ const ids=req.body?.permission_ids;
+ if(name.length<3||name.length>80||!Array.isArray(ids)||ids.length>200||!ids.every(isUuid)||new Set(ids).size!==ids.length)
+   return res.status(400).json({error:'Provide a role name and valid permission selections.'});
+ const client=await db.connect();
+ try{
+  await client.query('BEGIN');
+  if(ids.length){const q=await client.query('SELECT permission_id FROM public.rbac_permissions WHERE permission_id=ANY($1::uuid[])',[ids]);
+   if(q.rowCount!==ids.length){await client.query('ROLLBACK');return res.status(400).json({error:'One or more permissions do not exist.'});}}
+  const code='custom_'+crypto.randomUUID().replace(/-/g,'').slice(0,24);
+  const created=await client.query("INSERT INTO public.rbac_roles(role_code,role_name,role_scope,is_active) VALUES($1,$2,'staff',true) RETURNING role_id,role_name,role_code",[code,name]);
+  if(ids.length)await client.query('INSERT INTO public.rbac_role_permissions(role_id,permission_id) SELECT $1,unnest($2::uuid[])',[created.rows[0].role_id,ids]);
+  await client.query('COMMIT');res.status(201).json({role:created.rows[0],permission_count:ids.length});
+ }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
+}));
 // Role codes are internal identifiers; administrators only supply names.
 router.post('/roles',manage,safe(async(req,res)=>{
  const name=String(req.body?.role_name||'').trim();

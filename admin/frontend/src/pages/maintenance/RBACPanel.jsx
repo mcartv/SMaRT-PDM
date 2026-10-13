@@ -38,10 +38,15 @@ function formatPermissionLabel(code) {
 const tabs=[['accounts','User Accounts'],['roles','Roles'],['permissions','Role Permissions']];
 export default function RBACPanel(){
  const [capabilities,setCapabilities]=useState(null);
+ const [eligibleUsers,setEligibleUsers]=useState([]);
+ const [selectedUser,setSelectedUser]=useState(''); // SMARTPDM_CONSOLIDATED_ROLE_ASSIGNMENTS_V1
+
  const [tab,setTab]=useState('accounts'),[data,setData]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[role,setRole]=useState(''),[name,setName]=useState('');
+ // SMARTPDM_ATOMIC_CREATE_ROLE_MODAL_V1
+ const [createOpen,setCreateOpen]=useState(false),[draftPermissions,setDraftPermissions]=useState([]);
  const token=sessionStorage.getItem('adminToken');
  const request=useCallback(async(path,init={})=>{const res=await fetch(buildApiUrl('/api/rbac-management'+path),{...init,headers:{Authorization:`Bearer ${sessionStorage.getItem('adminToken')||''}`,'Content-Type':'application/json',...(init.headers||{})}});const body=await res.json().catch(()=>({}));if(!res.ok)throw new Error(body.error||`Request failed (${res.status})`);return body;},[]);
- const reload=useCallback(async()=>{setError('');try{const [overview,access]=await Promise.all([request('/overview'),request('/capabilities')]);setData(overview);setCapabilities(access)}catch(e){setError(e.message)}},[request]);
+ const reload=useCallback(async()=>{setError('');try{const [overview,access]=await Promise.all([request('/overview'),request('/capabilities')]);setData(overview);setCapabilities(access);const usersResponse=await request('/eligible-users');setEligibleUsers(usersResponse.users||[])}catch(e){setError(e.message)}},[request]);
  useEffect(()=>{if(tab!=='accounts')reload()},[tab,reload]);
  const userRoles=(data?.roles||[]).filter(r=>r.role_scope==='staff'&&r.role_code!=='benefactor');
  const selected=userRoles.find(r=>r.role_id===role)||userRoles[0];
@@ -55,6 +60,15 @@ export default function RBACPanel(){
   return label(a).localeCompare(label(b));
  }), [data?.permissions, grants]);
  // Account roles and permissions are managed here; user records remain under User Accounts.
+ async function createRoleWithPermissions(){
+  if(name.trim().length<3)return;
+  setBusy(true);setError('');
+  try{
+   const created=await request('/roles/with-permissions',{method:'POST',body:JSON.stringify({role_name:name.trim(),permission_ids:draftPermissions})});
+   setCreateOpen(false);setName('');setDraftPermissions([]);
+   await reload();setRole(created.role.role_id);setTab('permissions');
+  }catch(e){setError(e.message)}finally{setBusy(false)}
+ }
  async function change(path,method,payload){if(!window.confirm('Apply this RBAC change? It may affect active permissions.'))return;setBusy(true);setError('');try{await request(path,{method,body:JSON.stringify(payload)});await reload()}catch(e){setError(e.message)}finally{setBusy(false)}}
  return <div className="space-y-4">
   <div className="rounded-2xl border border-stone-200 bg-white p-4">
@@ -65,10 +79,32 @@ export default function RBACPanel(){
    <div className="flex items-center justify-between gap-2"><div><h3 className={MAINTENANCE_CARD_TITLE_CLASS}>{tabs.find(x=>x[0]===tab)?.[1]}</h3><p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>Review user roles and their access permissions</p></div><button onClick={reload} className="rounded-lg border border-stone-200 p-2" title="Refresh"><RefreshCw size={16}/></button></div>
    {error?<p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error} {error.includes('401') ? 'Please sign out and sign in again if your Admin session has expired.' : ''}</p>:null}
    {!data&&!error?<p className="text-sm text-stone-500">Loading...</p>:tab==='roles'?<>
-    <div className="flex flex-wrap gap-2"><input className="min-w-64 flex-1 rounded-lg border p-2 text-sm" placeholder="New role name" value={name} onChange={e=>setName(e.target.value)}/><button disabled={busy||name.trim().length<3} onClick={async()=>{await change('/roles','POST',{role_name:name});setName('')}} className="rounded-lg bg-stone-800 px-3 py-2 text-sm text-white"><Plus size={14} className="inline"/> Add Role</button></div>
+    <div className="flex justify-end"><button type="button" onClick={()=>{setName('');setDraftPermissions([]);setCreateOpen(true)}} className="rounded-lg bg-stone-800 px-3 py-2 text-sm text-white"><Plus size={14} className="inline"/> Add Role</button></div>
+    {createOpen?<div role="dialog" aria-modal="true" aria-label="Create role and permissions" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
+      <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl space-y-4">
+       <div><h3 className="text-lg font-semibold">Create Role</h3><p className="text-sm text-stone-500">Name your role and select its permissions. Both save together.</p></div>
+       <label className="block text-sm font-semibold">Role name<input autoFocus value={name} maxLength={80} onChange={e=>setName(e.target.value)} placeholder="Example: Scholarship Reviewer" className="mt-1 w-full rounded-lg border p-2 text-sm"/></label>
+       <div><div className="flex items-center justify-between"><h4 className="text-sm font-semibold">Permissions</h4><span className="text-xs text-stone-500">{draftPermissions.length} selected</span></div>
+        <div className="mt-2 grid max-h-72 gap-2 overflow-y-auto sm:grid-cols-2">{(data?.permissions||[]).map(p=><label key={p.permission_id} className="flex items-center gap-2 rounded-lg border p-2 text-sm"><input type="checkbox" checked={draftPermissions.includes(p.permission_id)} onChange={e=>setDraftPermissions(prev=>e.target.checked?[...prev,p.permission_id]:prev.filter(id=>id!==p.permission_id))}/>{formatPermissionLabel(p.permission_code)}</label>)}</div>
+       </div><p className="text-xs text-stone-500">New roles have no administrator privileges. Existing five dashboards are unchanged.</p>
+       <div className="flex justify-end gap-2"><button type="button" disabled={busy} onClick={()=>setCreateOpen(false)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button><button type="button" disabled={busy||name.trim().length<3} onClick={createRoleWithPermissions} className="rounded-lg bg-stone-800 px-4 py-2 text-sm text-white disabled:opacity-50">{busy?'Saving...':'Save Role & Permissions'}</button></div>
+      </div></div>:null}
     <div className="overflow-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b text-stone-500"><th className="p-2">Role</th><th>Status</th><th>Action</th></tr></thead><tbody>{(data.roles||[]).filter(r=>r.role_scope==='staff'&&r.role_code!=='benefactor').map(r=><tr key={r.role_id} className="border-b"><td className="p-2">{r.role_name}</td><td><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${r.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{r.is_active ? 'Active' : 'Archived'}</span></td><td>{r.role_code.startsWith('custom_')?<div className="flex gap-3"><button className="text-sm underline" disabled={busy} onClick={()=>{const value=window.prompt('Role name',r.role_name);if(value&&value.trim()!==r.role_name)change('/roles/'+r.role_id,'PATCH',{role_name:value.trim()})}}>Edit</button><button className="text-sm underline" disabled={busy} onClick={()=>change('/roles/'+r.role_id+'/status','PATCH',{is_active:!r.is_active})}>{r.is_active?'Archive':'Restore'}</button></div>:<span className="text-xs text-stone-500">Built-in</span>}</td></tr>)}</tbody></table></div>
    </>:tab==='permissions'?<>
     <select value={selected?.role_id||''} onChange={e=>setRole(e.target.value)} className="max-w-md rounded-lg border p-2 text-sm">{userRoles.map(r=><option key={r.role_id} value={r.role_id}>{r.role_name}</option>)}</select>
+    <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 space-y-2">
+     <h4 className="text-sm font-semibold text-stone-800">Assign selected role to a user</h4>
+     <p className="text-xs text-stone-500">Additional permissions only. This does not change the user's primary login portal or administrator status.</p>
+     <div className="flex flex-wrap gap-2">
+      <select className="min-w-56 flex-1 rounded-lg border border-stone-200 p-2 text-sm" value={selectedUser} onChange={e=>setSelectedUser(e.target.value)}>
+       <option value="">Select an existing active user</option>
+       {eligibleUsers.filter(u=>!u.is_archived).map(u=><option key={u.user_id} value={u.user_id}>{u.display_name||u.username} ({u.username})</option>)}
+      </select>
+      <button className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40" disabled={busy||!selectedUser||!selected||selected.role_code==='admin'||!selected.is_active} onClick={()=>change('/roles/'+selected.role_id+'/users/'+selectedUser,'PUT',{granted:true})}>Grant role</button>
+      <button className="rounded-lg bg-stone-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40" disabled={busy||!selectedUser||!selected||selected.role_code==='admin'} onClick={()=>change('/roles/'+selected.role_id+'/users/'+selectedUser,'PUT',{granted:false})}>Revoke role</button>
+     </div>
+     {selectedUser?<p className="text-xs text-stone-600">Current assignment: {(data?.assignments||[]).some(a=>a.user_id===selectedUser&&a.role_id===selected?.role_id&&a.is_active)?'Active':'Not assigned'}</p>:null}
+    </div>
     <p className="text-xs text-stone-500">Operational user roles have configurable permissions. System Administrator permissions stay protected against lockout.</p>
     <div className="rounded-lg border border-stone-200 p-3 space-y-2"><h4 className="font-semibold text-sm">Portal access (database-configured)</h4><div className="flex flex-wrap gap-3">{['sdo','guidance','pd','ro_coordinator'].map(portal=><label key={portal} className="flex gap-2 text-xs items-center"><input type="checkbox" disabled={busy||selected?.role_code==='admin'||!selected?.is_active} checked={(capabilities?.portals||[]).some(x=>x.role_id===selected?.role_id&&x.portal_code===portal)} onChange={e=>change('/roles/'+selected.role_id+'/portals/'+portal,'PUT',{granted:e.target.checked})}/>{portal.replaceAll('_',' ')}</label>)}</div><h4 className="font-semibold text-sm">Role groups (database-configured)</h4><div className="flex flex-wrap gap-3">{(capabilities?.groups||[]).filter(g=>g.group_code!=='ADMIN_ONLY').map(g=><label key={g.group_id} className="flex gap-2 text-xs items-center"><input type="checkbox" disabled={busy||selected?.role_code==='admin'||!selected?.is_active} checked={(capabilities?.groupMembers||[]).some(x=>x.role_id===selected?.role_id&&x.group_id===g.group_id)} onChange={e=>change('/roles/'+selected.role_id+'/groups/'+g.group_id,'PUT',{granted:e.target.checked})}/>{g.group_code.replaceAll('_',' ')}</label>)}</div></div>
     <p className="text-xs font-medium text-[#704b35]">Granted permissions are listed first and highlighted in brown.</p>

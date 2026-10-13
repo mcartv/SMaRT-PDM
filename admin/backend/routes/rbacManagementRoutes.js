@@ -57,6 +57,8 @@ router.put('/roles/:id/users/:userId',manage,safe(async(req,res)=>{
 }));
 // SMARTPDM_ATOMIC_CREATE_ROLE_MODAL_V1: create the role and all selected permissions atomically.
 router.post('/roles/with-permissions',manage,safe(async(req,res)=>{
+ // SMARTPDM_FIVE_ROLE_LOCK_20261013_V2: role creation intentionally disabled; permission updates remain enabled.
+ return res.status(403).json({code:'ROLE_CREATION_DISABLED',message:'New roles cannot be created. Manage permissions for the existing roles.'});
  const name=String(req.body?.role_name||'').trim();
  const ids=req.body?.permission_ids;
  if(name.length<3||name.length>80||!Array.isArray(ids)||ids.length>200||!ids.every(isUuid)||new Set(ids).size!==ids.length)
@@ -74,6 +76,8 @@ router.post('/roles/with-permissions',manage,safe(async(req,res)=>{
 }));
 // Role codes are internal identifiers; administrators only supply names.
 router.post('/roles',manage,safe(async(req,res)=>{
+ // SMARTPDM_FIVE_ROLE_LOCK_20261013_V2: role creation intentionally disabled; permission updates remain enabled.
+ return res.status(403).json({code:'ROLE_CREATION_DISABLED',message:'New roles cannot be created. Manage permissions for the existing roles.'});
  const name=String(req.body?.role_name||'').trim();
  if(name.length<3||name.length>80)return res.status(400).json({error:'Role name must be 3–80 characters.'});
  const code='custom_'+crypto.randomUUID().replace(/-/g,'').slice(0,24);

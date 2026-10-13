@@ -45,7 +45,7 @@ export default function RBACPanel(){
  // SMARTPDM_ATOMIC_CREATE_ROLE_MODAL_V1
  const [createOpen,setCreateOpen]=useState(false),[draftPermissions,setDraftPermissions]=useState([]);
  // SMARTPDM_ROLES_TABLE_UX_20261013_V1
- const [roleView,setRoleView]=useState('active');
+ // SMARTPDM_FIVE_ROLE_UI_SIMPLIFY_V1: fixed-role display; no archived/active selector.
  const [roleSearch,setRoleSearch]=useState('');
  const [roleAction,setRoleAction]=useState(null);
  const [roleActionName,setRoleActionName]=useState('');
@@ -74,8 +74,7 @@ export default function RBACPanel(){
   const label = p => typeof formatPermissionLabel === 'function' ? formatPermissionLabel(p.permission_code) : p.permission_code;
   return label(a).localeCompare(label(b));
  }), [data?.permissions, grants, permissionSearch]);
- const visibleRoles=(data?.roles||[]).filter(r=>r.role_scope==='staff'&&r.role_code!=='benefactor')
-  .filter(r=>roleView==='all'||(roleView==='active'?r.is_active:!r.is_active))
+ const visibleRoles=(data?.roles||[]).filter(r=>r.role_scope==='staff'&&r.role_code!=='benefactor').filter(r=>['admin','sdo','gco','guidance','pd','ro_personnel','ro_coordinator'].includes(r.role_code))
   .filter(r=>r.role_name.toLowerCase().includes(roleSearch.trim().toLowerCase()));
  const roleGrantCounts=new Map();
  for(const x of data?.rolePermissions||[])roleGrantCounts.set(x.role_id,(roleGrantCounts.get(x.role_id)||0)+1);
@@ -123,25 +122,13 @@ export default function RBACPanel(){
    {!data&&!error?<p className="text-sm text-stone-500">Loading...</p>:tab==='roles'?<>
 
     <div className="flex flex-wrap items-center justify-between gap-3">
-     <div className="inline-flex rounded-2xl bg-stone-100 p-1 shadow-inner" role="group" aria-label="Filter roles">
-      {['active','archived','all'].map(option=><button key={option} type="button" aria-pressed={roleView===option} onClick={()=>setRoleView(option)} className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${roleView===option?'bg-white text-stone-900 shadow-sm':'text-stone-500 hover:text-stone-900'}`}>{option==='active'?'Active':option==='archived'?'Archived':'All'}</button>)}
-     </div>
-     <button type="button" disabled={busy} onClick={()=>{setName('');setDraftPermissions([]);setCreateOpen(true)}} className="inline-flex items-center gap-2 rounded-xl bg-[#67452f] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#553822] disabled:opacity-50"><Plus size={16}/> Add Role</button>
+     
     </div>
     <div className="flex flex-wrap items-center justify-between gap-2">
      <input aria-label="Search roles" value={roleSearch} onChange={e=>setRoleSearch(e.target.value)} placeholder="Search roles..." className="w-full max-w-sm rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm focus:border-[#967458] focus:outline-none focus:ring-2 focus:ring-[#967458]/20"/>
      <span className="text-xs text-stone-500">{visibleRoles.length} {visibleRoles.length===1?'role':'roles'} shown</span>
     </div>
-    {createOpen?<div role="dialog" aria-modal="true" aria-label="Create role and permissions" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
-      <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl space-y-4">
-       <div><h3 className="text-lg font-semibold">Create Role</h3><p className="text-sm text-stone-500">Name your role and select its permissions. Both save together.</p></div>
-       <label className="block text-sm font-semibold">Role name<input autoFocus value={name} maxLength={80} onChange={e=>setName(e.target.value)} placeholder="Example: Scholarship Reviewer" className="mt-1 w-full rounded-lg border p-2 text-sm"/></label>
-       <div><div className="flex items-center justify-between"><h4 className="text-sm font-semibold">Permissions</h4><span className="text-xs text-stone-500">{draftPermissions.length} selected</span></div>
-        <div className="relative mt-2"><Search size={15} className="pointer-events-none absolute left-3 top-3 text-stone-400"/><input aria-label="Search new role permissions" placeholder="Search permissions..." value={createPermissionSearch} onChange={e=>setCreatePermissionSearch(e.target.value)} className="w-full rounded-lg border py-2 pl-9 pr-3 text-sm"/></div>
-         <div className="mt-2 grid max-h-72 gap-2 overflow-y-auto sm:grid-cols-2">{(data?.permissions||[]).filter(p=>(formatPermissionLabel(p.permission_code)+' '+p.permission_code+' '+(p.description||'')).toLowerCase().includes(createPermissionSearch.trim().toLowerCase())).map(p=><label key={p.permission_id} className="flex items-center gap-2 rounded-lg border p-2 text-sm"><input type="checkbox" checked={draftPermissions.includes(p.permission_id)} onChange={e=>setDraftPermissions(prev=>e.target.checked?[...prev,p.permission_id]:prev.filter(id=>id!==p.permission_id))}/>{formatPermissionLabel(p.permission_code)}</label>)}</div>
-       </div><p className="text-xs text-stone-500">New roles have no administrator privileges. Existing five dashboards are unchanged.</p>
-       <div className="flex justify-end gap-2"><button type="button" disabled={busy} onClick={()=>setCreateOpen(false)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button><button type="button" disabled={busy||name.trim().length<3} onClick={createRoleWithPermissions} className="rounded-lg bg-stone-800 px-4 py-2 text-sm text-white disabled:opacity-50">{busy?'Saving...':'Save Role & Permissions'}</button></div>
-      </div></div>:null}
+    
     <div className="overflow-x-auto rounded-2xl border border-stone-200 bg-white">
      <table className="w-full min-w-[680px] text-left text-sm">
       <thead className="bg-stone-50 text-xs font-bold uppercase tracking-wide text-stone-500"><tr><th className="px-4 py-3">Role</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Permissions</th><th className="px-4 py-3 text-right">Actions</th></tr></thead>
@@ -155,7 +142,7 @@ export default function RBACPanel(){
        </>:<span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-500">Built-in</span>}</div></td>
       </tr>)}</tbody>
      </table>
-     {visibleRoles.length===0?<div className="px-5 py-12 text-center"><h4 className="text-sm font-semibold text-stone-700">{roleSearch?'No matching roles':roleView==='archived'?'No archived roles':'No roles found'}</h4><p className="mt-1 text-xs text-stone-500">{roleSearch?'Try another search term.':roleView==='archived'?'Archived roles will appear here.':'Change the filter or add a role.'}</p></div>:null}
+     {visibleRoles.length===0?<div className="px-5 py-12 text-center"><h4 className="text-sm font-semibold text-stone-700">{roleSearch?'No matching roles':'No built-in roles found'}</h4><p className="mt-1 text-xs text-stone-500">{roleSearch?'Try another search term.':'Check the role catalog and refresh.'}</p></div>:null}
     </div>
    </>:tab==='permissions'?<>
     <select value={selected?.role_id||''} onChange={e=>setRole(e.target.value)} className="max-w-md rounded-lg border p-2 text-sm">{userRoles.map(r=><option key={r.role_id} value={r.role_id}>{r.role_name}</option>)}</select>

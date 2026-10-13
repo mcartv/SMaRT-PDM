@@ -1,3 +1,4 @@
+// SMARTPDM_CUSTOM_ROLE_ACCOUNTS_20261013_V1
 // SMARTPDM_RBAC_MIGRATION_20261013_V1
 // SMaRT-PDM: Accounts — account Service (admin backend service); contains business logic and data operations.
 const bcrypt = require('bcryptjs');
@@ -21,8 +22,15 @@ async function loadRoleConfig(role, client=db) {
       FROM public.rbac_staff_role_catalog c JOIN public.rbac_roles r ON r.role_id=c.role_id
       WHERE c.app_role_code=$1 AND c.is_active=true AND r.is_active=true AND r.role_scope='staff'
     `,[role]);
-    if(!result.rows.length)throw createHttpError(400,'Select an active user role from Role Management.');
-    return result.rows[0];
+    if (result.rows.length) return result.rows[0];
+    // Custom RBAC roles are real user roles, without hardcoded office/portal definitions.
+    // The underlying users.role stays within the existing schema's Admin account family.
+    const custom = await client.query(`SELECT 'Admin'::text AS "dbRole", r.role_name AS position,
+       'Role-Based Access'::text AS department
+       FROM public.rbac_roles r WHERE r.role_code=$1 AND r.role_scope='staff'
+       AND r.is_active=true AND r.role_code LIKE 'custom_%' LIMIT 1`,[role]);
+    if (!custom.rows.length) throw createHttpError(400,'Select an active user role from Role Management.');
+    return custom.rows[0];
 }
 
 const passwordSchema = z
@@ -196,6 +204,12 @@ function validateOptionalPhoneNumber(value) {
 // validateDepartment: validates validate department for the Accounts flow.
 async function validateDepartment(role, value, client=db) {
     const department=safeText(value);
+    if (String(role||'').startsWith('custom_')) {
+      const custom=await client.query(`SELECT 1 FROM public.rbac_roles
+        WHERE role_code=$1 AND role_scope='staff' AND is_active=true LIMIT 1`,[role]);
+      if(!custom.rowCount)throw createHttpError(400,'This custom role is not active.');
+      return 'Role-Based Access';
+    }
     if(!department)throw createHttpError(400,'Select a department or office.');
     if(role==='ro_coordinator')return department; // validated against ro_departments below
     const result=await client.query(`
@@ -488,6 +502,11 @@ async function fetchStaffAccountRow(userId, client = db, includeArchived = true)
             u.username,
             u.phone_number,
             u.role AS user_role,
+            (SELECT r.role_code FROM public.rbac_user_roles ur
+             JOIN public.rbac_roles r ON r.role_id=ur.role_id
+             WHERE ur.user_id=u.user_id AND ur.is_active=true AND r.is_active=true
+             AND r.role_scope='staff' AND r.role_code LIKE 'custom_%'
+             ORDER BY ur.assigned_at DESC LIMIT 1) AS rbac_staff_role,
             u.created_at,
             a.admin_id,
             a.first_name,
@@ -525,6 +544,11 @@ async function listStaffAccounts() {
             u.username,
             u.phone_number,
             u.role AS user_role,
+            (SELECT r.role_code FROM public.rbac_user_roles ur
+             JOIN public.rbac_roles r ON r.role_id=ur.role_id
+             WHERE ur.user_id=u.user_id AND ur.is_active=true AND r.is_active=true
+             AND r.role_scope='staff' AND r.role_code LIKE 'custom_%'
+             ORDER BY ur.assigned_at DESC LIMIT 1) AS rbac_staff_role,
             u.created_at,
             a.admin_id,
             a.first_name,
@@ -543,7 +567,9 @@ async function listStaffAccounts() {
     const activeRolesResult = await db.query(`SELECT c.app_role_code FROM public.rbac_staff_role_catalog c
       JOIN public.rbac_roles r ON r.role_id=c.role_id
       WHERE c.is_active=true AND r.is_active=true`);
-    const activeRoles = new Set(activeRolesResult.rows.map(row => String(row.app_role_code).toLowerCase()));
+    const customRolesResult = await db.query(`SELECT role_code AS app_role_code FROM public.rbac_roles
+      WHERE role_scope='staff' AND is_active=true AND role_code LIKE 'custom_%'`);
+    const activeRoles = new Set([...activeRolesResult.rows,...customRolesResult.rows].map(row => String(row.app_role_code).toLowerCase()));
     const accounts = result.rows.map(mapStaffAccount).filter(account => activeRoles.has(String(account.role || '').toLowerCase()));
     const pdIds = accounts.filter((account) => account.role === 'pd').map((account) => account.user_id);
     const coordinatorIds = accounts

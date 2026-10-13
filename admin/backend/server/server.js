@@ -288,6 +288,8 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/rbac', rbacCurrentUserRoutes);
 app.use('/api/rbac-management', rbacManagementRoutes);
+// SMARTPDM_WORKSPACE_RBAC_20261013_V1
+app.use('/api/workspace',require('../routes/workspaceRoutes'));
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/scholars', scholarRoutes);
 app.use('/api/applications', applicationRoutes);

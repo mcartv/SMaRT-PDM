@@ -1,7 +1,8 @@
+// SMARTPDM_CUSTOM_ROLE_ACCOUNTS_20261013_V1
 'use strict';
 const CODES={admin:'admin',sdo:'sdo',guidance:'gco',pd:'pd',ro_coordinator:'ro_personnel'};
 async function syncStaffReferences(client,userId,{role,department,position,archived=false}){
-  const code=CODES[role];
+  const code=CODES[role] || (String(role||'').startsWith('custom_') ? role : null);
   if(!code)throw Error('Unsupported staff role: '+role);
   const result=await client.query("SELECT role_id FROM public.rbac_roles WHERE role_code=$1 AND role_scope='staff' AND is_active=true",[code]);
   if(result.rows.length!==1)throw Error('Missing RBAC role: '+code);

@@ -216,7 +216,15 @@ async function loginUnified(req, res) {
             });
         }
 
-        const resolvedRole = resolveStaffRole(user);
+        // SMARTPDM_WORKSPACE_RBAC_20261013_V1: resolve a custom primary role from active database assignments.
+        const customRoleResult = await db.query(`SELECT r.role_code,r.role_name FROM public.rbac_user_roles ur
+          JOIN public.rbac_roles r ON r.role_id=ur.role_id
+          WHERE ur.user_id=$1 AND ur.is_active=true AND r.is_active=true
+            AND r.role_scope='staff' AND r.role_code LIKE 'custom_%'
+            AND NOT EXISTS (SELECT 1 FROM public.rbac_user_roles other_ur JOIN public.rbac_roles other_r ON other_r.role_id=other_ur.role_id WHERE other_ur.user_id=ur.user_id AND other_ur.is_active AND other_r.is_active AND other_r.role_code IN ('admin','pd','sdo','gco','ro_personnel'))
+          ORDER BY ur.assigned_at DESC LIMIT 1`,[user.user_id]);
+        const customRole = customRoleResult.rows[0] || null;
+        const resolvedRole = customRole ? 'workspace' : resolveStaffRole(user);
         const expectedIdentifier = resolvedRole === 'admin'
             ? normalizeLoginIdentifier(user.email)
             : normalizeLoginIdentifier(user.username);
@@ -251,6 +259,7 @@ async function loginUnified(req, res) {
             'guidance',
             'pd',
             'ro_coordinator',
+            'workspace',
         ]);
 
         if (!tokenRole || !allowedAccessRoles.has(tokenRole)) {
@@ -327,6 +336,7 @@ async function loginUnified(req, res) {
                         ? 'Student Welfare and Development Office'
                         : null),
                 role: tokenRole,
+                workspace_role_name: customRole?.role_name || null,
                 profile_photo_url: user.profile_photo_url || null,
                 avatar_url: avatarUrl,
             },

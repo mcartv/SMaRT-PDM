@@ -2,6 +2,8 @@
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Toaster } from './components/ui/sonner';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+// SMARTPDM_WORKSPACE_RBAC_20261013_V1
+import WorkspaceDashboard from './pages/WorkspaceDashboard';
 import PortalPermissionGuard from './components/auth/PortalPermissionGuard';
 import PublicVisitorTracker from './components/system/PublicVisitorTracker';
 import WebRealtimeToastBridge from './components/system/WebRealtimeToastBridge';
@@ -105,6 +107,7 @@ export default function App() {
 
         {/* Unified User Login */}
         <Route path="/login" element={<UnifiedLogin />} />
+        <Route path="/workspace/*" element={<ProtectedRoute storageKey="workspaceToken" redirectTo="/login"><WorkspaceDashboard /></ProtectedRoute>} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/pd/login" element={<Navigate to="/login" replace />} />
         <Route path="/guidance/login" element={<Navigate to="/login" replace />} />

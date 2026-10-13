@@ -59,6 +59,14 @@ function getDecodedTokenVersion(decoded = {}) {
 async function expectedBackingRole(tokenRole, userId) {
     const role = normalizeRole(tokenRole);
     if (!role || !userId) return null;
+    // SMARTPDM_WORKSPACE_RBAC_20261013_V1: workspace sessions require a current active custom role.
+    if (role === 'workspace') {
+      const active = await db.query(`SELECT 1 FROM public.rbac_user_roles ur
+        JOIN public.rbac_roles r ON r.role_id=ur.role_id
+        WHERE ur.user_id=$1 AND ur.is_active=true AND r.is_active=true
+          AND r.role_scope='staff' AND r.role_code LIKE 'custom_%' LIMIT 1`,[userId]);
+      return active.rowCount ? 'admin' : null;
+    }
     const result = await db.query(`SELECT c.db_user_role
       FROM public.rbac_staff_role_catalog c
       JOIN public.rbac_roles r ON r.role_id=c.role_id

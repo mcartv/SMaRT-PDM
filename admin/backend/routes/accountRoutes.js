@@ -1,3 +1,4 @@
+// SMARTPDM_CUSTOM_ROLE_ACCOUNTS_20261013_V1
 // SMaRT-PDM: Return of Obligations — account Routes (admin backend route); maps API endpoints to middleware and controllers.
 const express = require('express');
 const router = express.Router();
@@ -53,7 +54,14 @@ router.get('/staff-catalog', protect, authorizeRoles('admin'), requirePermission
    db.query(`SELECT c.app_role_code AS value,r.role_name AS label,
      c.default_position,c.db_user_role,c.is_active
      FROM public.rbac_staff_role_catalog c JOIN public.rbac_roles r ON r.role_id=c.role_id
-     WHERE c.is_active=true AND r.is_active=true AND r.role_scope='staff' ORDER BY r.role_name`),
+     WHERE c.is_active=true AND r.is_active=true AND r.role_scope='staff'
+     UNION ALL
+     SELECT r.role_code AS value,r.role_name AS label,r.role_name AS default_position,
+            'Admin'::text AS db_user_role,r.is_active
+     FROM public.rbac_roles r WHERE r.role_scope='staff' AND r.is_active=true
+       AND r.role_code LIKE 'custom_%' AND NOT EXISTS
+        (SELECT 1 FROM public.rbac_staff_role_catalog c WHERE c.role_id=r.role_id)
+     ORDER BY label`),
    db.query(`SELECT x.app_role_code AS role,o.office_id,o.office_name,o.office_code
      FROM public.rbac_staff_role_offices x JOIN public.ref_offices o ON o.office_id=x.office_id
      JOIN public.rbac_staff_role_catalog c ON c.app_role_code=x.app_role_code

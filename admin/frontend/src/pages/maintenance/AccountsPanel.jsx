@@ -1,3 +1,4 @@
+// SMARTPDM_CUSTOM_ROLE_ACCOUNTS_20261013_V1
 // SMaRT-PDM: Accounts — Accounts Panel (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -1453,6 +1454,13 @@ export default function AccountsPanel() {
         })));
         OPERATIONAL_ROLE_OPTIONS.splice(0,OPERATIONAL_ROLE_OPTIONS.length,...ROLE_OPTIONS.filter(r=>r.value!=='admin'));
         Object.keys(DEPARTMENT_OPTIONS).forEach(key=>{if(key!=='ro_coordinator')DEPARTMENT_OPTIONS[key]=group[key]||[];});
+        // Generic custom roles do not inherit one of the five office assignments.
+        // The server validates the role against active RBAC entries.
+        for(const option of ROLE_OPTIONS.filter(r=>r.value.startsWith('custom_'))){
+          const department={value:'Role-Based Access',label:'Role-Based Access'};
+          DEPARTMENT_OPTIONS[option.value]=[department];
+          option.department=department.value;
+        }
         setStaffCatalogError('');
         refreshStaffCatalog(v=>v+1);
       }).catch(error=>{if(!cancelled)setStaffCatalogError(error.message)});
@@ -1536,7 +1544,11 @@ export default function AccountsPanel() {
             }));
         }
 
-        return ACCOUNT_ROLE_GROUP_ORDER.flatMap((role) => {
+        const allRoleGroups = [
+            ...ACCOUNT_ROLE_GROUP_ORDER,
+            ...ROLE_OPTIONS.filter(option => option.value.startsWith('custom_')).map(option => option.value),
+        ];
+        return allRoleGroups.flatMap((role) => {
             const roleAccounts = filteredAccounts.filter((account) => account.role === role);
             if (!roleAccounts.length) return [];
 

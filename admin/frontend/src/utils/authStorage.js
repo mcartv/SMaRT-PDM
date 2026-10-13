@@ -9,7 +9,12 @@ const PORTAL_SESSION_REQUEST_TIMEOUT_MS = 1_800;
 const PORTAL_SESSION_META_PREFIX = 'smartpdmPortalSessionMetaV2';
 const PROCESSED_SYNC_EVENT_LIMIT = 128;
 
+// SMARTPDM_WORKSPACE_RBAC_20261013_V1: separate token namespace for custom roles; no admin portal inheritance.
 export const PORTAL_CONFIG = {
+    workspace: {
+        tokenKey: 'workspaceToken', profileKey: 'workspaceProfile',
+        rootPath: '/workspace', redirectPath: '/workspace/dashboard', loginPath: '/login',
+    },
     admin: {
         tokenKey: 'adminToken',
         profileKey: 'adminProfile',

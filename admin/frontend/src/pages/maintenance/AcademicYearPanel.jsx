@@ -1161,7 +1161,7 @@ export default function AcademicYearPanel() {
                                         {year.start_date && year.end_date ? (
                                             <p className="mt-1 text-xs text-stone-500">
                                                 {new Date(`${year.start_date}T00:00:00`).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                                                {' ? '}
+                                                {' — '}
                                                 {new Date(`${year.end_date}T00:00:00`).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                                             </p>
                                         ) : null}

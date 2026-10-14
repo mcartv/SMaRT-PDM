@@ -1717,7 +1717,21 @@ export default function ReportGeneration({
                   {isScholarCountReport ? 'Download PDF' : 'Download Excel'}
                 </Button>
 
-                {!isScholarCountReport ? (
+                                {!isScholarCountReport ? (
+                  <Button variant="outline"
+                    className="report-action-button h-11 w-full rounded-xl text-sm font-semibold sm:w-auto"
+                    style={{ borderColor: theme.border, color: theme.base }}
+                    disabled={isSelectedReportExportLocked || hasInvalidFilterRange}
+                    onClick={() => handleDownloadByFormat('pdf')}
+                  >
+                    {selectedGeneratingFormat === 'pdf'
+                      ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      : <Download className="mr-2 h-4 w-4" />}
+                    Download PDF
+                  </Button>
+                ) : null}
+
+{!isScholarCountReport ? (
                   <Button
                     variant="outline"
                     className="report-action-button h-11 w-full rounded-xl text-sm font-semibold sm:w-auto"
@@ -1795,7 +1809,21 @@ export default function ReportGeneration({
                       {isScholarCountReport ? 'Download PDF' : 'Download Excel'}
                     </Button>
 
-                    {!isScholarCountReport ? (
+                                        {!isScholarCountReport ? (
+                      <Button variant="outline"
+                        className="h-8 rounded-lg px-3 text-xs font-semibold"
+                        style={{ borderColor: theme.border, color: theme.base }}
+                        disabled={isSelectedReportExportLocked || hasInvalidFilterRange}
+                        onClick={() => handleDownloadByFormat('pdf')}
+                      >
+                        {selectedGeneratingFormat === 'pdf'
+                          ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          : <Download className="mr-1.5 h-3.5 w-3.5" />}
+                        Download PDF
+                      </Button>
+                    ) : null}
+
+{!isScholarCountReport ? (
                       <Button
                         variant="outline"
                         className="h-8 rounded-lg px-3 text-xs font-semibold"

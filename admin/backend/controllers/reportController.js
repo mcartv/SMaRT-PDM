@@ -317,21 +317,18 @@ async function exportReport(req, res) {
         }
 
         if (format === 'pdf') {
-            if (String(queryPayload.reportType).toLowerCase() !== 'scholars_by_benefactor') {
-                const error = new Error('PDF export is available for the Scholar Count by Benefactor report only.');
-                error.statusCode = 400;
-                throw error;
-            }
-
-            const [excelResult, metadata] = await Promise.all([
-                reportService.generateExcelReport(scopedQuery),
-                reportService.getReportMetadata(),
-            ]);
-            const result = await benefactorReportPdfService.generateScholarCountPdf({
-                workbook: excelResult.workbook,
-                query: queryPayload,
-                metadata,
-            });
+            const excelResult = await reportService.generateExcelReport(scopedQuery);
+            const result = normalizedReportType === 'scholars_by_benefactor'
+                ? await benefactorReportPdfService.generateScholarCountPdf({
+                    workbook: excelResult.workbook,
+                    query: queryPayload,
+                    metadata: await reportService.getReportMetadata(),
+                  })
+                : await require('../services/genericReportPdfService').workbookToPdf(
+                    excelResult.workbook,
+                    queryPayload.reportType || 'SMaRT-PDM Report',
+                    excelResult.filename
+                  );
 
             await writeReportAudit(
                 req,

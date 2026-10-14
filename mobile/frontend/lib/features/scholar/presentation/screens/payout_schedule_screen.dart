@@ -497,7 +497,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
               final stackHeader =
                   constraints.maxWidth < 300 || textScale > 1.25;
               final title = Text(
-                proof == null ? 'Payout Proof Needed' : 'Payout Proof',
+                proof == null ? 'Payout Proof (Optional)' : 'Payout Proof',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.w700,
                   color: titleColor,
@@ -538,7 +538,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
           const SizedBox(height: 6),
           Text(
             proof == null
-                ? 'Your payout has been released. Upload your proof so OSFA can review it.'
+                ? 'Your payout has been released. Uploading proof is optional; your payout status does not depend on it.'
                 : (proof.fileName?.trim().isNotEmpty == true
                       ? proof.fileName!
                       : 'Proof submitted'),
@@ -578,7 +578,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                 isUploading
                     ? 'Uploading...'
                     : proof == null
-                    ? 'Upload Proof'
+                    ? 'Upload Proof (Optional)'
                     : 'Replace Proof',
               ),
             ),

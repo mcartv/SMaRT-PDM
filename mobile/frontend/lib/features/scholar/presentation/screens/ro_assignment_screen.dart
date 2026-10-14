@@ -1721,7 +1721,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
           children: const [
             _StateCard(
               icon: Icons.assignment_outlined,
-              title: 'No RO notice yet',
+              title: 'No Community Service notice yet',
               message:
                   'Your Community Service notice will appear here once OSFA assigns it.',
             ),

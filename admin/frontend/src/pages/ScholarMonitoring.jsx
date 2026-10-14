@@ -457,7 +457,7 @@ function FilterModal({
               Filter Records
             </h3>
             <p className="mt-0.5 text-xs text-stone-500">
-              Refine {sectionMode === 'renewals' ? 'renewal' : sectionMode === 'removed' ? 'removed scholar' : 'scholar'} records
+              Refine {sectionMode === 'renewals' ? 'renewal' : sectionMode === 'removed' ? 'archived scholar' : 'scholar'} records
             </p>
           </div>
 
@@ -637,7 +637,7 @@ function ProgramHistoryPanel({
             {rows.map((item) => {
               const isCurrent =
                 String(item.application_id || '') ===
-                  String(currentApplicationId || '') ||
+                String(currentApplicationId || '') ||
                 (
                   currentPeriodId &&
                   String(item.period_id || '') === String(currentPeriodId)
@@ -1094,17 +1094,17 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
     ? null
     : isAtRisk
       ? {
-      label: 'At Risk',
-      color: C.red,
-      bg: C.redSoft,
-      border: '#fecaca',
+        label: 'At Risk',
+        color: C.red,
+        bg: C.redSoft,
+        border: '#fecaca',
       }
       : {
-      label: 'Good Standing',
-      color: C.green,
-      bg: C.greenSoft,
-      border: '#bbf7d0',
-    };
+        label: 'Good Standing',
+        color: C.green,
+        bg: C.greenSoft,
+        border: '#bbf7d0',
+      };
 
   const currentPeriod = formatAcademicPeriod(s.semester, s.academic_year);
   const yearSection = [formatYearLevel(s.year_level), cleanDisplayValue(s.section, '')]
@@ -1163,7 +1163,7 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
     // handleKeyDown: handles handle key down for the Scholars flow.
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') onClose();
-      };
+    };
 
     document.body.style.overflow = 'hidden';
     document.addEventListener('keydown', handleKeyDown);
@@ -1219,149 +1219,144 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
         ) : (
           <div ref={profileScrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-stone-50/45 pb-[env(safe-area-inset-bottom)]">
             <div className="grid min-w-0 grid-cols-1 lg:grid-cols-[minmax(0,0.4fr)_minmax(0,0.6fr)]">
-            <section className="min-w-0 border-b border-stone-200 bg-white p-3 sm:p-5 lg:border-b-0 lg:border-r lg:p-5">
-              <div className="min-w-0 space-y-4 lg:sticky lg:top-5 lg:max-h-[calc(var(--profile-scroll-height)-2.5rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-1">
-                {s.scholar_is_archived ? (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-                    <div className="flex items-start gap-2">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-amber-900">Scholarship privilege removed</p>
-                        <p className="mt-1 text-xs leading-5 text-amber-800">
-                          {[s.scholar_removal_reason || 'No reason recorded', s.scholar_archived_at ? `Removed ${formatDateTime(s.scholar_archived_at)}` : '', s.scholar_removed_by_name ? `By ${s.scholar_removed_by_name}` : ''].filter(Boolean).join(' · ')}
-                        </p>
-                        {s.scholar_removal_notes ? <p className="mt-1 text-xs leading-5 text-amber-800">{s.scholar_removal_notes}</p> : null}
+              <section className="min-w-0 border-b border-stone-200 bg-white p-3 sm:p-5 lg:border-b-0 lg:border-r lg:p-5">
+                <div className="min-w-0 space-y-4 lg:sticky lg:top-5 lg:max-h-[calc(var(--profile-scroll-height)-2.5rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-1">
+                  {s.scholar_is_archived ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-amber-900">Scholarship privilege removed</p>
+                          <p className="mt-1 text-xs leading-5 text-amber-800">
+                            {[s.scholar_removal_reason || 'No reason recorded', s.scholar_archived_at ? `Removed ${formatDateTime(s.scholar_archived_at)}` : '', s.scholar_removed_by_name ? `By ${s.scholar_removed_by_name}` : ''].filter(Boolean).join(' · ')}
+                          </p>
+                          {s.scholar_removal_notes ? <p className="mt-1 text-xs leading-5 text-amber-800">{s.scholar_removal_notes}</p> : null}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ) : null}
-                <div className="min-w-0 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-[0_10px_30px_rgba(28,25,23,0.08)]">
-                  <div className="relative h-12 overflow-hidden bg-[var(--portal-base)]">
-                    <div className="absolute -right-8 -top-14 h-32 w-32 rounded-full bg-white/10" aria-hidden="true" />
-                    <div className="absolute right-16 top-5 h-16 w-16 rounded-full bg-amber-200/10" aria-hidden="true" />
-                    <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-transparent to-white/5" aria-hidden="true" />
-                  </div>
+                  ) : null}
+                  <div className="min-w-0 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-[0_10px_30px_rgba(28,25,23,0.08)]">
+                    <div className="relative h-12 overflow-hidden bg-[var(--portal-base)]">
+                      <div className="absolute -right-8 -top-14 h-32 w-32 rounded-full bg-white/10" aria-hidden="true" />
+                      <div className="absolute right-16 top-5 h-16 w-16 rounded-full bg-amber-200/10" aria-hidden="true" />
+                      <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-transparent to-white/5" aria-hidden="true" />
+                    </div>
 
-                  <div className="px-4 pb-4">
-                    <div className="-mt-7 flex items-end justify-between gap-3">
-                      <button
-                        type="button"
-                        onClick={() => s.avatar_url && setAvatarPreviewOpen(true)}
-                        disabled={!s.avatar_url}
-                        className="shrink-0 rounded-full bg-white p-1.5 shadow-sm transition enabled:hover:-translate-y-0.5 enabled:hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-base)] focus-visible:ring-offset-2 disabled:cursor-default"
-                        aria-label={s.avatar_url ? `Enlarge ${s.student_name || 'scholar'} profile photo` : 'No profile photo available'}
-                      >
-                        <Avatar
-                          className={`h-14 w-14 rounded-full border border-stone-200 sm:h-16 sm:w-16 ${s.avatar_url ? 'cursor-zoom-in' : ''}`}
-                          style={{ background: C.amberSoft, color: C.brown }}
+                    <div className="px-4 pb-4">
+                      <div className="-mt-7 flex items-end justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() => s.avatar_url && setAvatarPreviewOpen(true)}
+                          disabled={!s.avatar_url}
+                          className="shrink-0 rounded-full bg-white p-1.5 shadow-sm transition enabled:hover:-translate-y-0.5 enabled:hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-base)] focus-visible:ring-offset-2 disabled:cursor-default"
+                          aria-label={s.avatar_url ? `Enlarge ${s.student_name || 'scholar'} profile photo` : 'No profile photo available'}
                         >
-                          <AvatarImage src={s.avatar_url || undefined} alt="" className="rounded-full object-cover" />
-                          <AvatarFallback className="rounded-full bg-transparent text-base font-medium">
-                            {getInitials(s.student_name)}
-                          </AvatarFallback>
-                        </Avatar>
-                      </button>
+                          <Avatar
+                            className={`h-14 w-14 rounded-full border border-stone-200 sm:h-16 sm:w-16 ${s.avatar_url ? 'cursor-zoom-in' : ''}`}
+                            style={{ background: C.amberSoft, color: C.brown }}
+                          >
+                            <AvatarImage src={s.avatar_url || undefined} alt="" className="rounded-full object-cover" />
+                            <AvatarFallback className="rounded-full bg-transparent text-base font-medium">
+                              {getInitials(s.student_name)}
+                            </AvatarFallback>
+                          </Avatar>
+                        </button>
 
-                      <div className="mb-1 shrink-0 rounded-full bg-white p-0.5 shadow-sm">
-                        <div className="flex flex-wrap items-center gap-2">
-                        <StatusPill meta={scholarshipMeta} compact />
-                        {((s.scholar_is_archived || String(s.status || s.scholarship_status || '').toLowerCase() === 'removed') && String(s.scholar_removal_reason || '').trim()) ? (
-                          <span data-scholar-removal-reason className={`inline-flex max-w-full items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold leading-none ${String(s.scholar_removal_reason).trim().toLowerCase() === 'graduated' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
-                            {s.scholar_removal_reason}
-                          </span>
-                        ) : null}
+                        <div className="mb-1 shrink-0 rounded-full bg-white p-0.5 shadow-sm">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <StatusPill meta={scholarshipMeta} compact />
+                          </div>
+                        </div>
                       </div>
+
+                      <div className="mt-2 min-w-0">
+                        <h4 className="truncate text-lg font-semibold leading-6 tracking-tight text-stone-900">
+                          {s.student_name || 'Unknown Scholar'}
+                        </h4>
+                        <p className="mt-1 truncate text-sm font-medium leading-5 text-stone-500">
+                          {s.student_number || 'N/A'}
+                        </p>
+                      </div>
+
+                      <div className="mt-3 flex min-w-0 items-center justify-between gap-3 rounded-xl border border-stone-100 bg-stone-50/80 px-3 py-2.5">
+                        <div className="flex min-w-0 items-start gap-2">
+                          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-stone-500 shadow-sm ring-1 ring-stone-200/70">
+                            <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold leading-4 text-stone-700" title={courseSummary || undefined}>
+                              {courseSummary || 'Course information unavailable'}
+                            </p>
+                            <p className="mt-0.5 truncate text-[11px] leading-4 text-stone-500" title={cleanDisplayValue(s.course_name)}>
+                              {cleanDisplayValue(s.course_name)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold leading-4 ${isSdoClear ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                          {isSdoClear ? <ShieldCheck className="h-3 w-3" aria-hidden="true" /> : <ShieldAlert className="h-3 w-3" aria-hidden="true" />}
+                          SDO {humanizeStatus(s.sdo_status || 'Clear')}
+                        </span>
                       </div>
                     </div>
+                  </div>
 
-                    <div className="mt-2 min-w-0">
-                      <h4 className="truncate text-lg font-semibold leading-6 tracking-tight text-stone-900">
-                        {s.student_name || 'Unknown Scholar'}
-                      </h4>
-                      <p className="mt-1 truncate text-sm font-medium leading-5 text-stone-500">
-                        {s.student_number || 'N/A'}
+                  <div>
+                    <div className="mb-3">
+                      <h5 className="text-base font-semibold text-stone-800">
+                        Scholar Details
+                      </h5>
+                      <p className="mt-1 text-sm text-stone-500">
+                        Academic and scholarship information
                       </p>
                     </div>
 
-                    <div className="mt-3 flex min-w-0 items-center justify-between gap-3 rounded-xl border border-stone-100 bg-stone-50/80 px-3 py-2.5">
-                      <div className="flex min-w-0 items-start gap-2">
-                        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-stone-500 shadow-sm ring-1 ring-stone-200/70">
-                          <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-semibold leading-4 text-stone-700" title={courseSummary || undefined}>
-                            {courseSummary || 'Course information unavailable'}
-                          </p>
-                          <p className="mt-0.5 truncate text-[11px] leading-4 text-stone-500" title={cleanDisplayValue(s.course_name)}>
-                            {cleanDisplayValue(s.course_name)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold leading-4 ${isSdoClear ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
-                        {isSdoClear ? <ShieldCheck className="h-3 w-3" aria-hidden="true" /> : <ShieldAlert className="h-3 w-3" aria-hidden="true" />}
-                        SDO {humanizeStatus(s.sdo_status || 'Clear')}
-                      </span>
+                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                      <ProfileField label="Course" value={s.course_code || s.course_name} />
+                      <ProfileField label="Year / Section" value={yearSection} />
+                      <ProfileField label="Academic Period" value={currentPeriod} />
+                      <ProfileField label="Current GWA" value={hasGwa ? gwaNumber.toFixed(2) : '—'} />
+                      <ProfileField label="Date Awarded" value={formatDate(s.date_awarded, '—')} />
+                      <ProfileField label="Scholarship Since" value={scholarshipSince} />
                     </div>
                   </div>
+
+                  <div>
+                    <div className="mb-3">
+                      <h5 className="text-base font-semibold text-stone-800">Contact Information</h5>
+                      <p className="mt-1 text-sm text-stone-500">Current scholar contact details</p>
+                    </div>
+                    <div className="divide-y divide-stone-100 rounded-2xl border border-stone-200 bg-white p-3.5">
+                      <ContactRow icon={Mail} label="Email" value={s.email} breakAnywhere />
+                      <ContactRow icon={Phone} label="Mobile Number" value={s.phone_number} />
+                      <ContactRow icon={MapPin} label="Address" value={s.address_summary} />
+                    </div>
+                  </div>
+
                 </div>
+              </section>
 
-                <div>
-                  <div className="mb-3">
-                    <h5 className="text-base font-semibold text-stone-800">
-                      Scholar Details
-                    </h5>
-                    <p className="mt-1 text-sm text-stone-500">
-                      Academic and scholarship information
-                    </p>
-                  </div>
+              <section className="min-w-0 bg-stone-50/45 p-3 sm:p-5 lg:p-5">
+                <div className="space-y-4">
+                  <CurrentScholarshipPanel scholar={s} standingMeta={standingMeta} />
 
-                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                    <ProfileField label="Course" value={s.course_code || s.course_name} />
-                    <ProfileField label="Year / Section" value={yearSection} />
-                    <ProfileField label="Academic Period" value={currentPeriod} />
-                    <ProfileField label="Current GWA" value={hasGwa ? gwaNumber.toFixed(2) : '—'} />
-                    <ProfileField label="Date Awarded" value={formatDate(s.date_awarded, '—')} />
-                    <ProfileField label="Scholarship Since" value={scholarshipSince} />
-                  </div>
+                  <ProgramHistoryPanel
+                    history={s.program_history}
+                    currentApplicationId={s.application_id}
+                    currentPeriodId={s.period_id}
+                  />
+
+                  <ObligationHistoryPanel
+                    studentId={s.student_id || s.scholar_id}
+                  />
+
+                  <PayoutHistoryPanel history={s.payout_history} />
+
+                  <RenewalHistoryPanel history={s.renewal_history} />
+
+                  <ScholarStatusHistoryPanel events={statusEvents} />
                 </div>
-
-                <div>
-                  <div className="mb-3">
-                    <h5 className="text-base font-semibold text-stone-800">Contact Information</h5>
-                    <p className="mt-1 text-sm text-stone-500">Current scholar contact details</p>
-                  </div>
-                  <div className="divide-y divide-stone-100 rounded-2xl border border-stone-200 bg-white p-3.5">
-                    <ContactRow icon={Mail} label="Email" value={s.email} breakAnywhere />
-                    <ContactRow icon={Phone} label="Mobile Number" value={s.phone_number} />
-                    <ContactRow icon={MapPin} label="Address" value={s.address_summary} />
-                  </div>
-                </div>
-
-              </div>
-            </section>
-
-            <section className="min-w-0 bg-stone-50/45 p-3 sm:p-5 lg:p-5">
-              <div className="space-y-4">
-                <CurrentScholarshipPanel scholar={s} standingMeta={standingMeta} />
-
-                <ProgramHistoryPanel
-                  history={s.program_history}
-                  currentApplicationId={s.application_id}
-                  currentPeriodId={s.period_id}
-                />
-
-                <ObligationHistoryPanel
-                  studentId={s.student_id || s.scholar_id}
-                />
-
-                <PayoutHistoryPanel history={s.payout_history} />
-
-                <RenewalHistoryPanel history={s.renewal_history} />
-
-                <ScholarStatusHistoryPanel events={statusEvents} />
-              </div>
-            </section>
+              </section>
             </div>
           </div>
         )}
@@ -1879,7 +1874,9 @@ export default function ScholarMonitoring() {
   const programOptions = ['All Programs', ...(listMetadata.filters?.programs || [])];
   const yearOptions = ['All Years', ...(listMetadata.filters?.years || [])];
   const semesterOptions = ['All Semesters', ...(listMetadata.filters?.semesters || [])];
-  const statusOptions = ['All Statuses', ...(listMetadata.filters?.statuses || [])];
+  const statusOptions = sectionMode === 'removed'
+    ? ['All Statuses', 'Graduated', 'Removed']
+    : ['All Statuses', ...(listMetadata.filters?.statuses || [])];
 
   const sortOptions = [
     'Name A-Z',
@@ -2033,8 +2030,8 @@ export default function ScholarMonitoring() {
                   handleSectionModeChange('registry')
                 }
                 className={`inline-flex flex-1 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${sectionMode === 'registry'
-                    ? 'bg-white text-stone-900 shadow-sm'
-                    : 'text-stone-600'
+                  ? 'bg-white text-stone-900 shadow-sm'
+                  : 'text-stone-600'
                   }`}
               >
                 Registry
@@ -2045,8 +2042,8 @@ export default function ScholarMonitoring() {
                   handleSectionModeChange('renewals')
                 }
                 className={`inline-flex flex-1 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${sectionMode === 'renewals'
-                    ? 'bg-white text-stone-900 shadow-sm'
-                    : 'text-stone-600'
+                  ? 'bg-white text-stone-900 shadow-sm'
+                  : 'text-stone-600'
                   }`}
               >
                 Renewals
@@ -2055,8 +2052,8 @@ export default function ScholarMonitoring() {
                 type="button"
                 onClick={() => handleSectionModeChange('removed')}
                 className={`inline-flex flex-1 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${sectionMode === 'removed'
-                    ? 'bg-white text-stone-900 shadow-sm'
-                    : 'text-stone-600'
+                  ? 'bg-white text-stone-900 shadow-sm'
+                  : 'text-stone-600'
                   }`}
               >
                 Archived
@@ -2098,7 +2095,7 @@ export default function ScholarMonitoring() {
           ) : null}
           {sectionMode === 'removed' ? (
             <p className="mt-1 text-sm text-stone-500">
-              Historical scholarship relationships are preserved here; student registry accounts remain intact.
+              Graduated scholars and other removed scholars can be separated using Filters → Status. Student registry accounts remain intact.
             </p>
           ) : null}
         </div>
@@ -2270,11 +2267,6 @@ function ScholarRegistryTable({ rows, onView, onRemove, removedMode = false }) {
                 <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-400 xl:hidden">Scholarship Status</p>
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusPill meta={scholarshipMeta} compact />
-                        {((scholar.scholar_is_archived || String(scholar.status || scholar.scholarship_status || '').toLowerCase() === 'removed') && String(scholar.scholar_removal_reason || '').trim()) ? (
-                          <span data-scholar-removal-reason className={`inline-flex max-w-full items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold leading-none ${String(scholar.scholar_removal_reason).trim().toLowerCase() === 'graduated' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
-                            {scholar.scholar_removal_reason}
-                          </span>
-                        ) : null}
                 </div>
               </div>
 
@@ -2518,23 +2510,23 @@ function PayoutHistoryPanel({ history = [] }) {
           {rows.map((item) => {
             const tone = getProfileStatusTone(item.status);
             return (
-            <div key={item.payout_entry_id} className="min-w-0 rounded-xl border border-stone-200 bg-white px-3.5 py-3">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="break-words text-sm font-semibold text-stone-800">{formatAcademicPeriod(item.semester, item.academic_year)}</p>
-                  <p className="mt-1 text-base font-semibold text-stone-900">{formatCurrency(item.amount)}</p>
+              <div key={item.payout_entry_id} className="min-w-0 rounded-xl border border-stone-200 bg-white px-3.5 py-3">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-semibold text-stone-800">{formatAcademicPeriod(item.semester, item.academic_year)}</p>
+                    <p className="mt-1 text-base font-semibold text-stone-900">{formatCurrency(item.amount)}</p>
+                  </div>
+                  <span className={`inline-flex max-w-full items-center gap-1.5 break-words rounded-full border px-2.5 py-1 text-[11px] font-semibold ${tone.badge}`}>
+                    <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+                    {humanizeStatus(item.status)}
+                  </span>
                 </div>
-                <span className={`inline-flex max-w-full items-center gap-1.5 break-words rounded-full border px-2.5 py-1 text-[11px] font-semibold ${tone.badge}`}>
-                  <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
-                  {humanizeStatus(item.status)}
-                </span>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-stone-500">
+                  {item.payout_code ? <span className="break-all">Code: {item.payout_code}</span> : null}
+                  <span>Released {formatDate(item.released_at || item.payout_date, '—')}</span>
+                  {item.proof_status ? <span>Proof: {humanizeStatus(item.proof_status)}</span> : null}
+                </div>
               </div>
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-stone-500">
-                {item.payout_code ? <span className="break-all">Code: {item.payout_code}</span> : null}
-                <span>Released {formatDate(item.released_at || item.payout_date, '—')}</span>
-                {item.proof_status ? <span>Proof: {humanizeStatus(item.proof_status)}</span> : null}
-              </div>
-            </div>
             );
           })}
         </div>
@@ -2591,17 +2583,17 @@ function ScholarStatusHistoryPanel({ events = [] }) {
             }[item.title];
             const tone = getProfileStatusTone(eventStatus);
             return (
-            <div key={item.id} className="relative flex gap-3 pb-4 last:pb-0">
-              <div className="relative flex w-3 shrink-0 justify-center">
-                <span className={`mt-1.5 h-2.5 w-2.5 rounded-full border-2 ring-4 ring-white ${tone.badge}`} />
-                {index < rows.length - 1 ? <span className="absolute bottom-0 top-4 w-px bg-stone-200" /> : null}
+              <div key={item.id} className="relative flex gap-3 pb-4 last:pb-0">
+                <div className="relative flex w-3 shrink-0 justify-center">
+                  <span className={`mt-1.5 h-2.5 w-2.5 rounded-full border-2 ring-4 ring-white ${tone.badge}`} />
+                  {index < rows.length - 1 ? <span className="absolute bottom-0 top-4 w-px bg-stone-200" /> : null}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium text-stone-400">{formatDate(item.date, '—')}</p>
+                  <p className={`mt-0.5 text-sm font-semibold ${tone.text}`}>{item.title}</p>
+                  {item.detail ? <p className="mt-1 break-words text-xs leading-5 text-stone-500">{item.detail}</p> : null}
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-medium text-stone-400">{formatDate(item.date, '—')}</p>
-                <p className={`mt-0.5 text-sm font-semibold ${tone.text}`}>{item.title}</p>
-                {item.detail ? <p className="mt-1 break-words text-xs leading-5 text-stone-500">{item.detail}</p> : null}
-              </div>
-            </div>
             );
           })}
         </div>

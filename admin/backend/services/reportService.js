@@ -226,7 +226,7 @@ async function getReportMetadata() {
             },
             {
                 id: 'beneficiary_graduates',
-                name: 'Financial Assistance Beneficiaries — Graduates',
+                name: 'Graduated Scholars Report',
                 sub: 'Confirmed graduated beneficiaries with scholarship periods covered. Date filters use the recorded graduation removal date.',
             },
             {

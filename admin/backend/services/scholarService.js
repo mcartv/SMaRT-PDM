@@ -461,7 +461,7 @@ exports.fetchRemovedScholars = async (query = {}) => {
       st.student_id,
       st.current_application_id AS application_id,
       st.current_program_id AS program_id,
-      st.scholarship_status AS status,
+      CASE WHEN LOWER(TRIM(COALESCE(st.scholar_removal_reason, ''))) = 'graduated' THEN 'Graduated' ELSE 'Removed' END AS status,
       st.active_academic_year_id AS academic_year_id,
       st.active_period_id AS period_id,
       ay.label AS academic_year,
@@ -1636,7 +1636,7 @@ exports.archiveScholarAndReleaseSlot =
 async function fetchScholarPage(source, query, removed = false) {
   const fields = {
     program: "coalesce(program_name, 'N/A')", academicYear: 'academic_year', semester: 'semester',
-    status: 'status', course: 'course_code', studentNumber: 'student_number',
+    status: removed ? "CASE WHEN lower(trim(coalesce(scholar_removal_reason, ''))) = 'graduated' THEN 'Graduated' ELSE 'Removed' END" : 'status', course: 'course_code', studentNumber: 'student_number',
     probation: "CASE sdo_status WHEN 'Minor Offense' THEN 'minor' WHEN 'Major Offense' THEN 'major' ELSE 'clear' END",
   };
   const search = ['student_name', 'student_number'];
@@ -1651,7 +1651,7 @@ async function fetchScholarPage(source, query, removed = false) {
   };
   const result = await queryPage(db, { source, query, ...filters,
     order: `${sorts[query.sort] || sorts['Name A-Z']}, student_id ASC`,
-    facets: { programs: "coalesce(program_name, 'N/A')", courses: 'course_code', years: 'academic_year', semesters: 'semester', statuses: 'status' },
+    facets: { programs: "coalesce(program_name, 'N/A')", courses: 'course_code', years: 'academic_year', semesters: 'semester', statuses: removed ? "CASE WHEN lower(trim(coalesce(scholar_removal_reason, ''))) = 'graduated' THEN 'Graduated' ELSE 'Removed' END" : 'status' },
     summary: { total: 'count(*)', clear: "count(*) FILTER (WHERE sdo_status IS NULL OR sdo_status NOT IN ('Minor Offense', 'Major Offense'))",
       minor: "count(*) FILTER (WHERE sdo_status = 'Minor Offense')", major: "count(*) FILTER (WHERE sdo_status = 'Major Offense')" },
   });

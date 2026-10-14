@@ -1,0 +1,1660 @@
+const { paginationRequested, listFilters, queryPage } = require('../utils/listPagination');
+// SMaRT-PDM: Scholars — scholar Service (admin backend service); contains business logic and data operations.
+const db = require('../config/db');
+const supabase = require('../config/supabase');
+
+// SDO records own the current standing. Legacy scholars without a case retain
+// their existing standing until their first SDO edit/import creates the record.
+const SCHOLAR_SDO_STATUS_SQL = `COALESCE((
+  SELECT CASE regexp_replace(lower(btrim(record.offense_type)), '[_-]+', ' ', 'g')
+    WHEN 'major' THEN 'Major Offense' WHEN 'major offense' THEN 'Major Offense'
+    WHEN 'major disciplinary offense' THEN 'Major Offense'
+    WHEN 'minor' THEN 'Minor Offense' WHEN 'minor offense' THEN 'Minor Offense'
+    ELSE 'Clear' END
+  FROM public.sdo_student_records AS record
+  WHERE upper(btrim(record.student_number)) = upper(btrim(st.pdm_id))
+    AND record.is_archived = false
+  ORDER BY record.updated_at DESC, record.record_id DESC LIMIT 1
+), st.sdo_status, 'Clear')`;
+const SCHOLAR_SDO_REMARKS_SQL = `(
+  SELECT record.remarks FROM public.sdo_student_records AS record
+  WHERE upper(btrim(record.student_number)) = upper(btrim(st.pdm_id))
+    AND record.is_archived = false
+  ORDER BY record.updated_at DESC, record.record_id DESC LIMIT 1
+)`;
+
+// mapSdoLevelFromStudentStatus: maps map sdo level from student status for the Scholars flow.
+function mapSdoLevelFromStudentStatus(studentStatus) {
+  if (studentStatus === 'Minor Offense') return 'minor';
+  if (studentStatus === 'Major Offense') return 'major';
+  return 'none';
+}
+
+// extractAvatarStoragePath: handles extract avatar storage path for the Scholars flow.
+function extractAvatarStoragePath(value) {
+  const rawValue = String(value || '').trim();
+
+  if (!rawValue) {
+    return null;
+  }
+
+  if (!/^https?:\/\//i.test(rawValue)) {
+    return rawValue.replace(/^avatars\//, '');
+  }
+
+  const markers = [
+    '/storage/v1/object/public/avatars/',
+    '/storage/v1/object/sign/avatars/',
+    '/storage/v1/object/authenticated/avatars/',
+  ];
+
+  for (const marker of markers) {
+    const markerIndex = rawValue.indexOf(marker);
+
+    if (markerIndex >= 0) {
+      return rawValue
+        .slice(markerIndex + marker.length)
+        .split('?')[0];
+    }
+  }
+
+  return null;
+}
+
+// resolveAvatarUrl: resolves resolve avatar url for the Scholars flow.
+async function resolveAvatarUrl(value) {
+  const rawValue = String(value || '').trim();
+
+  if (!rawValue) {
+    return null;
+  }
+
+  const storagePath = extractAvatarStoragePath(rawValue);
+
+  if (!storagePath) {
+    return rawValue;
+  }
+
+  const { data, error } = await supabase.storage
+    .from('avatars')
+    .createSignedUrl(
+      storagePath,
+      60 * 60 * 24 * 7
+    );
+
+  if (error) {
+    console.warn(
+      'SCHOLAR AVATAR SIGNED URL ERROR:',
+      error.message
+    );
+
+    return rawValue;
+  }
+
+  return data?.signedUrl || rawValue;
+}
+
+// normalizeScholarRow: normalizes normalize scholar row for the Scholars flow.
+function normalizeScholarRow(row) {
+  return {
+    scholar_id: row.student_id,
+    student_id: row.student_id,
+    application_id: row.application_id || null,
+    program_id: row.program_id || null,
+
+    status: row.status || 'None',
+    academic_year_id: row.academic_year_id || null,
+    period_id: row.period_id || null,
+    academic_year: row.academic_year || null,
+    batch_year: row.academic_year || null,
+    semester: row.semester || null,
+
+    date_awarded: row.date_awarded || null,
+    ro_status: row.ro_status || 'Pending',
+    remarks: row.remarks || null,
+
+    user_id: row.user_id || null,
+    student_number: row.student_number || 'N/A',
+    student_name: row.student_name || 'Unknown Scholar',
+    first_name: row.first_name || null,
+    last_name: row.last_name || null,
+    gwa: row.gwa ?? null,
+
+    sdo_status: row.sdo_status || 'Clear',
+    sdu_level: mapSdoLevelFromStudentStatus(
+      row.sdo_status
+    ),
+
+    course_id: row.course_id || null,
+    course_code: row.course_code || '',
+    course_name: row.course_name || '',
+
+    /*
+     * These fields are retained for frontend compatibility.
+     * The sdo_records table is intentionally no longer used.
+     */
+    sdo_record_id: null,
+    offense_level: null,
+    sdo_comment: row.sdo_comment || '',
+    sdo_comment_date: null,
+    sdo_record_status: null,
+
+    email: row.email || 'N/A',
+    phone_number: row.phone_number || 'N/A',
+    profile_photo_url: row.profile_photo_url || null,
+
+    program_name: row.program_name || 'N/A',
+
+    previous_program_name: row.previous_program_name || null,
+    previous_academic_year: row.previous_academic_year || null,
+    previous_semester: row.previous_semester || null,
+    previous_ro_assigned_office: row.previous_ro_assigned_office || null,
+
+    scholar_is_archived: row.scholar_is_archived === true || row.is_archived === true,
+    scholar_archived_at: row.scholar_archived_at || null,
+    scholar_removal_reason: row.scholar_removal_reason || null,
+    scholar_removal_notes: row.scholar_removal_notes || null,
+    scholar_removed_by: row.scholar_removed_by || null,
+    scholar_removed_by_name: row.scholar_removed_by_name || null,
+  };
+}
+
+exports.fetchScholarStats = async () => {
+  const result = await db.query(`
+    SELECT
+      COUNT(*) FILTER (
+        WHERE COALESCE(
+          st.scholarship_status,
+          'None'
+        ) IN (
+          'Active',
+          'On Hold',
+          'Inactive',
+          'Removed'
+        )
+        AND COALESCE(
+          st.scholar_is_archived,
+          false
+        ) = false
+      ) AS total,
+
+      COUNT(*) FILTER (
+        WHERE COALESCE(
+          st.scholarship_status,
+          'None'
+        ) IN (
+          'Active',
+          'On Hold',
+          'Inactive',
+          'Removed'
+        )
+        AND COALESCE(
+          st.scholar_is_archived,
+          false
+        ) = false
+      ) AS total_scholar_records,
+
+      COUNT(*) FILTER (
+        WHERE COALESCE(
+          st.scholarship_status,
+          'None'
+        ) = 'Active'
+        AND COALESCE(
+          st.scholar_is_archived,
+          false
+        ) = false
+      ) AS active,
+
+      COUNT(*) FILTER (
+        WHERE COALESCE(
+          st.scholarship_status,
+          'None'
+        ) = 'Active'
+        AND COALESCE(
+          st.scholar_is_archived,
+          false
+        ) = false
+        AND st.gwa >= 2.0
+      ) AS at_risk,
+
+      COUNT(*) FILTER (
+        WHERE COALESCE(st.scholar_is_archived, false) = true
+          AND COALESCE(st.is_archived, false) = false
+      ) AS removed,
+
+      ROUND(
+        AVG(
+          NULLIF(st.gwa, 0)
+        ) FILTER (
+          WHERE COALESCE(
+            st.scholarship_status,
+            'None'
+          ) = 'Active'
+          AND COALESCE(
+            st.scholar_is_archived,
+            false
+          ) = false
+        )::numeric,
+        2
+      ) AS avg_gwa
+
+    FROM students st
+
+    WHERE COALESCE(
+      st.is_archived,
+      false
+    ) = false;
+  `);
+
+  return result.rows[0];
+};
+
+exports.fetchAllScholars = async (query = {}) => {
+  const source = `
+    SELECT
+      st.student_id,
+
+      st.current_application_id
+        AS application_id,
+
+      st.current_program_id
+        AS program_id,
+
+      st.scholarship_status
+        AS status,
+
+      st.active_academic_year_id
+        AS academic_year_id,
+
+      st.active_period_id
+        AS period_id,
+
+      ay.label
+        AS academic_year,
+
+      ap.term
+        AS semester,
+
+      st.date_awarded,
+
+      COALESCE(
+        st.ro_status,
+        'Pending'
+      ) AS ro_status,
+
+      st.scholar_remarks
+        AS remarks,
+
+      st.scholar_is_archived
+        AS is_archived,
+      st.scholar_is_archived,
+      st.scholar_archived_at,
+      st.scholar_removal_reason,
+      st.scholar_removal_notes,
+      st.scholar_removed_by,
+
+      st.user_id,
+
+      st.pdm_id
+        AS student_number,
+
+      TRIM(
+        CONCAT(
+          COALESCE(st.first_name, ''),
+          ' ',
+          COALESCE(st.last_name, '')
+        )
+      ) AS student_name,
+
+      st.first_name,
+      st.last_name,
+      st.gwa,
+      ${SCHOLAR_SDO_STATUS_SQL} AS sdo_status,
+      ${SCHOLAR_SDO_REMARKS_SQL} AS sdo_comment,
+
+      COALESCE(st.course_id, smr.course_id) AS course_id,
+      ac.course_code,
+      ac.course_name,
+
+      u.email,
+
+      COALESCE(
+        st.phone_number,
+        u.phone_number
+      ) AS phone_number,
+
+      st.profile_photo_url,
+
+      sp.program_name,
+      previous_application.previous_program_name,
+      previous_application.previous_academic_year,
+      previous_application.previous_semester,
+      previous_ro.previous_ro_assigned_office
+
+    FROM students st
+
+    LEFT JOIN users u
+      ON u.user_id = st.user_id
+
+    LEFT JOIN scholarship_program sp
+      ON sp.program_id =
+        st.current_program_id
+
+    LEFT JOIN student_master_records smr
+      ON smr.master_student_id = st.master_student_id
+
+    LEFT JOIN academic_course ac
+      ON ac.course_id = COALESCE(st.course_id, smr.course_id)
+
+    LEFT JOIN academic_years ay
+      ON ay.academic_year_id =
+        st.active_academic_year_id
+
+    LEFT JOIN academic_period ap
+      ON ap.period_id =
+        st.active_period_id
+
+    LEFT JOIN LATERAL (
+      SELECT
+        a_prev.application_id,
+        po_prev.period_id,
+        sp_prev.program_name AS previous_program_name,
+        ay_prev.label AS previous_academic_year,
+        ap_prev.term AS previous_semester
+      FROM applications a_prev
+      LEFT JOIN program_openings po_prev
+        ON po_prev.opening_id = a_prev.opening_id
+      LEFT JOIN scholarship_program sp_prev
+        ON sp_prev.program_id = a_prev.program_id
+      LEFT JOIN academic_years ay_prev
+        ON ay_prev.academic_year_id = po_prev.academic_year_id
+      LEFT JOIN academic_period ap_prev
+        ON ap_prev.period_id = po_prev.period_id
+      WHERE a_prev.student_id = st.student_id
+        AND a_prev.program_id IS NOT NULL
+        AND po_prev.period_id IS DISTINCT FROM st.active_period_id
+      ORDER BY
+        COALESCE(a_prev.submission_date, a_prev.created_at) DESC NULLS LAST,
+        a_prev.application_id DESC
+      LIMIT 1
+    ) previous_application ON true
+
+    LEFT JOIN LATERAL (
+      SELECT
+        COALESCE(
+          (
+            SELECT rd.department_name
+            FROM ro_placements rp
+            JOIN ro_departments rd
+              ON rd.department_id = rp.ro_area_id
+            WHERE rp.ro_id = ro.ro_id
+            ORDER BY
+              CASE
+                WHEN LOWER(COALESCE(rp.placement_status, '')) = 'approved' THEN 0
+                WHEN LOWER(COALESCE(rp.placement_status, '')) = 'pending' THEN 1
+                ELSE 2
+              END,
+              rp.created_at DESC
+            LIMIT 1
+          ),
+          NULLIF(TRIM(ro.assigned_area), '')
+        ) AS previous_ro_assigned_office
+      FROM return_of_obligations ro
+      WHERE ro.student_id = st.student_id
+        AND (
+          ro.application_id = previous_application.application_id
+          OR (
+            previous_application.period_id IS NOT NULL
+            AND ro.period_id = previous_application.period_id
+          )
+        )
+      ORDER BY
+        CASE
+          WHEN ro.application_id = previous_application.application_id THEN 0
+          ELSE 1
+        END,
+        ro.created_at DESC NULLS LAST
+      LIMIT 1
+    ) previous_ro ON true
+
+    WHERE COALESCE(
+      st.is_archived,
+      false
+    ) = false
+
+      AND COALESCE(
+        st.scholar_is_archived,
+        false
+      ) = false
+
+      AND COALESCE(
+        st.scholarship_status,
+        'None'
+      ) IN (
+        'Active',
+        'On Hold',
+        'Inactive',
+        'Removed'
+      )`;
+  if (paginationRequested(query)) return fetchScholarPage(source, query, false);
+  const result = await db.query(`${source} ORDER BY
+      st.last_name ASC,
+      st.first_name ASC`);
+
+  return Promise.all(
+    result.rows.map(async (row) => {
+      const scholar = normalizeScholarRow(row);
+
+      scholar.avatar_url =
+        await resolveAvatarUrl(
+          row.profile_photo_url
+        );
+
+      return scholar;
+    })
+  );
+};
+
+exports.fetchRemovedScholars = async (query = {}) => {
+  const source = `
+    SELECT
+      st.student_id,
+      st.current_application_id AS application_id,
+      st.current_program_id AS program_id,
+      CASE WHEN LOWER(TRIM(COALESCE(st.scholar_removal_reason, ''))) = 'graduated' THEN 'Graduated' ELSE 'Removed' END AS status,
+      st.active_academic_year_id AS academic_year_id,
+      st.active_period_id AS period_id,
+      ay.label AS academic_year,
+      ap.term AS semester,
+      st.date_awarded,
+      COALESCE(st.ro_status, 'Pending') AS ro_status,
+      st.scholar_remarks AS remarks,
+      st.scholar_is_archived AS is_archived,
+      st.scholar_is_archived,
+      st.scholar_archived_at,
+      st.scholar_removal_reason,
+      st.scholar_removal_notes,
+      st.scholar_removed_by,
+      TRIM(CONCAT(COALESCE(removed_by.first_name, ''), ' ', COALESCE(removed_by.last_name, ''))) AS scholar_removed_by_name,
+      st.user_id,
+      st.pdm_id AS student_number,
+      TRIM(CONCAT(COALESCE(st.first_name, ''), ' ', COALESCE(st.last_name, ''))) AS student_name,
+      st.first_name,
+      st.last_name,
+      st.gwa,
+      ${SCHOLAR_SDO_STATUS_SQL} AS sdo_status,
+      ${SCHOLAR_SDO_REMARKS_SQL} AS sdo_comment,
+      COALESCE(st.course_id, smr.course_id) AS course_id,
+      ac.course_code,
+      ac.course_name,
+      u.email,
+      COALESCE(st.phone_number, u.phone_number) AS phone_number,
+      st.profile_photo_url,
+      sp.program_name
+    FROM students st
+    LEFT JOIN users u ON u.user_id = st.user_id
+    LEFT JOIN scholarship_program sp ON sp.program_id = st.current_program_id
+    LEFT JOIN student_master_records smr ON smr.master_student_id = st.master_student_id
+    LEFT JOIN academic_course ac ON ac.course_id = COALESCE(st.course_id, smr.course_id)
+    LEFT JOIN academic_years ay ON ay.academic_year_id = st.active_academic_year_id
+    LEFT JOIN academic_period ap ON ap.period_id = st.active_period_id
+    LEFT JOIN admin_profiles removed_by ON removed_by.user_id = st.scholar_removed_by
+    WHERE COALESCE(st.is_archived, false) = false
+      AND COALESCE(st.scholar_is_archived, false) = true`;
+  if (paginationRequested(query)) return fetchScholarPage(source, query, true);
+  const result = await db.query(`${source} ORDER BY st.scholar_archived_at DESC NULLS LAST, st.last_name ASC, st.first_name ASC`);
+
+  return Promise.all(
+    result.rows.map(async (row) => {
+      const scholar = normalizeScholarRow(row);
+      scholar.avatar_url = await resolveAvatarUrl(row.profile_photo_url);
+      return scholar;
+    })
+  );
+};
+
+
+// fetchScholarProgramHistory: fetches and returns fetch scholar program history for the Scholars flow.
+async function fetchScholarProgramHistory(studentId) {
+  const result = await db.query(
+    `
+    WITH ranked_applications AS (
+      SELECT
+        a.student_id,
+        a.application_id,
+        a.opening_id,
+        a.program_id,
+        a.application_status,
+        a.selection_status,
+        a.activation_status,
+        a.activated_at,
+        a.is_disqualified,
+        a.is_archived,
+        a.submission_date,
+        a.created_at,
+        po.opening_title,
+        po.academic_year_id,
+        po.period_id,
+        sp.program_name,
+        ROW_NUMBER() OVER (
+          PARTITION BY
+            a.student_id,
+            a.program_id,
+            COALESCE(po.academic_year_id::text, 'unknown'),
+            COALESCE(po.period_id::text, 'unknown')
+          ORDER BY
+            CASE
+              WHEN st.current_application_id = a.application_id THEN 0
+              ELSE 1
+            END,
+            COALESCE(a.submission_date, a.created_at) DESC NULLS LAST,
+            a.application_id DESC
+        ) AS history_rank
+      FROM applications a
+      JOIN students st
+        ON st.student_id = a.student_id
+      LEFT JOIN program_openings po
+        ON po.opening_id = a.opening_id
+      LEFT JOIN scholarship_program sp
+        ON sp.program_id = a.program_id
+      WHERE a.student_id = $1
+        AND a.program_id IS NOT NULL
+    )
+    SELECT
+      ra.application_id,
+      ra.opening_id,
+      ra.program_id,
+      ra.program_name,
+      ra.opening_title,
+      ra.academic_year_id,
+      ay.label AS academic_year,
+      ra.period_id,
+      ap.term AS semester,
+      ra.application_status,
+      ra.selection_status,
+      ra.activation_status,
+      ra.activated_at,
+      ra.is_disqualified,
+      ra.is_archived,
+      CASE
+        WHEN ra.is_disqualified = true THEN 'Disqualified'
+        WHEN LOWER(COALESCE(ra.application_status, '')) = 'rejected' THEN 'Rejected'
+        WHEN LOWER(COALESCE(ra.activation_status, '')) = 'activated' THEN 'Activated'
+        WHEN LOWER(COALESCE(ra.application_status, '')) = 'approved' THEN 'Approved'
+        WHEN LOWER(COALESCE(ra.selection_status, '')) = 'promoted' THEN 'Promoted'
+        WHEN LOWER(COALESCE(ra.selection_status, '')) = 'reserved' THEN 'Reserved'
+        WHEN LOWER(COALESCE(ra.selection_status, '')) = 'selected' THEN 'Selected'
+        ELSE COALESCE(NULLIF(ra.application_status, ''), 'Applied')
+      END AS history_status,
+      COALESCE(
+        placement.department_name,
+        NULLIF(TRIM(ro.assigned_area), '')
+      ) AS ro_assigned_office,
+      ro.assignment_status AS ro_assignment_status,
+      ro.ro_status,
+      COALESCE(ra.submission_date, ra.created_at) AS applied_at
+    FROM ranked_applications ra
+    LEFT JOIN academic_years ay
+      ON ay.academic_year_id = ra.academic_year_id
+    LEFT JOIN academic_period ap
+      ON ap.period_id = ra.period_id
+    LEFT JOIN LATERAL (
+      SELECT ro.*
+      FROM return_of_obligations ro
+      WHERE ro.student_id = ra.student_id
+        AND (
+          ro.application_id = ra.application_id
+          OR (
+            ra.period_id IS NOT NULL
+            AND ro.period_id = ra.period_id
+            AND (
+              ro.program_id = ra.program_id
+              OR ro.program_id IS NULL
+            )
+          )
+        )
+      ORDER BY
+        CASE
+          WHEN ro.application_id = ra.application_id THEN 0
+          ELSE 1
+        END,
+        ro.created_at DESC NULLS LAST
+      LIMIT 1
+    ) ro ON true
+    LEFT JOIN LATERAL (
+      SELECT rd.department_name
+      FROM ro_placements rp
+      JOIN ro_departments rd
+        ON rd.department_id = rp.ro_area_id
+      WHERE rp.ro_id = ro.ro_id
+      ORDER BY
+        CASE
+          WHEN LOWER(COALESCE(rp.placement_status, '')) = 'approved' THEN 0
+          WHEN LOWER(COALESCE(rp.placement_status, '')) = 'pending' THEN 1
+          ELSE 2
+        END,
+        rp.created_at DESC
+      LIMIT 1
+    ) placement ON true
+    WHERE ra.history_rank = 1
+    ORDER BY
+      COALESCE(ra.submission_date, ra.created_at) DESC NULLS LAST,
+      ra.application_id DESC;
+    `,
+    [studentId]
+  );
+
+  return result.rows || [];
+}
+
+// fetchScholarPayoutHistory: fetches and returns fetch scholar payout history for the Scholars flow.
+async function fetchScholarPayoutHistory(studentId) {
+  const result = await db.query(
+    `
+    SELECT
+      pbs.payout_entry_id,
+      pbs.payout_batch_id,
+      pbs.application_id,
+      COALESCE(pbs.amount_received, pb.amount_per_scholar, 0) AS amount,
+      COALESCE(NULLIF(pbs.release_status, ''), pb.batch_status, 'Pending') AS status,
+      pbs.released_at,
+      pb.payout_title,
+      pb.payout_code,
+      pb.payout_date,
+      pb.payment_mode,
+      sp.program_name,
+      ay.label AS academic_year,
+      ap.term AS semester,
+      proof.proof_status,
+      proof.submitted_at AS proof_submitted_at
+    FROM payout_batch_students pbs
+    JOIN payout_batches pb
+      ON pb.payout_batch_id = pbs.payout_batch_id
+    LEFT JOIN scholarship_program sp
+      ON sp.program_id = pb.program_id
+    LEFT JOIN academic_years ay
+      ON ay.academic_year_id = pb.academic_year_id
+    LEFT JOIN academic_period ap
+      ON ap.period_id = pb.period_id
+    LEFT JOIN LATERAL (
+      SELECT pp.proof_status, pp.submitted_at
+      FROM payout_proofs pp
+      WHERE pp.payout_entry_id = pbs.payout_entry_id
+      ORDER BY pp.submitted_at DESC NULLS LAST, pp.created_at DESC
+      LIMIT 1
+    ) proof ON true
+    WHERE pbs.student_id = $1
+      AND COALESCE(pb.is_archived, false) = false
+    ORDER BY COALESCE(pbs.released_at, pb.payout_date, pbs.created_at) DESC NULLS LAST;
+    `,
+    [studentId]
+  );
+
+  return result.rows || [];
+}
+
+// fetchScholarRenewalHistory: fetches and returns fetch scholar renewal history for the Scholars flow.
+async function fetchScholarRenewalHistory(studentId) {
+  const result = await db.query(
+    `
+    SELECT
+      r.renewal_id,
+      r.application_id,
+      r.program_id,
+      r.period_id,
+      r.status,
+      r.submitted_on,
+      r.reviewed_at,
+      r.deadline_date,
+      r.decision_reason,
+      r.flagged_reason,
+      sp.program_name,
+      ay.label AS academic_year,
+      ap.term AS semester,
+      COALESCE(r.reviewed_at, r.submitted_on, r.updated_at, r.created_at) AS event_at
+    FROM renewals r
+    LEFT JOIN scholarship_program sp
+      ON sp.program_id = r.program_id
+    LEFT JOIN academic_period ap
+      ON ap.period_id = r.period_id
+    LEFT JOIN academic_years ay
+      ON ay.academic_year_id = COALESCE(r.academic_year_id, ap.academic_year_id)
+    WHERE r.student_id = $1
+    ORDER BY COALESCE(r.reviewed_at, r.submitted_on, r.updated_at, r.created_at) DESC NULLS LAST;
+    `,
+    [studentId]
+  );
+
+  return result.rows || [];
+}
+
+// SMART_PDM_SCHOLAR_PROGRAM_HISTORY_V1
+
+exports.fetchScholarById = async (studentId, options = {}) => {
+  const includeRemoved = options.includeRemoved === true;
+
+  const scholarResult = await db.query(
+    `
+    SELECT
+      st.student_id,
+
+      st.current_application_id
+        AS application_id,
+
+      st.current_program_id
+        AS program_id,
+
+      st.scholarship_status
+        AS status,
+
+      st.active_academic_year_id
+        AS academic_year_id,
+
+      st.active_period_id
+        AS period_id,
+
+      ay.label
+        AS academic_year,
+
+      ap.term
+        AS semester,
+
+      st.date_awarded,
+
+      COALESCE(
+        st.ro_status,
+        'Pending'
+      ) AS ro_status,
+
+      st.scholar_remarks
+        AS remarks,
+      st.scholar_is_archived,
+      st.scholar_archived_at,
+      st.scholar_removal_reason,
+      st.scholar_removal_notes,
+      st.scholar_removed_by,
+      TRIM(CONCAT(COALESCE(removed_by.first_name, ''), ' ', COALESCE(removed_by.last_name, ''))) AS scholar_removed_by_name,
+
+      st.user_id,
+
+      st.pdm_id
+        AS student_number,
+
+      st.first_name,
+      st.last_name,
+
+      TRIM(
+        CONCAT(
+          COALESCE(st.first_name, ''),
+          ' ',
+          COALESCE(st.last_name, '')
+        )
+      ) AS student_name,
+
+      st.gwa,
+      st.year_level,
+      ${SCHOLAR_SDO_STATUS_SQL} AS sdo_status,
+      ${SCHOLAR_SDO_REMARKS_SQL} AS sdo_comment,
+      (
+        SELECT record.offense_incident_date FROM public.sdo_student_records AS record
+        WHERE upper(btrim(record.student_number)) = upper(btrim(st.pdm_id))
+          AND record.is_archived = false
+        ORDER BY record.updated_at DESC, record.record_id DESC LIMIT 1
+      ) AS sdo_incident_date,
+      NULLIF(
+        TRIM(
+          COALESCE(
+            current_application.application_payload #>> '{academic,current_section}',
+            current_application.application_payload #>> '{academic,section}'
+          )
+        ),
+        ''
+      ) AS section,
+      current_endorsement.sdo_status AS endorsement_sdo_status,
+      current_endorsement.guidance_status,
+      current_endorsement.pd_status,
+      current_endorsement.overall_status AS endorsement_status,
+      COALESCE(st.course_id, smr.course_id) AS course_id,
+      ac.course_code,
+      ac.course_name,
+      st.profile_photo_url,
+
+      u.email,
+
+      COALESCE(
+        st.phone_number,
+        u.phone_number
+      ) AS phone_number,
+
+      spf.*,
+
+      sp.program_name
+
+    FROM students st
+
+    LEFT JOIN users u
+      ON u.user_id = st.user_id
+
+    LEFT JOIN student_profiles spf
+      ON spf.student_id =
+        st.student_id
+
+    LEFT JOIN admin_profiles removed_by
+      ON removed_by.user_id = st.scholar_removed_by
+     AND COALESCE(removed_by.is_archived, false) = false
+
+    LEFT JOIN scholarship_program sp
+      ON sp.program_id =
+        st.current_program_id
+
+    LEFT JOIN student_master_records smr
+      ON smr.master_student_id = st.master_student_id
+
+    LEFT JOIN applications current_application
+      ON current_application.application_id = st.current_application_id
+
+    LEFT JOIN LATERAL (
+      SELECT
+        es.sdo_status,
+        es.guidance_status,
+        es.pd_status,
+        es.overall_status
+      FROM endorsement_slips es
+      WHERE es.application_id = st.current_application_id
+      ORDER BY es.updated_at DESC NULLS LAST
+      LIMIT 1
+    ) current_endorsement ON true
+
+    LEFT JOIN academic_course ac
+      ON ac.course_id = COALESCE(st.course_id, smr.course_id)
+
+    LEFT JOIN academic_years ay
+      ON ay.academic_year_id =
+        st.active_academic_year_id
+
+    LEFT JOIN academic_period ap
+      ON ap.period_id =
+        st.active_period_id
+
+    WHERE st.student_id = $1
+
+      AND COALESCE(
+        st.is_archived,
+        false
+      ) = false
+
+      AND (
+        COALESCE(st.scholar_is_archived, false) = false
+        OR $2::boolean = true
+      )
+
+      AND (
+        COALESCE(
+          st.scholarship_status,
+          'None'
+        ) IN (
+          'Active',
+          'On Hold',
+          'Inactive',
+          'Removed'
+        )
+        OR (
+          $2::boolean = true
+          AND COALESCE(st.scholar_is_archived, false) = true
+        )
+      )
+
+    LIMIT 1;
+    `,
+    [studentId, includeRemoved]
+  );
+
+  if (!scholarResult.rows.length) {
+    return null;
+  }
+
+  const row = scholarResult.rows[0];
+
+  const addressSummary = [
+    row.street_address,
+    row.subdivision,
+    row.city,
+    row.province,
+    row.zip_code,
+  ]
+    .filter(Boolean)
+    .join(', ');
+
+  const [programHistory, payoutHistory, renewalHistory] = await Promise.all([
+    fetchScholarProgramHistory(studentId),
+    fetchScholarPayoutHistory(studentId),
+    fetchScholarRenewalHistory(studentId),
+  ]);
+
+  return {
+    scholar_id: row.student_id,
+    student_id: row.student_id,
+
+    application_id:
+      row.application_id || null,
+
+    program_id:
+      row.program_id || null,
+
+    status:
+      row.status || 'None',
+
+    academic_year_id:
+      row.academic_year_id || null,
+
+    period_id:
+      row.period_id || null,
+
+    academic_year:
+      row.academic_year || null,
+
+    semester:
+      row.semester || null,
+
+    batch_year:
+      row.academic_year || null,
+
+    date_awarded:
+      row.date_awarded || null,
+
+    ro_status:
+      row.ro_status || 'Pending',
+
+    remarks:
+      row.remarks || null,
+
+    scholar_is_archived:
+      row.scholar_is_archived === true,
+    scholar_archived_at:
+      row.scholar_archived_at || null,
+    scholar_removal_reason:
+      row.scholar_removal_reason || null,
+    scholar_removal_notes:
+      row.scholar_removal_notes || null,
+    scholar_removed_by:
+      row.scholar_removed_by || null,
+    scholar_removed_by_name:
+      row.scholar_removed_by_name || null,
+
+    user_id:
+      row.user_id || null,
+
+    student_number:
+      row.student_number || 'N/A',
+
+    student_name:
+      row.student_name ||
+      'Unknown Scholar',
+
+    first_name:
+      row.first_name || null,
+
+    last_name:
+      row.last_name || null,
+
+    gwa:
+      row.gwa ?? null,
+
+    year_level:
+      row.year_level || null,
+
+    section:
+      row.section || null,
+
+    sdo_status:
+      row.sdo_status || 'Clear',
+
+    sdu_level:
+      mapSdoLevelFromStudentStatus(
+        row.sdo_status
+      ),
+
+    endorsement_sdo_status:
+      row.endorsement_sdo_status || null,
+    guidance_status:
+      row.guidance_status || null,
+    pd_status:
+      row.pd_status || null,
+    endorsement_status:
+      row.endorsement_status || null,
+
+    /*
+     * Retained for frontend compatibility.
+     * No sdo_records table is queried.
+     */
+    sdo_record_id: null,
+    offense_level: null,
+    sdo_comment: row.sdo_comment || '',
+    sdo_comment_date: null,
+    sdo_record_status: null,
+    sdo_incident_date: row.sdo_incident_date || null,
+
+    email:
+      row.email || 'N/A',
+
+    phone_number:
+      row.phone_number || 'N/A',
+
+    profile_photo_url:
+      row.profile_photo_url || null,
+
+    avatar_url:
+      await resolveAvatarUrl(
+        row.profile_photo_url
+      ),
+
+    program_name:
+      row.program_name || 'N/A',
+
+    course_id:
+      row.course_id || null,
+
+    course_code:
+      row.course_code || '',
+
+    course_name:
+      row.course_name || '',
+
+    address_summary:
+      addressSummary || 'Not available',
+
+    student_profile: {
+      profile_id:
+        row.profile_id || null,
+
+      date_of_birth:
+        row.date_of_birth || null,
+
+      place_of_birth:
+        row.place_of_birth || null,
+
+      sex:
+        row.sex || null,
+
+      civil_status:
+        row.civil_status || null,
+
+      maiden_name:
+        row.maiden_name || null,
+
+      religion:
+        row.religion || null,
+
+      citizenship:
+        row.citizenship || null,
+
+      street_address:
+        row.street_address || null,
+
+      subdivision:
+        row.subdivision || null,
+
+      city:
+        row.city || null,
+
+      province:
+        row.province || null,
+
+      zip_code:
+        row.zip_code || null,
+
+      landline_number:
+        row.landline_number || null,
+
+      learners_reference_number:
+        row.learners_reference_number ||
+        null,
+
+      financial_support_type:
+        row.financial_support_type ||
+        null,
+
+      financial_support_other:
+        row.financial_support_other ||
+        null,
+
+      has_prior_scholarship:
+        row.has_prior_scholarship ??
+        false,
+
+      prior_scholarship_details:
+        row.prior_scholarship_details ||
+        null,
+
+      has_disciplinary_record:
+        row.has_disciplinary_record ??
+        false,
+
+      disciplinary_details:
+        row.disciplinary_details ||
+        null,
+
+      self_description:
+        row.self_description || null,
+
+      aims_and_ambitions:
+        row.aims_and_ambitions || null,
+
+      applicant_signature_url:
+        row.applicant_signature_url ||
+        null,
+
+      guardian_signature_url:
+        row.guardian_signature_url ||
+        null,
+    },
+
+    program_history: programHistory,
+
+    payout_history: payoutHistory,
+
+    renewal_history: renewalHistory,
+
+    activity_logs: [],
+  };
+};
+
+exports.fetchScholarRenewalDocuments =
+  async (studentId) => {
+    const scholarResult = await db.query(
+      `
+      SELECT
+        st.student_id,
+
+        st.current_application_id
+          AS application_id,
+
+        st.pdm_id
+          AS student_number,
+
+        st.first_name,
+        st.last_name,
+
+        TRIM(
+          CONCAT(
+            COALESCE(st.first_name, ''),
+            ' ',
+            COALESCE(st.last_name, '')
+          )
+        ) AS student_name,
+
+        st.gwa,
+        st.sdo_status
+
+      FROM students st
+
+      WHERE st.student_id = $1
+
+        AND COALESCE(
+          st.is_archived,
+          false
+        ) = false
+
+        AND COALESCE(
+          st.scholar_is_archived,
+          false
+        ) = false
+
+        AND COALESCE(
+          st.scholarship_status,
+          'None'
+        ) IN (
+          'Active',
+          'On Hold',
+          'Inactive',
+          'Removed'
+        )
+
+      LIMIT 1;
+      `,
+      [studentId]
+    );
+
+    if (!scholarResult.rows.length) {
+      throw new Error('Scholar not found');
+    }
+
+    const scholar =
+      scholarResult.rows[0];
+
+    try {
+      const docsResult = await db.query(
+        `
+        SELECT
+          d.document_id
+            AS id,
+
+          COALESCE(
+            r.requirement_name,
+            d.document_type,
+            'Renewal Document'
+          ) AS document_type,
+
+          COALESCE(
+            d.file_name,
+            r.requirement_name,
+            d.document_type,
+            'Document'
+          ) AS document_name,
+
+          d.file_url,
+
+          COALESCE(
+            d.document_status,
+            'Pending Review'
+          ) AS status,
+
+          d.created_at
+            AS uploaded_at,
+
+          COALESCE(
+            d.ocr_status,
+            'Not Analyzed'
+          ) AS ocr_status,
+
+          COALESCE(
+            d.extracted_text,
+            ''
+          ) AS extracted_text,
+
+          COALESCE(
+            d.ocr_fields,
+            '{}'::jsonb
+          ) AS ocr_fields,
+
+          COALESCE(
+            d.remarks,
+            ''
+          ) AS remarks,
+
+          d.confidence
+
+        FROM documents d
+
+        LEFT JOIN document_requirements r
+          ON r.requirement_id =
+            d.requirement_id
+
+        WHERE d.student_id = $1
+
+          AND COALESCE(
+            d.is_archived,
+            false
+          ) = false
+
+          AND (
+            COALESCE(
+              d.is_renewal_document,
+              true
+            ) = true
+
+            OR COALESCE(
+              r.category,
+              ''
+            ) = 'Renewal'
+          )
+
+        ORDER BY
+          d.created_at DESC;
+        `,
+        [scholar.student_id]
+      );
+
+      if (docsResult.rows.length > 0) {
+        return docsResult.rows.map(
+          (document) => ({
+            id: document.id,
+
+            name:
+              document.document_name,
+
+            type:
+              document.document_type,
+
+            url:
+              document.file_url || '',
+
+            status:
+              document.status,
+
+            uploaded_at:
+              document.uploaded_at,
+
+            ocr_status:
+              document.ocr_status,
+
+            extracted_text:
+              document.extracted_text,
+
+            ocr_fields:
+              document.ocr_fields || {},
+
+            remarks:
+              document.remarks || '',
+
+            confidence:
+              document.confidence ?? null,
+          })
+        );
+      }
+    } catch (error) {
+      console.warn(
+        'RENEWAL DOCUMENTS FALLBACK MODE:',
+        error.message
+      );
+    }
+
+    if (scholar.application_id) {
+      const applicationDocs =
+        await db.query(
+          `
+          SELECT
+            ad.document_id
+              AS id,
+
+            ad.document_type,
+
+            COALESCE(
+              ad.file_name,
+              ad.document_type,
+              'Document'
+            ) AS document_name,
+
+            ad.file_url,
+
+            ad.submitted_at
+              AS uploaded_at,
+
+            COALESCE(
+              ad.notes,
+              ''
+            ) AS remarks
+
+          FROM application_documents ad
+
+          WHERE ad.application_id = $1
+
+          ORDER BY
+            ad.submitted_at DESC
+              NULLS LAST,
+
+            ad.document_id ASC;
+          `,
+          [scholar.application_id]
+        );
+
+      if (
+        applicationDocs.rows.length > 0
+      ) {
+        return applicationDocs.rows.map(
+          (document) => ({
+            id: document.id,
+
+            name:
+              document.document_name,
+
+            type:
+              document.document_type,
+
+            url:
+              document.file_url || '',
+
+            status:
+              document.file_url
+                ? 'Uploaded'
+                : 'Missing',
+
+            uploaded_at:
+              document.uploaded_at,
+
+            ocr_status:
+              document.file_url
+                ? 'Ready for OCR'
+                : 'Not Available',
+
+            extracted_text: '',
+            ocr_fields: {},
+
+            remarks:
+              document.remarks || '',
+
+            confidence: null,
+          })
+        );
+      }
+    }
+
+    return [];
+  };
+
+exports.fetchSdoStats = async () => {
+  const result = await db.query(`
+    SELECT
+      COUNT(*) FILTER (
+        WHERE COALESCE(
+          st.scholarship_status,
+          'None'
+        ) IN (
+          'Active',
+          'On Hold',
+          'Inactive',
+          'Removed'
+        )
+
+        AND COALESCE(
+          st.scholar_is_archived,
+          false
+        ) = false
+      ) AS total,
+
+      COUNT(*) FILTER (
+        WHERE COALESCE(
+          ${SCHOLAR_SDO_STATUS_SQL},
+          'Clear'
+        ) = 'Clear'
+
+        AND COALESCE(
+          st.scholar_is_archived,
+          false
+        ) = false
+      ) AS clear_count,
+
+      COUNT(*) FILTER (
+        WHERE ${SCHOLAR_SDO_STATUS_SQL} =
+          'Minor Offense'
+
+        AND COALESCE(
+          st.scholar_is_archived,
+          false
+        ) = false
+      ) AS minor_count,
+
+      COUNT(*) FILTER (
+        WHERE ${SCHOLAR_SDO_STATUS_SQL} =
+          'Major Offense'
+
+        AND COALESCE(
+          st.scholar_is_archived,
+          false
+        ) = false
+      ) AS major_count,
+
+      COUNT(*) FILTER (
+        WHERE ${SCHOLAR_SDO_STATUS_SQL} IN (
+          'Minor Offense',
+          'Major Offense'
+        )
+
+        AND COALESCE(
+          st.scholar_is_archived,
+          false
+        ) = false
+      ) AS on_probation,
+
+      COUNT(*) FILTER (
+        WHERE COALESCE(
+          st.scholarship_status,
+          'None'
+        ) = 'Active'
+
+        AND COALESCE(
+          st.scholar_is_archived,
+          false
+        ) = false
+      ) AS active_scholars
+
+    FROM students st
+
+    WHERE COALESCE(
+      st.is_archived,
+      false
+    ) = false;
+  `);
+
+  return result.rows[0];
+};
+
+exports.updateScholarSdoStatus =
+  async (
+    studentId,
+    payload,
+    actor = {}
+  ) => {
+    const normalizedStatus = String(
+      payload?.status || ''
+    )
+      .trim()
+      .toLowerCase();
+
+    const comment = String(
+      payload?.comment || ''
+    ).trim();
+
+    if (
+      ![
+        'clear',
+        'minor',
+        'major',
+      ].includes(normalizedStatus)
+    ) {
+      throw new Error(
+        'Invalid SDO status value'
+      );
+    }
+
+    const scholar = await require('./studentRegistryService').updateScholarDisciplinaryStanding({
+      studentId, status: normalizedStatus, comment,
+      actorId: actor?.user_id || actor?.userId || actor?.id || null,
+    });
+
+    if (!scholar) {
+      return null;
+    }
+
+    return {
+      scholar_id:
+        scholar.student_id,
+
+      student_id:
+        scholar.student_id,
+
+      student_name:
+        `${scholar.first_name} ${scholar.last_name}`
+          .trim(),
+
+      sdo_status:
+        scholar.sdo_status,
+
+      sdu_level:
+        normalizedStatus,
+
+      ro_status:
+        scholar.ro_status ||
+        'Pending',
+
+      comment,
+
+      updated_by:
+        actor?.user_id ||
+        actor?.userId ||
+        actor?.id ||
+        null,
+    };
+  };
+
+// getLatestRenewalByStudentId: reads and returns get latest renewal by student id for the Scholars flow.
+async function getLatestRenewalByStudentId(
+  studentId
+) {
+  const { data, error } = await supabase
+    .from('renewals')
+    .select('*')
+    .eq('student_id', studentId)
+    .order(
+      'created_at',
+      { ascending: false }
+    )
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data || null;
+}
+
+exports.getLatestRenewalByStudentId =
+  getLatestRenewalByStudentId;
+
+exports.archiveScholarAndReleaseSlot =
+  async (
+    studentId,
+    payload = {},
+    actor = {}
+  ) => {
+    const selectionService =
+      require('./selectionService');
+
+    return selectionService
+      .releaseScholarSlotAndPromote({
+        studentId,
+        actor,
+
+        reason: payload.reason,
+
+        notes:
+          payload.notes || '',
+      });
+  };
+
+async function fetchScholarPage(source, query, removed = false) {
+  const fields = {
+    program: "coalesce(program_name, 'N/A')", academicYear: 'academic_year', semester: 'semester',
+    status: 'status', course: 'course_code', studentNumber: 'student_number',
+    probation: "CASE sdo_status WHEN 'Minor Offense' THEN 'minor' WHEN 'Major Offense' THEN 'major' ELSE 'clear' END",
+  };
+  const search = ['student_name', 'student_number'];
+  if (query.view === 'sdo') search.push('program_name', 'academic_year', 'course_code', 'course_name');
+  const filters = listFilters(query, fields, search);
+  const sorts = {
+    'Name A-Z': 'lower(student_name) ASC', 'Name Z-A': 'lower(student_name) DESC',
+    'Year Newest': removed ? 'scholar_archived_at DESC NULLS LAST' : 'academic_year DESC NULLS LAST',
+    'Year Oldest': removed ? 'scholar_archived_at ASC NULLS FIRST' : 'academic_year ASC NULLS FIRST',
+    'Batch Newest': 'academic_year DESC NULLS LAST', 'Batch Oldest': 'academic_year ASC NULLS FIRST',
+    'Program A-Z': "lower(coalesce(program_name, 'N/A')) ASC", 'Program Z-A': "lower(coalesce(program_name, 'N/A')) DESC",
+  };
+  const result = await queryPage(db, { source, query, ...filters,
+    order: `${sorts[query.sort] || sorts['Name A-Z']}, student_id ASC`,
+    facets: { programs: "coalesce(program_name, 'N/A')", courses: 'course_code', years: 'academic_year', semesters: 'semester', statuses: 'status' },
+    summary: { total: 'count(*)', clear: "count(*) FILTER (WHERE sdo_status IS NULL OR sdo_status NOT IN ('Minor Offense', 'Major Offense'))",
+      minor: "count(*) FILTER (WHERE sdo_status = 'Minor Offense')", major: "count(*) FILTER (WHERE sdo_status = 'Major Offense')" },
+  });
+  result.items = await Promise.all(result.items.map(async (row) => ({ ...normalizeScholarRow(row), avatar_url: await resolveAvatarUrl(row.profile_photo_url) })));
+  return result;
+}

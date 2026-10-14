@@ -868,7 +868,7 @@ async function releaseScholarSlotAndPromote({ studentId, actor = {}, reason, not
     // disciplinary removal remain distinguishable through the required reason
     // instead of creating several meanings for an archived scholar record.
     const status = 'Removed';
-    await getOpeningForUpdate(client, scholar.opening_id);
+    const opening = await getOpeningForUpdate(client, scholar.opening_id);
     const occupiedBefore = await countOccupiedSlots(client, scholar.opening_id);
 
     await client.query(

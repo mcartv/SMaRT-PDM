@@ -23,6 +23,7 @@ class MobilePayoutItem {
     required this.programName,
     this.benefactorName,
     this.proof,
+    this.claimedAt,
   });
 
   final String payoutEntryId;
@@ -42,6 +43,7 @@ class MobilePayoutItem {
   final String programName;
   final String? benefactorName;
   final PayoutProof? proof;
+  final String? claimedAt;
 
   factory MobilePayoutItem.fromJson(Map<String, dynamic> json) {
     return MobilePayoutItem(
@@ -70,6 +72,7 @@ class MobilePayoutItem {
       batchStatus: json['batch_status']?.toString() ?? '',
       programName: json['program_name']?.toString() ?? 'Scholarship Program',
       benefactorName: json['benefactor_name']?.toString(),
+      claimedAt: json['claimed_at']?.toString(),
       proof: json['proof'] is Map
           ? PayoutProof.fromJson(Map<String, dynamic>.from(json['proof'] as Map))
           : null,
@@ -107,6 +110,12 @@ class PayoutService {
         .toList();
 
     return items;
+  }
+
+  // SMARTPDM_CLAIM_20261014
+  Future<void> confirmClaim(String payoutEntryId) async {
+    if (payoutEntryId.trim().isEmpty) throw ArgumentError('Payout entry ID is required.');
+    await _apiClient.postJson('/api/payouts/entries/${payoutEntryId.trim()}/claim', body: {});
   }
 
   // uploadProof: uploads upload proof for the Scholars flow.

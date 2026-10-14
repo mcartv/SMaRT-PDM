@@ -1,5 +1,5 @@
-const { paginationRequested, listFilters, queryPage } = require('../utils/listPagination');
-// SMaRT-PDM: Payout — payout Service (admin backend service); contains business logic and data operations.
+﻿const { paginationRequested, listFilters, queryPage } = require('../utils/listPagination');
+// SMaRT-PDM: Payout â€” payout Service (admin backend service); contains business logic and data operations.
 const pool = require('../config/db');
 const notificationService = require('./notificationService');
 const { resolveAvatarUrl } = require('./avatarService');
@@ -150,6 +150,7 @@ async function fetchPayoutBatches(query = {}) {
             'application_id', pbs.application_id,
             'amount_received', pbs.amount_received,
             'release_status', pbs.release_status,
+            'claimed_at', pbs.claimed_at,
             'academic_year_id', st.active_academic_year_id,
             'period_id', st.active_period_id,
             'academic_year', say.label,
@@ -762,7 +763,7 @@ async function updateScholarPayoutStatus({
 
   const updated = rows[0];
 
-  // 🔔 SEND NOTIFICATION (uses SAME DB flow)
+  // ðŸ”” SEND NOTIFICATION (uses SAME DB flow)
   if (next_status === 'Released') {
     try {
       const userQuery = `
@@ -1230,3 +1231,4 @@ async function reviewPayoutProof({ proofId, status, comment = '', actorUserId = 
 
 module.exports.fetchPayoutProofs = fetchPayoutProofs;
 module.exports.reviewPayoutProof = reviewPayoutProof;
+

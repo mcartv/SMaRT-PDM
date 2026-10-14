@@ -83,6 +83,7 @@ async function getMyPayouts(userId) {
       pbs.amount_received,
       pbs.release_status,
       pbs.released_at,
+      pbs.claimed_at,
       pbs.remarks AS entry_remarks,
       pbs.created_at,
 
@@ -176,6 +177,7 @@ async function getMyPayouts(userId) {
         reference: row.payout_code || '',
         remarks: row.entry_remarks || row.batch_remarks || '',
         released_at: row.released_at || null,
+        claimed_at: row.claimed_at || null,
         created_at: row.created_at,
         proof: row.payout_proof_id
             ? {
@@ -318,7 +320,60 @@ async function uploadMyPayoutProof(userId, payoutEntryId, file) {
     }
 }
 
+// SMARTPDM_CLAIM_20261014: authenticated, one-time student receipt acknowledgement.
+async function claimMyPayout(userId, payoutEntryId) {
+    if (!userId) throw createHttpError(401, 'Authentication required.');
+    if (!/^[0-9a-f-]{36}$/i.test(String(payoutEntryId || ''))) throw createHttpError(400, 'Invalid payout entry ID.');
+    const result = await pool.query(
+        `UPDATE payout_batch_students pbs SET claimed_at = NOW()
+         FROM students st
+         WHERE pbs.payout_entry_id = $1 AND st.student_id = pbs.student_id
+           AND st.user_id = $2 AND LOWER(TRIM(COALESCE(pbs.release_status, ''))) = 'released'
+           AND pbs.claimed_at IS NULL
+         RETURNING pbs.payout_entry_id, pbs.claimed_at`, [payoutEntryId, userId]);
+    if (result.rowCount) {
+        // SMARTPDM_CLAIM_NOTIFY_20261014: only the first successful claim produces an OSFA alert.
+        // A repeated claim returns already_claimed and does not notify again.
+        try {
+            const claimInfo = await pool.query(`
+                SELECT pbs.payout_batch_id, pb.payout_title,
+                       st.pdm_id, st.first_name, st.last_name
+                FROM payout_batch_students pbs
+                JOIN payout_batches pb ON pb.payout_batch_id = pbs.payout_batch_id
+                JOIN students st ON st.student_id = pbs.student_id
+                WHERE pbs.payout_entry_id = $1 AND st.user_id = $2
+                LIMIT 1
+            `, [payoutEntryId, userId]);
+            const info = claimInfo.rows[0];
+            if (info) {
+                const notificationService = require('./notificationService');
+                const scholarName = [info.first_name, info.last_name].filter(Boolean).join(' ').trim();
+                await notificationService.createStaffNotifications({
+                    roles: ['admin'],
+                    type: 'Payout Claimed',
+                    title: 'Scholar confirmed payout receipt',
+                    message: [scholarName || info.pdm_id || 'A scholar', info.pdm_id ? '(' + info.pdm_id + ')' : '', 'confirmed receipt of', info.payout_title || 'a scholarship payout'].filter(Boolean).join(' ') + '.',
+                    referenceId: info.payout_batch_id,
+                    referenceType: 'payout_batch',
+                });
+            }
+        } catch (notificationError) {
+            // Do not undo a successful financial receipt acknowledgement if notifications fail.
+            console.error('PAYOUT CLAIM STAFF NOTIFICATION ERROR:', notificationError);
+        }
+        return { message: 'Payout receipt confirmed.', claimed_at: result.rows[0].claimed_at };
+    }
+    const existing = await pool.query(
+        `SELECT pbs.claimed_at, pbs.release_status FROM payout_batch_students pbs
+         JOIN students st ON st.student_id = pbs.student_id
+         WHERE pbs.payout_entry_id = $1 AND st.user_id = $2 LIMIT 1`, [payoutEntryId, userId]);
+    if (!existing.rowCount) throw createHttpError(404, 'Payout not found.');
+    if (existing.rows[0].claimed_at) return { message: 'Payout was already confirmed.', claimed_at: existing.rows[0].claimed_at, already_claimed: true };
+    throw createHttpError(409, 'Payout must be released before you can confirm receiving it.');
+}
+
 module.exports = {
     getMyPayouts,
+    claimMyPayout,
     uploadMyPayoutProof,
 };

@@ -49,6 +49,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
   NotificationProvider? _notificationProvider;
   int _lastPayoutRevision = 0;
   final Set<String> _uploadingProofs = <String>{};
+  final Set<String> _claimingPayouts = <String>{};
   final Set<String> _expandedPayouts = <String>{};
   Timer? _liveSyncTimer;
   bool _fetchInProgress = false;
@@ -466,6 +467,33 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     }
   }
 
+  // SMARTPDM_CLAIM_20261014
+  Future<void> _confirmClaim(MobilePayoutItem payout) async {
+    if (_claimingPayouts.contains(payout.payoutEntryId)) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Confirm payout received'),
+        content: const Text('Only confirm if you have personally received this payout. This confirmation will be recorded.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Confirm Claimed')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _claimingPayouts.add(payout.payoutEntryId));
+    try {
+      await _payoutService.confirmClaim(payout.payoutEntryId);
+      await _loadPayouts(silent: true);
+      if (mounted) _showMessage('Payout successfully marked as claimed.');
+    } catch (error) {
+      if (mounted) _showMessage('Could not confirm payout. Please try again.');
+    } finally {
+      if (mounted) setState(() => _claimingPayouts.remove(payout.payoutEntryId));
+    }
+  }
+
   // _buildProofSection: handles build proof section for the Scholars flow.
   Widget _buildProofSection(
     MobilePayoutItem payout,
@@ -561,6 +589,17 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
               onPressed: isUploading ? null : () => _previewProof(payout),
               icon: const Icon(Icons.visibility_outlined),
               label: const Text('Preview'),
+            ),
+          ],
+          if (payout.claimedAt != null && payout.claimedAt!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Row(children: [Icon(Icons.check_circle, color: Colors.green), SizedBox(width: 8), Text('Payout Claimed')]),
+          ] else ...[
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: _claimingPayouts.contains(payout.payoutEntryId) ? null : () => _confirmClaim(payout),
+              icon: const Icon(Icons.check_circle_outline),
+              label: Text(_claimingPayouts.contains(payout.payoutEntryId) ? 'Confirming...' : 'Confirm Payout Claimed'),
             ),
           ],
           if (canUpload) ...[

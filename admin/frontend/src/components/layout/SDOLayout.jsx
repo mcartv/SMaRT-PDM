@@ -310,7 +310,7 @@ export default function SDOLayout() {
 
   const navItems = [
     ...baseNavItems.filter((item) => item.path !== '/sdo/settings'),
-    ...(hasRoCoordinatorAccess
+    ...((hasRoCoordinatorAccess || (rbacStatus === 'ready' && (rbacHasPermission('ro.assign') || rbacHasPermission('ro.view'))))
       ? [{ path: '/sdo/ro-requests', label: 'Community Service Requests', icon: ClipboardCheck }]
       : []),
     ...baseNavItems.filter((item) => item.path === '/sdo/settings'),

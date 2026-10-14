@@ -136,10 +136,21 @@ async function uploadMyPayoutProof(req, res) {
     }
 }
 
+// SMARTPDM_CLAIM_20261014
+async function claimMyPayout(req, res) {
+    try {
+        const result = await payoutService.claimMyPayout(getRequestUserId(req), req.params.payoutEntryId);
+        return res.status(200).json(result);
+    } catch (error) {
+        return res.status(getSafeStatusCode(error)).json({error: error.message || 'Unable to confirm payout receipt.'});
+    }
+}
+
 module.exports = {
     createPayoutBatch,
     schedulePayoutBatch,
     getMyPayouts,
+    claimMyPayout,
     updatePayoutEntryStatus,
     uploadMyPayoutProof
 };

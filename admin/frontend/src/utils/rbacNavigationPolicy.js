@@ -20,6 +20,9 @@ export const NAV_PERMISSIONS = Object.freeze({
   '/pd/tracker': 'endorsements.view',
   '/guidance/queue': 'endorsements.view',
   '/guidance/tracker': 'endorsements.view',
+  '/sdo/ro-requests': ['ro.assign', 'ro.view'],
+  '/pd/ro-requests': ['ro.assign', 'ro.view'],
+  '/guidance/ro-requests': ['ro.assign', 'ro.view'],
   '/ro-coordinator/queue': 'ro.view',
 });
 

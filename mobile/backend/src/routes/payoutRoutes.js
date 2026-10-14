@@ -14,6 +14,8 @@ router.post('/batches', protect, payoutController.createPayoutBatch);
 router.patch('/batches/:payoutBatchId/schedule', protect, payoutController.schedulePayoutBatch);
 router.patch('/entries/:payoutEntryId/status', protect, payoutController.updatePayoutEntryStatus);
 router.get('/me', protect, payoutController.getMyPayouts);
+// SMARTPDM_CLAIM_20261014
+router.post('/entries/:payoutEntryId/claim', protect, payoutController.claimMyPayout);
 router.post(
     '/entries/:payoutEntryId/proof',
     protect,

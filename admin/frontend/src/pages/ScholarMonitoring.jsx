@@ -1263,7 +1263,14 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
                       </button>
 
                       <div className="mb-1 shrink-0 rounded-full bg-white p-0.5 shadow-sm">
+                        <div className="flex flex-wrap items-center gap-2">
                         <StatusPill meta={scholarshipMeta} compact />
+                        {((s.scholar_is_archived || String(s.status || s.scholarship_status || '').toLowerCase() === 'removed') && String(s.scholar_removal_reason || '').trim()) ? (
+                          <span data-scholar-removal-reason className={`inline-flex max-w-full items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold leading-none ${String(s.scholar_removal_reason).trim().toLowerCase() === 'graduated' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                            {s.scholar_removal_reason}
+                          </span>
+                        ) : null}
+                      </div>
                       </div>
                     </div>
 
@@ -2261,7 +2268,14 @@ function ScholarRegistryTable({ rows, onView, onRemove, removedMode = false }) {
 
               <div className="min-w-0 xl:col-span-2">
                 <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-400 xl:hidden">Scholarship Status</p>
-                <StatusPill meta={scholarshipMeta} compact />
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusPill meta={scholarshipMeta} compact />
+                        {((scholar.scholar_is_archived || String(scholar.status || scholar.scholarship_status || '').toLowerCase() === 'removed') && String(scholar.scholar_removal_reason || '').trim()) ? (
+                          <span data-scholar-removal-reason className={`inline-flex max-w-full items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold leading-none ${String(scholar.scholar_removal_reason).trim().toLowerCase() === 'graduated' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                            {scholar.scholar_removal_reason}
+                          </span>
+                        ) : null}
+                </div>
               </div>
 
               <div className="min-w-0 sm:col-span-2 xl:col-span-3">

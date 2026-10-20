@@ -76,3 +76,29 @@ transactional and should be removed separately only after an inventory.
 - Form changes invalidate the local signing-session reference; expiry errors
   move the applicant back to Signing. The existing provider continues to block
   duplicate final-submit requests.
+
+## Phase 3 admin verification
+
+- Admin document mappings now recognize Student Signature, Parent / Guardian
+  Signature, and Parent / Guardian Valid ID. They are reviewable through the
+  existing RBAC-protected document-review route, but do not change the legacy
+  five-document completion gate.
+- The document-detail projection returns the signing session's guardian name,
+  relationship, consent timestamp, and current immutable version number; it
+  never returns private object paths as preview URLs.
+- The verification UI groups signing evidence separately, requests each preview
+  through the existing authorized signed-URL endpoint, displays guardian
+  metadata and a manual-comparison limitation notice.
+- The not-yet-applied signing migration now permits a replacement only when the
+  corresponding existing signing document is in `reupload_required`. It creates
+  a new immutable version and resets that document to `pending`; it cannot
+  silently replace a finalized/verified signing document.
+
+Correction boundary: the database/RPC can safely version a signing replacement
+after an admin sets that specific document to `reupload_required`. The existing
+applicant editability UI, however, only explicitly opens correction workflows
+for Application Form review rows; it does not yet surface a signing-document
+correction task. Phase 3 therefore preserves the review decision and immutable
+replacement guard, but a future applicant correction entry point is required
+before administrators should request a signing-document correction in
+production.

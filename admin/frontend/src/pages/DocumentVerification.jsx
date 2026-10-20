@@ -132,6 +132,24 @@ const REQUIRED_DOCUMENTS = [
     name: 'Application Form',
     aliases: ['application form', 'application'],
   },
+  {
+    id: 'student_signature',
+    name: 'Student Signature',
+    required: false,
+    aliases: ['student signature'],
+  },
+  {
+    id: 'guardian_signature',
+    name: 'Parent / Guardian Signature',
+    required: false,
+    aliases: ['guardian signature', 'parent guardian signature'],
+  },
+  {
+    id: 'guardian_id',
+    name: 'Parent / Guardian Valid ID',
+    required: false,
+    aliases: ['guardian id', 'parent guardian id', 'guardian valid id'],
+  },
 ];
 
 const OCR_DOCUMENTS = REQUIRED_DOCUMENTS;
@@ -139,6 +157,14 @@ const IOT_OCR_DISABLED_DOCUMENT_KEYS = new Set([
   'application_form',
   'certificate_of_registration',
   'letter_of_request',
+  'student_signature',
+  'guardian_signature',
+  'guardian_id',
+]);
+const SIGNING_DOCUMENT_KEYS = new Set([
+  'student_signature',
+  'guardian_signature',
+  'guardian_id',
 ]);
 const ACTIVE_IOT_OCR_STATUSES = new Set([
   'pending',
@@ -1412,6 +1438,23 @@ function DocumentPreviewPanel({ activeDoc, application }) {
           </Badge>
         </div>
       </header>
+      {SIGNING_DOCUMENT_KEYS.has(activeDoc?.id) ? (
+        <div className="border-b border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-semibold">
+            Guardian: {application?.signing_metadata?.guardian_name || 'Not available'}
+            {application?.signing_metadata?.guardian_relationship ? ` (${application.signing_metadata.guardian_relationship})` : ''}
+          </p>
+          <p className="mt-1 text-xs text-amber-800">
+            Compare signatures manually only. This review aids assessment and is not definitive identity authentication.
+            {activeDoc?.id === 'guardian_id' ? ' If this ID has no visible signature, record that limitation rather than automatically rejecting it.' : ''}
+          </p>
+        </div>
+      ) : null}
+      {activeDoc?.current_version_number ? (
+        <div className="border-b border-stone-100 bg-white px-4 py-2 text-xs text-stone-500">
+          Current document version: v{activeDoc.current_version_number}
+        </div>
+      ) : null}
       <div className="flex min-h-[360px] items-center justify-center bg-[#f8fafc] p-3 sm:min-h-[440px] sm:p-4 xl:min-h-[560px]">
         {activeDoc?.id === 'application_form' ? <ApplicationFormPreview application={application} />
           : previewLoading ? <div className="flex flex-col items-center gap-3 text-stone-500"><Loader2 className="h-7 w-7 animate-spin text-[var(--portal-base)]" /><p className="text-[15px]">Loading secure preview</p></div>
@@ -4132,7 +4175,19 @@ export default function DocumentVerification() {
       label: 'OCR Scanning',
       documents: docs.filter((document) => !IOT_OCR_DISABLED_DOCUMENT_KEYS.has(document.id)),
     },
-  ], [docs]);
+    {
+      key: 'signing',
+      label: 'Signing evidence',
+      documents: docs.filter((document) => SIGNING_DOCUMENT_KEYS.has(document.id)),
+    },
+    {
+      key: 'manual',
+      label: 'Manual review',
+      documents: docs.filter((document) => (
+        IOT_OCR_DISABLED_DOCUMENT_KEYS.has(document.id) && !SIGNING_DOCUMENT_KEYS.has(document.id)
+      )),
+    },
+  ].filter((group) => group.documents.length > 0), [docs]);
   const persistedIotRequest = getActiveIotRequest(activeDoc);
   const persistedIotOcrRunning = isActiveIotRequest(persistedIotRequest);
   const persistedIotRequestId = getIotOcrRequestId(persistedIotRequest);
@@ -5627,7 +5682,7 @@ export default function DocumentVerification() {
                     aria-label={group.label}
                   >
                     <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400">
-                      {group.key === 'ocr' ? 'OCR' : 'Manual'}
+                      {group.key === 'ocr' ? 'OCR' : group.key === 'signing' ? 'Signing' : 'Manual'}
                     </span>
                     <div
                       className="inline-flex min-w-0 flex-1 flex-wrap items-center gap-1 rounded-xl bg-stone-100 p-1 sm:flex-none"

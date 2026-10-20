@@ -117,44 +117,47 @@ begin
       v_hash := v_session.guardian_id_sha256; v_size := v_session.guardian_id_size_bytes;
     end if;
 
-    insert into public.application_documents (
-      document_id, application_id, uploaded_by, document_type, is_submitted,
-      file_path, file_name, source_type, review_status, submitted_at
-    ) values (
-      gen_random_uuid(), p_application_id, p_uploaded_by, v_type, true,
-      v_path, v_name, 'signing_session', 'pending', now()
-    ) on conflict (application_id, document_type) do update
-      set uploaded_by = excluded.uploaded_by,
-          is_submitted = true,
-          file_path = excluded.file_path,
-          file_name = excluded.file_name,
-          source_type = excluded.source_type,
-          review_status = 'pending',
-          reviewed_by = null,
-          reviewed_at = null,
-          submitted_at = now(),
-          updated_at = now()
-      where public.application_documents.current_version_id is null
-    returning document_id into v_document_id;
+    select document_id into v_document_id
+    from public.application_documents
+    where application_id = p_application_id and document_type = v_type
+    for update;
 
-    if v_document_id is null then
-      select document_id into v_document_id from public.application_documents
-       where application_id = p_application_id and document_type = v_type;
+    if found then
+      if lower(coalesce((select review_status from public.application_documents where document_id = v_document_id), '')) <> 'reupload_required' then
+        raise exception 'Signing document replacement is allowed only after a correction request.' using errcode = '22023';
+      end if;
+    else
+      insert into public.application_documents (
+        document_id, application_id, uploaded_by, document_type, is_submitted,
+        file_path, file_name, source_type, review_status, submitted_at
+      ) values (
+        gen_random_uuid(), p_application_id, p_uploaded_by, v_type, true,
+        v_path, v_name, 'signing_session', 'pending', now()
+      ) returning document_id into v_document_id;
     end if;
 
     insert into public.application_document_versions (
       version_id, document_id, application_id, document_type, version_number,
       file_path, file_name, content_sha256, file_size_bytes, legacy_unhashed, created_by
     ) values (
-      gen_random_uuid(), v_document_id, p_application_id, v_type, 1,
+      gen_random_uuid(), v_document_id, p_application_id, v_type,
+      (select coalesce(max(version_number), 0) + 1 from public.application_document_versions where document_id = v_document_id),
       v_path, v_name, v_hash, v_size, false, p_created_by
-    ) on conflict do nothing
-    returning version_id into v_version_id;
+    ) returning version_id into v_version_id;
 
-    if v_version_id is not null then
-      update public.application_documents set current_version_id = v_version_id
-       where document_id = v_document_id and current_version_id is null;
-    end if;
+    update public.application_documents
+    set uploaded_by = p_uploaded_by,
+        is_submitted = true,
+        file_path = v_path,
+        file_name = v_name,
+        source_type = 'signing_session',
+        current_version_id = v_version_id,
+        review_status = 'pending',
+        reviewed_by = null,
+        reviewed_at = null,
+        submitted_at = now(),
+        updated_at = now()
+    where document_id = v_document_id;
   end loop;
 
   update public.application_signing_sessions

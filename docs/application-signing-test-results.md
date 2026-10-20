@@ -45,3 +45,19 @@ No test is reported as passing until it has been executed successfully.
   guardian ID; upload once, retry with airplane mode toggled, edit a form field
   and verify Signing is required again, wait/use an expired session response,
   then submit once and confirm navigation occurs only after backend success.
+
+## Phase 3 admin verification
+
+- Passed: `node test/application-signing-document-review-contract.test.js` —
+  4/4 backend contract tests for labels, reviewability, guardian metadata,
+  version projection, and RBAC signed-preview routing.
+- Passed: `node test/document-verification-signing-contract.test.mjs` — 4/4
+  frontend contract tests for signing discovery, labels, guardian metadata,
+  limitation notice, signed preview route, and version display.
+- Passed: `npm run build` in `admin/frontend` after allowing the build's native
+  dependency/process requirements. Vite completed successfully; pre-existing
+  large-chunk and ExcelJS `eval` warnings remain.
+- Not run: live authorization, signed URL, and replacement-version integration
+  tests require the Phase 1 migration in an isolated Supabase project. The
+  applicant-side signing-document correction entry point remains a documented
+  follow-up and was not represented as production-ready.

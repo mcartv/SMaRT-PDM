@@ -354,6 +354,24 @@ const APPLICATION_DOCUMENT_DEFINITIONS = [
         name: 'Application Form',
         aliases: ['application form', 'application'],
     },
+    {
+        id: 'student_signature',
+        name: 'Student Signature',
+        required: false,
+        aliases: ['student signature'],
+    },
+    {
+        id: 'guardian_signature',
+        name: 'Parent / Guardian Signature',
+        required: false,
+        aliases: ['guardian signature', 'parent guardian signature'],
+    },
+    {
+        id: 'guardian_id',
+        name: 'Parent / Guardian Valid ID',
+        required: false,
+        aliases: ['guardian id', 'parent guardian id', 'guardian valid id'],
+    },
 ];
 
 const DOCUMENT_TYPE_ALIASES = {
@@ -390,6 +408,12 @@ const DOCUMENT_TYPE_ALIASES = {
     application_form: 'application_form',
     application: 'application_form',
 
+    student_signature: 'student_signature',
+    guardian_signature: 'guardian_signature',
+    parent_guardian_signature: 'guardian_signature',
+    guardian_id: 'guardian_id',
+    parent_guardian_id: 'guardian_id',
+
 };
 
 const DOCUMENT_TYPE_TO_NAME = {
@@ -399,6 +423,9 @@ const DOCUMENT_TYPE_TO_NAME = {
     certificate_of_indigency: 'Certificate of Indigency',
     letter_of_request: 'Letter of Request',
     application_form: 'Application Form',
+    student_signature: 'Student Signature',
+    guardian_signature: 'Parent / Guardian Signature',
+    guardian_id: 'Parent / Guardian Valid ID',
 };
 
 const REQUIRED_REVIEW_DOCUMENT_KEYS = Object.freeze([
@@ -414,6 +441,9 @@ const REQUIRED_REVIEW_DOCUMENT_KEYS = Object.freeze([
 const REVIEWABLE_DOCUMENT_KEYS = new Set([
     ...REQUIRED_REVIEW_DOCUMENT_KEYS,
     'birth_certificate',
+    'student_signature',
+    'guardian_signature',
+    'guardian_id',
 ]);
 
 const REQUIRED_UPLOAD_DOCUMENT_NAMES = Object.freeze([
@@ -1922,6 +1952,8 @@ async function buildApplicationDetails(applicationId) {
         ocrResult,
         iotOcrRequestsResult,
         iotOcrReviewsResult,
+        documentVersionsResult,
+        signingSessionResult,
     ] = await Promise.all([
         supabase
             .from('student_profiles')
@@ -2053,6 +2085,18 @@ async function buildApplicationDetails(applicationId) {
                 ascending: false,
             }),
 
+        supabase
+            .from('application_document_versions')
+            .select('document_id, version_id, version_number, created_at')
+            .eq('application_id', applicationId),
+
+        supabase
+            .from('application_signing_sessions')
+            .select('guardian_name, guardian_relationship, consent_acknowledged_at, finalized_at')
+            .eq('application_id', applicationId)
+            .eq('status', 'finalized')
+            .maybeSingle(),
+
     ]);
 
     const resultErrors = [
@@ -2064,6 +2108,8 @@ async function buildApplicationDetails(applicationId) {
         ocrResult.error,
         iotOcrRequestsResult.error,
         iotOcrReviewsResult.error,
+        documentVersionsResult.error,
+        signingSessionResult.error,
     ].filter(Boolean);
 
     if (resultErrors.length > 0) {
@@ -2263,6 +2309,12 @@ async function buildApplicationDetails(applicationId) {
 
     const rawDocuments =
         documentsResult.data || [];
+    const versionById = new Map(
+        (documentVersionsResult.data || []).map((version) => [
+            version.version_id,
+            version,
+        ])
+    );
 
     const normalizedDocuments =
         await Promise.all(
@@ -2291,6 +2343,7 @@ async function buildApplicationDetails(applicationId) {
                     const filePath =
                         document.file_path ||
                         null;
+                    const currentVersion = versionById.get(document.current_version_id) || null;
 
                     // Phase 6D: sign only when this document is actually opened.
                     const originalSignedUrl = null;
@@ -2334,6 +2387,9 @@ async function buildApplicationDetails(applicationId) {
                         preview_path:
                             document.preview_path ||
                             null,
+
+                        current_version_id: document.current_version_id || null,
+                        current_version_number: currentVersion?.version_number || null,
 
                         preview_url:
                             previewSignedUrl ||
@@ -2588,6 +2644,15 @@ async function buildApplicationDetails(applicationId) {
         activated_at:
             applicationRecord.activated_at ||
             null,
+
+        signing_metadata: signingSessionResult.data
+            ? {
+                guardian_name: signingSessionResult.data.guardian_name || null,
+                guardian_relationship: signingSessionResult.data.guardian_relationship || null,
+                consent_acknowledged_at: signingSessionResult.data.consent_acknowledged_at || null,
+                finalized_at: signingSessionResult.data.finalized_at || null,
+            }
+            : null,
 
         submitted:
             applicationRecord.submission_date,

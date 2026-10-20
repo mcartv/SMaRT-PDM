@@ -1,7 +1,5 @@
 // SMaRT-PDM: Document Verification — applicant documents screen (mobile screen); loads state, handles user actions, and renders the screen.
 import 'dart:async';
-import 'dart:typed_data';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -16,6 +14,7 @@ import 'package:smartpdm_mobileapp/app/theme/app_status_colors.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/applicant_documents_service.dart';
+import 'package:smartpdm_mobileapp/features/forms/presentation/widgets/signature_pad.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/applicant_documents_package.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
@@ -209,6 +208,9 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     if (text.contains('indigency')) return 3;
     if (text.contains('grade')) return 4;
     if (text.contains('request')) return 5;
+    if (text.contains('student signature')) return 10;
+    if (text.contains('guardian signature')) return 11;
+    if (text.contains('guardian id')) return 12;
     return 99;
   }
 
@@ -260,10 +262,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
               Text(
                 'Your current file will stay available until the replacement '
                 'uploads successfully. The new file will then be reviewed again.',
-                style: TextStyle(
-                  color: bodyColor,
-                  height: 1.4,
-                ),
+                style: TextStyle(color: bodyColor, height: 1.4),
               ),
             ],
           ),
@@ -411,7 +410,8 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
       return;
     }
 
-    if (kIsWeb && source == _DocumentUploadSource.file &&
+    if (kIsWeb &&
+        source == _DocumentUploadSource.file &&
         (fileBytes == null || fileBytes.isEmpty)) {
       _showUploadMessage(
         'The selected file could not be read. Try another file.',
@@ -460,6 +460,160 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
       setState(() => _uploadingDocuments.remove(document.id));
       unawaited(_loadPackage(silent: true));
     }
+  }
+
+  Future<void> _replaceSigningSignature(
+    ApplicantRequirementDocument document,
+  ) async {
+    if (!document.canReplaceSigningDocument) {
+      _showUploadMessage(
+        'This signing document can only be replaced after Admin requests a correction.',
+        isError: true,
+      );
+      return;
+    }
+
+    final signature = await showDialog<Uint8List>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _SignatureCorrectionDialog(document: document),
+    );
+    if (signature == null || !mounted) return;
+
+    await _uploadSigningCorrection(
+      document,
+      fileName: document.documentType.toLowerCase().contains('student')
+          ? 'student-signature.png'
+          : 'guardian-signature.png',
+      fileBytes: signature,
+    );
+  }
+
+  Future<void> _replaceGuardianId(ApplicantRequirementDocument document) async {
+    if (!document.canReplaceSigningDocument) {
+      _showUploadMessage(
+        'This signing document can only be replaced after Admin requests a correction.',
+        isError: true,
+      );
+      return;
+    }
+
+    final source = await _chooseUploadSource(document);
+    if (source == null || !mounted) return;
+    String fileName;
+    String? filePath;
+    Uint8List? fileBytes;
+    int fileSize;
+
+    if (source == _DocumentUploadSource.camera) {
+      final capturedFile = await ImagePicker().pickImage(
+        source: ImageSource.camera,
+        imageQuality: 90,
+        maxWidth: 2400,
+      );
+      if (capturedFile == null) return;
+      fileName = capturedFile.name;
+      filePath = capturedFile.path;
+      fileBytes = kIsWeb ? await capturedFile.readAsBytes() : null;
+      fileSize = await capturedFile.length();
+    } else {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+        allowMultiple: false,
+        withData: kIsWeb,
+      );
+      if (result == null || result.files.isEmpty) return;
+      final pickedFile = result.files.single;
+      fileName = pickedFile.name;
+      filePath = kIsWeb ? null : pickedFile.path;
+      fileBytes = pickedFile.bytes;
+      fileSize = pickedFile.size;
+    }
+
+    final extension = fileName.split('.').last.toLowerCase();
+    if (fileSize <= 0 || fileSize > 8 * 1024 * 1024) {
+      _showUploadMessage(
+        'Use a readable ID no larger than 8 MB.',
+        isError: true,
+      );
+      return;
+    }
+    if (!const {'pdf', 'jpg', 'jpeg', 'png'}.contains(extension)) {
+      _showUploadMessage(
+        'Use a PDF, JPG, JPEG, or PNG for the guardian ID.',
+        isError: true,
+      );
+      return;
+    }
+    if (kIsWeb && (fileBytes == null || fileBytes.isEmpty)) {
+      _showUploadMessage(
+        'The selected file could not be read. Try another file.',
+        isError: true,
+      );
+      return;
+    }
+    if (!kIsWeb && (filePath == null || filePath.trim().isEmpty)) {
+      _showUploadMessage(
+        'The selected file could not be accessed. Choose it again.',
+        isError: true,
+      );
+      return;
+    }
+    await _uploadSigningCorrection(
+      document,
+      fileName: fileName,
+      filePath: filePath,
+      fileBytes: fileBytes,
+    );
+  }
+
+  Future<void> _uploadSigningCorrection(
+    ApplicantRequirementDocument document, {
+    required String fileName,
+    String? filePath,
+    Uint8List? fileBytes,
+  }) async {
+    setState(() => _uploadingDocuments[document.id] = true);
+    try {
+      final payload = await _service.replaceSigningDocument(
+        documentRouteParam: document.routeParam,
+        fileName: fileName,
+        filePath: filePath,
+        fileBytes: fileBytes,
+      );
+      if (!mounted) return;
+      setState(() {
+        _package = payload;
+        _errorMessage = null;
+      });
+      _showUploadMessage(
+        '${document.displayName} replaced successfully. The new version is pending review.',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      _showUploadMessage(
+        error.toString().replaceFirst('Exception: ', '').trim(),
+        isError: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _uploadingDocuments.remove(document.id));
+        unawaited(_loadPackage(silent: true));
+      }
+    }
+  }
+
+  Future<void> _startUpload(ApplicantRequirementDocument document) async {
+    if (document.isSigningDocument) {
+      if (document.isSignature) {
+        await _replaceSigningSignature(document);
+      } else {
+        await _replaceGuardianId(document);
+      }
+      return;
+    }
+    await _pickAndUploadDocument(document);
   }
 
   // _showDocumentPreview: handles show document preview for the Document Verification flow.
@@ -511,9 +665,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
             horizontal: 22,
             vertical: 28,
           ),
-          shape: RoundedRectangleBorder(
-            borderRadius: AppRadii.card,
-          ),
+          shape: RoundedRectangleBorder(borderRadius: AppRadii.card),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
             child: Padding(
@@ -590,7 +742,10 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                           child: const Text('Close'),
                         ),
                       ),
-                      if (_package?.uploadsLocked != true) ...[
+                      if ((_package?.uploadsLocked != true ||
+                              document.canReplaceSigningDocument) &&
+                          (!document.isSigningDocument ||
+                              document.canReplaceSigningDocument)) ...[
                         const SizedBox(width: 10),
                         Expanded(
                           child: FilledButton.icon(
@@ -612,7 +767,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     );
 
     if (shouldReplace == true && mounted) {
-      await _pickAndUploadDocument(document);
+      await _startUpload(document);
     }
   }
 
@@ -662,6 +817,10 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
       return '${package.needsReplacementCount} document${package.needsReplacementCount == 1 ? '' : 's'} need replacement before review can continue.';
     }
 
+    if (package.signingCorrectionsCount > 0) {
+      return '${package.signingCorrectionsCount} signing document${package.signingCorrectionsCount == 1 ? '' : 's'} need${package.signingCorrectionsCount == 1 ? 's' : ''} correction before review can continue.';
+    }
+
     if (package.missingCount > 0) {
       return '${package.uploadedCount} of ${package.requiredCount} required documents uploaded. Upload the remaining ${package.missingCount} document${package.missingCount == 1 ? '' : 's'} below.';
     }
@@ -705,10 +864,15 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
         ? const <ApplicantRequirementDocument>[]
         : _orderedDocuments(package.documents);
     final requiredDocuments = documents
-        .where((document) => document.isRequired)
+        .where((document) => document.isRequired && !document.isSigningDocument)
+        .toList();
+    final signingDocuments = documents
+        .where((document) => document.isSigningDocument)
         .toList();
     final optionalDocuments = documents
-        .where((document) => !document.isRequired)
+        .where(
+          (document) => !document.isRequired && !document.isSigningDocument,
+        )
         .toList();
 
     return SmartPdmPageScaffold(
@@ -724,7 +888,12 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
           key: const PageStorageKey<String>('applicant-required-documents'),
           controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xxl),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.xxl,
+          ),
           children: [
             _HeaderCard(
               title:
@@ -776,18 +945,22 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                           const SizedBox(height: AppSpacing.sm),
                           Text(
                             applicationRejected
-                                ? ((package?.rejectionReason?.trim().isNotEmpty ?? false)
+                                ? ((package?.rejectionReason
+                                              ?.trim()
+                                              .isNotEmpty ??
+                                          false)
                                       ? 'Application rejected. Admin feedback: ${package!.rejectionReason}'
                                       : 'Application rejected by Admin. Document upload and replacement are locked.')
                                 : (package?.uploadLockReason ??
                                       'Documents verified by Admin. Upload and replacement are locked unless a correction is requested.'),
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: applicationRejected
-                                  ? lockColors.onDangerContainer
-                                  : lockColors.onSuccessContainer,
-                              height: 1.4,
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: applicationRejected
+                                      ? lockColors.onDangerContainer
+                                      : lockColors.onSuccessContainer,
+                                  height: 1.4,
+                                  fontWeight: FontWeight.w700,
+                                ),
                           ),
                         ],
                       ),
@@ -857,12 +1030,38 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                     isUploading: _uploadingDocuments[document.id] == true,
                     onUpload: package.uploadsLocked
                         ? null
-                        : () => _pickAndUploadDocument(document),
+                        : () => _startUpload(document),
                     onOpen: document.isSubmitted && document.fileUrl != null
                         ? () => _showDocumentPreview(document)
                         : null,
                   ),
                 ),
+              if (signingDocuments.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                const AppSectionHeading(
+                  title: 'Application Signing Evidence',
+                  subtitle:
+                      'These records are retained with your application. They can be replaced only when an authorized reviewer requests a correction.',
+                ),
+                const SizedBox(height: AppSpacing.md),
+                ...signingDocuments.map(
+                  (document) => _DocumentCard(
+                    document: document,
+                    statusColor: _statusColor(document),
+                    titleColor: titleColor,
+                    subtitleColor: subtitleColor,
+                    statusLabel: _statusLabel(document),
+                    uploadedText: _formatTimestamp(document.uploadedAt),
+                    isUploading: _uploadingDocuments[document.id] == true,
+                    onUpload: document.canReplaceSigningDocument
+                        ? () => _startUpload(document)
+                        : null,
+                    onOpen: document.isSubmitted && document.fileUrl != null
+                        ? () => _showDocumentPreview(document)
+                        : null,
+                  ),
+                ),
+              ],
               if (optionalDocuments.isNotEmpty) ...[
                 const SizedBox(height: 14),
                 const AppSectionHeading(
@@ -882,7 +1081,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                     isUploading: _uploadingDocuments[document.id] == true,
                     onUpload: package.uploadsLocked
                         ? null
-                        : () => _pickAndUploadDocument(document),
+                        : () => _startUpload(document),
                     onOpen: document.isSubmitted && document.fileUrl != null
                         ? () => _showDocumentPreview(document)
                         : null,
@@ -978,10 +1177,9 @@ class _HeaderCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             description,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              height: 1.4,
-              color: subtitleColor,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(height: 1.4, color: subtitleColor),
           ),
           if (package != null) ...[
             const SizedBox(height: 16),
@@ -1140,6 +1338,118 @@ class _SimpleCard extends StatelessWidget {
   }
 }
 
+class _SignatureCorrectionDialog extends StatefulWidget {
+  const _SignatureCorrectionDialog({required this.document});
+
+  final ApplicantRequirementDocument document;
+
+  @override
+  State<_SignatureCorrectionDialog> createState() =>
+      _SignatureCorrectionDialogState();
+}
+
+class _SignatureCorrectionDialogState
+    extends State<_SignatureCorrectionDialog> {
+  final SignaturePadController _controller = SignaturePadController();
+  String? _error;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_controller.isEmpty) {
+      setState(() => _error = 'Draw your signature before continuing.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final png = await exportSignaturePng(_controller);
+      if (!mounted) return;
+      Navigator.of(context).pop(png);
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _error = 'Unable to prepare the signature. Please retry.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final guardian = widget.document.documentType.toLowerCase().contains(
+      'guardian',
+    );
+    return AlertDialog(
+      title: Text('Correct ${widget.document.displayName}'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              guardian
+                  ? 'The parent or guardian must personally draw this replacement signature. It is used only to support this scholarship application.'
+                  : 'Draw your replacement signature in the canvas. The previous version remains in the review record.',
+              style: const TextStyle(height: 1.4),
+            ),
+            const SizedBox(height: 14),
+            SignaturePad(
+              controller: _controller,
+              label: widget.document.displayName,
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: _saving
+                  ? null
+                  : () {
+                      _controller.clear();
+                      setState(() => _error = null);
+                    },
+              icon: const Icon(Icons.clear),
+              label: const Text('Clear / Retry'),
+            ),
+            if (_error != null)
+              Text(
+                _error!,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton.icon(
+          onPressed: _saving ? null : _save,
+          icon: _saving
+              ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.draw_outlined),
+          label: const Text('Use Signature'),
+        ),
+      ],
+    );
+  }
+}
+
 class _DocumentCard extends StatelessWidget {
   const _DocumentCard({
     required this.document,
@@ -1219,7 +1529,7 @@ class _DocumentCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      document.documentType,
+                      document.displayName,
                       softWrap: true,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         fontWeight: FontWeight.w900,
@@ -1230,10 +1540,11 @@ class _DocumentCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text.rich(
                       TextSpan(
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: subtitleColor,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: subtitleColor,
+                              fontWeight: FontWeight.w700,
+                            ),
                         children: document.isRequired
                             ? [
                                 const TextSpan(text: 'Required'),
@@ -1247,13 +1558,14 @@ class _DocumentCard extends StatelessWidget {
                               ]
                             : [
                                 TextSpan(
-                                  text:
-                                      document.documentType
-                                              .toLowerCase()
-                                              .contains('birth') ||
-                                          document.documentType
-                                              .toLowerCase()
-                                              .contains('psa')
+                                  text: document.isSigningDocument
+                                      ? 'Signing evidence — correction only on admin request'
+                                      : document.documentType
+                                                .toLowerCase()
+                                                .contains('birth') ||
+                                            document.documentType
+                                                .toLowerCase()
+                                                .contains('psa')
                                       ? 'Upload or bring physical copy'
                                       : 'Alternative submission accepted',
                                 ),
@@ -1268,10 +1580,7 @@ class _DocumentCard extends StatelessWidget {
           const SizedBox(height: 10),
           Align(
             alignment: Alignment.centerLeft,
-            child: _DocumentStatus(
-              label: statusLabel,
-              color: statusColor,
-            ),
+            child: _DocumentStatus(label: statusLabel, color: statusColor),
           ),
           const SizedBox(height: 10),
           Text(

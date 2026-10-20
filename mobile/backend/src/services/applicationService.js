@@ -11,7 +11,12 @@ const { validateSection } = require('../validation/applicationSection');
 const { ensureStudentForUser } = require('./studentAccountService');
 const notificationService = require('./notificationService');
 const { removeDocumentPreview } = require('./documentPreviewService');
-const { finalizeSigningSession } = require('./applicationSigningService');
+const {
+    finalizeSigningSession,
+    signingTypeForApplicationDocument,
+    validateSigningDocumentFile,
+    extension: signingFileExtension,
+} = require('./applicationSigningService');
 const {
     optimizeImageForStorage,
     replaceFileExtension,
@@ -87,6 +92,11 @@ const APPLICATION_UPLOAD_DOCUMENT_TYPES = Object.freeze([
     'Grade Report',
     'Certificate of Indigency',
     'Letter of Request',
+]);
+const SIGNING_APPLICATION_DOCUMENT_TYPES = Object.freeze([
+    'Student Signature',
+    'Guardian Signature',
+    'Guardian ID',
 ]);
 
 const OPTIONAL_UPLOAD_DOCUMENT_TYPES = Object.freeze([
@@ -295,8 +305,11 @@ async function attachSignedUrlsToDocuments(documents = []) {
 
             const displayUrl = previewSignedUrl || originalSignedUrl;
 
+            // Storage object paths are server-only. The browser/mobile client
+            // receives a short-lived signed URL, never the private path.
+            const { file_path, preview_path, ...safeDocument } = document;
             return {
-                ...document,
+                ...safeDocument,
                 file_url: displayUrl,
                 signed_url: displayUrl,
                 view_url: displayUrl,
@@ -1804,6 +1817,10 @@ async function getMyDocuments(userId) {
         if (insertDocsError) throw insertDocsError;
     }
 
+    const visibleDocumentTypes = [
+        ...uploadDocuments,
+        ...SIGNING_APPLICATION_DOCUMENT_TYPES,
+    ];
     const { data: documents, error: docsError } = await supabase
         .from('application_documents')
         .select(`
@@ -1824,12 +1841,41 @@ async function getMyDocuments(userId) {
             current_version_id
         `)
         .eq('application_id', application.application_id)
-        .in('document_type', uploadDocuments)
+        .in('document_type', visibleDocumentTypes)
         .order('created_at', { ascending: true });
 
     if (docsError) throw docsError;
 
-    const documentsWithSignedUrls = (await attachSignedUrlsToDocuments(documents || []))
+    const documentRows = documents || [];
+    const reviewKeys = [...new Set(documentRows.map((document) =>
+        reviewKeyForRequiredDocumentType(document.document_type)
+    ))];
+    const { data: reviews, error: reviewsError } = await supabase
+        .from('application_document_reviews')
+        .select('document_key, review_status, admin_comment, reviewed_at, updated_at')
+        .eq('application_id', application.application_id)
+        .in('document_key', reviewKeys.length ? reviewKeys : ['__none__']);
+
+    if (reviewsError && !isMissingSchemaError(reviewsError)) throw reviewsError;
+
+    const reviewByKey = new Map((reviews || []).map((review) => [
+        normalizeDocumentReviewKey(review.document_key), review,
+    ]));
+    const documentsForApplicant = documentRows.map((document) => {
+        const review = reviewByKey.get(
+            reviewKeyForRequiredDocumentType(document.document_type)
+        );
+        return review
+            ? {
+                ...document,
+                review_status: review.review_status || document.review_status,
+                remarks: pickLatestRemark(review, document),
+                review_reason: review.admin_comment || null,
+                reviewed_at: review.reviewed_at || null,
+            }
+            : document;
+    });
+    const documentsWithSignedUrls = (await attachSignedUrlsToDocuments(documentsForApplicant))
         .map(withUploadRequirementFlag);
     const uploadLock = getApplicationDocumentUploadLock(application);
 
@@ -3166,6 +3212,94 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
             );
         }
     }
+
+    return getMyDocuments(userId);
+}
+
+// replaceMySigningDocument: accepts a correction only for a signing document
+// specifically marked reupload_required by an authorized reviewer. Storage is
+// completed before the RPC; the RPC atomically versions metadata and resets the
+// review state, while the old object/version remains immutable.
+async function replaceMySigningDocument(userId, file, params = {}) {
+    if (!userId) throw createHttpError(401, 'Authentication required.');
+    const documentId = safeText(params.documentId);
+    if (!documentId) throw createHttpError(400, 'Document ID is required.');
+
+    const student = await getStudent(userId);
+    if (!student?.student_id) throw createHttpError(400, 'Student not found.');
+
+    const { data: targetDocument, error: targetError } = await supabase
+        .from('application_documents')
+        .select('document_id, application_id, document_type, review_status, is_submitted, current_version_id')
+        .eq('document_id', documentId)
+        .maybeSingle();
+    if (targetError) throw targetError;
+    if (!targetDocument) throw createHttpError(404, 'Signing document not found.');
+
+    const signingType = signingTypeForApplicationDocument(targetDocument.document_type);
+    if (!signingType) throw createHttpError(400, 'This document is not eligible for signing correction.');
+    if (safeText(targetDocument.review_status).toLowerCase() !== 'reupload_required') {
+        throw createHttpError(409, 'This signing document has not been marked for correction.');
+    }
+
+    const { data: application, error: applicationError } = await supabase
+        .from('applications')
+        .select('application_id, student_id, is_archived, application_status')
+        .eq('application_id', targetDocument.application_id)
+        .eq('student_id', student.student_id)
+        .maybeSingle();
+    if (applicationError) throw applicationError;
+    if (!application) throw createHttpError(403, 'You are not allowed to correct this signing document.');
+    if (application.is_archived === true || normalizeWorkflowKey(application.application_status) === 'rejected') {
+        throw createHttpError(409, 'Signing documents cannot be corrected for this finalized application.');
+    }
+
+    const { detectedMime } = validateSigningDocumentFile(signingType, file);
+    const contentSha256 = crypto.createHash('sha256').update(file.buffer).digest('hex');
+    const objectPath = `application-signing-corrections/${application.application_id}/${documentId}/${crypto.randomUUID()}.${signingFileExtension(detectedMime)}`;
+    const safeName = safeText(file.originalname).replace(/[^a-zA-Z0-9._-]/g, '_') ||
+        `${signingType}.${signingFileExtension(detectedMime)}`;
+
+    const { error: storageError } = await supabase.storage
+        .from(APPLICATION_DOCUMENT_BUCKET)
+        .upload(objectPath, file.buffer, {
+            contentType: detectedMime,
+            cacheControl: '3600',
+            upsert: false,
+        });
+    if (storageError) throw storageError;
+
+    const { data: finalized, error: finalizeError } = await supabase.rpc(
+        'replace_application_signing_document',
+        {
+            p_document_id: documentId,
+            p_user_id: userId,
+            p_uploaded_by: student.student_id,
+            p_file_path: objectPath,
+            p_file_name: safeName,
+            p_content_sha256: contentSha256,
+            p_file_size_bytes: file.buffer.length,
+        }
+    );
+    if (finalizeError || !finalized) {
+        const { error: cleanupError } = await supabase.storage
+            .from(APPLICATION_DOCUMENT_BUCKET)
+            .remove([objectPath]);
+        if (cleanupError) console.error('SIGNING CORRECTION CLEANUP ERROR:', cleanupError);
+        if (finalizeError?.code === '42501') throw createHttpError(403, 'You are not allowed to correct this signing document.');
+        if (finalizeError?.code === '22023') throw createHttpError(409, finalizeError.message);
+        if (finalizeError) throw finalizeError;
+        throw createHttpError(500, 'The signing correction could not be finalized.');
+    }
+
+    await createStaffNotificationsSafely({
+        roles: ['admin'],
+        type: 'Application Documents',
+        title: 'Signing correction ready for review',
+        message: `${getStudentDisplayName(student)} replaced ${targetDocument.document_type}. Review the latest document version.`,
+        referenceId: application.application_id,
+        referenceType: 'application_document',
+    }, 'SIGNING CORRECTION');
 
     return getMyDocuments(userId);
 }
@@ -5164,5 +5298,6 @@ module.exports = {
     getMyApplicationStatusSummary,
     downloadMyEndorsementSlipPdf,
     uploadMyDocument,
+    replaceMySigningDocument,
     submitMyApplicationForm,
 };

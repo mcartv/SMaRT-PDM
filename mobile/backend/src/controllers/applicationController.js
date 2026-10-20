@@ -231,6 +231,24 @@ async function uploadMyDocument(req, res) {
     }
 }
 
+async function replaceMySigningDocument(req, res) {
+    try {
+        const userId = getRequestUserId(req);
+        if (!userId) return res.status(401).json({ error: 'Authentication required.' });
+        const result = await applicationService.replaceMySigningDocument(
+            userId,
+            req.file,
+            req.params || {}
+        );
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error('SIGNING DOCUMENT CORRECTION ROUTE ERROR:', error);
+        return res.status(getSafeStatusCode(error)).json({
+            error: error.message || 'Failed to replace signing document.',
+        });
+    }
+}
+
 // submitMyApplicationForm: handles submit my application form for the Applications flow.
 async function submitMyApplicationForm(req, res) {
     try {
@@ -268,5 +286,6 @@ module.exports = {
     getMyApplicationStatusSummary,
     downloadMyEndorsementSlipPdf,
     uploadMyDocument,
+    replaceMySigningDocument,
     submitMyApplicationForm,
 };

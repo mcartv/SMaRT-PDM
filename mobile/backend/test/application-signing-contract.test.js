@@ -44,6 +44,8 @@ test('finalization RPC rejects incomplete, expired, mismatched and reused sessio
     assert.match(migration, /Signing session has already been finalized/);
     assert.match(migration, /for update/);
     assert.match(migration, /Application does not belong to this signing session owner/);
+    assert.match(migration, /replacement is allowed only after a correction request/);
+    assert.match(migration, /coalesce\(max\(version_number\), 0\) \+ 1/);
     assert.match(migration, /application_document_versions/);
 });
 

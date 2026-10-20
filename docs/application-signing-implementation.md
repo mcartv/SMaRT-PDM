@@ -76,3 +76,69 @@ transactional and should be removed separately only after an inventory.
 - Form changes invalidate the local signing-session reference; expiry errors
   move the applicant back to Signing. The existing provider continues to block
   duplicate final-submit requests.
+
+## Phase 3 admin verification
+
+- Admin document mappings now recognize Student Signature, Parent / Guardian
+  Signature, and Parent / Guardian Valid ID. They are reviewable through the
+  existing RBAC-protected document-review route, but do not change the legacy
+  five-document completion gate.
+- The document-detail projection returns the signing session's guardian name,
+  relationship, consent timestamp, and current immutable version number; it
+  never returns private object paths as preview URLs.
+- The verification UI groups signing evidence separately, requests each preview
+  through the existing authorized signed-URL endpoint, displays guardian
+  metadata and a manual-comparison limitation notice.
+- The not-yet-applied signing migration now permits a replacement only when the
+  corresponding existing signing document is in `reupload_required`. It creates
+  a new immutable version and resets that document to `pending`; it cannot
+  silently replace a finalized/verified signing document.
+
+Correction boundary: the database/RPC can safely version a signing replacement
+after an admin sets that specific document to `reupload_required`. The existing
+applicant editability UI, however, only explicitly opens correction workflows
+for Application Form review rows; it does not yet surface a signing-document
+correction task. Phase 3 therefore preserves the review decision and immutable
+replacement guard, but a future applicant correction entry point is required
+before administrators should request a signing-document correction in
+production.
+
+## Phase 4 applicant signing correction workflow
+
+- The existing applicant **Required Documents** screen is now the correction
+  entry point. It renders signing evidence in its own section and shows the
+  current status, reviewer note, signed preview, and a correction action only
+  for `reupload_required` records. The five established requirement slots and
+  their completion total are unchanged.
+- Student Signature and Parent/Guardian Signature corrections use an
+  independent touch signature canvas with empty-signature validation and PNG
+  export. The guardian dialog explicitly says that the parent or guardian must
+  personally provide the replacement signature. Parent/Guardian Valid ID uses
+  the existing camera/file selection UI and rejects files above 8 MB or outside
+  PDF/JPG/JPEG/PNG before upload.
+- The mobile client calls the authenticated, dedicated endpoint
+  `POST /api/applications/me/signing-documents/:documentId/upload`; it does
+  not receive or construct a Storage path. The document endpoint returns only
+  short-lived signed URLs, never `file_path` or `preview_path`.
+- Migration `20261020_add_application_signing_document_corrections.sql` adds
+  `replace_application_signing_document`. The RPC locks the document row,
+  proves that the application belongs to the authenticated applicant, limits
+  the type to the three signing documents, requires an existing current version
+  with `reupload_required`, then creates exactly one new immutable version and
+  resets the document and corresponding review row to `pending` atomically.
+  It returns identifiers/status only, not the private path.
+- The backend validates magic bytes and type-specific limits before upload,
+  generates a new private object name, and removes that new object if the RPC
+  fails. The storage upload intentionally completes before the database RPC;
+  PostgreSQL cannot atomically commit Storage writes. Existing versions and
+  their private objects are never deleted by this workflow.
+- On success, the normal admin review queue sees the pending latest version via
+  the existing signing document mapping and RBAC signed-preview route. Verified
+  documents, other applicants' documents, non-signing records, duplicate
+  correction attempts, and documents not specifically requested for re-upload
+  are rejected server-side.
+
+The Phase 4 migration has not been applied to any project. Apply it first to an
+isolated Supabase environment and verify private-bucket policies, function
+ownership, and the complete admin/applicant review transition before production
+deployment.

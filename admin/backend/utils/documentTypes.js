@@ -34,6 +34,13 @@ const DOCUMENT_TYPE_ALIASES = {
     certificate_of_live_birth_psa: 'birth_certificate',
     psa: 'birth_certificate',
     nso: 'birth_certificate',
+
+    student_signature: 'student_signature',
+    student_signature_png: 'student_signature',
+    guardian_signature: 'guardian_signature',
+    parent_guardian_signature: 'guardian_signature',
+    guardian_id: 'guardian_id',
+    parent_guardian_id: 'guardian_id',
 };
 
 // SMART-PDM_PSA_BIRTH_CERTIFICATE_TERMINOLOGY_V2
@@ -44,6 +51,9 @@ const DOCUMENT_TYPE_TO_NAME = {
     letter_of_request: 'Letter of Request',
     application_form: 'Application Form',
     birth_certificate: 'PSA / Birth Certificate',
+    student_signature: 'Student Signature',
+    guardian_signature: 'Parent / Guardian Signature',
+    guardian_id: 'Parent / Guardian Valid ID',
 };
 
 // normalizeDocumentType: normalizes normalize document type for the Document Verification flow.

@@ -55,3 +55,5 @@ mobile/smartpdm_mobileapp/
 **/.flutter-plugins
 **/.flutter-plugins-dependencies
 **/.packages
+
+/artifacts/application-signing-deployment/

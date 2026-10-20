@@ -1,6 +1,10 @@
 // SMaRT-PDM: Profile — profile Display (admin frontend); supports admin-side UI behavior.
 // Presentation only: never use these labels for authorization or save payloads.
 const PROFILE_DISPLAY = {
+  admin: {
+    accountRole: 'OSFA Coordinator',
+    position: 'OSFA Coordinator',
+  },
   sdo: {
     accountRole: 'Student Discipline Officer',
     position: 'Student Discipline Officer',
@@ -16,6 +20,9 @@ const PROFILE_DISPLAY = {
 };
 
 const SYSTEM_LABELS = {
+  admin: 'OSFA Coordinator',
+  administrator: 'OSFA Coordinator',
+  'super admin': 'OSFA Coordinator',
   pending_sdo: 'Pending SDO',
   pending_guidance: 'Pending Guidance',
   pending_pd: 'Pending Program Director',
@@ -38,6 +45,10 @@ export function formatSystemLabel(value) {
 export function getProfileDisplay(profile = {}, fallbackRole = '') {
   const rawRole = String(profile.role || fallbackRole).trim().toLowerCase();
   const role = {
+    administrator: 'admin',
+    'super admin': 'admin',
+    'osfa administrator': 'admin',
+    'osfa coordinator': 'admin',
     'sdo user': 'sdo',
     'guidance officer': 'guidance',
     'program director': 'pd',

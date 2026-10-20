@@ -1,5 +1,5 @@
 ﻿const { paginationRequested, listFilters, queryPage } = require('../utils/listPagination');
-// SMaRT-PDM: Payout â€” payout Service (admin backend service); contains business logic and data operations.
+// SMaRT-PDM: Payout service (admin backend service); contains business logic and data operations.
 const pool = require('../config/db');
 const notificationService = require('./notificationService');
 const { resolveAvatarUrl } = require('./avatarService');

@@ -25,9 +25,12 @@ async function getAssignmentsForUser(userId, client = db) {
             assignment.assignment_id,
             assignment.course_id,
             course.course_code,
-            course.course_name
+            course.course_name,
+            course.office_id,
+            office.office_name
         FROM ${TABLE} assignment
         JOIN academic_course course ON course.course_id = assignment.course_id
+        LEFT JOIN public.ref_offices office ON office.office_id=course.office_id
         WHERE assignment.pd_user_id = $1
           AND assignment.is_active = true
         ORDER BY course.course_code ASC
@@ -47,9 +50,12 @@ async function getAssignmentsForUsers(userIds, client = db) {
             assignment.pd_user_id,
             assignment.course_id,
             course.course_code,
-            course.course_name
+            course.course_name,
+            course.office_id,
+            office.office_name
         FROM ${TABLE} assignment
         JOIN academic_course course ON course.course_id = assignment.course_id
+        LEFT JOIN public.ref_offices office ON office.office_id=course.office_id
         WHERE assignment.pd_user_id = ANY($1::uuid[])
           AND assignment.is_active = true
         ORDER BY course.course_code ASC
@@ -64,6 +70,8 @@ async function getAssignmentsForUsers(userIds, client = db) {
             course_id: row.course_id,
             course_code: row.course_code,
             course_name: row.course_name,
+            office_id: row.office_id || null,
+            office_name: row.office_name || null,
         });
     });
     return byUser;
@@ -105,6 +113,7 @@ async function syncAssignments({ userId, courseIds, assignedByUserId = null, cli
         SELECT course.course_code, profile.first_name, profile.last_name
         FROM ${TABLE} assignment
         JOIN academic_course course ON course.course_id = assignment.course_id
+        LEFT JOIN public.ref_offices office ON office.office_id=course.office_id
         LEFT JOIN admin_profiles profile ON profile.user_id = assignment.pd_user_id
         WHERE assignment.course_id = ANY($1::uuid[])
           AND assignment.is_active = true

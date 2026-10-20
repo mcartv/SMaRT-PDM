@@ -6,6 +6,7 @@ const socketEvents = require('../utils/socketEvents');
 // sendError: sends send error for the Courses flow.
 function sendError(res, error, fallbackMessage) {
     const message = error?.message || fallbackMessage || 'Unknown backend error';
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: message, message, code: error.code, conflicts: error.conflicts });
 
     if (
         message === 'Course code is required' ||
@@ -92,7 +93,8 @@ const createCourse = async (req, res) => {
             course_code: req.body.course_code,
             course_name: req.body.course_name,
             is_archived: req.body.is_archived,
-        });
+            office_id: req.body.office_id,
+        }, req.user?.user_id || req.user?.userId || req.user?.id || null);
 
         await writeCourseAudit(req, 'create', createdCourse);
 
@@ -112,7 +114,10 @@ const updateCourse = async (req, res) => {
             course_code: req.body.course_code,
             course_name: req.body.course_name,
             is_archived: req.body.is_archived,
-        });
+            office_id: req.body.office_id,
+            previous_office_id: req.body.previous_office_id,
+            confirm_office_change: req.body.confirm_office_change,
+        }, req.user?.user_id || req.user?.userId || req.user?.id || null);
 
         if (!updatedCourse) {
             return res.status(404).json({

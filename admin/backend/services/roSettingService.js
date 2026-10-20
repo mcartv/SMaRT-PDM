@@ -811,30 +811,12 @@ async function toggleDepartment(departmentId) {
 }
 
 
-// Dynamic allowlist. An unmapped department remains available for backward compatibility.
+// Legacy endpoints remain compatible for reads; mappings are retained for history only.
 async function getDepartmentCourses(){
- const [courses,mappings]=await Promise.all([
-  db.query('SELECT course_id,course_code,course_name FROM public.academic_course WHERE COALESCE(is_archived,false)=false ORDER BY course_code,course_name'),
-  db.query('SELECT department_id,course_id FROM public.ro_department_courses ORDER BY department_id,course_id')
- ]);
- return {courses:courses.rows,mappings:mappings.rows};
+ return {courses:[],mappings:[],retired:true};
 }
-async function setDepartmentCourses(departmentId,courseIds){
- if(!/^[0-9a-f-]{36}$/i.test(String(departmentId||''))||!Array.isArray(courseIds))throw createHttpError(400,'Invalid area or course list.');
- const unique=[...new Set(courseIds)];
- if(unique.length>500||unique.some(x=>typeof x!=='string'||!/^[0-9a-f-]{36}$/i.test(x)))throw createHttpError(400,'Invalid course IDs.');
- const client=await db.connect();
- try{
-  await client.query('BEGIN');
-  const area=await client.query('SELECT department_id FROM public.ro_departments WHERE department_id=$1 FOR UPDATE',[departmentId]);
-  if(!area.rowCount)throw createHttpError(404,'Community Service area not found.');
-  const existing=await client.query('SELECT course_id FROM public.academic_course WHERE course_id = ANY($1::uuid[]) AND COALESCE(is_archived,false)=false',[unique]);
-  if(existing.rowCount!==unique.length)throw createHttpError(400,'One or more courses are missing or archived.');
-  await client.query('DELETE FROM public.ro_department_courses WHERE department_id=$1',[departmentId]);
-  if(unique.length)await client.query('INSERT INTO public.ro_department_courses(department_id,course_id) SELECT $1,unnest($2::uuid[])',[departmentId,unique]);
-  await client.query('COMMIT');
-  return {department_id:departmentId,course_ids:unique};
- }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
+async function setDepartmentCourses(){
+ throw createHttpError(410,'Course assignments are managed in Offices & Departments, not Community Service Areas.');
 }
 
 module.exports = {

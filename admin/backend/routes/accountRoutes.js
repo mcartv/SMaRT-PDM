@@ -59,17 +59,13 @@ router.get('/staff-catalog', protect, authorizeRoles('admin'), requirePermission
      SELECT r.role_code AS value,r.role_name AS label,r.role_name AS default_position,
             'Admin'::text AS db_user_role,r.is_active
      FROM public.rbac_roles r WHERE r.role_scope='staff' AND r.is_active=true
-       AND r.role_code LIKE 'custom_%' AND NOT EXISTS
+       AND NOT EXISTS
         (SELECT 1 FROM public.rbac_staff_role_catalog c WHERE c.role_id=r.role_id)
      ORDER BY label`),
-   db.query(`SELECT x.app_role_code AS role,o.office_id,o.office_name,o.office_code
-     FROM public.rbac_staff_role_offices x JOIN public.ref_offices o ON o.office_id=x.office_id
-     JOIN public.rbac_staff_role_catalog c ON c.app_role_code=x.app_role_code
-     JOIN public.rbac_roles r ON r.role_id=c.role_id
-     WHERE o.is_active=true AND c.is_active=true AND r.is_active=true ORDER BY o.office_name`),
+   require('../services/accountOfficeService').listAccountOffices(db),
    db.query('SELECT position_id,position_name FROM public.ref_staff_positions WHERE is_active=true ORDER BY position_name')
   ]);
-  res.set('Cache-Control','no-store');res.json({roles:roles.rows,offices:offices.rows,positions:positions.rows});
+  res.set('Cache-Control','no-store');res.json({roles:roles.rows,offices:roles.rows.flatMap(role=>offices.map(office=>({...office,role:role.value}))),positions:positions.rows});
  }catch(error){console.error('[Staff Catalog]',error.message);res.status(503).json({error:'Staff catalog temporarily unavailable.'});}
 });
 

@@ -42,7 +42,7 @@ router.put('/roles/:id/users/:userId',manage,safe(async(req,res)=>{
   if(!role.rowCount){const e=new Error('Role not found.');e.httpStatus=404;throw e;}
   const target=role.rows[0];
   if(target.role_code==='admin'||target.role_scope!=='staff'||!target.is_active)
-    {const e=new Error('System administrator and unavailable roles cannot be assigned here.');e.httpStatus=403;throw e;}
+    {const e=new Error('OSFA Coordinator and unavailable roles cannot be assigned here.');e.httpStatus=403;throw e;}
   const user=await client.query(`SELECT u.user_id,COALESCE(a.is_archived,false) AS is_archived
     FROM public.users u JOIN public.admin_profiles a ON a.user_id=u.user_id
     WHERE u.user_id=$1 FOR UPDATE OF u,a`,[req.params.userId]);
@@ -105,7 +105,7 @@ router.put('/roles/:id/permissions/:permissionId',manage,safe(async(req,res)=>{
  const role=await db.query('SELECT role_code,role_scope,is_active FROM public.rbac_roles WHERE role_id=$1',[req.params.id]);
  if(!role.rowCount)return res.status(404).json({error:'Role not found.'});
  const target=role.rows[0];
- if(target.role_code==='admin'||target.role_scope!=='staff'||!target.is_active)return res.status(403).json({error:'Administrator, non-user, and inactive role grants are protected.'});
+ if(target.role_code==='admin'||target.role_scope!=='staff'||!target.is_active)return res.status(403).json({error:'OSFA Coordinator, non-user, and inactive role grants are protected.'});
  const exists=await db.query('SELECT 1 FROM public.rbac_permissions WHERE permission_id=$1',[req.params.permissionId]);
  if(!exists.rowCount)return res.status(404).json({error:'Permission not found.'});
  if(req.body.granted)await db.query('INSERT INTO public.rbac_role_permissions(role_id,permission_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',[req.params.id,req.params.permissionId]);
@@ -135,7 +135,7 @@ router.put('/roles/:id/groups/:groupId',manage,safe(async(req,res)=>{
  if(!isUuid(req.params.id)||!isUuid(req.params.groupId)||typeof req.body?.granted!=='boolean')return res.status(400).json({error:'Invalid request'});
  const group=await db.query('SELECT group_code FROM public.rbac_role_groups WHERE group_id=$1',[req.params.groupId]);
  if(!group.rowCount)return res.status(404).json({error:'Group not found'});
- if(group.rows[0].group_code==='ADMIN_ONLY')return res.status(403).json({error:'Administrator-only group is protected'});
+ if(group.rows[0].group_code==='ADMIN_ONLY')return res.status(403).json({error:'OSFA Coordinator-only group is protected'});
  const role=await db.query("SELECT role_scope,is_active FROM public.rbac_roles WHERE role_id=$1 AND role_code<>'admin'",[req.params.id]);
  if(!role.rowCount||role.rows[0].role_scope!=='staff'||!role.rows[0].is_active)return res.status(403).json({error:'Role is unavailable'});
  if(req.body.granted)await db.query('INSERT INTO public.rbac_role_group_members(group_id,role_id) VALUES($1,$2) ON CONFLICT DO NOTHING',[req.params.groupId,req.params.id]);

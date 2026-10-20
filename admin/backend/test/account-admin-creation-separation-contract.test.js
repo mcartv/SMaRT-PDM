@@ -10,7 +10,7 @@ test('ordinary and Admin account creation remain separate current-system flows',
   const service = read('backend/services/accountService.js');
 
   assert.match(panel, /Create Account/);
-  assert.match(panel, /Create Admin Account/);
+  assert.match(panel, /Create OSFA Coordinator Account/);
   assert.match(panel, /OPERATIONAL_ROLE_OPTIONS/);
 
   assert.match(routes, /router\.post\('\/staff'[\s\S]*createStaffAccount/);
@@ -18,7 +18,7 @@ test('ordinary and Admin account creation remain separate current-system flows',
 
   assert.match(
     service,
-    /const OPERATIONAL_ROLE_VALUES = \['pd', 'guidance', 'sdo', 'ro_coordinator'\]/
+    /FROM public\.rbac_staff_role_catalog c JOIN public\.rbac_roles r/
   );
   assert.match(service, /async function createAdminAccount/);
 });
@@ -121,7 +121,7 @@ test('Create Account modals preserve drafts on backdrop clicks and expose clear 
   assert.doesNotMatch(createOverlayOpening, /onClick=\{onClose\}/);
   assert.doesNotMatch(adminOverlayOpening, /onClick=\{onClose\}/);
   assert.match(createModal, /aria-label="Close Create Account"/);
-  assert.match(adminCreateModal, /aria-label="Close Create Admin Account"/);
+  assert.match(adminCreateModal, /aria-label="Close Create OSFA Coordinator Account"/);
   assert.equal((panel.match(/placeholder="name@example\.com"/g) || []).length >= 3, true);
   assert.match(panel, /import \{ createPortal \} from 'react-dom'/);
   assert.match(panel, /function AccountModalPortal\(\{ children \}\)/);
@@ -138,7 +138,7 @@ test('Accounts can be filtered individually and grouped into organized role sect
 
   assert.ok(
     panel.includes(
-      "const ACCOUNT_ROLE_GROUP_ORDER = ['admin', 'sdo', 'guidance', 'pd', 'ro_coordinator'];"
+      "const ACCOUNT_ROLE_GROUP_ORDER = ['admin', 'dean', 'sdo', 'guidance', 'pd', 'ro_coordinator'];"
     )
   );
   assert.match(panel, /<SelectItem value="sdo">Student Discipline Officer<\/SelectItem>/);

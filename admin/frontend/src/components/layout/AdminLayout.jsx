@@ -438,10 +438,10 @@ export default function AdminLayout() {
           {!collapsed && (
             <div className="portal-responsive-sidebar-copy min-w-0">
               <p className="truncate text-sm font-semibold leading-tight text-white">
-                PDM · Admin
+                PDM · OSFA
               </p>
               <p className="truncate text-[11px]" style={{ color: theme.sub }}>
-                OSFA Administrator
+                OSFA Coordinator
               </p>
             </div>
           )}
@@ -836,7 +836,7 @@ export default function AdminLayout() {
 
             <PortalQuickTools
               tokenStorageKey="adminToken"
-              noteTitle="Admin Notes"
+              noteTitle="OSFA Notes"
               forceDarkMode={forceDarkMode}
               notificationOpen={notifOpen}
               onToolOpen={() => setNotifOpen(false)}
@@ -856,7 +856,7 @@ export default function AdminLayout() {
                   <img
                     data-profile-preview-target="true"
                     src={profileImage}
-                    alt={adminData?.name || 'Admin'}
+                    alt={adminData?.name || 'OSFA Coordinator'}
                     className="h-8 w-8 rounded-full border-2 border-white object-cover shadow-sm ring-1 ring-[var(--portal-border)]"
                   />
                 </span>
@@ -871,7 +871,7 @@ export default function AdminLayout() {
 
               <div className="portal-responsive-profile-copy hidden max-w-[160px] truncate text-left leading-tight xl:block">
                 <p className="truncate text-[12px] font-semibold text-stone-800">
-                  {adminData?.name || 'Admin'}
+                  {adminData?.name || 'OSFA Coordinator'}
                 </p>
                 <p className="truncate text-[10px] font-medium text-stone-500">
                   {adminData?.position || 'User'}
@@ -901,7 +901,7 @@ export default function AdminLayout() {
         open={profilePhotoPreviewOpen}
         onOpenChange={setProfilePhotoPreviewOpen}
         src={profileImage}
-        name={`${adminData?.name || 'Admin'} profile photo`}
+        name={`${adminData?.name || 'OSFA Coordinator'} profile photo`}
       />
     </div>
   );

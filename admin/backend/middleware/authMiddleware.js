@@ -117,7 +117,7 @@ const authorizeRoles = (...roles) => async (req,res,next) => {
     // explicitly requested office role. An Admin-only route remains Admin-only.
     if (required.includes('admin') && tokenRole === 'admin') return next();
     if (required.length === 1 && required[0] === 'admin') {
-        return res.status(403).json({message:'Administrator access required'});
+        return res.status(403).json({message:'OSFA Coordinator access required'});
     }
     const permittedPortals = required.filter(role => role !== 'admin');
     if (!permittedPortals.length) {

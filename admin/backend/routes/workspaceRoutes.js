@@ -12,14 +12,14 @@ router.get('/me',async(req,res)=>{
   const roles=await db.query(`SELECT r.role_name, r.role_id FROM public.rbac_user_roles ur
     JOIN public.rbac_roles r ON r.role_id=ur.role_id
     WHERE ur.user_id=$1 AND ur.is_active=true AND r.is_active=true AND r.role_scope='staff'
-      AND r.role_code LIKE 'custom_%' ORDER BY ur.assigned_at DESC LIMIT 1`,[userId]);
-  if(!roles.rowCount)return res.status(403).json({message:'No active custom role.'});
+      AND NOT EXISTS (SELECT 1 FROM public.rbac_staff_role_catalog catalog WHERE catalog.role_id=r.role_id) ORDER BY ur.assigned_at DESC LIMIT 1`,[userId]);
+  if(!roles.rowCount)return res.status(403).json({message:'No active workspace role.'});
   const permissions=await db.query(`SELECT DISTINCT p.permission_code FROM public.rbac_user_roles ur
     JOIN public.rbac_roles r ON r.role_id=ur.role_id
     JOIN public.rbac_role_permissions rp ON rp.role_id=r.role_id
     JOIN public.rbac_permissions p ON p.permission_id=rp.permission_id
     WHERE ur.user_id=$1 AND ur.is_active=true AND r.is_active=true
-      AND r.role_scope='staff' AND r.role_code LIKE 'custom_%' ORDER BY p.permission_code`,[userId]);
+      AND r.role_scope='staff' AND NOT EXISTS (SELECT 1 FROM public.rbac_staff_role_catalog catalog WHERE catalog.role_id=r.role_id) ORDER BY p.permission_code`,[userId]);
   res.set('Cache-Control','no-store').json({role_name:roles.rows[0].role_name,permissions:permissions.rows.map(x=>x.permission_code)});
  }catch(e){console.error('[workspace/me]',e.message);res.status(503).json({message:'Workspace permissions unavailable.'})}
 });
@@ -47,7 +47,7 @@ router.get('/data/:module',async(req,res)=>{
     JOIN public.rbac_role_permissions rp ON rp.role_id=r.role_id
     JOIN public.rbac_permissions p ON p.permission_id=rp.permission_id
     WHERE ur.user_id=$1 AND ur.is_active=true AND r.is_active=true
-      AND r.role_scope='staff' AND r.role_code LIKE 'custom_%'
+      AND r.role_scope='staff' AND NOT EXISTS (SELECT 1 FROM public.rbac_staff_role_catalog catalog WHERE catalog.role_id=r.role_id)
       AND p.permission_code=$2 LIMIT 1`,[req.user.user_id,permission]);
   if(!allowed.rowCount)return res.status(403).json({message:'Your role does not grant '+permission+'.'});
   res.set('Cache-Control','no-store');

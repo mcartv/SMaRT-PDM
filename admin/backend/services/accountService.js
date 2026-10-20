@@ -9,6 +9,7 @@ const { resolveStaffRole } = require('../utils/staffRoles');
 const { extractAvatarStoragePath, resolveAvatarUrl } = require('./avatarService');
 const pdCourseAssignmentService = require('./pdCourseAssignmentService');
 const adminSessionService = require('./adminSessionService');
+const { requireAccountOffice, setAccountOffice } = require('./accountOfficeService');
 const { syncStaffReferences } = require('../utils/syncStaffReferences');
 
 // SMARTPDM_DB_STAFF_CATALOG_V1: legacy codes remain for existing auth/portal compatibility.
@@ -28,7 +29,7 @@ async function loadRoleConfig(role, client=db) {
     const custom = await client.query(`SELECT 'Admin'::text AS "dbRole", r.role_name AS position,
        'Role-Based Access'::text AS department
        FROM public.rbac_roles r WHERE r.role_code=$1 AND r.role_scope='staff'
-       AND r.is_active=true AND r.role_code LIKE 'custom_%' LIMIT 1`,[role]);
+       AND r.is_active=true AND NOT EXISTS (SELECT 1 FROM public.rbac_staff_role_catalog catalog WHERE catalog.role_id=r.role_id) LIMIT 1`,[role]);
     if (!custom.rows.length) throw createHttpError(400,'Select an active user role from Role Management.');
     return custom.rows[0];
 }
@@ -202,27 +203,8 @@ function validateOptionalPhoneNumber(value) {
 }
 
 // validateDepartment: validates validate department for the Accounts flow.
-async function validateDepartment(role, value, client=db) {
-    const department=safeText(value);
-    if (String(role||'').startsWith('custom_')) {
-      const custom=await client.query(`SELECT 1 FROM public.rbac_roles
-        WHERE role_code=$1 AND role_scope='staff' AND is_active=true LIMIT 1`,[role]);
-      if(!custom.rowCount)throw createHttpError(400,'This custom role is not active.');
-      return 'Role-Based Access';
-    }
-    if(!department)throw createHttpError(400,'Select a department or office.');
-    if(role==='ro_coordinator')return department; // validated against ro_departments below
-    const result=await client.query(`
-      SELECT o.office_name FROM public.rbac_staff_role_offices x
-      JOIN public.ref_offices o ON o.office_id=x.office_id
-      JOIN public.rbac_staff_role_catalog c ON c.app_role_code=x.app_role_code
-      JOIN public.rbac_roles r ON r.role_id=c.role_id
-      WHERE x.app_role_code=$1 AND o.office_name=$2 AND o.is_active=true
-        AND c.is_active=true AND r.is_active=true
-      LIMIT 1
-    `,[role,department]);
-    if(!result.rows.length)throw createHttpError(400,'Select an active office assigned to this staff role.');
-    return result.rows[0].office_name;
+async function validateDepartment(_role, value, client=db) {
+    return (await requireAccountOffice(value,client)).office_name;
 }
 
 // validateRoCoordinatorDepartment: validates validate ro coordinator department for the Accounts flow.
@@ -407,6 +389,8 @@ function mapStaffAccount(row) {
         username: row.username,
         phone_number: row.phone_number || '',
         department: row.department || '',
+        office_id: row.office_id || null,
+        office_name: row.office_name || '',
         position: row.position || '',
         role,
         db_role: row.user_role,
@@ -502,16 +486,18 @@ async function fetchStaffAccountRow(userId, client = db, includeArchived = true)
             u.username,
             u.phone_number,
             u.role AS user_role,
-            (SELECT r.role_code FROM public.rbac_user_roles ur
+            COALESCE((SELECT CASE r.role_code WHEN 'gco' THEN 'guidance' WHEN 'ro_personnel' THEN 'ro_coordinator' ELSE r.role_code END FROM public.rbac_user_roles ur
              JOIN public.rbac_roles r ON r.role_id=ur.role_id
              WHERE ur.user_id=u.user_id AND ur.is_active=true AND r.is_active=true
-             AND r.role_scope='staff' AND r.role_code LIKE 'custom_%'
-             ORDER BY ur.assigned_at DESC LIMIT 1) AS rbac_staff_role,
+             AND r.role_scope='staff' AND r.role_code<>'dean'
+             ORDER BY ur.assigned_at DESC LIMIT 1),to_jsonb(a)->>'institutional_primary_role') AS rbac_staff_role,
             u.created_at,
             a.admin_id,
             a.first_name,
             a.last_name,
             a.department,
+            a.office_id,
+            (SELECT o.office_name FROM public.ref_offices o WHERE o.office_id=a.office_id) AS office_name,
             a.position,
             COALESCE(a.is_archived, false) AS is_archived,
             ${buildProfilePhotoSelect('a', photoEnabled)}
@@ -544,16 +530,18 @@ async function listStaffAccounts() {
             u.username,
             u.phone_number,
             u.role AS user_role,
-            (SELECT r.role_code FROM public.rbac_user_roles ur
+            COALESCE((SELECT CASE r.role_code WHEN 'gco' THEN 'guidance' WHEN 'ro_personnel' THEN 'ro_coordinator' ELSE r.role_code END FROM public.rbac_user_roles ur
              JOIN public.rbac_roles r ON r.role_id=ur.role_id
              WHERE ur.user_id=u.user_id AND ur.is_active=true AND r.is_active=true
-             AND r.role_scope='staff' AND r.role_code LIKE 'custom_%'
-             ORDER BY ur.assigned_at DESC LIMIT 1) AS rbac_staff_role,
+             AND r.role_scope='staff' AND r.role_code<>'dean'
+             ORDER BY ur.assigned_at DESC LIMIT 1),to_jsonb(a)->>'institutional_primary_role') AS rbac_staff_role,
             u.created_at,
             a.admin_id,
             a.first_name,
             a.last_name,
             a.department,
+            a.office_id,
+            (SELECT o.office_name FROM public.ref_offices o WHERE o.office_id=a.office_id) AS office_name,
             a.position,
             COALESCE(a.is_archived, false) AS is_archived,
             ${buildProfilePhotoSelect('a', photoEnabled)}
@@ -568,7 +556,7 @@ async function listStaffAccounts() {
       JOIN public.rbac_roles r ON r.role_id=c.role_id
       WHERE c.is_active=true AND r.is_active=true`);
     const customRolesResult = await db.query(`SELECT role_code AS app_role_code FROM public.rbac_roles
-      WHERE role_scope='staff' AND is_active=true AND role_code LIKE 'custom_%'`);
+      WHERE role_scope='staff' AND is_active=true AND NOT EXISTS (SELECT 1 FROM public.rbac_staff_role_catalog catalog WHERE catalog.role_id=rbac_roles.role_id)`);
     const activeRoles = new Set([...activeRolesResult.rows,...customRolesResult.rows].map(row => String(row.app_role_code).toLowerCase()));
     const accounts = result.rows.map(mapStaffAccount).filter(account => activeRoles.has(String(account.role || '').toLowerCase()));
     const pdIds = accounts.filter((account) => account.role === 'pd').map((account) => account.user_id);
@@ -632,7 +620,7 @@ async function createAccountFromParsedData(parsedData, rawPayload = {}, actorUse
     }
 
     const phoneNumber = safeText(phoneNumberInput) || null;
-    let department = await validateDepartment(role, rawPayload.department || parsedData.department || config.department);
+    let department = role === 'ro_coordinator' ? safeText(rawPayload.department || parsedData.department) : await validateDepartment(role, rawPayload.department || parsedData.department || config.department);
     const position = config.position;
     const passwordHash = await bcrypt.hash(password, 12);
 
@@ -641,6 +629,7 @@ async function createAccountFromParsedData(parsedData, rawPayload = {}, actorUse
     try {
         await client.query('BEGIN');
 
+        const selectedOffice = await requireAccountOffice(role === 'ro_coordinator' ? rawPayload.office_name : department,client);
         const photoEnabled = await hasAdminProfilePhotoColumn(client);
         if (role === 'ro_coordinator') {
             department = await validateRoCoordinatorDepartment(department, client);
@@ -701,6 +690,7 @@ async function createAccountFromParsedData(parsedData, rawPayload = {}, actorUse
         );
 
         await syncStaffReferences(client, user.user_id, { role, department, position });
+        if (selectedOffice) await setAccountOffice(client,user.user_id,selectedOffice);
         if (role === 'pd') {
             await pdCourseAssignmentService.syncAssignments({
                 userId: user.user_id,
@@ -724,6 +714,9 @@ async function createAccountFromParsedData(parsedData, rawPayload = {}, actorUse
         return decorateStaffAccount({
             ...user,
             ...profileResult.rows[0],
+            office_id: selectedOffice.office_id,
+            office_name: selectedOffice.office_name,
+            rbac_staff_role: role,
         });
     } catch (error) {
         await client.query('ROLLBACK');
@@ -876,12 +869,26 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             : roleChanged
                 ? config.department
                 : safeText(current.department) || config.department;
-        let department = await validateDepartment(nextRole, departmentInput, client);
+        let department = nextRole === 'ro_coordinator' ? departmentInput : await validateDepartment(nextRole, departmentInput, client);
+        const selectedOffice = await requireAccountOffice(nextRole === 'ro_coordinator' ? payload.office_name ?? current.office_name : department,client);
         if (nextRole === 'ro_coordinator') {
             department = await validateRoCoordinatorDepartment(department, client);
         }
 
-        const position = config.position;
+        const requestedPosition = payload.dean_position === undefined ? current.position : payload.dean_position === true ? 'Dean' : config.position;
+        const position = requestedPosition === 'Dean' ? 'Dean' : config.position;
+        if (current.position === 'Dean' && position !== 'Dean') {
+            const schema = await client.query("SELECT to_regclass('public.office_academic_leaders') IS NOT NULL AS ready");
+            if (schema.rows[0]?.ready) {
+                const assigned = await client.query("SELECT 1 FROM public.office_academic_leaders l JOIN public.ref_offices o ON o.office_id=l.office_id WHERE l.user_id=$1 AND l.leadership_kind='dean' AND o.is_active=true LIMIT 1", [userId]);
+                if (assigned.rowCount) throw createHttpError(409, 'Remove this account\'s active Dean assignments in Institutional Management before changing its position.');
+            }
+        }
+        if (position === 'Dean') {
+            const eligiblePosition = await client.query("SELECT position_id FROM public.ref_staff_positions WHERE position_name='Dean' AND is_active=true");
+            if (!eligiblePosition.rowCount) throw createHttpError(400, 'Apply the Institutional Management migration before assigning the Dean position.');
+            await client.query('UPDATE public.admin_profiles SET institutional_primary_role=$2 WHERE user_id=$1', [userId, nextRole]);
+        }
 
         const nextIsArchived = payload.is_archived !== undefined
             ? payload.is_archived === true
@@ -1022,6 +1029,7 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
         );
 
         await syncStaffReferences(client, userId, { role: nextRole, department, position, archived: nextIsArchived });
+        if (selectedOffice) await setAccountOffice(client,userId,selectedOffice);
         if (nextRole === 'pd' && !nextIsArchived) {
             const existingAssignments = await pdCourseAssignmentService.getAssignmentsForUser(userId, client);
             const courseIds = payload.course_ids !== undefined

@@ -64,7 +64,7 @@ async function expectedBackingRole(tokenRole, userId) {
       const active = await db.query(`SELECT 1 FROM public.rbac_user_roles ur
         JOIN public.rbac_roles r ON r.role_id=ur.role_id
         WHERE ur.user_id=$1 AND ur.is_active=true AND r.is_active=true
-          AND r.role_scope='staff' AND r.role_code LIKE 'custom_%' LIMIT 1`,[userId]);
+          AND r.role_scope='staff' AND NOT EXISTS (SELECT 1 FROM public.rbac_staff_role_catalog catalog WHERE catalog.role_id=r.role_id) LIMIT 1`,[userId]);
       return active.rowCount ? 'admin' : null;
     }
     const result = await db.query(`SELECT c.db_user_role

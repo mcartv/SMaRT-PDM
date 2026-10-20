@@ -15,8 +15,8 @@ test('Admin modules use current theme variables and current dashboard terminolog
   assert.match(openings, /var\(--portal-base\)/);
   assert.match(obligations, /var\(--portal-base\)/);
 
-  assert.match(dashboard, /Administrator Dashboard/);
-  assert.match(dashboard, /OSFA Administrator/);
+  assert.match(dashboard, /OSFA Coordinator Dashboard/);
+  assert.match(dashboard, /OSFA Coordinator/);
   assert.match(dashboard, /Application Flow/);
   assert.doesNotMatch(dashboard, /OSFA Workload/);
 

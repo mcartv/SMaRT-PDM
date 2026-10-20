@@ -72,22 +72,22 @@ const ROLE_OPTIONS = [
     {
         value: 'admin',
         label: 'OSFA Coordinator',
-        department: 'Office for Scholarship and Financial Assistance (OSFA)',
+        department: '',
     },
     {
         value: 'pd',
         label: 'Program Director',
-        department: 'Office of the College of Hospitality and Tourism Management',
+        department: '',
     },
     {
         value: 'guidance',
         label: 'Guidance Counselor',
-        department: 'Guidance and Counseling Office',
+        department: '',
     },
     {
         value: 'sdo',
         label: 'Student Discipline Officer',
-        department: 'Student Welfare and Development Office',
+        department: '',
     },
     {
         value: 'ro_coordinator',
@@ -96,53 +96,11 @@ const ROLE_OPTIONS = [
     },
 ];
 
-const DEPARTMENT_OPTIONS = {
-    admin: [
-        {
-            value: 'Office for Scholarship and Financial Assistance (OSFA)',
-            label: 'Office for Scholarship and Financial Assistance (OSFA)',
-        },
-    ],
-    pd: [
-        {
-            value: 'Office of the College of Hospitality and Tourism Management',
-            label: 'Hospitality and Tourism Management',
-            hint: 'HM and TM',
-        },
-        {
-            value: 'Office of the College of Computer Studies',
-            label: 'College of Computer Studies',
-            hint: 'IT and CS',
-        },
-        {
-            value: 'Office of the Program Head - Office Administration',
-            label: 'Program Head - Office Administration',
-            hint: 'OAD and Entrep',
-        },
-        {
-            value: 'Office of the Program Head - Teacher Education Program',
-            label: 'Program Head - Teacher Education',
-            hint: 'BTLED and BECED',
-        },
-    ],
-    guidance: [
-        {
-            value: 'Guidance and Counseling Office',
-            label: 'Guidance and Counseling Office',
-        },
-    ],
-    sdo: [
-        {
-            value: 'Student Welfare and Development Office',
-            label: 'Student Welfare and Development Office',
-        },
-    ],
-    ro_coordinator: [],
-};
+const DEPARTMENT_OPTIONS = {};
 
 const OPERATIONAL_ROLE_OPTIONS = ROLE_OPTIONS.filter((option) => option.value !== 'admin');
 const DEFAULT_OPERATIONAL_ROLE = OPERATIONAL_ROLE_OPTIONS[0];
-const ACCOUNT_ROLE_GROUP_ORDER = ['admin', 'sdo', 'guidance', 'pd', 'ro_coordinator'];
+const ACCOUNT_ROLE_GROUP_ORDER = ['admin', 'dean', 'sdo', 'guidance', 'pd', 'ro_coordinator'];
 const PHONE_NUMBER_PATTERN = /^09\d{9}$/;
 const REPEATING_PHONE_NUMBER_PATTERN = /^09(\d)\1{8}$/;
 const PHONE_NUMBER_ERROR = 'Phone number must be 11 digits and start with 09.';
@@ -231,6 +189,7 @@ const DEFAULT_FORM = {
     phone_number: '',
     role: DEFAULT_OPERATIONAL_ROLE.value,
     department: DEFAULT_OPERATIONAL_ROLE.department,
+    office_name: '',
     password: '',
     confirm_password: '',
     course_ids: [],
@@ -246,40 +205,18 @@ const DEFAULT_ADMIN_FORM = {
 
 // inferPdDepartment: handles infer pd department for the Accounts flow.
 function inferPdDepartment(assignedCourses = []) {
-    const departmentByCode = new Map([
-        ['HM', DEPARTMENT_OPTIONS.pd[0].value],
-        ['BSHM', DEPARTMENT_OPTIONS.pd[0].value],
-        ['TM', DEPARTMENT_OPTIONS.pd[0].value],
-        ['BSTM', DEPARTMENT_OPTIONS.pd[0].value],
-        ['IT', DEPARTMENT_OPTIONS.pd[1].value],
-        ['BSIT', DEPARTMENT_OPTIONS.pd[1].value],
-        ['CS', DEPARTMENT_OPTIONS.pd[1].value],
-        ['BSCS', DEPARTMENT_OPTIONS.pd[1].value],
-        ['OAD', DEPARTMENT_OPTIONS.pd[2].value],
-        ['BSOA', DEPARTMENT_OPTIONS.pd[2].value],
-        ['ENTREP', DEPARTMENT_OPTIONS.pd[2].value],
-        ['BSENTREP', DEPARTMENT_OPTIONS.pd[2].value],
-        ['BTLED', DEPARTMENT_OPTIONS.pd[3].value],
-        ['BECED', DEPARTMENT_OPTIONS.pd[3].value],
-    ]);
-    const matches = new Set(
-        assignedCourses
-            .map((course) => departmentByCode.get(String(course.course_code || '').trim().toUpperCase()))
-            .filter(Boolean)
-    );
-
-    return matches.size === 1 ? [...matches][0] : '';
+    const offices = new Set(assignedCourses.map(course => course.office_name).filter(Boolean));
+    return offices.size === 1 ? [...offices][0] : '';
 }
 
 // normalizeDepartment: normalizes normalize department for the Accounts flow.
 function normalizeDepartment(role, department, assignedCourses = []) {
-    const options = DEPARTMENT_OPTIONS[role] || [];
     const current = String(department || '').trim();
 
     if (role === 'ro_coordinator') return current;
-    if (options.some((option) => option.value === current)) return current;
+    if (current) return current;
     if (role === 'pd') return inferPdDepartment(assignedCourses);
-    return options[0]?.value || '';
+    return '';
 }
 
 // DepartmentField: handles department field for the Accounts flow.
@@ -290,9 +227,10 @@ function DepartmentField({
     disabled = false,
     roAreas = [],
     showPdCourseGroup = true,
+    communityArea = false,
     triggerClassName = 'h-9',
 }) {
-    const options = role === 'ro_coordinator'
+    const options = communityArea
         ? roAreas
             .filter((area) => area.is_active !== false)
             .map((area) => ({
@@ -307,13 +245,13 @@ function DepartmentField({
 
     return (
         <div className="min-w-0">
-            <FieldLabel>Office</FieldLabel>
+            <FieldLabel>{communityArea ? 'Community Service Area' : 'Office'}</FieldLabel>
             <Select value={value ?? ''} onValueChange={onChange} disabled={disabled}>
                 <SelectTrigger
                     className={`${triggerClassName} w-full min-w-0 rounded-lg border-stone-200 text-sm [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate`}
                     title={selectedOption?.value || ''}
                 >
-                    <SelectValue placeholder="Select department or office" />
+                    <SelectValue placeholder={communityArea ? 'Select Community Service Area' : 'Select office or department'} />
                 </SelectTrigger>
                 <SelectContent position="popper" align="start" className="w-[var(--radix-select-trigger-width)]">
                     {options.map((option) => (
@@ -327,13 +265,14 @@ function DepartmentField({
                     ))}
                 </SelectContent>
             </Select>
-            {role === 'pd' && showPdCourseGroup ? (
+            {!communityArea && value && !selectedOption && <p className="mt-1 break-words text-xs text-amber-700">Current assignment: {value}. Select an official office before saving.</p>}
+            {!communityArea && role === 'pd' && showPdCourseGroup ? (
                 <p className="mt-1 text-[11px] text-stone-500">
                     {selectedOption?.hint
                         ? `Course group: ${selectedOption.hint}`
                         : 'Choose the office that supervises the assigned courses.'}
                 </p>
-            ) : role === 'ro_coordinator' ? (
+            ) : communityArea ? (
                 <p className="mt-1 text-[11px] text-stone-500">
                     Select an active Community Service Area managed in Maintenance &gt; Community Service.
                 </p>
@@ -505,6 +444,7 @@ function roleTone(role) {
 
 // accountPositionLabel: handles account position label for the Accounts flow.
 function accountPositionLabel(account = {}) {
+    if (account.position === 'Dean') return account.position;
     return ROLE_OPTIONS.find((option) => option.value === account.role)?.label
         || account.position
         || 'Not provided';
@@ -512,6 +452,7 @@ function accountPositionLabel(account = {}) {
 
 // accountDepartmentLabel: handles account department label for the Accounts flow.
 function accountDepartmentLabel(account = {}) {
+    if (account.office_name) return account.office_name;
     if (account.role === 'sdo') return 'Student Welfare and Development Office';
     if (account.role === 'guidance') return 'Guidance and Counseling Office';
     return account.department || 'Not provided';
@@ -538,9 +479,9 @@ function accountCreatedTimestamp(value) {
 }
 
 // accountMatchesRoleGroup: handles account matches role group for the Accounts flow.
-function accountMatchesRoleGroup(account, roleFilter) {
+function accountMatchesRoleGroup(account, roleFilter, availableRoles = ROLE_OPTIONS) {
     if (roleFilter === 'grouped' || roleFilter === 'all') return true;
-    if (ACCOUNT_ROLE_GROUP_ORDER.includes(roleFilter)) return account.role === roleFilter;
+    if (availableRoles.some(option => option.value === roleFilter)) return account.role === roleFilter;
 
     return true;
 }
@@ -587,8 +528,9 @@ function validateCreateForm(form, roAreas = [], accounts = []) {
         ? roAreas.filter((area) => area.is_active !== false).map((area) => area.department_name)
         : (DEPARTMENT_OPTIONS[form.role] || []).map((option) => option.value);
     if (!departmentOptions.includes(form.department)) {
-        return 'Select a valid department or office.';
+        return form.role === 'ro_coordinator' ? 'Select an active Community Service Area.' : 'Select a valid office or department.';
     }
+    if (form.role === 'ro_coordinator' && !(DEPARTMENT_OPTIONS[form.role] || []).some(option => option.value === form.office_name)) return 'Select a valid office or department.';
     if (form.role === 'pd' && !(form.course_ids || []).length) return 'Select at least one course for the Program Director.';
 
     return validatePasswordFields(form.password, form.confirm_password, true);
@@ -627,8 +569,9 @@ function validateEditForm(form, roAreas = [], accounts = [], excludedUserId = nu
         ? roAreas.filter((area) => area.is_active !== false).map((area) => area.department_name)
         : (DEPARTMENT_OPTIONS[form.role] || []).map((option) => option.value);
     if (!departmentOptions.includes(form.department)) {
-        return 'Select a valid department or office.';
+        return form.role === 'ro_coordinator' ? 'Select an active Community Service Area.' : 'Select a valid office or department.';
     }
+    if (form.role === 'ro_coordinator' && !(DEPARTMENT_OPTIONS[form.role] || []).some(option => option.value === form.office_name)) return 'Select a valid office or department.';
     if (form.role === 'pd' && !(form.course_ids || []).length) return 'Select at least one course for the Program Director.';
 
     return validatePasswordFields(form.password, form.confirm_password, false);
@@ -739,7 +682,7 @@ function AccountCreateModal({
                             Create User Account
                         </h3>
                         <p className="mt-0.5 text-xs text-stone-500">
-                            Create a Program Director, Student Discipline Officer, Guidance Counselor, or RO Personnel-In-Charge account.
+                            Create a Dean, Program Director, Student Discipline Officer, Guidance Counselor, or Personnel-In-Charge account.
                         </p>
                     </div>
 
@@ -859,12 +802,13 @@ function AccountCreateModal({
 
                         <DepartmentField
                             role={form.role}
-                            value={form.department}
-                            onChange={(value) => setField('department', value)}
+                            value={form.role === 'ro_coordinator' ? form.office_name : form.department}
+                            onChange={(value) => setField(form.role === 'ro_coordinator' ? 'office_name' : 'department', value)}
                             disabled={saving}
                             roAreas={roAreas}
                             showPdCourseGroup={false}
                         />
+                        {form.role === 'ro_coordinator' && <DepartmentField role={form.role} communityArea value={form.department} onChange={value => setField('department', value)} disabled={saving} roAreas={roAreas} />}
                     </div>
 
                     <CourseAssignmentField
@@ -952,7 +896,7 @@ function AdminCreateModal({
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
                     <div>
                         <h3 className="text-sm font-semibold text-stone-800">
-                            Create OSFA Admin Account
+                            Create OSFA Coordinator Account
                         </h3>
                         <p className="mt-0.5 text-xs text-stone-500">
                             Creates a high-privilege OSFA Coordinator account.
@@ -963,7 +907,7 @@ function AdminCreateModal({
                         type="button"
                         onClick={onClose}
                         disabled={saving}
-                        aria-label="Close Create Admin Account"
+                        aria-label="Close Create OSFA Coordinator Account"
                         title="Close"
                         className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-600 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
@@ -973,7 +917,7 @@ function AdminCreateModal({
 
                 <form className="space-y-3 p-4" onSubmit={onSubmit}>
                     <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
-                        Admin role and OSFA office assignment are fixed at creation and cannot be converted into a department account later.
+                        The OSFA Coordinator role and OSFA office assignment are fixed at creation and cannot be converted into a department account later.
                     </div>
 
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1063,7 +1007,7 @@ function AdminCreateModal({
                             ) : (
                                 <Plus className="mr-1.5 h-3.5 w-3.5" />
                             )}
-                            Create Admin Account
+                            Create OSFA Coordinator Account
                         </Button>
                     </div>
                 </form>
@@ -1111,6 +1055,7 @@ function AccountEditModal({
             ...current,
             role,
             course_ids: role === 'pd' ? current.course_ids : [],
+            office_name: defaults?.department || '',
             department: role === 'ro_coordinator'
                 ? roAreas.find((area) => area.is_active !== false && !area.coordinator)?.department_name || ''
                 : defaults?.department || current.department,
@@ -1209,7 +1154,9 @@ function AccountEditModal({
                             </Select>
                         </div>
 
-                        <DepartmentField role={form.role} value={form.department} onChange={(value) => setField('department', value)} disabled={saving} roAreas={roAreas} />
+<div><label className="flex items-center gap-2 text-sm text-stone-700"><input type="checkbox" checked={form.role === 'dean' || form.dean_position === true} disabled={saving || form.role === 'dean'} onChange={event => setField('dean_position', event.target.checked)} />Dean position</label><p className="mt-1 text-xs text-stone-500">Office leadership is assigned in Institutional Management. The account keeps its existing portal role.</p></div>
+                        <DepartmentField role={form.role} value={form.role === 'ro_coordinator' ? form.office_name : form.department} onChange={(value) => setField(form.role === 'ro_coordinator' ? 'office_name' : 'department', value)} disabled={saving} roAreas={roAreas} />
+                        {form.role === 'ro_coordinator' && <DepartmentField role={form.role} communityArea value={form.department} onChange={value => setField('department', value)} disabled={saving} roAreas={roAreas} />}
 
                         <div>
                             <FieldLabel>Phone Number</FieldLabel>
@@ -1222,8 +1169,8 @@ function AccountEditModal({
 
                     <p className="mt-3 rounded-lg bg-stone-50 px-3 py-2 text-[11px] leading-4 text-stone-500">
                         {form.role === 'admin'
-                            ? 'OSFA Admin accounts cannot be converted to department accounts.'
-                            : 'Department roles can be changed, but cannot be converted to OSFA Admin.'}
+                            ? 'OSFA Coordinator accounts cannot be converted to department accounts.'
+                            : 'Department roles can be changed, but cannot be converted to OSFA Coordinator.'}
                     </p>
 
                     {form.role === 'pd' ? (
@@ -1428,7 +1375,9 @@ function AccountProfileModal({ account, onClose, onEdit }) {
 
 export default function AccountsPanel() {
     // SMARTPDM_DYNAMIC_STAFF_CATALOG_V1: populate display choices from active PostgreSQL references.
-    const [, refreshStaffCatalog] = useState(0);
+    const [staffCatalogRoles, setStaffCatalogRoles] = useState(() => [...ROLE_OPTIONS]);
+    const [catalogRevision,setCatalogRevision] = useState(0);
+    useSocketEvent('maintenance:updated', payload => { if (payload?.module === 'offices') setCatalogRevision(value => value + 1); }, []);
     const [staffCatalogError,setStaffCatalogError] = useState('');
     useEffect(() => {
       let cancelled=false;
@@ -1453,19 +1402,12 @@ export default function AccountsPanel() {
           ...r,department:group[r.value]?.[0]?.value||''
         })));
         OPERATIONAL_ROLE_OPTIONS.splice(0,OPERATIONAL_ROLE_OPTIONS.length,...ROLE_OPTIONS.filter(r=>r.value!=='admin'));
-        Object.keys(DEPARTMENT_OPTIONS).forEach(key=>{if(key!=='ro_coordinator')DEPARTMENT_OPTIONS[key]=group[key]||[];});
-        // Generic custom roles do not inherit one of the five office assignments.
-        // The server validates the role against active RBAC entries.
-        for(const option of ROLE_OPTIONS.filter(r=>r.value.startsWith('custom_'))){
-          const department={value:'Role-Based Access',label:'Role-Based Access'};
-          DEPARTMENT_OPTIONS[option.value]=[department];
-          option.department=department.value;
-        }
+        for (const role of supported) DEPARTMENT_OPTIONS[role.value]=group[role.value]||[];
         setStaffCatalogError('');
-        refreshStaffCatalog(v=>v+1);
+        setStaffCatalogRoles([...ROLE_OPTIONS]);
       }).catch(error=>{if(!cancelled)setStaffCatalogError(error.message)});
       return()=>{cancelled=true};
-    },[]);
+    },[catalogRevision]);
 
     const [accounts, setAccounts] = useState([]);
     const [courses, setCourses] = useState([]);
@@ -1485,6 +1427,14 @@ export default function AccountsPanel() {
     const [editOpen, setEditOpen] = useState(false);
     const [editingAccountId, setEditingAccountId] = useState(null);
     const [profileAccount, setProfileAccount] = useState(null);
+    useEffect(() => {
+        if (createOpen || editOpen) setCatalogRevision(value => value + 1);
+    }, [createOpen, editOpen]);
+    useEffect(() => {
+        const refresh = () => setCatalogRevision(value => value + 1);
+        window.addEventListener('focus', refresh);
+        return () => window.removeEventListener('focus', refresh);
+    }, []);
 
     const [error, setError] = useState('');
     const [adminError, setAdminError] = useState('');
@@ -1515,7 +1465,7 @@ export default function AccountsPanel() {
             if (pageTab === 'current' && isArchived) return false;
             if (pageTab === 'archived' && !isArchived) return false;
 
-            if (!accountMatchesRoleGroup(account, roleFilter)) return false;
+            if (!accountMatchesRoleGroup(account, roleFilter, staffCatalogRoles)) return false;
             if (courseFilter !== 'all' && !(account.course_ids || []).includes(courseFilter)) return false;
 
             if (!q) return true;
@@ -1527,13 +1477,14 @@ export default function AccountsPanel() {
                 String(account.username || '').toLowerCase().includes(q) ||
                 String(account.email || '').toLowerCase().includes(q) ||
                 String(account.department || '').toLowerCase().includes(q) ||
+                String(account.office_name || '').toLowerCase().includes(q) ||
                 String(account.position || '').toLowerCase().includes(q) ||
                 (account.assigned_courses || []).some((course) => String(course.course_code || '').toLowerCase().includes(q))
             );
         }).sort(
             (left, right) => accountCreatedTimestamp(right.created_at) - accountCreatedTimestamp(left.created_at)
         );
-    }, [accounts, search, pageTab, roleFilter, courseFilter]);
+    }, [accounts, search, pageTab, roleFilter, courseFilter, staffCatalogRoles]);
 
     const accountListItems = useMemo(() => {
         if (roleFilter !== 'grouped') {
@@ -1546,7 +1497,7 @@ export default function AccountsPanel() {
 
         const allRoleGroups = [
             ...ACCOUNT_ROLE_GROUP_ORDER,
-            ...ROLE_OPTIONS.filter(option => option.value.startsWith('custom_')).map(option => option.value),
+            ...staffCatalogRoles.filter(option => !ACCOUNT_ROLE_GROUP_ORDER.includes(option.value)).map(option => option.value),
         ];
         return allRoleGroups.flatMap((role) => {
             const roleAccounts = filteredAccounts.filter((account) => account.role === role);
@@ -1571,7 +1522,7 @@ export default function AccountsPanel() {
                 }))),
             ];
         });
-    }, [collapsedRoleGroups, filteredAccounts, roleFilter, search]);
+    }, [collapsedRoleGroups, filteredAccounts, roleFilter, search, staffCatalogRoles]);
 
     const loadAccounts = useCallback(async () => {
         try {
@@ -1646,6 +1597,7 @@ export default function AccountsPanel() {
         setForm((current) => ({
             ...current,
             role,
+            office_name: defaults?.department || '',
             department: role === 'ro_coordinator'
                 ? roAreas.find((area) => area.is_active !== false && !area.coordinator)?.department_name || ''
                 : defaults?.department || current.department,
@@ -1704,6 +1656,8 @@ export default function AccountsPanel() {
             email: account.email || '',
             phone_number: account.phone_number || '',
             role: account.role || 'admin',
+            office_name: account.office_name || '',
+            dean_position: account.position === 'Dean',
             department: normalizeDepartment(
                 account.role || 'admin',
                 account.department,
@@ -1943,6 +1897,7 @@ export default function AccountsPanel() {
 
     return (
         <div className="space-y-4">
+            {staffCatalogError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">Unable to load the account office catalog: {staffCatalogError}</p>}
             <AccountCreateModal
                 open={createOpen}
                 form={form}

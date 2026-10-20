@@ -28,11 +28,11 @@ test('Admin keeps its own layout and complete administrator navigation', () => {
   }
 });
 
-test('Admin dashboard reflects current OSFA Administrator naming', () => {
+test('Admin dashboard reflects current OSFA Coordinator naming', () => {
   const dashboard = read('frontend/src/pages/AdminDashboard.jsx');
 
-  assert.match(dashboard, /OSFA Administrator/);
-  assert.match(dashboard, /Administrator Dashboard/);
+  assert.match(dashboard, /OSFA Coordinator/);
+  assert.match(dashboard, /OSFA Coordinator Dashboard/);
   assert.match(dashboard, /Scholarship operations/);
 });
 

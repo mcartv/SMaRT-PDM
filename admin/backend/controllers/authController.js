@@ -61,10 +61,10 @@ function buildStaffUserQuery(photoEnabled = false, lookup = 'email') {
             a.last_name,
             a.department,
             a.position,
-            (SELECT CASE rr.role_code WHEN 'gco' THEN 'guidance' WHEN 'ro_personnel' THEN 'ro_coordinator' ELSE rr.role_code END
+            COALESCE((SELECT CASE rr.role_code WHEN 'gco' THEN 'guidance' WHEN 'ro_personnel' THEN 'ro_coordinator' ELSE rr.role_code END
              FROM public.rbac_user_roles ur JOIN public.rbac_roles rr ON rr.role_id=ur.role_id
-             WHERE ur.user_id=u.user_id AND ur.is_active AND rr.is_active AND rr.role_scope='staff'
-             ORDER BY CASE WHEN rr.role_code='admin' THEN 1 ELSE 0 END, rr.role_code LIMIT 1) AS rbac_staff_role,
+             WHERE ur.user_id=u.user_id AND ur.is_active AND rr.is_active AND rr.role_scope='staff' AND rr.role_code<>'dean'
+             ORDER BY CASE WHEN rr.role_code='admin' THEN 1 ELSE 0 END, rr.role_code LIMIT 1),to_jsonb(a)->>'institutional_primary_role') AS rbac_staff_role,
             COALESCE(a.is_archived, false) AS is_archived,
             ${photoEnabled ? 'a.profile_photo_url' : 'NULL::text AS profile_photo_url'}
         FROM users u
@@ -220,7 +220,7 @@ async function loginUnified(req, res) {
         const customRoleResult = await db.query(`SELECT r.role_code,r.role_name FROM public.rbac_user_roles ur
           JOIN public.rbac_roles r ON r.role_id=ur.role_id
           WHERE ur.user_id=$1 AND ur.is_active=true AND r.is_active=true
-            AND r.role_scope='staff' AND r.role_code LIKE 'custom_%'
+            AND r.role_scope='staff' AND NOT EXISTS (SELECT 1 FROM public.rbac_staff_role_catalog catalog WHERE catalog.role_id=r.role_id)
             AND NOT EXISTS (SELECT 1 FROM public.rbac_user_roles other_ur JOIN public.rbac_roles other_r ON other_r.role_id=other_ur.role_id WHERE other_ur.user_id=ur.user_id AND other_ur.is_active AND other_r.is_active AND other_r.role_code IN ('admin','pd','sdo','gco','ro_personnel'))
           ORDER BY ur.assigned_at DESC LIMIT 1`,[user.user_id]);
         const customRole = customRoleResult.rows[0] || null;

@@ -106,10 +106,10 @@ function InfoRow({ icon, label, value }) {
 }
 
 const adminProfileConfig = {
-    shortName: 'Admin',
+    shortName: 'OSFA',
     account: {
         first_name: 'OSFA',
-        last_name: 'Administrator',
+        last_name: 'Coordinator',
         email: 'admin@pdm.edu.ph',
         phone_number: '',
         position: 'OSFA Coordinator',
@@ -137,7 +137,7 @@ export default function AdminProfile() {
         phone: savedProfile?.phone || savedProfile?.phone_number || '+63 917 123 4567',
         position: savedProfile?.position || 'OSFA Coordinator',
         department: savedProfile?.department || 'Office for Scholarship and Financial Assistance',
-        role: savedProfile?.role || 'Super Admin',
+        role: savedProfile?.role || 'Admin',
         status: savedProfile?.is_active === false ? 'Inactive' : 'Active',
         avatarUrl:
             savedProfile?.avatar_url ||

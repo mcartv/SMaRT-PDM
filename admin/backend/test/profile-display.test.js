@@ -50,6 +50,14 @@ test('PD and RO labels retain real assignments and do not invent a program', asy
 
 test('fallback profiles and unknown labels remain readable', async () => {
   const { getProfileDisplay, formatSystemLabel } = await displayModule;
+  for (const role of ['Admin', 'Administrator', 'Super Admin', 'OSFA Administrator', 'OSFA Coordinator']) {
+    const profile = Object.freeze({ role, position: 'OSFA Administrator' });
+    assert.equal(getProfileDisplay(profile).accountRole, 'OSFA Coordinator');
+    assert.equal(getProfileDisplay(profile).position, 'OSFA Coordinator');
+    assert.equal(profile.role, role);
+  }
+  assert.equal(getProfileDisplay({}, 'admin').accountRole, 'OSFA Coordinator');
+  assert.equal(formatSystemLabel('Admin'), 'OSFA Coordinator');
   assert.equal(getProfileDisplay({}, 'guidance').position, 'Guidance Counselor');
   assert.equal(getProfileDisplay({ role: 'SDO User' }).accountRole, 'Student Discipline Officer');
   assert.equal(getProfileDisplay({ role: 'custom_reviewer' }).accountRole, 'Custom Reviewer');

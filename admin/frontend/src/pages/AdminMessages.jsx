@@ -2654,7 +2654,7 @@ export default function AdminMessages({
     const frameId = window.requestAnimationFrame(() => {
       const messageId = latestMessage?.messageId || ''
       const element = messageId
-        ? messagesScrollRef.current?.querySelector(`[data-message-id=\"${messageId}\"]`)
+        ? messagesScrollRef.current?.querySelector(`[data-message-id="${messageId}"]`)
         : null
       if (!element || typeof element.animate !== 'function') return
 
@@ -2785,7 +2785,7 @@ export default function AdminMessages({
     if (!messageId) return
     window.requestAnimationFrame(() => {
       const container = messagesScrollRef.current
-      const target = container?.querySelector(`[data-message-id=\"${messageId}\"]`)
+      const target = container?.querySelector(`[data-message-id="${messageId}"]`)
       if (!container || !target) return
       const containerRect = container.getBoundingClientRect()
       const targetRect = target.getBoundingClientRect()

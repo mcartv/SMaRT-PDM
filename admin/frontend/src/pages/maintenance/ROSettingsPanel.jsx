@@ -1,5 +1,6 @@
 // SMaRT-PDM: Return of Obligations — ROSettings Panel (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useEffect, useMemo, useState } from 'react';
+import CommunityOfficeLink from './components/CommunityOfficeLink';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -105,9 +106,6 @@ function DepartmentModal({
     onClose,
     onSave,
     saving,
-    courseCatalog,
-    selectedCourseIds,
-    setSelectedCourseIds,
 }) {
     if (!open) return null;
 
@@ -119,7 +117,7 @@ function DepartmentModal({
             onClick={onClose}
         >
             <Card
-                className="w-full max-w-lg overflow-hidden border-stone-200 shadow-xl"
+                className="flex max-h-[calc(100dvh-2rem)] w-full min-w-0 max-w-lg flex-col overflow-hidden border-stone-200 shadow-xl"
                 onClick={(event) => event.stopPropagation()}
             >
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
@@ -137,10 +135,10 @@ function DepartmentModal({
                     </button>
                 </div>
 
-                <CardContent className="space-y-3 p-4">
+                <CardContent className="min-h-0 space-y-3 p-4" style={{ overflowY: 'auto' }}>
                     <div className="space-y-1.5">
                         <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                            Office/Department
+                            Area name
                         </label>
 
                         <Input
@@ -149,19 +147,6 @@ function DepartmentModal({
                             placeholder="Example: Library, Registrar, Guidance Office"
                             className="h-9 rounded-lg border-stone-200 text-sm"
                         />
-                    </div>
-                    <div className="space-y-2 border-t border-stone-100 pt-3">
-                        <label className="text-xs font-semibold text-stone-700">Eligible college courses</label>
-                        <p className="text-xs text-stone-500">Select courses and click Save. No selected courses means all courses are eligible (existing policy).</p>
-                        <div className="max-h-44 space-y-1 overflow-y-auto rounded-lg border border-stone-200 bg-stone-50 p-2">
-                            {(courseCatalog || []).map(course => (
-                                <label key={course.course_id} className="flex cursor-pointer items-center gap-2 rounded-md bg-white px-2 py-1.5 text-xs hover:bg-blue-50">
-                                    <input type="checkbox" checked={selectedCourseIds.includes(course.course_id)} onChange={event => setSelectedCourseIds(prev => event.target.checked ? [...prev,course.course_id] : prev.filter(id => id !== course.course_id))} />
-                                    <span className="font-semibold text-slate-700">{course.course_code}</span>
-                                    <span className="text-slate-500">{course.course_name}</span>
-                                </label>
-                            ))}
-                        </div>
                     </div>
                 </CardContent>
 
@@ -197,14 +182,7 @@ function DepartmentModal({
 export default function ROSettingsPanel({ departmentsOnly = false }) {
     const [, setSettings] = useState([]);
     const [activeSetting, setActiveSetting] = useState(null);
-    const [courseCatalog,setCourseCatalog]=useState([]);
-    const [courseLinks,setCourseLinks]=useState([]);
     // SMARTPDM_FIVE_PHASE_UI_V1
-    const [selectedCourseIds,setSelectedCourseIds]=useState([]);
-    const [courseSaving,setCourseSaving]=useState('');
-    const loadCourseLinks=async()=>{try{const r=await fetch(buildApiUrl('/api/ro-settings/department-courses'),{headers:getHeaders()});if(!r.ok)return;const d=await r.json();setCourseCatalog(d.courses||[]);setCourseLinks(d.mappings||[]);}catch(e){console.error('LOAD AREA COURSES',e)}};
-    useEffect(()=>{loadCourseLinks()},[]);
-    const saveCourseLinks=async(id,ids)=>{setCourseSaving(id);try{const r=await fetch(buildApiUrl('/api/ro-settings/departments/'+id+'/courses'),{method:'PUT',headers:getHeaders(),body:JSON.stringify({course_ids:ids})});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'Save failed');await loadCourseLinks();showAppToast('success','Eligible courses saved','Community Service mapping updated.');}catch(e){showAppToast('error','Cannot update eligible courses',e.message)}finally{setCourseSaving('')}};
     const [departments, setDepartments] = useState([]);
     const [coordinatorCandidates, setCoordinatorCandidates] = useState([]);
 
@@ -442,7 +420,6 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
         setModalMode('create');
         setEditingDepartmentId(null);
         setDepartmentName('');
-        setSelectedCourseIds([]);
         setError('');
         setModalOpen(true);
     };
@@ -452,7 +429,6 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
         setModalMode('edit');
         setEditingDepartmentId(department.department_id);
         setDepartmentName(department.department_name || '');
-        setSelectedCourseIds(courseLinks.filter(link => link.department_id === department.department_id).map(link => link.course_id));
         setError('');
         setModalOpen(true);
     };
@@ -502,12 +478,6 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
                 throw new Error(data.error || 'Failed to save Community Service Area.');
             }
 
-            const savedId = isEdit ? editingDepartmentId : data.department?.department_id;
-            if (!savedId) throw new Error('Area saved but no department ID was returned; course mapping could not be saved.');
-            const coursesResponse=await fetch(buildApiUrl('/api/ro-settings/departments/'+savedId+'/courses'),{method:'PUT',headers:getHeaders(),body:JSON.stringify({course_ids:selectedCourseIds})});
-            const coursesBody=await coursesResponse.json().catch(()=>({}));
-            if(!coursesResponse.ok)throw new Error(coursesBody.error||'Area saved, but eligible courses could not be saved. Please edit and retry.');
-            await loadCourseLinks();
             showAppToast('success', 'Community Service area saved', data.message || 'Community Service Area saved successfully.');
             closeDepartmentModal();
             await loadSettings();
@@ -608,9 +578,6 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
                 onClose={closeDepartmentModal}
                 onSave={saveDepartment}
                 saving={departmentSaving}
-                courseCatalog={courseCatalog}
-                selectedCourseIds={selectedCourseIds}
-                setSelectedCourseIds={setSelectedCourseIds}
             />
 
             <AlertDialog
@@ -817,7 +784,7 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
                             return (
                                 <div
                                     key={department.department_id}
-                                    className="flex items-center justify-between px-4 py-3 hover:bg-stone-50"
+                                    className="flex min-w-0 flex-col gap-3 px-4 py-3 hover:bg-stone-50 md:flex-row md:items-center md:justify-between"
                                 >
                                     <div className="min-w-0">
                                         <div className="flex flex-wrap items-center gap-2">
@@ -831,12 +798,6 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
                                         <p className="mt-1 truncate text-xs text-stone-400">
                                             Updated {formatDateTime(department.updated_at || department.created_at)}
                                         </p>
-                                        <div className="mt-2 flex flex-wrap gap-1.5">
-                                            {courseLinks.filter(link => link.department_id === department.department_id).length ? courseLinks.filter(link => link.department_id === department.department_id).map((link,index) => {
-                                                const course=courseCatalog.find(c => c.course_id === link.course_id);
-                                                return course ? <span key={link.course_id} title={course.course_name} className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${['bg-sky-100 text-sky-800','bg-violet-100 text-violet-800','bg-emerald-100 text-emerald-800','bg-amber-100 text-amber-800'][index%4]}`}>{course.course_code}</span> : null;
-                                            }) : <span className="inline-flex rounded-full bg-stone-100 px-2.5 py-1 text-[10px] font-semibold text-stone-600">All courses eligible</span>}
-                                        </div>
                                         <p className={`mt-1 truncate text-xs font-medium ${department.coordinator ? 'text-cyan-700' : 'text-amber-700'}`}>
                                             {department.coordinator
                                                 ? `Personnel-In-Charge: ${department.coordinator.name}`
@@ -844,7 +805,8 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
                                         </p>
                                     </div>
 
-                                    <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                                        <CommunityOfficeLink area={department} />
                                         {isActive ? (
                                             <select
                                                 value={department.coordinator?.user_id || ''}

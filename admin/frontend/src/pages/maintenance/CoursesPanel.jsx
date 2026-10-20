@@ -1,7 +1,6 @@
 // SMaRT-PDM: Courses — Courses Panel (admin frontend page); loads data, handles page actions, and renders the admin view.
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
     BookOpen,
@@ -13,148 +12,38 @@ import {
     Search,
     Loader2,
     Save,
-    X,
 } from 'lucide-react';
 import {
     C,
     EmptyState,
-    FieldLabel,
 } from './components/MaintenanceShared';
 import {
     MAINTENANCE_CARD_SUBTITLE_CLASS,
     MAINTENANCE_CARD_TITLE_CLASS,
 } from './components/maintenanceTypography';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { SearchableChoice, TransferConfirmation } from './components/InstitutionalControls';
+import { useRbacPermissions } from '@/context/RbacPermissionContext';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { confirmArchive } from '@/utils/confirmArchive';
 import { toast } from 'sonner';
 
-// CourseModal: handles course modal for the Courses flow.
-function CourseModal({
-    open,
-    mode,
-    form,
-    setForm,
-    onClose,
-    onSave,
-    saving,
-}) {
-    if (!open) return null;
-
-    const isEdit = mode === 'edit';
-
-    const canSubmit =
-        String(form.course_code || '').trim() &&
-        String(form.course_name || '').trim();
-
-    return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => event.stopPropagation()}
-        >
-            <Card
-                className="w-full max-w-2xl overflow-hidden border-stone-200 shadow-xl"
-            >
-                <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
-                    <div>
-                        <h3 className="text-sm font-semibold text-stone-800">
-                            {isEdit ? 'Update Academic Course' : 'Add Academic Course'}
-                        </h3>
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="rounded-md p-1.5 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600"
-                        disabled={saving}
-                    >
-                        <X size={14} />
-                    </button>
-                </div>
-
-                <CardContent className="space-y-3 p-4">
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <div className="space-y-1.5">
-                            <FieldLabel>Course Code *</FieldLabel>
-                            <Input
-                                value={form.course_code}
-                                onChange={(e) =>
-                                    setForm((prev) => ({
-                                        ...prev,
-                                        course_code: e.target.value.toUpperCase(),
-                                    }))
-                                }
-                                placeholder="e.g. BSIT"
-                                className="h-9 rounded-lg border-stone-200 text-sm"
-                                disabled={saving}
-                            />
-                        </div>
-
-                        <div className="space-y-1.5 md:col-span-2">
-                            <FieldLabel>Course Name *</FieldLabel>
-                            <Input
-                                value={form.course_name}
-                                onChange={(e) =>
-                                    setForm((prev) => ({
-                                        ...prev,
-                                        course_name: e.target.value,
-                                    }))
-                                }
-                                placeholder="e.g. Bachelor of Science in Information Technology"
-                                className="h-9 rounded-lg border-stone-200 text-sm"
-                                disabled={saving}
-                            />
-                        </div>
-                    </div>
-                </CardContent>
-
-                <div className="flex items-center justify-end gap-2 border-t border-stone-100 bg-stone-50 px-4 py-3">
-                    <Button
-                        variant="outline"
-                        onClick={onClose}
-                        className="h-8 rounded-lg border-stone-200 text-xs"
-                        disabled={saving}
-                    >
-                        Cancel
-                    </Button>
-
-                    <Button
-                        onClick={onSave}
-                        disabled={saving || !canSubmit}
-                        className="h-8 rounded-lg border-none text-xs text-white disabled:opacity-50"
-                        style={{ background: C.brownMid }}
-                    >
-                        {saving ? (
-                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                            <Save className="mr-1.5 h-3.5 w-3.5" />
-                        )}
-                        {isEdit ? 'Save Changes' : 'Create Course'}
-                    </Button>
-                </div>
-            </Card>
-        </div>
-    );
+function CourseModal({ open, mode, form, setForm, onClose, onSave, saving, offices }) {
+    const options = offices.filter(office => office.is_active || office.office_id === form.office_id).map(office => ({ value: office.office_id, label: office.office_name + (office.is_active ? '' : ' (Archived)'), disabled: !office.is_active }));
+    return <Dialog open={open} onOpenChange={value => { if (!value && !saving) onClose(); }}><DialogContent className="flex max-h-[calc(100dvh-2rem)] min-w-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl" showCloseButton={!saving}>
+        <DialogHeader className="shrink-0 border-b border-stone-100 bg-stone-50 px-4 py-3 pr-12"><DialogTitle className="text-sm font-semibold">{mode === 'edit' ? 'Update Academic Course' : 'Add Academic Course'}</DialogTitle><DialogDescription className="sr-only">Academic course details and supervising office.</DialogDescription></DialogHeader>
+        <form className="flex min-h-0 flex-col" onSubmit={event => { event.preventDefault(); onSave(); }}>
+            <div className="min-h-0 space-y-3 p-4" style={{ overflowY: 'auto' }}>
+                <div className="space-y-1.5"><label htmlFor="course-code" className="text-xs font-medium text-muted-foreground">Course Code</label><Input id="course-code" autoFocus required maxLength={50} disabled={saving} value={form.course_code} onChange={event => setForm(previous => ({ ...previous, course_code: event.target.value.toUpperCase() }))} placeholder="e.g. BSIT" className="h-9 text-sm" /></div>
+                <div className="space-y-1.5"><label htmlFor="course-name" className="text-xs font-medium text-muted-foreground">Course Name</label><Input id="course-name" required maxLength={255} disabled={saving} value={form.course_name} onChange={event => setForm(previous => ({ ...previous, course_name: event.target.value }))} placeholder="e.g. Bachelor of Science in Information Technology" className="h-9 text-sm" /></div>
+                <SearchableChoice id="course-office" label="Supervising Office / Department" value={form.office_id} options={options} onChange={value => setForm(previous => ({ ...previous, office_id: value }))} disabled={saving} emptyLabel="Unassigned" />
+            </div>
+            <DialogFooter className="m-0 shrink-0 flex-row flex-wrap rounded-none border-stone-100 bg-stone-50 px-4 py-3"><Button type="button" variant="outline" disabled={saving} onClick={onClose} className="h-8 rounded-lg text-xs">Cancel</Button><Button type="submit" disabled={saving || !form.course_code.trim() || !form.course_name.trim()} className="h-8 rounded-lg text-xs text-white" style={{ background: C.brownMid }}>{saving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}{mode === 'edit' ? 'Save Changes' : 'Create Course'}</Button></DialogFooter>
+        </form>
+    </DialogContent></Dialog>;
 }
-
-// CourseNoticeModal: handles course notice modal for the Courses flow.
-function CourseNoticeModal({ notice, onClose }) {
-    if (!notice) return null;
-    return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm" onClick={onClose}>
-            <Card className="w-full max-w-md overflow-hidden border-stone-200 shadow-xl" onClick={(event) => event.stopPropagation()}>
-                <div className="border-b border-stone-100 bg-stone-50 px-5 py-4">
-                    <h3 className="text-sm font-semibold text-stone-900">{notice.title}</h3>
-                </div>
-                <CardContent className="p-5 text-sm leading-6 text-stone-600">{notice.message}</CardContent>
-                <div className="flex justify-end border-t border-stone-100 bg-stone-50 px-5 py-3">
-                    <Button size="sm" onClick={onClose} className="h-8 rounded-lg bg-[var(--portal-base)] text-xs text-white">Close</Button>
-                </div>
-            </Card>
-        </div>
-    );
-}
+function showNotice({ title, message }) { toast.error(title, { description: message }); }
 
 const NEW_COURSE_DAYS = 30;
 
@@ -173,11 +62,15 @@ function isNewCourse(course) {
 }
 
 export default function CoursesPanel() {
+    const { hasPermission } = useRbacPermissions();
+    const canManage = hasPermission('courses.manage');
+    const saveLock = useRef(false);
+    const [offices, setOffices] = useState([]);
+    const [transfer, setTransfer] = useState(null);
     const [courses, setCourses] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [actionLoadingId, setActionLoadingId] = useState(null);
-    const [notice, setNotice] = useState(null);
 
     const [search, setSearch] = useState('');
     const [pageTab, setPageTab] = useState('current');
@@ -189,6 +82,8 @@ export default function CoursesPanel() {
     const emptyForm = {
         course_code: '',
         course_name: '',
+        office_id: '',
+        previous_office_id: null,
     };
 
     const [form, setForm] = useState(emptyForm);
@@ -213,10 +108,14 @@ export default function CoursesPanel() {
     const loadAll = useCallback(async () => {
         try {
             setLoading(true);
+            const response = await fetch(buildApiUrl('/api/offices/options'), { headers: { Authorization: `Bearer ${sessionStorage.getItem('adminToken')}` }, cache: 'no-store' });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'Unable to load supervising offices.');
+            setOffices(result.offices || []);
             await fetchCourses();
         } catch (err) {
             console.error('COURSES FETCH ERROR:', err);
-            setNotice({ title: 'Unable to load courses', message: err.message || 'Failed to load courses.' });
+            showNotice({ title: 'Unable to load courses', message: err.message || 'Failed to load courses.' });
         } finally {
             setLoading(false);
         }
@@ -229,7 +128,7 @@ export default function CoursesPanel() {
     useSocketEvent(
         'maintenance:updated',
         (payload = {}) => {
-            if (!payload?.module || payload.module === 'courses') {
+            if (!payload?.module || ['courses', 'offices'].includes(payload.module)) {
                 loadAll();
             }
         },
@@ -260,7 +159,8 @@ export default function CoursesPanel() {
 
                 return (
                     String(course.course_code || '').toLowerCase().includes(q) ||
-                    String(course.course_name || '').toLowerCase().includes(q)
+                    String(course.course_name || '').toLowerCase().includes(q) ||
+                    String(course.office_name || '').toLowerCase().includes(q)
                 );
             })
             .sort((a, b) => {
@@ -296,18 +196,25 @@ export default function CoursesPanel() {
         setForm({
             course_code: course.course_code || '',
             course_name: course.course_name || '',
+            office_id: course.office_id || '',
+            previous_office_id: course.office_id || null,
         });
         setModalOpen(true);
     };
 
     // handleSave: handles handle save for the Courses flow.
-    const handleSave = async () => {
+    const handleSave = async (confirmed = false) => {
+        if (!canManage || saveLock.current) return;
+        saveLock.current = true;
         try {
             setSaving(true);
 
             const payload = {
                 course_code: form.course_code.trim().toUpperCase(),
                 course_name: form.course_name.trim(),
+                office_id: form.office_id || null,
+                previous_office_id: form.previous_office_id || null,
+                confirm_office_change: confirmed === true,
             };
 
             if (!payload.course_code) {
@@ -323,7 +230,7 @@ export default function CoursesPanel() {
                 && String(course.course_id) !== String(editingCourseId || '')
             );
             if (duplicate) {
-                setNotice({
+                showNotice({
                     title: duplicate.is_archived ? 'Course is in Archived' : 'Course already exists',
                     message: duplicate.is_archived
                         ? `${payload.course_code} already exists in Archived. Restore that course instead of creating a duplicate.`
@@ -333,6 +240,10 @@ export default function CoursesPanel() {
             }
 
             const isEdit = modalMode === 'edit' && editingCourseId;
+            if (isEdit && form.previous_office_id && form.previous_office_id !== payload.office_id && confirmed !== true) {
+                setTransfer({ items: [{ course_id: editingCourseId, course_code: payload.course_code, from_name: offices.find(office => office.office_id === form.previous_office_id)?.office_name, to_name: offices.find(office => office.office_id === payload.office_id)?.office_name || 'Unassigned' }] });
+                return;
+            }
             const url = isEdit
                 ? buildApiUrl(`/api/courses/${editingCourseId}`)
                 : buildApiUrl('/api/courses');
@@ -354,14 +265,15 @@ export default function CoursesPanel() {
                 throw new Error(data.error || data.message || 'Failed to save course');
             }
 
-            resetModal();
+            setTransfer(null); resetModal();
+            toast.success(isEdit ? 'Course updated' : 'Course created');
             await fetchCourses();
             setPageTab('current');
         } catch (err) {
             console.error('SAVE COURSE ERROR:', err);
-            setNotice({ title: 'Unable to save course', message: err.message || 'Failed to save course.' });
+            showNotice({ title: 'Unable to save course', message: err.message || 'Failed to save course.' });
         } finally {
-            setSaving(false);
+            saveLock.current = false; setSaving(false);
         }
     };
 
@@ -396,7 +308,7 @@ export default function CoursesPanel() {
             });
         } catch (err) {
             console.error('ARCHIVE COURSE ERROR:', err);
-            setNotice({ title: 'Unable to archive course', message: err.message || 'Failed to archive course.' });
+            showNotice({ title: 'Unable to archive course', message: err.message || 'Failed to archive course.' });
         } finally {
             setActionLoadingId(null);
         }
@@ -431,7 +343,7 @@ export default function CoursesPanel() {
             });
         } catch (err) {
             console.error('RESTORE COURSE ERROR:', err);
-            setNotice({ title: 'Unable to restore course', message: err.message || 'Failed to restore course.' });
+            showNotice({ title: 'Unable to restore course', message: err.message || 'Failed to restore course.' });
         } finally {
             setActionLoadingId(null);
         }
@@ -447,8 +359,9 @@ export default function CoursesPanel() {
                 onClose={resetModal}
                 onSave={handleSave}
                 saving={saving}
+                offices={offices}
             />
-            <CourseNoticeModal notice={notice} onClose={() => setNotice(null)} />
+            <TransferConfirmation transfer={transfer} busy={saving} onCancel={() => setTransfer(null)} onConfirm={() => handleSave(true)} />
 
             <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
                 <div className="flex flex-col gap-4">
@@ -458,7 +371,7 @@ export default function CoursesPanel() {
                                 Course Management
                             </h2>
                             <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
-                                Manage academic course records and Program Director assignments.
+                                Manage academic courses, supervising offices, and existing Program Director assignments.
                             </p>
                         </div>
 
@@ -513,6 +426,7 @@ export default function CoursesPanel() {
                                 size="sm"
                                 className="h-8 rounded-lg border-none text-xs text-white"
                                 style={{ background: C.brownMid }}
+                                disabled={!canManage}
                                 onClick={openCreateModal}
                             >
                                 <Plus className="mr-1 h-3.5 w-3.5" />
@@ -578,9 +492,10 @@ export default function CoursesPanel() {
                                             ) : null}
                                         </div>
 
-                                        <p className="mt-1 truncate text-xs text-stone-500">
+                                        <p className="mt-1 break-words text-xs text-stone-500">
                                             {course.course_name}
                                         </p>
+                                        <p className="mt-1 break-words text-xs text-stone-600">Office / Department: {course.office_name || 'Unassigned'}</p>
                                         {!isArchived ? (
                                             <p className={`mt-1 text-xs font-medium ${course.assigned_pd ? 'text-violet-700' : 'text-amber-700'}`}>
                                                 {course.assigned_pd
@@ -597,7 +512,7 @@ export default function CoursesPanel() {
                                                 variant="outline"
                                                 className="h-7 rounded-lg border-green-200 px-2 text-xs text-green-700 hover:bg-green-50"
                                                 onClick={() => handleRestore(course)}
-                                                disabled={isBusy}
+                                                disabled={isBusy || !canManage}
                                             >
                                                 {isBusy ? (
                                                     <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />

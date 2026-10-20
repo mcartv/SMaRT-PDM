@@ -46,6 +46,8 @@ function harness(failPlacement) {
     getStudentForRoNotice: async () => ({ student_id: 'student', user_id: 'user' }),
     getActiveRoSettingForAssignments: async () => ({ required_hours: 8 }),
     resolveAssignedDepartment: async () => ({ department_id: 'area', department_name: 'Library' }),
+    // Eligibility is covered by roCourseEligibility.test.js; this harness isolates placement atomicity.
+    roCourseEligibilityService: { assertEligible: async () => {} },
     findRoCoordinator: async () => ({ coordinator_assignment_id: 'coordinator', user_id: 'coordinator-user' }),
     getCurrentPlacement: async () => null,
     sendCoordinatorRequestNotification: async () => {

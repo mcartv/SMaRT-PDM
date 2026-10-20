@@ -78,23 +78,13 @@ test('permission middleware rejects missing identity in enforcement mode', async
   } finally { if(old===undefined)delete process.env.RBAC_PERMISSION_MODE;else process.env.RBAC_PERMISSION_MODE=old; }
 });
 
-test('creates role with server-generated code from a name', async () => {
-  let inserted;
-  const routes = routesWithQuery(async (sql, values) => {
-    assert.match(sql,/INSERT INTO public\.rbac_roles/i);
-    inserted=values;
-    return { rows: [{role_id:ROLE_ID, role_name:values[1]}], rowCount:1 };
-  });
-  const res=await invoke(routes.get('POST /roles'),{role_name:'Scholarship Auditor'});
-  assert.equal(res.statusCode,201);
-  assert.equal(inserted[1],'Scholarship Auditor');
-  assert.match(inserted[0], /^custom_[a-z0-9_]+$/);
-});
-
-test('rejects invalid role names', async () => {
-  const routes=routesWithQuery(async()=>assert.fail('DB must not be called'));
-  const res=await invoke(routes.get('POST /roles'),{role_name:'A'});
-  assert.equal(res.statusCode,400);
+test('role creation remains disabled; supplemental Dean is added only by the reviewed migration', async () => {
+  const routes = routesWithQuery(async () => assert.fail('Disabled role creation must not write to the database'));
+  for (const endpoint of ['POST /roles', 'POST /roles/with-permissions']) {
+    const res = await invoke(routes.get(endpoint), { role_name: 'Dean', permission_ids: [] });
+    assert.equal(res.statusCode, 403);
+    assert.equal(res.payload.code, 'ROLE_CREATION_DISABLED');
+  }
 });
 
 test('updates a custom role name', async()=>{

@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import {
-  BookOpen,
+  Clock3,
   ClipboardList,
   Database,
   Settings,
@@ -10,19 +10,18 @@ import {
   CalendarRange,
   UsersRound,
   Palette,
-  Clock3,
 } from 'lucide-react';
 
 import GeneralPanel from './GeneralPanel';
 import StudentRegistryPanel from './StudentRegistryPanel';
 import ScholarshipProgramsPanel from './ScholarshipProgramsPanel';
-import CoursesPanel from './CoursesPanel';
 import AuditPanel from './AuditPanel';
 import AcademicYearPanel from './AcademicYearPanel';
 import RBACPanel from './RBACPanel';
 import ThemePanel from './ThemePanel';
 import LandingThemePanel from './LandingThemePanel';
 import ROSettingsPanel from './ROSettingsPanel';
+import InstitutionalManagementPanel from './InstitutionalManagementPanel';
 import usePortalTheme from '@/hooks/usePortalTheme';
 import {
   MAINTENANCE_CARD_SUBTITLE_CLASS,
@@ -35,9 +34,8 @@ const TABS = [
   { key: 'theme', label: 'Theme', icon: Palette },
   { key: 'scholarship-programs', label: 'Scholarship Programs', icon: GraduationCap },
   { key: 'academic-years', label: 'Academic Years', icon: CalendarRange },
-  { key: 'courses', label: 'Courses', icon: BookOpen },
-  { key: 'ro-settings', label: 'Community Service', icon: Clock3 },
-  { key: 'offices-departments', label: 'Offices & Departments', icon: UsersRound },
+  { key: 'institutional', label: 'Institutional Management', icon: UsersRound },
+  { key: 'community', label: 'Community Service', icon: Clock3 },
   { key: 'registry', label: 'Student Registry', icon: Database },
   { key: 'audit', label: 'System Logs', icon: ClipboardList },
 ];
@@ -155,14 +153,11 @@ export default function Maintenance() {
       case 'academic-years':
         return <AcademicYearPanel />;
 
-      case 'courses':
-        return <CoursesPanel />;
+      case 'institutional':
+        return <InstitutionalManagementPanel />;
 
-      case 'ro-settings':
+      case 'community':
         return <ROSettingsPanel />;
-
-      case 'offices-departments':
-        return <ROSettingsPanel departmentsOnly />;
 
       case 'registry':
         return <StudentRegistryPanel />;

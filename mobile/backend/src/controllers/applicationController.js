@@ -1,5 +1,6 @@
 // SMaRT-PDM: Applications — application Controller (mobile backend controller); handles mobile API input/output and delegates business logic.
 const applicationService = require('../services/applicationService');
+const signingService = require('../services/applicationSigningService');
 
 // getRequestUserId: reads and returns get request user id for the Applications flow.
 function getRequestUserId(req) {
@@ -15,6 +16,38 @@ function getSafeStatusCode(error) {
     }
 
     return 500;
+}
+
+async function createSigningSession(req, res) {
+    try {
+        const userId = getRequestUserId(req);
+        if (!userId) return res.status(401).json({ error: 'Authentication required.' });
+        return res.status(201).json(await signingService.createSigningSession(userId, req.body || {}));
+    } catch (error) {
+        return res.status(getSafeStatusCode(error)).json({ error: error.message || 'Failed to create signing session.' });
+    }
+}
+
+async function getSigningSession(req, res) {
+    try {
+        const userId = getRequestUserId(req);
+        if (!userId) return res.status(401).json({ error: 'Authentication required.' });
+        return res.status(200).json(await signingService.getSigningSession(userId, req.params.signingSessionId));
+    } catch (error) {
+        return res.status(getSafeStatusCode(error)).json({ error: error.message || 'Failed to load signing session.' });
+    }
+}
+
+async function uploadSigningDocument(req, res) {
+    try {
+        const userId = getRequestUserId(req);
+        if (!userId) return res.status(401).json({ error: 'Authentication required.' });
+        return res.status(200).json(await signingService.uploadSigningDocument(
+            userId, req.params.signingSessionId, req.params.documentType, req.file
+        ));
+    } catch (error) {
+        return res.status(getSafeStatusCode(error)).json({ error: error.message || 'Failed to upload signing document.' });
+    }
 }
 
 // getMyFormData: reads and returns get my form data for the Applications flow.
@@ -224,6 +257,9 @@ async function submitMyApplicationForm(req, res) {
 }
 
 module.exports = {
+    createSigningSession,
+    getSigningSession,
+    uploadSigningDocument,
     getMyFormData,
     getMySubmittedFormData,
     getMyApplicationById,

@@ -11,6 +11,10 @@ const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 },
 });
+const signingUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 8 * 1024 * 1024 },
+});
 
 router.get('/me/form-data', protect, applicationController.getMyFormData);
 router.get(
@@ -21,6 +25,14 @@ router.get(
 router.post('/me/form-data', protect, applicationController.saveMyFormData);
 router.put('/me/form-data', protect, applicationController.saveMyFormData);
 router.get('/me/documents', protect, applicationController.getMyDocuments);
+router.post('/me/signing-sessions', protect, applicationController.createSigningSession);
+router.get('/me/signing-sessions/:signingSessionId', protect, applicationController.getSigningSession);
+router.post(
+    '/me/signing-sessions/:signingSessionId/documents/:documentType',
+    protect,
+    signingUpload.single('document'),
+    applicationController.uploadSigningDocument
+);
 router.get('/me/status-summary', protect, applicationController.getMyApplicationStatusSummary);
 router.get(
     '/me/endorsement-slip/pdf',

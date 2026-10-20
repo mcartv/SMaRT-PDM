@@ -11,6 +11,7 @@ const { validateSection } = require('../validation/applicationSection');
 const { ensureStudentForUser } = require('./studentAccountService');
 const notificationService = require('./notificationService');
 const { removeDocumentPreview } = require('./documentPreviewService');
+const { finalizeSigningSession } = require('./applicationSigningService');
 const {
     optimizeImageForStorage,
     replaceFileExtension,
@@ -4172,6 +4173,12 @@ async function getMyApplicationById(userId, applicationId) {
 
 // submitMyApplicationForm: handles submit my application form for the Applications flow.
 async function submitMyApplicationForm(userId, payload = {}) {
+    const signingSessionId = safeText(
+        payload?.signing_session_id || payload?.signingSessionId
+    );
+    const signingPayload = { ...(payload || {}) };
+    delete signingPayload.signing_session_id;
+    delete signingPayload.signingSessionId;
     const editExistingApplication =
         payload?.edit_existing_application === true;
 
@@ -4179,6 +4186,9 @@ async function submitMyApplicationForm(userId, payload = {}) {
         payload = { ...payload };
         delete payload.edit_existing_application;
     }
+
+    delete payload.signing_session_id;
+    delete payload.signingSessionId;
 
     if (!userId) {
         throw createHttpError(401, 'Authentication required.');
@@ -4931,6 +4941,19 @@ async function submitMyApplicationForm(userId, payload = {}) {
         application.application_id,
         student.student_id
     );
+
+    // Signing objects have already reached private Storage at this point. The
+    // RPC below is the single database transaction that validates ownership,
+    // expiry, consent, all three document references, form integrity, and then
+    // binds immutable document versions to this application. Do this before an
+    // endorsement is created or a success response can be returned.
+    await finalizeSigningSession({
+        userId,
+        studentId: student.student_id,
+        applicationId: application.application_id,
+        signingSessionId,
+        applicationForm: signingPayload,
+    });
 
     // =========================================================
     // CREATE ENDORSEMENT WORKFLOW

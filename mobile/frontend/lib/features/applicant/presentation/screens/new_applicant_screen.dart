@@ -14,6 +14,7 @@ import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_essa
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_family_intake.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_personal_intake.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_submit_intake.dart';
+import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_signing.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/widgets/intake_form_ui.dart';
 import 'package:smartpdm_mobileapp/features/forms/domain/validation/application_submission_validator.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/providers/new_scholar_provider.dart';
@@ -62,12 +63,14 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   String? _formFeedbackError;
   final ApplicationSubmissionValidator _submissionValidator =
       const ApplicationSubmissionValidator();
+  final SigningState _signingState = SigningState();
 
   static const _stepLabels = [
     'Personal',
     'Family',
     'Academic',
     'Essay',
+    'Signing',
     'Submit',
   ];
 
@@ -480,7 +483,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       return;
     }
 
-    if (_step < 4) {
+    if (_step < 5) {
       setState(() {
         _step++;
         _showValidationErrors = false;
@@ -749,6 +752,18 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       return;
     }
 
+    _signingState.invalidateIfFormChanged(_data.toSubmissionPayload());
+    final signingError = _signingState.validationMessage;
+    if (signingError != null) {
+      setState(() {
+        _step = 4;
+        _showValidationErrors = true;
+        _formFeedbackError = signingError;
+      });
+      _scrollToFormTop();
+      return;
+    }
+
     final validationResult = _validateSubmissionWithOptionalFamilyMobiles();
     if (!validationResult.isValid) {
       final firstIssue = validationResult.issues.first;
@@ -785,6 +800,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       _data,
       openingId: _data.openingId,
       editExistingApplication: widget.editExistingApplication,
+      signingSessionId: _signingState.sessionId,
     );
 
     if (!mounted) return;
@@ -831,8 +847,15 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     }
 
     setState(() {
-      _formFeedbackError =
+      final submissionError =
           provider.submissionError ?? 'Failed to submit application.';
+      if (submissionError.toLowerCase().contains('signing session') &&
+          submissionError.toLowerCase().contains('expired')) {
+        _signingState.markExpired();
+        _step = 4;
+        _showValidationErrors = true;
+      }
+      _formFeedbackError = submissionError;
     });
   }
 
@@ -854,6 +877,8 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             .validateEssayProgression(_data)
             .firstMessage;
       case 4:
+        return _signingState.validationMessage;
+      case 5:
         return _validateSubmissionWithOptionalFamilyMobiles().firstMessage;
       default:
         return null;
@@ -909,6 +934,14 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
           showErrors: _showValidationErrors,
         );
       case 4:
+        _signingState.invalidateIfFormChanged(_data.toSubmissionPayload());
+        return StepSigning(
+          data: _data,
+          state: _signingState,
+          onChanged: _handleFormChanged,
+          showErrors: _showValidationErrors,
+        );
+      case 5:
         return StepSubmit(
           data: _data,
           onChanged: _handleFormChanged,
@@ -932,6 +965,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   void dispose() {
     _autosaveDebounce?.cancel();
     _scrollCtrl.dispose();
+    _signingState.dispose();
     super.dispose();
   }
 
@@ -1247,7 +1281,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     final stackActions = _step > 0 && (width < 340 || textScale > 1.3);
     final primaryAction = !_hasSelectedOpening
         ? const SizedBox.shrink()
-        : _step < 4
+        : _step < 5
         ? NavyButton(label: _nextButtonLabel, onTap: _next)
         : provider.isLoading
         ? Container(

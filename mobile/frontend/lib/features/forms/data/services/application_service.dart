@@ -11,8 +11,9 @@ class ApplicationService {
 
   // submitApplication: handles submit application for the Applications flow.
   Future<Map<String, dynamic>> submitApplication(
-    ApplicationData applicationData,
-  ) async {
+    ApplicationData applicationData, {
+    String? signingSessionId,
+  }) async {
     final openingId = applicationData.openingId.trim();
 
     if (openingId.isEmpty) {
@@ -21,9 +22,13 @@ class ApplicationService {
       );
     }
 
+    final body = applicationData.toSubmissionPayload();
+    if (signingSessionId?.trim().isNotEmpty == true) {
+      body['signing_session_id'] = signingSessionId!.trim();
+    }
     return _apiClient.postJson(
       '/api/applications/me/submit',
-      body: applicationData.toSubmissionPayload(),
+      body: body,
       // Submission persists the complete form, initializes document slots,
       // and creates the endorsement workflow. Allow for Render cold starts
       // without changing the shorter timeout used by ordinary API requests.
@@ -60,10 +65,14 @@ class ApplicationService {
 
   // updateSubmittedApplication: updates update submitted application for the Applications flow.
   Future<Map<String, dynamic>> updateSubmittedApplication(
-    ApplicationData applicationData,
-  ) async {
+    ApplicationData applicationData, {
+    String? signingSessionId,
+  }) async {
     final body = applicationData.toSubmissionPayload();
     body['edit_existing_application'] = true;
+    if (signingSessionId?.trim().isNotEmpty == true) {
+      body['signing_session_id'] = signingSessionId!.trim();
+    }
 
     return _apiClient.postJson(
       '/api/applications/me/submit',

@@ -85,6 +85,7 @@ class NewScholarProvider extends ChangeNotifier {
     ApplicationData applicationData, {
     required String openingId,
     bool editExistingApplication = false,
+    String? signingSessionId,
   }) async {
     // Ignore a second tap while the first request is still in flight. The
     // backend is idempotent as well, but avoiding duplicate requests keeps the
@@ -105,8 +106,12 @@ class NewScholarProvider extends ChangeNotifier {
       final response = editExistingApplication
           ? await _applicationService.updateSubmittedApplication(
               applicationData,
+              signingSessionId: signingSessionId,
             )
-          : await _applicationService.submitApplication(applicationData);
+          : await _applicationService.submitApplication(
+              applicationData,
+              signingSessionId: signingSessionId,
+            );
 
       _lastSubmissionResponse = response;
       _successMessage =

@@ -66,4 +66,47 @@ class ApplicantDocumentsService {
 
     return ApplicantDocumentsPackage.fromJson(response);
   }
+
+  /// Uses the dedicated correction endpoint. The backend remains authoritative
+  /// for ownership, review state, file validation, and immutable versioning.
+  Future<ApplicantDocumentsPackage> replaceSigningDocument({
+    required String documentRouteParam,
+    required String fileName,
+    String? filePath,
+    Uint8List? fileBytes,
+  }) async {
+    final documentId = documentRouteParam.trim();
+    if (documentId.isEmpty) {
+      throw ArgumentError('Document ID is required for signing correction.');
+    }
+    if (fileName.trim().isEmpty) {
+      throw ArgumentError('File name is required.');
+    }
+    if (fileBytes != null && fileBytes.isEmpty) {
+      throw ArgumentError('The selected file is empty.');
+    }
+
+    final path = '/api/applications/me/signing-documents/$documentId/upload';
+    final Map<String, dynamic> response;
+    if (fileBytes != null) {
+      response = await _apiClient.uploadBytes(
+        path,
+        fieldName: 'document',
+        bytes: fileBytes,
+        fileName: fileName,
+        timeout: const Duration(seconds: 60),
+      );
+    } else {
+      if (filePath == null || filePath.trim().isEmpty) {
+        throw ArgumentError('filePath or fileBytes is required.');
+      }
+      response = await _apiClient.uploadFile(
+        path,
+        fieldName: 'document',
+        filePath: filePath,
+        timeout: const Duration(seconds: 60),
+      );
+    }
+    return ApplicantDocumentsPackage.fromJson(response);
+  }
 }

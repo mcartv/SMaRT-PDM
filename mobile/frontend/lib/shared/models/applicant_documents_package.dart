@@ -26,6 +26,33 @@ class ApplicantRequirementDocument {
 
   bool get isRejected => status == 'rejected';
 
+  bool get isSigningDocument {
+    final normalized = documentType.trim().toLowerCase();
+    return normalized == 'student signature' ||
+        normalized == 'guardian signature' ||
+        normalized == 'guardian id';
+  }
+
+  bool get isSignature =>
+      documentType.trim().toLowerCase() == 'student signature' ||
+      documentType.trim().toLowerCase() == 'guardian signature';
+
+  bool get canReplaceSigningDocument =>
+      isSigningDocument && status == 'reupload_required';
+
+  String get displayName {
+    switch (documentType.trim().toLowerCase()) {
+      case 'student signature':
+        return 'Student Signature';
+      case 'guardian signature':
+        return 'Parent/Guardian Signature';
+      case 'guardian id':
+        return 'Parent/Guardian Valid ID';
+      default:
+        return documentType;
+    }
+  }
+
   bool get needsReplacement =>
       status == 'reupload_required' || status == 'rejected';
 
@@ -65,7 +92,9 @@ class ApplicantRequirementDocument {
       fileUrl: (json['file_url'] ?? '').toString().trim().isEmpty
           ? null
           : json['file_url'].toString(),
-      adminComment: _optionalText(json['remarks'] ?? json['notes']),
+      adminComment: _optionalText(
+        json['review_reason'] ?? json['remarks'] ?? json['notes'],
+      ),
       uploadedAt: submittedAtRaw == null
           ? null
           : DateTime.tryParse(submittedAtRaw.toString()),
@@ -169,6 +198,9 @@ class ApplicantDocumentsPackage {
   int get needsReplacementCount =>
       requiredDocuments.where((document) => document.needsReplacement).length;
 
+  int get signingCorrectionsCount =>
+      documents.where((document) => document.canReplaceSigningDocument).length;
+
   bool get allRequiredUploaded =>
       requiredDocuments.isNotEmpty &&
       requiredDocuments.every((document) => document.isSubmitted);
@@ -191,8 +223,7 @@ class ApplicantDocumentsPackage {
 
     final uploadLockReasonRaw =
         json['upload_lock_reason'] ?? application['upload_lock_reason'];
-    final uploadLockReasonText =
-        uploadLockReasonRaw?.toString().trim() ?? '';
+    final uploadLockReasonText = uploadLockReasonRaw?.toString().trim() ?? '';
     final rejectionReasonText =
         application['rejection_reason']?.toString().trim() ?? '';
 
@@ -219,10 +250,10 @@ class ApplicantDocumentsPackage {
       documentStatus:
           application['document_status']?.toString() ?? 'Missing Docs',
       uploadsLocked: uploadsLocked,
-      uploadLockReason:
-          uploadLockReasonText.isEmpty ? null : uploadLockReasonText,
-      rejectionReason:
-          rejectionReasonText.isEmpty ? null : rejectionReasonText,
+      uploadLockReason: uploadLockReasonText.isEmpty
+          ? null
+          : uploadLockReasonText,
+      rejectionReason: rejectionReasonText.isEmpty ? null : rejectionReasonText,
       documents: documents,
     );
   }

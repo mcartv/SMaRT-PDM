@@ -41,6 +41,12 @@ router.get(
 );
 router.post('/me/submit', protect, applicationController.submitMyApplicationForm);
 router.post(
+    '/me/signing-documents/:documentId/upload',
+    protect,
+    signingUpload.single('document'),
+    applicationController.replaceMySigningDocument
+);
+router.post(
     '/me/documents/:documentId/upload',
     protect,
     upload.single('document'),

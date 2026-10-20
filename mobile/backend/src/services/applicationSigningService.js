@@ -10,6 +10,11 @@ const TYPES = Object.freeze({
     guardian_signature: { path: 'guardian_signature', maxBytes: 2 * 1024 * 1024, mimes: new Set(['image/png']) },
     guardian_id: { path: 'guardian_id', maxBytes: 8 * 1024 * 1024, mimes: new Set(['image/jpeg', 'image/png', 'application/pdf']) },
 });
+const APPLICATION_DOCUMENT_TYPES = Object.freeze({
+    'Student Signature': 'student_signature',
+    'Guardian Signature': 'guardian_signature',
+    'Guardian ID': 'guardian_id',
+});
 
 function httpError(statusCode, message) {
     const error = new Error(message);
@@ -46,6 +51,26 @@ function fileType(file) {
 
 function extension(mime) {
     return mime === 'image/png' ? 'png' : mime === 'image/jpeg' ? 'jpg' : 'pdf';
+}
+
+function signingTypeForApplicationDocument(documentType) {
+    return APPLICATION_DOCUMENT_TYPES[text(documentType)] || null;
+}
+
+function validateSigningDocumentFile(type, file) {
+    const config = TYPES[type];
+    if (!config) throw httpError(400, 'Invalid signing document type.');
+    if (!file || !Buffer.isBuffer(file.buffer) || file.buffer.length === 0) {
+        throw httpError(400, 'File is required.');
+    }
+    if (file.buffer.length > config.maxBytes) {
+        throw httpError(413, 'Signing file exceeds the allowed size.');
+    }
+    const detectedMime = fileType(file);
+    if (!detectedMime || !config.mimes.has(detectedMime)) {
+        throw httpError(400, 'The uploaded file content is not an allowed type for this document.');
+    }
+    return { config, detectedMime };
 }
 
 async function getOwnedSession(userId, sessionId, { forUpdate = false } = {}) {
@@ -123,10 +148,7 @@ async function uploadSigningDocument(userId, sessionId, type, file) {
     const config = TYPES[type];
     if (!config) throw httpError(400, 'Invalid signing document type.');
     const session = await getOwnedSession(userId, sessionId);
-    if (!file || !Buffer.isBuffer(file.buffer)) throw httpError(400, 'File is required.');
-    if (file.buffer.length > config.maxBytes) throw httpError(413, 'Signing file exceeds the allowed size.');
-    const detectedMime = fileType(file);
-    if (!detectedMime || !config.mimes.has(detectedMime)) throw httpError(400, 'The uploaded file content is not an allowed type for this document.');
+    const { detectedMime } = validateSigningDocumentFile(type, file);
     const sha256 = crypto.createHash('sha256').update(file.buffer).digest('hex');
     if (session[`${config.path}_sha256`] === sha256 && session[`${config.path}_path`]) return presentSession(session);
 
@@ -166,4 +188,13 @@ async function finalizeSigningSession({ userId, studentId, applicationId, signin
     return data;
 }
 
-module.exports = { createSigningSession, getSigningSession, uploadSigningDocument, finalizeSigningSession, hashApplicationForm };
+module.exports = {
+    createSigningSession,
+    getSigningSession,
+    uploadSigningDocument,
+    finalizeSigningSession,
+    hashApplicationForm,
+    signingTypeForApplicationDocument,
+    validateSigningDocumentFile,
+    extension,
+};

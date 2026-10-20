@@ -61,3 +61,42 @@ No test is reported as passing until it has been executed successfully.
   tests require the Phase 1 migration in an isolated Supabase project. The
   applicant-side signing-document correction entry point remains a documented
   follow-up and was not represented as production-ready.
+
+## Phase 4 applicant signing correction verification
+
+- Passed: direct Node execution from `mobile/backend`:
+  `node test\application-signing-contract.test.js` — 5/5 existing signing
+  contract checks passed.
+- Passed: direct Node execution from `mobile/backend`:
+  `node test\application-signing-correction-contract.test.js` — 5/5 checks
+  passed for authorized replacement, status rejection, immutable version
+  creation, pending review reset, server-side path handling, byte validation,
+  and review-queue transition.
+- Passed: `node --check` for the changed mobile backend signing service,
+  application service, controller, and routes.
+- Passed: `flutter test
+  test\features\applicant\applicant_signing_correction_model_test.dart` — 4/4
+  tests covering requested correction visibility/reason, verified/pending
+  rejection, non-signing isolation, and duplicate-correction prevention after
+  the returned pending state.
+- Completed with informational findings: targeted `dart analyze` for the
+  changed applicant model/service/screen and correction test reported no errors
+  but six existing informational lints in `applicant_documents_screen.dart`
+  (two `control_flow_in_finally`, two `deprecated_member_use`, two
+  `use_null_aware_elements`). They were not altered because they are unrelated
+  to the correction boundary.
+- Passed: `node test\application-signing-document-review-contract.test.js` in
+  `admin/backend` — 4/4 existing signing review/RBAC checks.
+- Passed: `node test\document-verification-signing-contract.test.mjs` in
+  `admin/frontend` — 4/4 existing signing display/signed-preview checks.
+- Passed: `npm run build` in `admin/frontend` when run outside the sandbox.
+  Vite completed with the pre-existing ExcelJS direct-`eval` and large-chunk
+  warnings.
+- Blocked (launcher only): `node --test` could not spawn child processes in the
+  sandbox (`EPERM`), although direct execution of both Node contract files
+  passed. The initial sandboxed Dart analyzer and admin build were likewise
+  blocked by child-process/native-module access and were rerun successfully
+  outside the sandbox.
+- Not run: live Supabase integration/RLS/Storage test. It requires an isolated
+  project with both signing migrations applied, a private bucket, and test
+  credentials. No migration was applied and no deployment was performed.

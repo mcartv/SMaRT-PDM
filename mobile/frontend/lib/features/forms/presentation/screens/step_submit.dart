@@ -27,17 +27,6 @@ class _StepSubmitState extends State<StepSubmit> {
     'https://smart-pdm.vercel.app/privacy',
   );
 
-  late bool certRead;
-  late bool agreeTerms;
-
-  @override
-  // initState: handles init state for the step submit flow.
-  void initState() {
-    super.initState();
-    certRead = widget.data.certificationRead;
-    agreeTerms = widget.data.agree;
-  }
-
   // _openLink: handles open link for the step submit flow.
   Future<void> _openLink(Uri uri) async {
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
@@ -465,11 +454,10 @@ class _StepSubmitState extends State<StepSubmit> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Checkbox(
-              value: certRead,
+              value: widget.data.certificationRead,
               onChanged: (val) {
                 setState(() {
-                  certRead = val ?? false;
-                  widget.data.certificationRead = certRead;
+                  widget.data.certificationRead = val ?? false;
                 });
                 widget.onChanged();
               },
@@ -488,7 +476,7 @@ class _StepSubmitState extends State<StepSubmit> {
             ),
           ],
         ),
-        if (widget.showErrors && !certRead)
+        if (widget.showErrors && !widget.data.certificationRead)
           Padding(
             padding: const EdgeInsets.only(left: 12, top: 4),
             child: Text(
@@ -503,11 +491,10 @@ class _StepSubmitState extends State<StepSubmit> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Checkbox(
-              value: agreeTerms,
+              value: widget.data.agree,
               onChanged: (val) {
                 setState(() {
-                  agreeTerms = val ?? false;
-                  widget.data.agree = agreeTerms;
+                  widget.data.agree = val ?? false;
                 });
                 widget.onChanged();
               },
@@ -558,7 +545,7 @@ class _StepSubmitState extends State<StepSubmit> {
             ),
           ],
         ),
-        if (widget.showErrors && !agreeTerms)
+        if (widget.showErrors && !widget.data.agree)
           Padding(
             padding: const EdgeInsets.only(left: 12, top: 4),
             child: Text(

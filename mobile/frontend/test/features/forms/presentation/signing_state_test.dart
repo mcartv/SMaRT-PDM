@@ -133,6 +133,41 @@ void main() {
     });
 
     test(
+      'signing upload is single-flight and releases retry after completion',
+      () {
+        final state = SigningState();
+        final first = state.beginUpload();
+        expect(first, isNotNull);
+        expect(state.beginUpload(), isNull);
+        state.finishUpload(first!);
+        expect(state.beginUpload(), isNotNull);
+      },
+    );
+
+    test(
+      'certification has one authoritative model value and routes to Submit',
+      () {
+        final submit = File(
+          'lib/features/forms/presentation/screens/step_submit.dart',
+        ).readAsStringSync();
+        final applicant = File(
+          'lib/features/applicant/presentation/screens/new_applicant_screen.dart',
+        ).readAsStringSync();
+        expect(submit, contains('value: widget.data.certificationRead'));
+        expect(submit, contains('value: widget.data.agree'));
+        expect(submit, isNot(contains('late bool certRead')));
+        expect(
+          applicant,
+          contains(
+            RegExp(
+              r'case ApplicationSubmissionSection\.certification:\s+return 5;',
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
       'step keys are unique while AnimatedSwitcher keeps two steps mounted',
       () {
         final source = File(

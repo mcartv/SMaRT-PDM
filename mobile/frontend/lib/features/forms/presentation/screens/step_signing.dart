@@ -17,6 +17,7 @@ class SigningState extends ChangeNotifier {
   String guardianIdName = '';
   bool consent = false;
   bool uploading = false;
+  int _uploadGeneration = 0;
   String? error;
   bool studentSigned = false;
   bool guardianSigned = false;
@@ -76,6 +77,24 @@ class SigningState extends ChangeNotifier {
     _requiresReconfirmation = false;
     _reconfirmationMessage = null;
     error = null;
+    notifyListeners();
+  }
+
+  int? beginUpload() {
+    if (uploading) return null;
+    uploading = true;
+    error = null;
+    _uploadGeneration += 1;
+    notifyListeners();
+    return _uploadGeneration;
+  }
+
+  bool isCurrentUpload(int generation) =>
+      uploading && _uploadGeneration == generation;
+
+  void finishUpload(int generation) {
+    if (_uploadGeneration != generation) return;
+    uploading = false;
     notifyListeners();
   }
 
@@ -221,22 +240,20 @@ class _StepSigningState extends State<StepSigning> {
   }
 
   Future<void> _upload() async {
+    final uploadGeneration = widget.state.beginUpload();
+    if (uploadGeneration == null) return;
     if (widget.state.studentPad.isEmpty ||
         widget.state.guardianPad.isEmpty ||
         widget.state.guardianId == null ||
         !widget.state.consent ||
         _guardianName.text.trim().isEmpty ||
         _relationship.text.trim().isEmpty) {
-      setState(
-        () => widget.state.error =
-            'Complete both signatures, guardian details, ID, and consent first.',
-      );
+      widget.state.error =
+          'Complete both signatures, guardian details, ID, and consent first.';
+      widget.state.finishUpload(uploadGeneration);
+      widget.onChanged();
       return;
     }
-    setState(() {
-      widget.state.uploading = true;
-      widget.state.error = null;
-    });
     try {
       final form = widget.data.toSubmissionPayload();
       final session = await _service.createSession(
@@ -270,26 +287,18 @@ class _StepSigningState extends State<StepSigning> {
           'The signing session is incomplete. Retry the upload.',
         );
       }
-      if (!mounted) {
-        return;
+      if (widget.state.isCurrentUpload(uploadGeneration)) {
+        widget.state.markUploaded(uploaded.id, form);
       }
-      widget.state.markUploaded(uploaded.id, form);
     } catch (error) {
       if (error.toString().toLowerCase().contains('expired')) {
         widget.state.markExpired();
       }
-      if (mounted) {
-        setState(
-          () => widget.state.error = error.toString().replaceFirst(
-            'Exception: ',
-            '',
-          ),
-        );
+      if (widget.state.isCurrentUpload(uploadGeneration)) {
+        widget.state.error = error.toString().replaceFirst('Exception: ', '');
       }
     } finally {
-      if (mounted) {
-        setState(() => widget.state.uploading = false);
-      }
+      widget.state.finishUpload(uploadGeneration);
     }
     widget.onChanged();
   }

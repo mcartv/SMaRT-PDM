@@ -345,7 +345,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       case ApplicationSubmissionSection.essay:
         return 3;
       case ApplicationSubmissionSection.certification:
-        return 4;
+        return 5;
     }
   }
 

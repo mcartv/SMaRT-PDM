@@ -38,7 +38,7 @@ cannot be weakened to create a false success.
 
 Added the private pre-submission signing-session contract:
 
-- Migration `20261020_add_application_signing_sessions.sql` creates one
+- Migration `20261020000000_add_application_signing_sessions.sql` creates one
   metadata row per signing session, with private Storage object paths and
   SHA-256 hashes for the student signature, guardian signature, and guardian
   ID. It does not store base64 or other file content in PostgreSQL.
@@ -120,7 +120,7 @@ production.
   `POST /api/applications/me/signing-documents/:documentId/upload`; it does
   not receive or construct a Storage path. The document endpoint returns only
   short-lived signed URLs, never `file_path` or `preview_path`.
-- Migration `20261020_add_application_signing_document_corrections.sql` adds
+- Migration `20261020000100_add_application_signing_document_corrections.sql` adds
   `replace_application_signing_document`. The RPC locks the document row,
   proves that the application belongs to the authenticated applicant, limits
   the type to the three signing documents, requires an existing current version

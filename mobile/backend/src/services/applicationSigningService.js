@@ -188,11 +188,52 @@ async function finalizeSigningSession({ userId, studentId, applicationId, signin
     return data;
 }
 
+async function submitApplicationWithSigning({
+    userId,
+    studentId,
+    openingId,
+    programId,
+    applicationPayload,
+    signingSessionId,
+    applicationForm,
+    editExistingApplication = false,
+    applicationStatus = 'Pending Review',
+    documentStatus = 'Missing Docs',
+    verificationStatus = 'pending',
+    gwa = null,
+}) {
+    if (!signingSessionId) throw httpError(400, 'Signing session is required.');
+    const { data, error } = await supabase.rpc('submit_application_with_signing', {
+        p_user_id: userId,
+        p_student_id: studentId,
+        p_opening_id: openingId,
+        p_program_id: programId,
+        p_application_payload: applicationPayload,
+        p_application_form_hash: hashApplicationForm(applicationForm),
+        p_signing_session_id: signingSessionId,
+        p_edit_existing: editExistingApplication,
+        p_application_status: applicationStatus,
+        p_document_status: documentStatus,
+        p_verification_status: verificationStatus,
+        p_gwa: gwa,
+    });
+    if (error) {
+        if (error.code === '42501') throw httpError(403, error.message || 'You are not allowed to submit this application.');
+        if (error.code === '23505' || error.code === '22023') throw httpError(409, error.message);
+        throw error;
+    }
+    if (!data?.application?.application_id) {
+        throw httpError(500, 'The application signing transaction did not return an application.');
+    }
+    return data;
+}
+
 module.exports = {
     createSigningSession,
     getSigningSession,
     uploadSigningDocument,
     finalizeSigningSession,
+    submitApplicationWithSigning,
     hashApplicationForm,
     signingTypeForApplicationDocument,
     validateSigningDocumentFile,

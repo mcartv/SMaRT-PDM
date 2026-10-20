@@ -13,6 +13,7 @@ const notificationService = require('./notificationService');
 const { removeDocumentPreview } = require('./documentPreviewService');
 const {
     finalizeSigningSession,
+    submitApplicationWithSigning,
     signingTypeForApplicationDocument,
     validateSigningDocumentFile,
     extension: signingFileExtension,
@@ -4940,6 +4941,62 @@ async function submitMyApplicationForm(userId, payload = {}) {
 
         existingEditSnapshot = submittedForm.application;
     }
+
+    // All application rows that make a signing submission visible are committed
+    // by one RPC. Profile/family/education data above intentionally remains the
+    // legacy pre-submission save path; it cannot create an application, a
+    // document slot, signing evidence, or an endorsement on its own.
+    const atomicSubmission = await submitApplicationWithSigning({
+        userId,
+        studentId: student.student_id,
+        openingId: opening.opening_id,
+        programId: opening.program_id,
+        applicationPayload: payload,
+        signingSessionId,
+        applicationForm: signingPayload,
+        editExistingApplication,
+        applicationStatus: editExistingApplication
+            ? existingEditSnapshot?.application_status || 'Pending Review'
+            : 'Pending Review',
+        documentStatus: editExistingApplication
+            ? existingEditSnapshot?.document_status || 'Missing Docs'
+            : 'Missing Docs',
+        verificationStatus: editExistingApplication
+            ? existingEditSnapshot?.verification_status || 'pending'
+            : 'pending',
+        gwa: submittedGwa,
+    });
+    const atomicApplication = atomicSubmission.application;
+
+    if (atomicSubmission.endorsement_created && atomicSubmission.endorsement_slip_id) {
+        await createStaffNotificationsSafely(
+            {
+                roles: ['sdo'],
+                type: 'Endorsement Slip',
+                title: 'New SDO approval request',
+                message: `${getStudentDisplayName(student)} submitted a scholarship application and is ready for SDO review.`,
+                referenceId: atomicSubmission.endorsement_slip_id,
+                referenceType: 'endorsement_slip',
+            },
+            'SDO QUEUE'
+        );
+    }
+
+    const { error: atomicDraftDeleteError } = await supabase
+        .from(APPLICATION_DRAFT_TABLE)
+        .delete()
+        .eq('user_id', userId);
+    if (atomicDraftDeleteError) {
+        console.error('APPLICATION DRAFT DELETE ERROR:', atomicDraftDeleteError.message);
+    }
+
+    return {
+        message: editExistingApplication
+            ? 'Application updated successfully.'
+            : 'Application submitted successfully.',
+        application: atomicApplication,
+        next: 'documents',
+    };
 
     let application;
 

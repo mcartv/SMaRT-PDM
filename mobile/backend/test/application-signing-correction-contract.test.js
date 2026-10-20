@@ -8,7 +8,7 @@ const test = require('node:test');
 const backendRoot = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(backendRoot, '..', '..');
 const migration = fs.readFileSync(
-    path.join(repoRoot, 'supabase', 'migrations', '20261020_add_application_signing_document_corrections.sql'),
+    path.join(repoRoot, 'supabase', 'migrations', '20261020000100_add_application_signing_document_corrections.sql'),
     'utf8'
 );
 const service = fs.readFileSync(

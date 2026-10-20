@@ -53,7 +53,13 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   int _step = 0;
   final _data = ApplicationData();
   final _scrollCtrl = ScrollController();
-  final _stepContentKey = GlobalKey();
+  // AnimatedSwitcher keeps the outgoing and incoming step mounted briefly.
+  // Each step therefore needs its own stable key; reusing one GlobalKey here
+  // caused the signing step's duplicate-GlobalKey runtime exception.
+  final List<GlobalKey> _stepContentKeys = List<GlobalKey>.generate(
+    6,
+    (_) => GlobalKey(),
+  );
   bool _isBootstrapping = true;
   bool _showValidationErrors = false;
   Timer? _autosaveDebounce;
@@ -475,7 +481,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
         );
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        final stepContext = _stepContentKey.currentContext;
+        final stepContext = _stepContentKeys[_step].currentContext;
         if (stepContext == null || !focusFirstInvalidField(stepContext)) {
           _scrollToFormTop();
         }
@@ -752,7 +758,8 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       return;
     }
 
-    _signingState.invalidateIfFormChanged(_data.toSubmissionPayload());
+    final submissionPayload = _data.toSubmissionPayload();
+    _signingState.invalidateIfFormChanged(submissionPayload);
     final signingError = _signingState.validationMessage;
     if (signingError != null) {
       setState(() {
@@ -789,12 +796,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       }
     }
 
-    // The form requires at least one reachable parent/guardian contact. Empty
-    // secondary contact fields are persisted as N/A so existing backend/PDF
-    // contracts remain compatible without forcing duplicate phone numbers.
-    _fillBlankParentGuardianMobilesWithNA();
-
-    final submissionPayload = _data.toSubmissionPayload();
     final provider = context.read<NewScholarProvider>();
     final success = await provider.submitApplication(
       _data,
@@ -849,8 +850,14 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     setState(() {
       final submissionError =
           provider.submissionError ?? 'Failed to submit application.';
-      if (submissionError.toLowerCase().contains('signing session') &&
-          submissionError.toLowerCase().contains('expired')) {
+      final normalizedError = submissionError.toLowerCase();
+      if (normalizedError.contains('signatures must be reconfirmed') ||
+          normalizedError.contains('application form changed')) {
+        _signingState.markFormHashMismatch();
+        _step = 4;
+        _showValidationErrors = true;
+      } else if (normalizedError.contains('signing session') &&
+          normalizedError.contains('expired')) {
         _signingState.markExpired();
         _step = 4;
         _showValidationErrors = true;
@@ -903,7 +910,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
 
   // _buildStep: handles build step for the new applicant screen flow.
   Widget _buildStep() =>
-      KeyedSubtree(key: _stepContentKey, child: _buildStepContent());
+      KeyedSubtree(key: _stepContentKeys[_step], child: _buildStepContent());
 
   // _buildStepContent: handles build step content for the new applicant screen flow.
   Widget _buildStepContent() {

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -10,6 +11,8 @@ import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 class SigningState extends ChangeNotifier {
   String? sessionId;
   String? _formFingerprint;
+  final SignaturePadController studentPad = SignaturePadController();
+  final SignaturePadController guardianPad = SignaturePadController();
   Uint8List? guardianId;
   String guardianIdName = '';
   bool consent = false;
@@ -17,14 +20,21 @@ class SigningState extends ChangeNotifier {
   String? error;
   bool studentSigned = false;
   bool guardianSigned = false;
+  bool _requiresReconfirmation = false;
+  String? _reconfirmationMessage;
 
   bool get isReady =>
       sessionId != null &&
+      !_requiresReconfirmation &&
       studentSigned &&
       guardianSigned &&
       guardianId != null &&
       consent;
   String? get validationMessage {
+    if (_requiresReconfirmation) {
+      return _reconfirmationMessage ??
+          'Application details changed. Reconfirm and upload the signing evidence again.';
+    }
     if (!studentSigned) {
       return 'Student signature is required.';
     }
@@ -44,24 +54,94 @@ class SigningState extends ChangeNotifier {
   }
 
   void invalidateIfFormChanged(Map<String, dynamic> payload) {
-    final fingerprint = payload.toString();
-    if (_formFingerprint != null && _formFingerprint != fingerprint) {
+    final fingerprint = _canonicalJson(payload);
+    if (_formFingerprint != null &&
+        _formFingerprint != fingerprint &&
+        sessionId != null) {
       sessionId = null;
-      studentSigned = false;
-      guardianSigned = false;
-      error = 'Application details changed. Please sign and upload again.';
+      _requiresReconfirmation = true;
+      _reconfirmationMessage =
+          'Application details changed. Reconfirm and upload the signing evidence again.';
+      error = _reconfirmationMessage;
       notifyListeners();
     }
     _formFingerprint = fingerprint;
   }
 
-  void markExpired() {
-    sessionId = null;
-    studentSigned = false;
-    guardianSigned = false;
-    error = 'Your signing session expired. Please sign and upload again.';
+  void markUploaded(String uploadedSessionId, Map<String, dynamic> payload) {
+    sessionId = uploadedSessionId;
+    studentSigned = !studentPad.isEmpty;
+    guardianSigned = !guardianPad.isEmpty;
+    _formFingerprint = _canonicalJson(payload);
+    _requiresReconfirmation = false;
+    _reconfirmationMessage = null;
+    error = null;
     notifyListeners();
   }
+
+  void clearStudentSignature() {
+    studentPad.clear();
+    studentSigned = false;
+    _invalidateEvidence(
+      'Student signature was cleared. Upload signing evidence again.',
+    );
+  }
+
+  void clearGuardianSignature() {
+    guardianPad.clear();
+    guardianSigned = false;
+    _invalidateEvidence(
+      'Parent or guardian signature was cleared. Upload signing evidence again.',
+    );
+  }
+
+  void _invalidateEvidence(String message) {
+    sessionId = null;
+    _requiresReconfirmation = false;
+    _reconfirmationMessage = null;
+    error = message;
+    notifyListeners();
+  }
+
+  void markExpired() {
+    sessionId = null;
+    _requiresReconfirmation = true;
+    _reconfirmationMessage =
+        'Your signing session expired. Reconfirm and upload the signing evidence again.';
+    error = _reconfirmationMessage;
+    notifyListeners();
+  }
+
+  void markFormHashMismatch() {
+    sessionId = null;
+    _requiresReconfirmation = true;
+    _reconfirmationMessage =
+        'Application details changed after signing. Reconfirm and upload the signing evidence again.';
+    error = _reconfirmationMessage;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    studentPad.dispose();
+    guardianPad.dispose();
+    super.dispose();
+  }
+}
+
+String _canonicalJson(Object? value) => jsonEncode(_canonicalJsonValue(value));
+
+Object? _canonicalJsonValue(Object? value) {
+  if (value is Map) {
+    final keys = value.keys.map((key) => key.toString()).toList()..sort();
+    return <String, Object?>{
+      for (final key in keys) key: _canonicalJsonValue(value[key]),
+    };
+  }
+  if (value is Iterable) {
+    return value.map(_canonicalJsonValue).toList(growable: false);
+  }
+  return value;
 }
 
 class StepSigning extends StatefulWidget {
@@ -81,8 +161,6 @@ class StepSigning extends StatefulWidget {
 }
 
 class _StepSigningState extends State<StepSigning> {
-  final _studentPad = SignaturePadController();
-  final _guardianPad = SignaturePadController();
   final _service = ApplicationSigningService();
   final _picker = ImagePicker();
   late final TextEditingController _guardianName;
@@ -112,8 +190,6 @@ class _StepSigningState extends State<StepSigning> {
 
   @override
   void dispose() {
-    _studentPad.dispose();
-    _guardianPad.dispose();
     _guardianName.dispose();
     _relationship.dispose();
     super.dispose();
@@ -145,8 +221,8 @@ class _StepSigningState extends State<StepSigning> {
   }
 
   Future<void> _upload() async {
-    if (_studentPad.isEmpty ||
-        _guardianPad.isEmpty ||
+    if (widget.state.studentPad.isEmpty ||
+        widget.state.guardianPad.isEmpty ||
         widget.state.guardianId == null ||
         !widget.state.consent ||
         _guardianName.text.trim().isEmpty ||
@@ -169,8 +245,8 @@ class _StepSigningState extends State<StepSigning> {
         guardianRelationship: _relationship.text,
         consentAcknowledged: true,
       );
-      final student = await exportSignaturePng(_studentPad);
-      final guardian = await exportSignaturePng(_guardianPad);
+      final student = await exportSignaturePng(widget.state.studentPad);
+      final guardian = await exportSignaturePng(widget.state.guardianPad);
       var uploaded = await _service.uploadBytes(
         sessionId: session.id,
         documentType: 'student_signature',
@@ -197,12 +273,7 @@ class _StepSigningState extends State<StepSigning> {
       if (!mounted) {
         return;
       }
-      setState(() {
-        widget.state.sessionId = uploaded.id;
-        widget.state.studentSigned = true;
-        widget.state.guardianSigned = true;
-      });
-      widget.state.invalidateIfFormChanged(form);
+      widget.state.markUploaded(uploaded.id, form);
     } catch (error) {
       if (error.toString().toLowerCase().contains('expired')) {
         widget.state.markExpired();
@@ -223,40 +294,43 @@ class _StepSigningState extends State<StepSigning> {
     widget.onChanged();
   }
 
-  Widget _signatureBlock(String title, SignaturePadController controller) =>
-      IntakeCard(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _signatureBlock(
+    String title,
+    SignaturePadController controller,
+    VoidCallback onClear,
+  ) => IntakeCard(
+    margin: const EdgeInsets.only(bottom: 16),
+    padding: const EdgeInsets.all(14),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 8),
+        SignaturePad(controller: controller, label: title),
+        const SizedBox(height: 8),
+        Row(
           children: [
-            Text(
-              title,
-              style: Theme.of(
-                context,
-              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+            TextButton.icon(
+              onPressed: onClear,
+              icon: const Icon(Icons.clear),
+              label: const Text('Clear / Retry'),
             ),
-            const SizedBox(height: 8),
-            SignaturePad(controller: controller, label: title),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                TextButton.icon(
-                  onPressed: controller.clear,
-                  icon: const Icon(Icons.clear),
-                  label: const Text('Clear / Retry'),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  controller.isEmpty
-                      ? 'Draw your signature above.'
-                      : 'Signature ready for preview and upload.',
-                ),
-              ],
+            const SizedBox(width: 8),
+            Text(
+              controller.isEmpty
+                  ? 'Draw your signature above.'
+                  : 'Signature ready for preview and upload.',
             ),
           ],
         ),
-      );
+      ],
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -269,8 +343,16 @@ class _StepSigningState extends State<StepSigning> {
           style: Theme.of(context).textTheme.bodyMedium,
         ),
         const SizedBox(height: 16),
-        _signatureBlock('Student signature', _studentPad),
-        _signatureBlock('Parent or guardian signature', _guardianPad),
+        _signatureBlock(
+          'Student signature',
+          widget.state.studentPad,
+          widget.state.clearStudentSignature,
+        ),
+        _signatureBlock(
+          'Parent or guardian signature',
+          widget.state.guardianPad,
+          widget.state.clearGuardianSignature,
+        ),
         IntakeCard(
           margin: const EdgeInsets.only(bottom: 16),
           padding: const EdgeInsets.all(14),

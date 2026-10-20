@@ -32,12 +32,50 @@ function stableJson(value) {
     return JSON.stringify(value);
 }
 
+// The signing hash binds the applicant-visible form, not transport-only
+// fields.  Normalize equivalent empty values before hashing so an optional
+// family phone represented as null, whitespace, or N/A cannot create a false
+// mismatch between session creation and final submission.  The submitted form
+// itself is still validated and persisted unchanged by applicationService.
+function canonicalizeApplicationForm(value, path = []) {
+    if (Array.isArray(value)) {
+        return value.map((item, index) => canonicalizeApplicationForm(item, [...path, String(index)]));
+    }
+    if (value && typeof value === 'object') {
+        return Object.keys(value).sort().reduce((output, key) => {
+            output[key] = canonicalizeApplicationForm(value[key], [...path, key]);
+            return output;
+        }, {});
+    }
+    const isOptionalFamilyMobile = path.length >= 3 &&
+        path[path.length - 1] === 'mobile' &&
+        path[path.length - 3] === 'family' &&
+        ['father', 'mother', 'guardian'].includes(path[path.length - 2]);
+    if (value === null || value === undefined) {
+        return isOptionalFamilyMobile ? 'N/A' : '';
+    }
+    if (typeof value !== 'string') return value;
+
+    const normalized = value.trim();
+    const isNumericFormField = ['age', 'gwa', 'parent_marilao_residency_duration']
+        .includes(path[path.length - 1]);
+    if (isOptionalFamilyMobile && (!normalized || normalized.toUpperCase() === 'N/A')) {
+        return 'N/A';
+    }
+    if (isNumericFormField && /^[-+]?\d+(?:\.\d+)?$/.test(normalized)) {
+        return Number(normalized);
+    }
+    return normalized;
+}
+
 function hashApplicationForm(payload = {}) {
     const copy = { ...payload };
     delete copy.signing_session_id;
     delete copy.signingSessionId;
     delete copy.edit_existing_application;
-    return crypto.createHash('sha256').update(stableJson(copy)).digest('hex');
+    return crypto.createHash('sha256')
+        .update(stableJson(canonicalizeApplicationForm(copy)))
+        .digest('hex');
 }
 
 function fileType(file) {
@@ -235,6 +273,7 @@ module.exports = {
     finalizeSigningSession,
     submitApplicationWithSigning,
     hashApplicationForm,
+    canonicalizeApplicationForm,
     signingTypeForApplicationDocument,
     validateSigningDocumentFile,
     extension,

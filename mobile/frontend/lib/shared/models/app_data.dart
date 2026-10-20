@@ -154,6 +154,15 @@ class ApplicationData {
     return trimmed;
   }
 
+  // Optional parent/guardian mobile fields are stored as N/A.  Keeping this
+  // representation in the submission payload (rather than changing the form
+  // immediately before submit) makes the payload signed by the applicant the
+  // exact payload later submitted to the API.
+  static String normalizeOptionalFamilyMobile(String value) {
+    final normalized = normalizeMobileNumber(value);
+    return normalized.isEmpty ? 'N/A' : normalized;
+  }
+
   static bool isValidPhilippineMobile(String value) {
     final normalized = normalizeMobileNumber(value);
     return RegExp(r'^09\d{9}$').hasMatch(normalized);
@@ -895,7 +904,7 @@ class ApplicationData {
           'last_name': _title(fatherLastName),
           'first_name': _title(fatherFirstName),
           'middle_name': _title(fatherMiddleName),
-          'mobile': normalizeMobileNumber(fatherMobile),
+          'mobile': normalizeOptionalFamilyMobile(fatherMobile),
           'educational_attainment': fatherEducationalAttainment.trim(),
           'occupation': _title(fatherOccupation),
           'company_name_and_address': _title(fatherCompanyNameAndAddress),
@@ -904,7 +913,7 @@ class ApplicationData {
           'last_name': _title(motherLastName),
           'first_name': _title(motherFirstName),
           'middle_name': _title(motherMiddleName),
-          'mobile': normalizeMobileNumber(motherMobile),
+          'mobile': normalizeOptionalFamilyMobile(motherMobile),
           'educational_attainment': motherEducationalAttainment.trim(),
           'occupation': _title(motherOccupation),
           'company_name_and_address': _title(motherCompanyNameAndAddress),
@@ -922,7 +931,7 @@ class ApplicationData {
           'last_name': _title(guardianLastName),
           'first_name': _title(guardianFirstName),
           'middle_name': _title(guardianMiddleName),
-          'mobile': normalizeMobileNumber(guardianMobile),
+          'mobile': normalizeOptionalFamilyMobile(guardianMobile),
           'educational_attainment': guardianEducationalAttainment.trim(),
           'occupation': _title(guardianOccupation),
           'company_name_and_address': _title(guardianCompanyNameAndAddress),

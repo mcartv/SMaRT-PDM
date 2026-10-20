@@ -17,6 +17,7 @@ const MAX_ACTIVE_DEVICES = Math.min(
     Math.max(Number(process.env.ADMIN_MAX_ACTIVE_DEVICES || 5) || 5, 1),
     5
 );
+const HEARTBEAT_DEADLOCK_RETRY_LIMIT = 2;
 
 const ADMIN_ROLE = 'admin';
 const IS_PRODUCTION = String(process.env.NODE_ENV || '')
@@ -618,59 +619,71 @@ async function assertActiveAdminSession({ decoded, rawToken }) {
 // heartbeatAdminSession: handles heartbeat admin session for the admin Session Service flow.
 async function heartbeatAdminSession({ decoded, pageId }) {
     const cleanPageId = sanitizeClientId(pageId, 'pageId');
-    const client = await db.connect();
+    for (let attempt = 0; attempt <= HEARTBEAT_DEADLOCK_RETRY_LIMIT; attempt += 1) {
+        const client = await db.connect();
+        try {
+            await client.query('BEGIN');
 
-    try {
-        await client.query('BEGIN');
+            // Every active-session path that touches a specific session should
+            // take the parent session row before its page row.  The previous
+            // page-then-session order conflicted with logout/resume activity.
+            const sessionResult = await client.query(
+                `
+                UPDATE admin_sessions
+                SET last_seen_at = now(),
+                    is_active = true,
+                    released_at = NULL
+                WHERE session_id = $1
+                  AND session_scope = $2
+                  AND logged_out_at IS NULL
+                  AND expires_at > now()
+                RETURNING session_id
+                `,
+                [decoded.sid, SESSION_SCOPE]
+            );
 
-        const pageResult = await client.query(
-            `
-            UPDATE admin_session_pages
-            SET is_active = true,
-                last_seen_at = now(),
-                released_at = NULL
-            WHERE session_id = $1
-              AND page_id = $2
-            RETURNING session_id
-            `,
-            [decoded.sid, cleanPageId]
-        );
+            if (!sessionResult.rows[0]) {
+                throw new AdminSessionError('Admin session is no longer active.', {
+                    statusCode: 401,
+                    code: 'ADMIN_SESSION_INACTIVE',
+                });
+            }
 
-        if (!pageResult.rows[0]) {
             await client.query(
                 `
                 INSERT INTO admin_session_pages (
                     session_id,
                     page_id,
                     is_active,
-                    last_seen_at
+                    last_seen_at,
+                    released_at
                 )
-                VALUES ($1, $2, true, now())
+                VALUES ($1, $2, true, now(), NULL)
+                ON CONFLICT (session_id, page_id)
+                DO UPDATE SET
+                    is_active = true,
+                    last_seen_at = now(),
+                    released_at = NULL
                 `,
                 [decoded.sid, cleanPageId]
             );
+
+            await client.query('COMMIT');
+            return;
+        } catch (error) {
+            try {
+                await client.query('ROLLBACK');
+            } catch (_) {
+                // The transaction may already have been aborted by PostgreSQL.
+            }
+            if (error?.code === '40P01' && attempt < HEARTBEAT_DEADLOCK_RETRY_LIMIT) {
+                await new Promise((resolve) => setTimeout(resolve, 25 * (attempt + 1)));
+                continue;
+            }
+            throw error;
+        } finally {
+            client.release();
         }
-
-        await client.query(
-            `
-            UPDATE admin_sessions
-            SET last_seen_at = now(),
-                is_active = true,
-                released_at = NULL
-            WHERE session_id = $1
-              AND session_scope = $2
-              AND logged_out_at IS NULL
-              AND expires_at > now()
-            `,
-            [decoded.sid, SESSION_SCOPE]
-        );
-
-        await client.query('COMMIT');
-    } catch (error) {
-        await client.query('ROLLBACK');
-        throw error;
-    } finally {
-        client.release();
     }
 }
 

@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_signing.dart';
+import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
+import 'package:flutter/material.dart';
 
 void main() {
   group('SigningState', () {
@@ -53,17 +55,65 @@ void main() {
       expect(state.error, contains('Network'));
     });
 
-    test('invalidates session after signed form data changes', () {
+    test(
+      'invalidates the session after signed form data changes without claiming drawn signatures are empty',
+      () {
+        final state = SigningState()
+          ..sessionId = 'session-1'
+          ..studentSigned = true
+          ..guardianSigned = true;
+        state.invalidateIfFormChanged(<String, dynamic>{'name': 'A'});
+        state.invalidateIfFormChanged(<String, dynamic>{'name': 'B'});
+        expect(state.sessionId, isNull);
+        expect(state.studentSigned, isTrue);
+        expect(state.guardianSigned, isTrue);
+        expect(state.validationMessage, contains('Reconfirm'));
+      },
+    );
+
+    test('form fingerprints are stable when map key order differs', () {
       final state = SigningState()
         ..sessionId = 'session-1'
         ..studentSigned = true
         ..guardianSigned = true;
-      state.invalidateIfFormChanged(<String, dynamic>{'name': 'A'});
-      state.invalidateIfFormChanged(<String, dynamic>{'name': 'B'});
-      expect(state.sessionId, isNull);
-      expect(state.studentSigned, isFalse);
-      expect(state.guardianSigned, isFalse);
+      state.invalidateIfFormChanged(<String, dynamic>{
+        'personal': <String, dynamic>{'name': 'Ada', 'age': 18},
+        'opening_id': 'opening-1',
+      });
+      state.invalidateIfFormChanged(<String, dynamic>{
+        'opening_id': 'opening-1',
+        'personal': <String, dynamic>{'age': 18, 'name': 'Ada'},
+      });
+      expect(state.sessionId, 'session-1');
     });
+
+    test('optional family phones are canonical in each submission payload', () {
+      final data = ApplicationData()
+        ..fatherMobile = ''
+        ..motherMobile = '  '
+        ..guardianMobile = 'n/a';
+      final family =
+          data.toSubmissionPayload()['family'] as Map<String, dynamic>;
+      expect((family['father'] as Map<String, dynamic>)['mobile'], 'N/A');
+      expect((family['mother'] as Map<String, dynamic>)['mobile'], 'N/A');
+      expect((family['guardian'] as Map<String, dynamic>)['mobile'], 'N/A');
+    });
+
+    test(
+      'signature controllers remain owned by SigningState across step rebuilds',
+      () {
+        final state = SigningState();
+        state.studentPad.begin(const Offset(4, 4));
+        state.guardianPad.begin(const Offset(8, 8));
+        state.markUploaded('session-1', <String, dynamic>{'opening_id': 'one'});
+        expect(state.studentPad.isEmpty, isFalse);
+        expect(state.guardianPad.isEmpty, isFalse);
+        expect(
+          state.isReady,
+          isFalse,
+        ); // Guardian ID and consent are still required.
+      },
+    );
 
     test('expired sessions require signing again', () {
       final state = SigningState()
@@ -81,5 +131,17 @@ void main() {
       ).readAsStringSync();
       expect(source, contains('if (_isLoading) return false;'));
     });
+
+    test(
+      'step keys are unique while AnimatedSwitcher keeps two steps mounted',
+      () {
+        final source = File(
+          'lib/features/applicant/presentation/screens/new_applicant_screen.dart',
+        ).readAsStringSync();
+        expect(source, contains('List<GlobalKey>.generate'));
+        expect(source, contains('key: _stepContentKeys[_step]'));
+        expect(source, isNot(contains('final _stepContentKey = GlobalKey()')));
+      },
+    );
   });
 }

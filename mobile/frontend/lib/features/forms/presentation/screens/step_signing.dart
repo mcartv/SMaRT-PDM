@@ -322,20 +322,38 @@ class _StepSigningState extends State<StepSigning> {
         const SizedBox(height: 8),
         SignaturePad(controller: controller, label: title),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            TextButton.icon(
-              onPressed: onClear,
-              icon: const Icon(Icons.clear),
-              label: const Text('Clear / Retry'),
-            ),
-            const SizedBox(width: 8),
-            Text(
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final status = Text(
               controller.isEmpty
                   ? 'Draw your signature above.'
                   : 'Signature ready for preview and upload.',
-            ),
-          ],
+            );
+            final clearButton = TextButton.icon(
+              onPressed: onClear,
+              icon: const Icon(Icons.clear),
+              label: const Text('Clear / Retry'),
+            );
+
+            // A button plus its status message does not fit in the narrow
+            // signing-card content area. Stack it on compact screens rather
+            // than clipping either control or text; retain the compact row
+            // where there is enough room.
+            if (constraints.maxWidth < 520) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [clearButton, const SizedBox(height: 2), status],
+              );
+            }
+
+            return Row(
+              children: [
+                clearButton,
+                const SizedBox(width: 8),
+                Expanded(child: status),
+              ],
+            );
+          },
         ),
       ],
     ),

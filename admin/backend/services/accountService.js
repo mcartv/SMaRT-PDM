@@ -1,6 +1,3 @@
-// PHASE5F_CATALOG_MAPPING_V1
-// SMARTPDM_CUSTOM_ROLE_ACCOUNTS_20261013_V1
-// SMARTPDM_RBAC_MIGRATION_20261013_V1
 // SMaRT-PDM: Accounts — account Service (admin backend service); contains business logic and data operations.
 const bcrypt = require('bcryptjs');
 const { z } = require('zod');
@@ -13,7 +10,6 @@ const adminSessionService = require('./adminSessionService');
 const { requireAccountOffice, setAccountOffice } = require('./accountOfficeService');
 const { syncStaffReferences } = require('../utils/syncStaffReferences');
 
-// SMARTPDM_DB_STAFF_CATALOG_V1: legacy codes remain for existing auth/portal compatibility.
 // Roles come from the active RBAC catalog, not a source-code allowlist.
 async function loadRoleConfig(role, client=db) {
     const result=await client.query(`

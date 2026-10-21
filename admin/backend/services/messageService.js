@@ -29,6 +29,7 @@ async function hasAdminProfilePhotoColumn() {
   return adminProfilePhotoColumnPromise;
 }
 
+// PHASE5H_ACTIVE_CATALOG_TARGETING_V1
 // getUserSummary: reads and returns get user summary for the Messaging flow.
 async function getUserSummary(userId) {
   const adminPhotoEnabled = await hasAdminProfilePhotoColumn();
@@ -46,6 +47,12 @@ async function getUserSummary(userId) {
       st.student_id,
       ap.department,
       ap.position,
+      (SELECT c.app_role_code FROM public.rbac_user_roles ur
+                     JOIN public.rbac_roles r ON r.role_id=ur.role_id
+                     JOIN public.rbac_staff_role_catalog c ON c.role_id=r.role_id
+                    WHERE ur.user_id=u.user_id AND ur.is_active=true AND r.is_active=true
+                      AND r.role_scope='staff' AND c.is_active=true
+                    ORDER BY ur.assigned_at DESC, c.app_role_code LIMIT 1) AS rbac_staff_role,
       roa.ro_area,
       COALESCE(
         st.pdm_id,
@@ -95,6 +102,7 @@ async function getUserSummary(userId) {
   const resolvedRole = row.student_id
     ? row.role
     : resolveStaffRole({
+        rbac_staff_role: row.rbac_staff_role,
         user_role: row.role,
         position: row.position,
         department: row.department,

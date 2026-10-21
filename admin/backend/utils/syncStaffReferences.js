@@ -1,11 +1,16 @@
 // SMARTPDM_CUSTOM_ROLE_ACCOUNTS_20261013_V1
 'use strict';
-const CODES={admin:'admin',sdo:'sdo',guidance:'gco',pd:'pd',ro_coordinator:'ro_personnel',dean:'dean'};
+
 async function syncStaffReferences(client,userId,{role,department,position,archived=false}){
-  const code=CODES[role] || String(role||'').trim();
-  if(!code)throw Error('Unsupported staff role: '+role);
-  const result=await client.query("SELECT role_id FROM public.rbac_roles WHERE role_code=$1 AND role_scope='staff' AND is_active=true",[code]);
-  if(result.rows.length!==1)throw Error('Missing RBAC role: '+code);
+  // SMARTPDM_PHASE3B_CATALOG_SYNC_V1: use active catalog mappings; custom role codes remain valid.
+  const selectedRole=String(role||'').trim();
+  if(!selectedRole)throw Error('Unsupported staff role: '+role);
+  const result=await client.query(`SELECT r.role_id FROM public.rbac_roles r
+    LEFT JOIN public.rbac_staff_role_catalog c ON c.role_id=r.role_id
+    WHERE r.role_scope='staff' AND r.is_active=true
+      AND ((c.app_role_code=$1 AND c.is_active=true) OR (c.role_id IS NULL AND r.role_code=$1))
+    LIMIT 2`,[selectedRole]);
+  if(result.rows.length!==1)throw Error('Missing or inactive RBAC role mapping: '+selectedRole);
   await client.query("UPDATE public.rbac_user_roles SET is_active=false WHERE user_id=$1 AND role_id IN (SELECT role_id FROM public.rbac_roles WHERE role_scope='staff' AND (role_code<>'dean' OR $2::boolean))",[userId,archived]);
   await client.query("INSERT INTO public.rbac_user_roles(user_id,role_id,is_active) VALUES ($1,$2,$3) ON CONFLICT(user_id,role_id) DO UPDATE SET is_active=excluded.is_active",[userId,result.rows[0].role_id,!archived]);
   await client.query("INSERT INTO public.rbac_user_roles(user_id,role_id,is_active) SELECT $1,role_id,true FROM public.rbac_roles WHERE role_code='account_admin' AND role_scope='account' ON CONFLICT(user_id,role_id) DO UPDATE SET is_active=true",[userId]);

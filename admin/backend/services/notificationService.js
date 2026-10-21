@@ -341,6 +341,7 @@ async function createUserNotificationOnce({
 
 exports.createUserNotificationOnce = createUserNotificationOnce;
 
+// PHASE5H_ACTIVE_CATALOG_TARGETING_V1
 // getStaffTargets: reads and returns get staff targets for the Notifications flow.
 async function getStaffTargets({ roles = [], courseId = null, excludeUserIds = [] } = {}) {
     if (!(await notificationsEnabled())) return [];
@@ -367,7 +368,13 @@ async function getStaffTargets({ roles = [], courseId = null, excludeUserIds = [
             ap.first_name,
             ap.last_name,
             ap.department,
-            ap.position
+            ap.position,
+            (SELECT c.app_role_code FROM public.rbac_user_roles ur
+                           JOIN public.rbac_roles r ON r.role_id=ur.role_id
+                           JOIN public.rbac_staff_role_catalog c ON c.role_id=r.role_id
+                          WHERE ur.user_id=u.user_id AND ur.is_active=true AND r.is_active=true
+                            AND r.role_scope='staff' AND c.is_active=true
+                          ORDER BY ur.assigned_at DESC, c.app_role_code LIMIT 1) AS rbac_staff_role
         FROM users u
         INNER JOIN admin_profiles ap ON ap.user_id = u.user_id
         WHERE COALESCE(ap.is_archived, false) = false
@@ -377,7 +384,7 @@ async function getStaffTargets({ roles = [], courseId = null, excludeUserIds = [
     let targets = rows
         .map((row) => ({
             ...row,
-            resolved_role: resolveStaffRole(row),
+            resolved_role: row.rbac_staff_role || null,
         }))
         .filter((row) => normalizedRoles.has(row.resolved_role))
         .filter((row) => !excluded.has(String(row.user_id)))

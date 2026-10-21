@@ -22,6 +22,16 @@ function completeForm() {
   for (const relation of ['father', 'mother', 'sibling', 'guardian']) {
     family[relation] = Object.fromEntries(['first_name', 'last_name', 'middle_name', 'mobile', 'educational_attainment', 'occupation', 'company_name_and_address'].map((key) => [key, 'N/A']));
   }
+  family.father_present = true;
+  family.mother_present = true;
+  family.father = {
+    first_name: 'Pedro', last_name: 'Parent', middle_name: '', mobile: '09170000001',
+    educational_attainment: 'College', occupation: 'Teacher', company_name_and_address: 'School',
+  };
+  family.mother = {
+    first_name: 'Maria', last_name: 'Parent', middle_name: '', mobile: '09170000002',
+    educational_attainment: 'College', occupation: 'Teacher', company_name_and_address: 'School',
+  };
   const academic = { current_course: 'BSIT', current_year_level: '1', current_section: 'A', lrn: 'N/A' };
   for (const level of ['college', 'high_school', 'senior_high', 'elementary']) {
     for (const field of ['school', 'address', 'year_graduated']) academic[`${level}_${field}`] = 'N/A';
@@ -43,6 +53,35 @@ test('server accepts explicit N/A and rejects empty required family/address valu
   assert.doesNotThrow(() => context.validateApplicationSubmissionPayload(payload));
   payload.address.street = '';
   assert.throws(() => context.validateApplicationSubmissionPayload(payload), /Street/);
+});
+
+test('server accepts blank parent middle names and validates listed parent mobiles', () => {
+  const payload = completeForm();
+  assert.doesNotThrow(() => context.validateApplicationSubmissionPayload(payload));
+  assert.equal(payload.family.father.middle_name, '');
+  assert.equal(payload.family.mother.middle_name, '');
+
+  payload.family.father.mobile = '';
+  assert.throws(
+    () => context.validateApplicationSubmissionPayload(payload),
+    /father mobile number/
+  );
+  payload.family.father.mobile = '09170000001';
+  payload.family.mother.mobile = '0917';
+  assert.throws(
+    () => context.validateApplicationSubmissionPayload(payload),
+    /Mother mobile number must be a valid Philippine mobile number/
+  );
+});
+
+test('server exempts parents explicitly marked absent from mobile requirements', () => {
+  const payload = completeForm();
+  payload.family.father_present = false;
+  payload.family.father = {};
+  payload.family.mother_present = false;
+  payload.family.mother = {};
+  payload.family.guardian_only = true;
+  assert.doesNotThrow(() => context.validateApplicationSubmissionPayload(payload));
 });
 
 test('application civil statuses match the student profile database constraint', () => {

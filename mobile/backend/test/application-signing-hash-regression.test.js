@@ -49,6 +49,19 @@ test('a material application edit remains hash-distinct', () => {
     );
 });
 
+test('final certification acknowledgement does not invalidate signed form evidence', () => {
+    assert.equal(
+        hashApplicationForm({
+            personal: { first_name: 'Ada' },
+            certification: { certification_read: false, agree: false },
+        }),
+        hashApplicationForm({
+            personal: { first_name: 'Ada' },
+            certification: { certification_read: true, agree: true },
+        })
+    );
+});
+
 test('submission continues to send the canonical signing hash to the atomic RPC', () => {
     assert.match(source, /p_application_form_hash:\s*hashApplicationForm\(applicationForm\)/);
 });

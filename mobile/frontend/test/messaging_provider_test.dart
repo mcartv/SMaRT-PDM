@@ -101,7 +101,10 @@ class _FakeMessageService extends MessageService {
   }
 
   @override
-  Future<ChatMessage> sendThreadMessage(String messageBody) async {
+  Future<ChatMessage> sendThreadMessage(
+    String messageBody, {
+    String? replyToMessageId,
+  }) async {
     sendThreadMessageCalls += 1;
 
     return ChatMessage.fromJson({
@@ -118,7 +121,11 @@ class _FakeMessageService extends MessageService {
   }
 
   @override
-  Future<ChatMessage> sendRoomMessage(String roomId, String messageBody) async {
+  Future<ChatMessage> sendRoomMessage(
+    String roomId,
+    String messageBody, {
+    String? replyToMessageId,
+  }) async {
     sendRoomMessageCalls += 1;
 
     return ChatMessage.fromJson({

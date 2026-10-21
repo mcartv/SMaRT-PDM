@@ -904,7 +904,9 @@ class ApplicationData {
           'last_name': _title(fatherLastName),
           'first_name': _title(fatherFirstName),
           'middle_name': _title(fatherMiddleName),
-          'mobile': normalizeOptionalFamilyMobile(fatherMobile),
+          'mobile': fatherPresent && !guardianOnly
+              ? normalizeMobileNumber(fatherMobile)
+              : normalizeOptionalFamilyMobile(fatherMobile),
           'educational_attainment': fatherEducationalAttainment.trim(),
           'occupation': _title(fatherOccupation),
           'company_name_and_address': _title(fatherCompanyNameAndAddress),
@@ -913,7 +915,9 @@ class ApplicationData {
           'last_name': _title(motherLastName),
           'first_name': _title(motherFirstName),
           'middle_name': _title(motherMiddleName),
-          'mobile': normalizeOptionalFamilyMobile(motherMobile),
+          'mobile': motherPresent && !guardianOnly
+              ? normalizeMobileNumber(motherMobile)
+              : normalizeOptionalFamilyMobile(motherMobile),
           'educational_attainment': motherEducationalAttainment.trim(),
           'occupation': _title(motherOccupation),
           'company_name_and_address': _title(motherCompanyNameAndAddress),

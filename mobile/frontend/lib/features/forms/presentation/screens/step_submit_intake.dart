@@ -15,12 +15,17 @@ class StepSubmit extends StatefulWidget {
     required this.onChanged,
     required this.onEditStep,
     this.showErrors = false,
+    this.finalConfirmationOnly = false,
   });
 
   final ApplicationData data;
   final VoidCallback onChanged;
   final ValueChanged<int> onEditStep;
   final bool showErrors;
+
+  /// Shows only the certification gate after signing. The full application
+  /// review is deliberately a separate step before signatures are captured.
+  final bool finalConfirmationOnly;
 
   @override
   // createState: creates create state for the step submit intake flow.
@@ -231,9 +236,7 @@ class _StepSubmitState extends State<StepSubmit> {
                           Expanded(
                             child: Text(
                               title,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
+                              style: Theme.of(context).textTheme.titleMedium
                                   ?.copyWith(
                                     color: intakeTextColor(context),
                                     fontWeight: FontWeight.w900,
@@ -314,11 +317,17 @@ class _StepSubmitState extends State<StepSubmit> {
       IntakeReviewRow(label: 'Date of Birth', value: _clean(data.dateOfBirth)),
       IntakeReviewRow(label: 'Age', value: _clean(data.age)),
       IntakeReviewRow(label: 'Sex', value: _clean(data.sex)),
-      IntakeReviewRow(label: 'Place of Birth', value: _clean(data.placeOfBirth)),
+      IntakeReviewRow(
+        label: 'Place of Birth',
+        value: _clean(data.placeOfBirth),
+      ),
       IntakeReviewRow(label: 'Citizenship', value: _clean(data.citizenship)),
       IntakeReviewRow(label: 'Civil Status', value: _clean(data.civilStatus)),
       IntakeReviewRow(label: 'Religion', value: _clean(data.religion)),
-      IntakeReviewRow(label: 'Unit / Building No.', value: _clean(data.unitBldgNo)),
+      IntakeReviewRow(
+        label: 'Unit / Building No.',
+        value: _clean(data.unitBldgNo),
+      ),
       IntakeReviewRow(
         label: 'House / Lot / Block No.',
         value: _clean(data.houseLotBlockNo),
@@ -350,23 +359,35 @@ class _StepSubmitState extends State<StepSubmit> {
         label: 'Same Address as Applicant',
         value: _yesNo(data.sameAddressAsApplicant),
       ),
-      IntakeReviewRow(
-        label: 'Guardian Only',
-        value: _yesNo(data.guardianOnly),
-      ),
+      IntakeReviewRow(label: 'Guardian Only', value: _yesNo(data.guardianOnly)),
       IntakeReviewRow(
         label: 'Father Present / Listed',
         value: _yesNo(data.fatherPresent && !data.guardianOnly),
       ),
-      IntakeReviewRow(label: 'Father First Name', value: _clean(data.fatherFirstName)),
-      IntakeReviewRow(label: 'Father Middle Name', value: _clean(data.fatherMiddleName)),
-      IntakeReviewRow(label: 'Father Last Name', value: _clean(data.fatherLastName)),
-      IntakeReviewRow(label: 'Father Mobile Number', value: _clean(data.fatherMobile)),
+      IntakeReviewRow(
+        label: 'Father First Name',
+        value: _clean(data.fatherFirstName),
+      ),
+      IntakeReviewRow(
+        label: 'Father Middle Name',
+        value: _clean(data.fatherMiddleName),
+      ),
+      IntakeReviewRow(
+        label: 'Father Last Name',
+        value: _clean(data.fatherLastName),
+      ),
+      IntakeReviewRow(
+        label: 'Father Mobile Number',
+        value: _clean(data.fatherMobile),
+      ),
       IntakeReviewRow(
         label: 'Father Educational Attainment',
         value: _clean(data.fatherEducationalAttainment),
       ),
-      IntakeReviewRow(label: 'Father Occupation', value: _clean(data.fatherOccupation)),
+      IntakeReviewRow(
+        label: 'Father Occupation',
+        value: _clean(data.fatherOccupation),
+      ),
       IntakeReviewRow(
         label: 'Father Company Name / Address',
         value: _clean(data.fatherCompanyNameAndAddress),
@@ -375,41 +396,86 @@ class _StepSubmitState extends State<StepSubmit> {
         label: 'Mother Present / Listed',
         value: _yesNo(data.motherPresent && !data.guardianOnly),
       ),
-      IntakeReviewRow(label: 'Mother First Name', value: _clean(data.motherFirstName)),
-      IntakeReviewRow(label: 'Mother Middle Name', value: _clean(data.motherMiddleName)),
-      IntakeReviewRow(label: 'Mother Last Name', value: _clean(data.motherLastName)),
-      IntakeReviewRow(label: 'Mother Mobile Number', value: _clean(data.motherMobile)),
+      IntakeReviewRow(
+        label: 'Mother First Name',
+        value: _clean(data.motherFirstName),
+      ),
+      IntakeReviewRow(
+        label: 'Mother Middle Name',
+        value: _clean(data.motherMiddleName),
+      ),
+      IntakeReviewRow(
+        label: 'Mother Last Name',
+        value: _clean(data.motherLastName),
+      ),
+      IntakeReviewRow(
+        label: 'Mother Mobile Number',
+        value: _clean(data.motherMobile),
+      ),
       IntakeReviewRow(
         label: 'Mother Educational Attainment',
         value: _clean(data.motherEducationalAttainment),
       ),
-      IntakeReviewRow(label: 'Mother Occupation', value: _clean(data.motherOccupation)),
+      IntakeReviewRow(
+        label: 'Mother Occupation',
+        value: _clean(data.motherOccupation),
+      ),
       IntakeReviewRow(
         label: 'Mother Company Name / Address',
         value: _clean(data.motherCompanyNameAndAddress),
       ),
-      IntakeReviewRow(label: 'Sibling First Name', value: _clean(data.siblingFirstName)),
-      IntakeReviewRow(label: 'Sibling Middle Name', value: _clean(data.siblingMiddleName)),
-      IntakeReviewRow(label: 'Sibling Last Name', value: _clean(data.siblingLastName)),
-      IntakeReviewRow(label: 'Sibling Mobile Number', value: _clean(data.siblingMobile)),
+      IntakeReviewRow(
+        label: 'Sibling First Name',
+        value: _clean(data.siblingFirstName),
+      ),
+      IntakeReviewRow(
+        label: 'Sibling Middle Name',
+        value: _clean(data.siblingMiddleName),
+      ),
+      IntakeReviewRow(
+        label: 'Sibling Last Name',
+        value: _clean(data.siblingLastName),
+      ),
+      IntakeReviewRow(
+        label: 'Sibling Mobile Number',
+        value: _clean(data.siblingMobile),
+      ),
       IntakeReviewRow(
         label: 'Sibling Educational Attainment',
         value: _clean(data.siblingEducationalAttainment),
       ),
-      IntakeReviewRow(label: 'Sibling Occupation', value: _clean(data.siblingOccupation)),
+      IntakeReviewRow(
+        label: 'Sibling Occupation',
+        value: _clean(data.siblingOccupation),
+      ),
       IntakeReviewRow(
         label: 'Sibling Company Name / Address',
         value: _clean(data.siblingCompanyNameAndAddress),
       ),
-      IntakeReviewRow(label: 'Guardian First Name', value: _clean(data.guardianFirstName)),
-      IntakeReviewRow(label: 'Guardian Middle Name', value: _clean(data.guardianMiddleName)),
-      IntakeReviewRow(label: 'Guardian Last Name', value: _clean(data.guardianLastName)),
-      IntakeReviewRow(label: 'Guardian Mobile Number', value: _clean(data.guardianMobile)),
+      IntakeReviewRow(
+        label: 'Guardian First Name',
+        value: _clean(data.guardianFirstName),
+      ),
+      IntakeReviewRow(
+        label: 'Guardian Middle Name',
+        value: _clean(data.guardianMiddleName),
+      ),
+      IntakeReviewRow(
+        label: 'Guardian Last Name',
+        value: _clean(data.guardianLastName),
+      ),
+      IntakeReviewRow(
+        label: 'Guardian Mobile Number',
+        value: _clean(data.guardianMobile),
+      ),
       IntakeReviewRow(
         label: 'Guardian Educational Attainment',
         value: _clean(data.guardianEducationalAttainment),
       ),
-      IntakeReviewRow(label: 'Guardian Occupation', value: _clean(data.guardianOccupation)),
+      IntakeReviewRow(
+        label: 'Guardian Occupation',
+        value: _clean(data.guardianOccupation),
+      ),
       IntakeReviewRow(
         label: 'Guardian Company Name / Address',
         value: _clean(data.guardianCompanyNameAndAddress),
@@ -437,49 +503,130 @@ class _StepSubmitState extends State<StepSubmit> {
   List<Widget> _academicRows() {
     final data = widget.data;
     return [
-      IntakeReviewRow(label: 'College / Current School', value: _clean(data.collegeSchool)),
-      IntakeReviewRow(label: 'College Address', value: _clean(data.collegeAddress)),
-      IntakeReviewRow(label: 'College Honors / Awards', value: _clean(data.collegeHonors)),
-      IntakeReviewRow(label: 'College Club / Organization', value: _clean(data.collegeClub)),
-      IntakeReviewRow(label: 'College Year / Status', value: _clean(data.collegeYearGraduated)),
-      IntakeReviewRow(label: 'Junior High School', value: _clean(data.highSchoolSchool)),
-      IntakeReviewRow(label: 'Junior High Address', value: _clean(data.highSchoolAddress)),
-      IntakeReviewRow(label: 'Junior High Honors / Awards', value: _clean(data.highSchoolHonors)),
-      IntakeReviewRow(label: 'Junior High Club / Organization', value: _clean(data.highSchoolClub)),
-      IntakeReviewRow(label: 'Junior High Year Graduated', value: _clean(data.highSchoolYearGraduated)),
-      IntakeReviewRow(label: 'Senior High School', value: _clean(data.seniorHighSchool)),
-      IntakeReviewRow(label: 'Senior High Address', value: _clean(data.seniorHighAddress)),
-      IntakeReviewRow(label: 'Senior High Honors / Awards', value: _clean(data.seniorHighHonors)),
-      IntakeReviewRow(label: 'Senior High Club / Organization', value: _clean(data.seniorHighClub)),
-      IntakeReviewRow(label: 'Senior High Year Graduated', value: _clean(data.seniorHighYearGraduated)),
-      IntakeReviewRow(label: 'Elementary School', value: _clean(data.elementarySchool)),
-      IntakeReviewRow(label: 'Elementary Address', value: _clean(data.elementaryAddress)),
-      IntakeReviewRow(label: 'Elementary Honors / Awards', value: _clean(data.elementaryHonors)),
-      IntakeReviewRow(label: 'Elementary Club / Organization', value: _clean(data.elementaryClub)),
-      IntakeReviewRow(label: 'Elementary Year Graduated', value: _clean(data.elementaryYearGraduated)),
+      IntakeReviewRow(
+        label: 'College / Current School',
+        value: _clean(data.collegeSchool),
+      ),
+      IntakeReviewRow(
+        label: 'College Address',
+        value: _clean(data.collegeAddress),
+      ),
+      IntakeReviewRow(
+        label: 'College Honors / Awards',
+        value: _clean(data.collegeHonors),
+      ),
+      IntakeReviewRow(
+        label: 'College Club / Organization',
+        value: _clean(data.collegeClub),
+      ),
+      IntakeReviewRow(
+        label: 'College Year / Status',
+        value: _clean(data.collegeYearGraduated),
+      ),
+      IntakeReviewRow(
+        label: 'Junior High School',
+        value: _clean(data.highSchoolSchool),
+      ),
+      IntakeReviewRow(
+        label: 'Junior High Address',
+        value: _clean(data.highSchoolAddress),
+      ),
+      IntakeReviewRow(
+        label: 'Junior High Honors / Awards',
+        value: _clean(data.highSchoolHonors),
+      ),
+      IntakeReviewRow(
+        label: 'Junior High Club / Organization',
+        value: _clean(data.highSchoolClub),
+      ),
+      IntakeReviewRow(
+        label: 'Junior High Year Graduated',
+        value: _clean(data.highSchoolYearGraduated),
+      ),
+      IntakeReviewRow(
+        label: 'Senior High School',
+        value: _clean(data.seniorHighSchool),
+      ),
+      IntakeReviewRow(
+        label: 'Senior High Address',
+        value: _clean(data.seniorHighAddress),
+      ),
+      IntakeReviewRow(
+        label: 'Senior High Honors / Awards',
+        value: _clean(data.seniorHighHonors),
+      ),
+      IntakeReviewRow(
+        label: 'Senior High Club / Organization',
+        value: _clean(data.seniorHighClub),
+      ),
+      IntakeReviewRow(
+        label: 'Senior High Year Graduated',
+        value: _clean(data.seniorHighYearGraduated),
+      ),
+      IntakeReviewRow(
+        label: 'Elementary School',
+        value: _clean(data.elementarySchool),
+      ),
+      IntakeReviewRow(
+        label: 'Elementary Address',
+        value: _clean(data.elementaryAddress),
+      ),
+      IntakeReviewRow(
+        label: 'Elementary Honors / Awards',
+        value: _clean(data.elementaryHonors),
+      ),
+      IntakeReviewRow(
+        label: 'Elementary Club / Organization',
+        value: _clean(data.elementaryClub),
+      ),
+      IntakeReviewRow(
+        label: 'Elementary Year Graduated',
+        value: _clean(data.elementaryYearGraduated),
+      ),
       IntakeReviewRow(label: 'Course', value: _clean(data.currentCourse)),
-      IntakeReviewRow(label: 'Year Level', value: _clean(data.currentYearLevel)),
+      IntakeReviewRow(
+        label: 'Year Level',
+        value: _clean(data.currentYearLevel),
+      ),
       IntakeReviewRow(label: 'Section', value: _clean(data.currentSection)),
-      IntakeReviewRow(label: 'Student Number', value: _clean(data.studentNumber)),
+      IntakeReviewRow(
+        label: 'Student Number',
+        value: _clean(data.studentNumber),
+      ),
       IntakeReviewRow(
         label: 'Learner Reference Number (LRN)',
         value: _clean(data.learnersReferenceNumber),
       ),
       IntakeReviewRow(label: 'GWA', value: _clean(data.gwa)),
-      IntakeReviewRow(label: 'Financial Support', value: _clean(data.financialSupport)),
+      IntakeReviewRow(
+        label: 'Financial Support',
+        value: _clean(data.financialSupport),
+      ),
       IntakeReviewRow(
         label: 'Other Financial Support',
         value: _clean(data.financialSupportOtherSpecify),
       ),
       IntakeReviewRow(
         label: 'Previous Scholarship',
-        value: _answerLabel(data.scholarshipHistoryAnswered, data.scholarshipHistory),
+        value: _answerLabel(
+          data.scholarshipHistoryAnswered,
+          data.scholarshipHistory,
+        ),
       ),
-      IntakeReviewRow(label: 'Scholarship Level(s)', value: _scholarshipLevels()),
-      IntakeReviewRow(label: 'Scholarship Details', value: _clean(data.scholarshipDetails)),
+      IntakeReviewRow(
+        label: 'Scholarship Level(s)',
+        value: _scholarshipLevels(),
+      ),
+      IntakeReviewRow(
+        label: 'Scholarship Details',
+        value: _clean(data.scholarshipDetails),
+      ),
       IntakeReviewRow(
         label: 'Disciplinary Action',
-        value: _answerLabel(data.disciplinaryActionAnswered, data.disciplinaryAction),
+        value: _answerLabel(
+          data.disciplinaryActionAnswered,
+          data.disciplinaryAction,
+        ),
       ),
       IntakeReviewRow(
         label: 'Disciplinary Explanation',
@@ -567,7 +714,8 @@ class _StepSubmitState extends State<StepSubmit> {
             ),
             controlAffinity: ListTileControlAffinity.leading,
           ),
-          if (widget.showErrors && !consentAccepted)
+          if ((widget.showErrors || widget.finalConfirmationOnly) &&
+              !consentAccepted)
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
               child: Text(
@@ -616,9 +764,15 @@ class _StepSubmitState extends State<StepSubmit> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const IntakeSectionHeader(title: 'V. REVIEW & SUBMIT'),
+        IntakeSectionHeader(
+          title: widget.finalConfirmationOnly
+              ? 'VII. FINAL SUBMISSION'
+              : 'V. REVIEW APPLICATION',
+        ),
         Text(
-          'Open each section and check every detail you entered before submitting.',
+          widget.finalConfirmationOnly
+              ? 'Confirm the certification statement to enable final submission.'
+              : 'Open each section and check every detail before signing.',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: intakeSubtextColor(context),
             fontWeight: FontWeight.w600,
@@ -626,37 +780,40 @@ class _StepSubmitState extends State<StepSubmit> {
           ),
         ),
         const SizedBox(height: 16),
-        _warningBox(),
-        if (widget.showErrors) const SizedBox(height: 18),
-        _reviewSection(
-          sectionKey: 'personal',
-          title: 'Personal Information',
-          icon: Icons.person_outline_rounded,
-          editStep: 0,
-          rows: _personalRows(),
-        ),
-        _reviewSection(
-          sectionKey: 'family',
-          title: 'Family Information',
-          icon: Icons.family_restroom_outlined,
-          editStep: 1,
-          rows: _familyRows(),
-        ),
-        _reviewSection(
-          sectionKey: 'academic',
-          title: 'Academic Information',
-          icon: Icons.school_outlined,
-          editStep: 2,
-          rows: _academicRows(),
-        ),
-        _reviewSection(
-          sectionKey: 'statement',
-          title: 'Personal Statement',
-          icon: Icons.edit_note_outlined,
-          editStep: 3,
-          rows: _statementRows(),
-        ),
-        _confirmationArea(),
+        if (widget.finalConfirmationOnly) ...[
+          _confirmationArea(),
+        ] else ...[
+          _warningBox(),
+          if (widget.showErrors) const SizedBox(height: 18),
+          _reviewSection(
+            sectionKey: 'personal',
+            title: 'Personal Information',
+            icon: Icons.person_outline_rounded,
+            editStep: 0,
+            rows: _personalRows(),
+          ),
+          _reviewSection(
+            sectionKey: 'family',
+            title: 'Family Information',
+            icon: Icons.family_restroom_outlined,
+            editStep: 1,
+            rows: _familyRows(),
+          ),
+          _reviewSection(
+            sectionKey: 'academic',
+            title: 'Academic Information',
+            icon: Icons.school_outlined,
+            editStep: 2,
+            rows: _academicRows(),
+          ),
+          _reviewSection(
+            sectionKey: 'statement',
+            title: 'Personal Statement',
+            icon: Icons.edit_note_outlined,
+            editStep: 3,
+            rows: _statementRows(),
+          ),
+        ],
       ],
     );
   }

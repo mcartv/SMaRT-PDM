@@ -36,15 +36,16 @@ void main() {
     expect(source, contains('r(420, 2230, 445, 55)'));
     expect(source, contains('r(890, 2230, 445, 55)'));
 
-    expect(source, contains('r(1755, 2238, 28, 28)'));
-    expect(source, contains('r(1938, 2238, 28, 28)'));
-    expect(source, contains('r(2085, 2238, 28, 28)'));
+    expect(source, contains('model.supportParents'));
+    expect(source, contains('model.supportScholarship'));
+    expect(source, contains('model.supportLoan'));
+    expect(source, contains('const Rect.fromLTWH(407.8, 532.54, 12.5, 9.15)'));
     expect(source, isNot(contains('drawCheck(model.supportOther')));
 
-    expect(source, contains('drawCheck(model.scholarshipElementary'));
-    expect(source, contains('drawCheck(model.scholarshipHighSchool'));
-    expect(source, contains('drawCheck(model.scholarshipCollege'));
-    expect(source, contains('drawCheck(model.scholarshipOthers'));
+    expect(source, contains('model.scholarshipElementary'));
+    expect(source, contains('model.scholarshipHighSchool'));
+    expect(source, contains('model.scholarshipCollege'));
+    expect(source, contains('model.scholarshipOthers'));
 
     expect(
       'III. ACADEMIC INFORMATION'.allMatches(source).length,

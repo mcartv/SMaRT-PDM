@@ -728,22 +728,24 @@ class _StepFamilyState extends State<StepFamily> {
   String? _familyMobileError(String value, {bool required = false}) {
     if (!widget.showErrors) return null;
     final normalized = value.trim();
-    if (normalized.toUpperCase() == 'N/A') return null;
+    if (!required && normalized.toUpperCase() == 'N/A') return null;
     if (!required && normalized.isEmpty) return null;
-    return AppFieldValidators.philippineMobile(
-      value,
-      required: required,
-    );
+    return AppFieldValidators.philippineMobile(value, required: required);
   }
 
   // _familyNameError: handles family name error for the step family intake flow.
-  String? _familyNameError(String value, String label, {int minLength = 2}) {
+  String? _familyNameError(
+    String value,
+    String label, {
+    int minLength = 2,
+    bool required = true,
+  }) {
     if (!widget.showErrors) return null;
     if (value.trim().toUpperCase() == 'N/A') return null;
     return AppFieldValidators.name(
       value,
       label: label,
-      required: true,
+      required: required,
       minLength: minLength,
       maxLength: ApplicationFieldLimits.name,
     );
@@ -765,6 +767,7 @@ class _StepFamilyState extends State<StepFamily> {
     required TextEditingController companyController,
     required String? selectedEducation,
     required ValueChanged<String> onEducationChanged,
+    bool mobileRequired = false,
     Widget? helperActions,
   }) {
     return IntakeCard(
@@ -858,11 +861,12 @@ class _StepFamilyState extends State<StepFamily> {
                     middleNameController.text,
                     'Middle name',
                     minLength: 1,
+                    required: false,
                   ),
                   suffixIcon: intakeCompletionIcon(middleNameController.text),
                 ),
               ),
-              required: true,
+              required: false,
             ),
             _field(
               'Mobile Number',
@@ -874,7 +878,10 @@ class _StepFamilyState extends State<StepFamily> {
                 decoration: _dec(
                   '09171234567',
                   errorText: widget.showErrors
-                      ? _familyMobileError(mobileController.text)
+                      ? _familyMobileError(
+                          mobileController.text,
+                          required: mobileRequired,
+                        )
                       : null,
                   suffixIcon: intakeCompletionIcon(
                     _isValidFamilyMobile(mobileController.text)
@@ -883,7 +890,7 @@ class _StepFamilyState extends State<StepFamily> {
                   ),
                 ),
               ),
-              required: false,
+              required: mobileRequired,
             ),
           ]),
           const SizedBox(height: 16),
@@ -1135,7 +1142,7 @@ class _StepFamilyState extends State<StepFamily> {
                     const SizedBox(width: 9),
                     Expanded(
                       child: Text(
-                        'Provide at least one parent or guardian mobile number. The other parent or guardian mobile fields may be left blank.',
+                        'A valid mobile number is required for each listed parent. Parents marked absent do not require one.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: intakeSubtextColor(context),
                           height: 1.4,
@@ -1158,6 +1165,7 @@ class _StepFamilyState extends State<StepFamily> {
           occupationController: fatherOccupationController,
           companyController: fatherCompanyController,
           selectedEducation: selectedFatherEducation,
+          mobileRequired: hasFather && !guardianOnly,
           onEducationChanged: (value) {
             setState(() => selectedFatherEducation = value);
             widget.data.fatherEducationalAttainment = value;
@@ -1173,6 +1181,7 @@ class _StepFamilyState extends State<StepFamily> {
           occupationController: motherOccupationController,
           companyController: motherCompanyController,
           selectedEducation: selectedMotherEducation,
+          mobileRequired: hasMother && !guardianOnly,
           onEducationChanged: (value) {
             setState(() => selectedMotherEducation = value);
             widget.data.motherEducationalAttainment = value;

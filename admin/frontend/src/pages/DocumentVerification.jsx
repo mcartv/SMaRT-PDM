@@ -1432,6 +1432,17 @@ function DocumentPreviewPanel({ activeDoc, application }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {previewUrl && isImage ? (
+            <a
+              href={previewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-stone-700 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-base)]"
+              aria-label={`Open larger preview of ${activeDoc?.name || 'document'}`}
+            >
+              Enlarge
+            </a>
+          ) : null}
           {usingOriginalFallback ? <Badge className="border-amber-200 bg-amber-50 text-amber-700">Original fallback</Badge> : null}
           <Badge className={activeDoc?.file_path || activeDoc?.id === 'application_form' ? 'border-green-200 bg-green-50 text-green-700' : 'border-stone-200 bg-stone-100 text-stone-500'}>
             {activeDoc?.file_path || activeDoc?.id === 'application_form' ? 'Available' : 'Missing'}
@@ -1466,6 +1477,39 @@ function DocumentPreviewPanel({ activeDoc, application }) {
     </section>
   );
 }
+const GUARDIAN_EVIDENCE_DOCUMENT_IDS = new Set(['guardian_signature', 'guardian_id']);
+
+// GuardianEvidenceComparison: keeps the finalized guardian signature and ID
+// in the same application-scoped review context. Each preview obtains its own
+// authorized, short-lived URL through DocumentPreviewPanel.
+function GuardianEvidenceComparison({ documents, application }) {
+  const guardianSignature = documents.find((document) => document.id === 'guardian_signature') || {
+    id: 'guardian_signature',
+    name: 'Parent / Guardian Signature',
+    required: false,
+  };
+  const guardianId = documents.find((document) => document.id === 'guardian_id') || {
+    id: 'guardian_id',
+    name: 'Parent / Guardian Valid ID',
+    required: false,
+  };
+
+  return (
+    <section aria-label="Guardian signature and valid ID comparison" className="space-y-3">
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <p className="font-semibold">Guardian signature comparison</p>
+        <p className="mt-1 text-xs leading-relaxed text-amber-800">
+          Compare manually only. This view supports review and does not establish identity automatically.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
+        <DocumentPreviewPanel activeDoc={guardianSignature} application={application} />
+        <DocumentPreviewPanel activeDoc={guardianId} application={application} />
+      </div>
+    </section>
+  );
+}
+
 const GRADE_REVIEW_FIELDS = [
   ['student_number', 'Student Number'],
 ];
@@ -5757,6 +5801,8 @@ export default function DocumentVerification() {
             <div className="bg-stone-50/30 p-3 sm:p-4">
               {!activeDoc ? (
                 <p className="text-[15px] text-stone-400">No document selected.</p>
+              ) : GUARDIAN_EVIDENCE_DOCUMENT_IDS.has(activeDoc.id) ? (
+                <GuardianEvidenceComparison documents={docs} application={application} />
               ) : !activeDocumentSupportsOcr ? (
                 <DocumentPreviewPanel activeDoc={activeDoc} application={application} />
               ) : viewMode === 'preview' ? (

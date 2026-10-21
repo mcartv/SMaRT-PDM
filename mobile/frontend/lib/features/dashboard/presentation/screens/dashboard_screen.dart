@@ -17,6 +17,8 @@ import 'package:smartpdm_mobileapp/features/applicant/data/services/program_open
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/office_update_article_screen.dart';
 import 'package:smartpdm_mobileapp/features/dashboard/presentation/controllers/applicant_home_controller.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
+import 'package:smartpdm_mobileapp/features/forms/data/services/printable_application_service.dart';
+import 'package:smartpdm_mobileapp/features/forms/presentation/utils/signed_application_pdf_export.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
@@ -125,11 +127,17 @@ class DashboardContent extends StatelessWidget {
     this.applicantHomeController,
     this.sessionService = const SessionService(),
     this.scholarAccessResolver,
+    this.applicationService,
+    this.printableApplicationService,
+    this.signedApplicationPdfSaver,
   });
 
   final ApplicantHomeController? applicantHomeController;
   final SessionService sessionService;
   final DashboardScholarAccessResolver? scholarAccessResolver;
+  final ApplicationService? applicationService;
+  final PrintableApplicationService? printableApplicationService;
+  final SignedApplicationPdfSaver? signedApplicationPdfSaver;
 
   @override
   // build: builds build for the Dashboard flow.
@@ -137,6 +145,9 @@ class DashboardContent extends StatelessWidget {
     return _UnifiedDashboardContent(
       sessionService: sessionService,
       scholarAccessResolver: scholarAccessResolver,
+      applicationService: applicationService,
+      printableApplicationService: printableApplicationService,
+      signedApplicationPdfSaver: signedApplicationPdfSaver,
     );
   }
 }
@@ -145,10 +156,16 @@ class _UnifiedDashboardContent extends StatefulWidget {
   const _UnifiedDashboardContent({
     required this.sessionService,
     this.scholarAccessResolver,
+    this.applicationService,
+    this.printableApplicationService,
+    this.signedApplicationPdfSaver,
   });
 
   final SessionService sessionService;
   final DashboardScholarAccessResolver? scholarAccessResolver;
+  final ApplicationService? applicationService;
+  final PrintableApplicationService? printableApplicationService;
+  final SignedApplicationPdfSaver? signedApplicationPdfSaver;
 
   @override
   // createState: creates create state for the Dashboard flow.
@@ -161,7 +178,8 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
       ApplicantDocumentsService();
   final AnnouncementService _announcementService = AnnouncementService();
   final ProgramOpeningService _openingService = ProgramOpeningService();
-  final ApplicationService _applicationService = ApplicationService();
+  late final ApplicationService _applicationService;
+  late final PrintableApplicationService _printableApplicationService;
   final ProfileService _profileService = ProfileService();
 
   NotificationProvider? _notificationProvider;
@@ -176,6 +194,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   bool _isLoadingRequirements = true;
   bool _isLoadingAnnouncements = true;
   bool _isLoadingOpenings = true;
+  bool _isGeneratingSignedApplicationPdf = false;
   Timer? _openingReconciliationTimer;
   bool _openingRefreshInProgress = false;
 
@@ -207,10 +226,6 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
       ? AppColors.applicantDarkBackground
       : AppColors.applicantLightBackground;
 
-  Color get _surface => _isDark
-      ? AppColors.applicantDarkSurface
-      : AppColors.applicantLightSurface;
-
   Color get _primaryText =>
       _isDark ? AppColors.applicantDarkText : AppColors.applicantLightText;
 
@@ -220,6 +235,12 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
 
   bool get _scholarPrivilegeRemoved =>
       _statusSummary?.scholarPrivilegeRemoved == true;
+
+  bool get _canDownloadSignedApplicationForm {
+    final summary = _statusSummary;
+    return summary?.hasApplication == true &&
+        (summary?.applicationId?.trim().isNotEmpty ?? false);
+  }
 
   bool get _hasScholarAccess {
     if (_scholarPrivilegeRemoved) return false;
@@ -239,6 +260,9 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   // initState: handles init state for the Dashboard flow.
   void initState() {
     super.initState();
+    _applicationService = widget.applicationService ?? ApplicationService();
+    _printableApplicationService =
+        widget.printableApplicationService ?? PrintableApplicationService();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       await _loadDashboardData(refreshNotifications: false);
@@ -518,6 +542,36 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
         _statusError = error.toString().replaceFirst('Exception: ', '').trim();
         _isLoadingStatus = false;
       });
+    }
+  }
+
+  Future<void> _downloadSignedApplicationForm() async {
+    if (_isGeneratingSignedApplicationPdf ||
+        !_canDownloadSignedApplicationForm) {
+      return;
+    }
+
+    setState(() => _isGeneratingSignedApplicationPdf = true);
+    try {
+      final message = await downloadVerifiedSignedApplicationPdf(
+        _printableApplicationService,
+        saveFile: widget.signedApplicationPdfSaver,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Unable to download the signed application form. Please try again. $error',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isGeneratingSignedApplicationPdf = false);
     }
   }
 
@@ -1042,6 +1096,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
 
         // tile: handles tile for the Dashboard flow.
         Widget tile({
+          Key? key,
           required double width,
           required int order,
           required IconData icon,
@@ -1052,12 +1107,14 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
           String? badge,
           bool wide = false,
           bool emphasized = false,
+          bool isLoading = false,
         }) {
           return SizedBox(
             width: width,
             child: AppMotionReveal(
               delay: Duration(milliseconds: 45 * order),
               child: _DashboardBentoTile(
+                key: key,
                 icon: icon,
                 label: label,
                 value: value,
@@ -1067,6 +1124,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                 onTap: onTap,
                 wide: wide,
                 emphasized: emphasized,
+                isLoading: isLoading,
               ),
             ),
           );
@@ -1199,6 +1257,25 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
               onTap: () => Navigator.pushNamed(context, AppRoutes.documents),
               wide: true,
             ),
+            if (_canDownloadSignedApplicationForm)
+              tile(
+                key: const ValueKey<String>('download-signed-application-form'),
+                width: constraints.maxWidth,
+                order: 3,
+                icon: Icons.file_download_outlined,
+                label: 'Official Form-02',
+                value: _isGeneratingSignedApplicationPdf
+                    ? 'Preparing signed form...'
+                    : 'Download Signed Application Form',
+                detail:
+                    'Download the finalized Form-02 with your verified signatures, ready for printing.',
+                onTap: _isGeneratingSignedApplicationPdf
+                    ? null
+                    : _downloadSignedApplicationForm,
+                wide: true,
+                emphasized: true,
+                isLoading: _isGeneratingSignedApplicationPdf,
+              ),
           ]);
         }
 
@@ -1377,6 +1454,7 @@ class _DashboardSectionHeading extends StatelessWidget {
 
 class _DashboardBentoTile extends StatelessWidget {
   const _DashboardBentoTile({
+    super.key,
     required this.icon,
     required this.label,
     required this.value,
@@ -1386,6 +1464,7 @@ class _DashboardBentoTile extends StatelessWidget {
     this.onTap,
     this.wide = false,
     this.emphasized = false,
+    this.isLoading = false,
   });
 
   final IconData icon;
@@ -1397,6 +1476,7 @@ class _DashboardBentoTile extends StatelessWidget {
   final VoidCallback? onTap;
   final bool wide;
   final bool emphasized;
+  final bool isLoading;
 
   @override
   // build: builds build for the Dashboard flow.
@@ -1475,6 +1555,12 @@ class _DashboardBentoTile extends StatelessWidget {
                       letterSpacing: 0.4,
                     ),
                   ),
+                )
+              else if (isLoading)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 )
               else if (onTap != null)
                 Icon(
@@ -1961,19 +2047,16 @@ class _SurfaceCard extends StatelessWidget {
   const _SurfaceCard({
     required this.isDark,
     required this.child,
-    this.padding = const EdgeInsets.all(16),
   });
 
   final bool isDark;
   final Widget child;
-  final EdgeInsetsGeometry padding;
-
   @override
   // build: builds build for the Dashboard flow.
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: padding,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF2A1D13) : AppColors.white,
         borderRadius: BorderRadius.circular(20),

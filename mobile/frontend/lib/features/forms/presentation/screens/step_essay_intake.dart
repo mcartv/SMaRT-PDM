@@ -120,6 +120,7 @@ class _StepEssayState extends State<StepEssay> {
             controller: controller,
             minLines: 8,
             maxLines: 14,
+            textInputAction: TextInputAction.newline,
             maxLength: ApplicationFieldLimits.essay,
             maxLengthEnforcement: MaxLengthEnforcement.enforced,
             textCapitalization: TextCapitalization.sentences,

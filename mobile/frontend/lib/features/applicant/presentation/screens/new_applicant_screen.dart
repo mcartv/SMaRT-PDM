@@ -57,7 +57,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   // Each step therefore needs its own stable key; reusing one GlobalKey here
   // caused the signing step's duplicate-GlobalKey runtime exception.
   final List<GlobalKey> _stepContentKeys = List<GlobalKey>.generate(
-    6,
+    7,
     (_) => GlobalKey(),
   );
   bool _isBootstrapping = true;
@@ -76,6 +76,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     'Family',
     'Academic',
     'Essay',
+    'Review',
     'Signing',
     'Submit',
   ];
@@ -345,7 +346,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       case ApplicationSubmissionSection.essay:
         return 3;
       case ApplicationSubmissionSection.certification:
-        return 5;
+        return 6;
     }
   }
 
@@ -389,80 +390,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     }
   }
 
-  static const String _parentGuardianMobileRequiredMessage =
-      'Provide at least one parent or guardian mobile number.';
-
-  // _hasUsableParentGuardianMobile: handles has usable parent guardian mobile for the new applicant screen flow.
-  bool _hasUsableParentGuardianMobile() {
-    return <String>[
-      _data.fatherMobile,
-      _data.motherMobile,
-      _data.guardianMobile,
-    ].any((value) {
-      final normalized = value.trim();
-      return normalized.isNotEmpty && normalized.toUpperCase() != 'N/A';
-    });
-  }
-
-  // _parentGuardianMobileSnapshot: handles parent guardian mobile snapshot for the new applicant screen flow.
-  List<String> _parentGuardianMobileSnapshot() => <String>[
-    _data.fatherMobile,
-    _data.motherMobile,
-    _data.guardianMobile,
-  ];
-
-  // _fillBlankParentGuardianMobilesWithNA: handles fill blank parent guardian mobiles with na for the new applicant screen flow.
-  void _fillBlankParentGuardianMobilesWithNA() {
-    if (_data.fatherMobile.trim().isEmpty) _data.fatherMobile = 'N/A';
-    if (_data.motherMobile.trim().isEmpty) _data.motherMobile = 'N/A';
-    if (_data.guardianMobile.trim().isEmpty) _data.guardianMobile = 'N/A';
-  }
-
-  // _restoreParentGuardianMobiles: handles restore parent guardian mobiles for the new applicant screen flow.
-  void _restoreParentGuardianMobiles(List<String> snapshot) {
-    _data.fatherMobile = snapshot[0];
-    _data.motherMobile = snapshot[1];
-    _data.guardianMobile = snapshot[2];
-  }
-
-  // _validateFamilyWithOptionalMobiles: handles validate family with optional mobiles for the new applicant screen flow.
-  String? _validateFamilyWithOptionalMobiles() {
-    if (!_hasUsableParentGuardianMobile()) {
-      return _parentGuardianMobileRequiredMessage;
-    }
-
-    final snapshot = _parentGuardianMobileSnapshot();
-    _fillBlankParentGuardianMobilesWithNA();
-    try {
-      return _submissionValidator.validateFamilyProgression(_data).firstMessage;
-    } finally {
-      _restoreParentGuardianMobiles(snapshot);
-    }
-  }
-
-  ApplicationSubmissionValidationResult
-  _validateSubmissionWithOptionalFamilyMobiles() {
-    if (!_hasUsableParentGuardianMobile()) {
-      return const ApplicationSubmissionValidationResult([
-        ApplicationSubmissionIssue(
-          code: 'family.mobile.contact.required',
-          section: ApplicationSubmissionSection.family,
-          field: 'familyMobileContact',
-          message: _parentGuardianMobileRequiredMessage,
-          repairAction: 'Enter one valid parent or guardian mobile number.',
-        ),
-      ]);
-    }
-
-    final snapshot = _parentGuardianMobileSnapshot();
-    _fillBlankParentGuardianMobilesWithNA();
-    try {
-      return _submissionValidator.validateSubmissionPreflight(_data);
-    } finally {
-      _restoreParentGuardianMobiles(snapshot);
-    }
-  }
-
   // _next: handles next for the new applicant screen flow.
   void _next() {
     final validationError = _validateCurrentForm();
@@ -489,7 +416,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       return;
     }
 
-    if (_step < 5) {
+    if (_step < 6) {
       setState(() {
         _step++;
         _showValidationErrors = false;
@@ -763,7 +690,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     final signingError = _signingState.validationMessage;
     if (signingError != null) {
       setState(() {
-        _step = 4;
+        _step = 5;
         _showValidationErrors = true;
         _formFeedbackError = signingError;
       });
@@ -771,7 +698,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       return;
     }
 
-    final validationResult = _validateSubmissionWithOptionalFamilyMobiles();
+    final validationResult = _submissionValidator.validateSubmissionPreflight(
+      _data,
+    );
     if (!validationResult.isValid) {
       final firstIssue = validationResult.issues.first;
       setState(() {
@@ -854,12 +783,12 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       if (normalizedError.contains('signatures must be reconfirmed') ||
           normalizedError.contains('application form changed')) {
         _signingState.markFormHashMismatch();
-        _step = 4;
+        _step = 5;
         _showValidationErrors = true;
       } else if (normalizedError.contains('signing session') &&
           normalizedError.contains('expired')) {
         _signingState.markExpired();
-        _step = 4;
+        _step = 5;
         _showValidationErrors = true;
       }
       _formFeedbackError = submissionError;
@@ -874,7 +803,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             .validatePersonalProgression(_data)
             .firstMessage;
       case 1:
-        return _validateFamilyWithOptionalMobiles();
+        return _submissionValidator
+            .validateFamilyProgression(_data)
+            .firstMessage;
       case 2:
         return _submissionValidator
             .validateAcademicProgression(_data)
@@ -884,9 +815,13 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             .validateEssayProgression(_data)
             .firstMessage;
       case 4:
-        return _signingState.validationMessage;
+        return _submissionValidator.validateReviewReadiness(_data).firstMessage;
       case 5:
-        return _validateSubmissionWithOptionalFamilyMobiles().firstMessage;
+        return _signingState.validationMessage;
+      case 6:
+        return _submissionValidator
+            .validateSubmissionPreflight(_data)
+            .firstMessage;
       default:
         return null;
     }
@@ -894,6 +829,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
 
   // _handleFormChanged: handles handle form changed for the new applicant screen flow.
   void _handleFormChanged() {
+    _signingState.invalidateIfFormChanged(_data.toSubmissionPayload());
     final validationError = _showValidationErrors
         ? _validateCurrentForm()
         : null;
@@ -941,14 +877,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
           showErrors: _showValidationErrors,
         );
       case 4:
-        _signingState.invalidateIfFormChanged(_data.toSubmissionPayload());
-        return StepSigning(
-          data: _data,
-          state: _signingState,
-          onChanged: _handleFormChanged,
-          showErrors: _showValidationErrors,
-        );
-      case 5:
         return StepSubmit(
           data: _data,
           onChanged: _handleFormChanged,
@@ -961,6 +889,29 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             _scrollToFormTop();
           },
           showErrors: _showValidationErrors,
+        );
+      case 5:
+        _signingState.invalidateIfFormChanged(_data.toSubmissionPayload());
+        return StepSigning(
+          data: _data,
+          state: _signingState,
+          onChanged: _handleFormChanged,
+          showErrors: _showValidationErrors,
+        );
+      case 6:
+        return StepSubmit(
+          data: _data,
+          onChanged: _handleFormChanged,
+          onEditStep: (step) {
+            setState(() {
+              _step = step;
+              _showValidationErrors = false;
+            });
+            _queueAutosave();
+            _scrollToFormTop();
+          },
+          showErrors: _showValidationErrors,
+          finalConfirmationOnly: true,
         );
       default:
         return const SizedBox.shrink();
@@ -1288,7 +1239,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     final stackActions = _step > 0 && (width < 340 || textScale > 1.3);
     final primaryAction = !_hasSelectedOpening
         ? const SizedBox.shrink()
-        : _step < 5
+        : _step < 6
         ? NavyButton(label: _nextButtonLabel, onTap: _next)
         : provider.isLoading
         ? Container(
@@ -1319,7 +1270,10 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             ),
           )
         : ElevatedButton(
-            onPressed: _hasSelectedOpening ? _submitApplication : null,
+            onPressed:
+                _hasSelectedOpening && _data.certificationRead && _data.agree
+                ? _submitApplication
+                : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.gold,
               foregroundColor: AppColors.darkBrown,

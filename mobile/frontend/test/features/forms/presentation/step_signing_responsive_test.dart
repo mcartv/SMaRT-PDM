@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_signing.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 
@@ -8,6 +9,7 @@ void main() {
     WidgetTester tester, {
     required double width,
     double textScale = 1,
+    Future<XFile?> Function(ImageSource source)? pickSignatureImage,
   }) async {
     await tester.binding.setSurfaceSize(Size(width, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -36,6 +38,7 @@ void main() {
               state: state,
               showErrors: true,
               onChanged: () {},
+              pickSignatureImage: pickSignatureImage,
             ),
           ),
         ),
@@ -92,5 +95,59 @@ void main() {
       find.bySemanticsLabel('Parent or guardian signature signature canvas'),
       findsOne,
     );
+  });
+
+  testWidgets(
+    'signature upload chooser exposes camera and gallery and dispatches the selection',
+    (tester) async {
+      ImageSource? selectedSource;
+      await pumpSigningPage(
+        tester,
+        width: 360,
+        pickSignatureImage: (source) async {
+          selectedSource = source;
+          return null;
+        },
+      );
+
+      expect(find.text('Upload Signature'), findsNWidgets(2));
+      await tester.tap(
+        find.byKey(const ValueKey('student-signature-upload-button')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Capture a signature image'), findsOneWidget);
+      expect(find.text('Choose an existing signature image'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('signature-upload-camera')));
+      await tester.pumpAndSettle();
+
+      expect(selectedSource, ImageSource.camera);
+
+      final guardianUpload = find.byKey(
+        const ValueKey('guardian-signature-upload-button'),
+      );
+      await tester.ensureVisible(guardianUpload);
+      await tester.tap(guardianUpload);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('signature-upload-gallery')));
+      await tester.pumpAndSettle();
+
+      expect(selectedSource, ImageSource.gallery);
+    },
+  );
+
+  testWidgets('cancelling signature upload preserves a drawn signature', (
+    tester,
+  ) async {
+    final state = await pumpSigningPage(tester, width: 360);
+    state.studentPad.begin(const Offset(20, 20));
+    await tester.pump();
+
+    await tester.tap(find.text('Upload Signature').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(state.studentPad.isEmpty, isFalse);
   });
 }

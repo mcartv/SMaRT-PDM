@@ -35,10 +35,10 @@ void main() {
       find.text('- Write your Describe yourself essay before continuing.'),
       findsOneWidget,
     );
-    expect(find.text('- Check the certification statement.'), findsOneWidget);
+    expect(find.text('- Check the certification statement.'), findsNothing);
     expect(
       find.text('- Accept the terms of service and privacy statement.'),
-      findsOneWidget,
+      findsNothing,
     );
   });
 
@@ -85,6 +85,46 @@ void main() {
 
     expect(find.text('Ready to submit'), findsOneWidget);
   });
+
+  testWidgets('final submission requires certification inline after signing', (
+    tester,
+  ) async {
+    final data = _validApplicationData()
+      ..certificationRead = false
+      ..agree = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: StepSubmit(
+              data: data,
+              onChanged: () {},
+              onEditStep: (_) {},
+              finalConfirmationOnly: true,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('VII. FINAL SUBMISSION'), findsOneWidget);
+    expect(
+      find.text('Confirm this statement before submitting.'),
+      findsOneWidget,
+    );
+    expect(find.text('Personal Information'), findsNothing);
+
+    await tester.tap(find.byType(CheckboxListTile));
+    await tester.pump();
+
+    expect(data.certificationRead, isTrue);
+    expect(data.agree, isTrue);
+    expect(
+      find.text('Confirm this statement before submitting.'),
+      findsNothing,
+    );
+  });
 }
 
 ApplicationData _validApplicationData() {
@@ -128,7 +168,7 @@ ApplicationData _validApplicationData() {
     ..motherFirstName = 'Noel'
     ..motherLastName = 'Tolentino'
     ..motherMiddleName = 'N/A'
-    ..motherMobile = 'N/A'
+    ..motherMobile = '09170000002'
     ..motherEducationalAttainment = 'N/A'
     ..motherOccupation = 'N/A'
     ..motherCompanyNameAndAddress = 'N/A'

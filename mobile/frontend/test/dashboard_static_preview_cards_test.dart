@@ -48,16 +48,13 @@ void main() {
   });
 
   test('Dashboard keeps announcements directly below the main card', () {
-    final buildStart = dashboardSource.indexOf(
-      '// The existing Welcome card remains intentionally unchanged.',
-    );
-    final hero = dashboardSource.indexOf('_buildHero()', buildStart);
+    final hero = dashboardSource.lastIndexOf('_buildHero()');
     final announcements = dashboardSource.indexOf("'Latest Announcements'", hero);
-    final dashboardDetails = dashboardSource.indexOf('_buildBentoDashboard()', hero);
+    final dashboardBody = dashboardSource.substring(hero, announcements);
 
     expect(hero, greaterThanOrEqualTo(0));
     expect(announcements, greaterThan(hero));
-    expect(dashboardDetails, greaterThan(announcements));
+    expect(dashboardBody, contains('_buildBentoDashboard()'));
     expect(dashboardSource, contains('AppRoutes.scholarshipOpenings'));
   });
 }

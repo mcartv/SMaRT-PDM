@@ -3701,15 +3701,29 @@ function collectMissingSubmissionFields(payload = {}) {
         },
     ];
 
+    const guardianOnly = family.guardian_only === true;
+    const listedParents = {
+        father: !guardianOnly && family.father_present !== false,
+        mother: !guardianOnly && family.mother_present !== false,
+    };
     for (const relation of ['father', 'mother', 'sibling', 'guardian']) {
+        if ((relation === 'father' || relation === 'mother') && !listedParents[relation]) continue;
         const member = family[relation] || {};
-        for (const [label, value] of [
+        const fields = [
             ['last name', member.last_name], ['first name', member.first_name],
-            ['middle name', member.middle_name], ['mobile number', member.mobile || member.mobile_number],
+            ['mobile number', member.mobile || member.mobile_number],
             ['educational attainment', member.educational_attainment || member.highest_educational_attainment],
             ['occupation', member.occupation],
             ['company name/address', member.company_name_and_address || member.company_name_address],
-        ]) requiredFields.push({ label: `${relation} ${label}`, value });
+        ];
+        // Father and mother middle names are optional; other legacy family
+        // members retain their existing completeness rule.
+        if (relation !== 'father' && relation !== 'mother') {
+            fields.splice(2, 0, ['middle name', member.middle_name]);
+        }
+        for (const [label, value] of fields) {
+            requiredFields.push({ label: `${relation} ${label}`, value });
+        }
     }
     for (const level of ['college', 'high_school', 'senior_high', 'elementary']) {
         for (const field of ['school', 'address', 'year_graduated']) {
@@ -3787,6 +3801,22 @@ function validateApplicationSubmissionPayload(payload = {}) {
     };
 
     const family = payload.family || {};
+    const guardianOnly = family.guardian_only === true;
+    for (const relation of ['father', 'mother']) {
+        const isListed = !guardianOnly && family[`${relation}_present`] !== false;
+        if (!isListed) continue;
+        const member = family[relation] || {};
+        const normalized = normalizePhilippineMobileSubmission(
+            member.mobile || member.mobile_number
+        );
+        if (!/^09\d{9}$/.test(normalized)) {
+            throw createHttpError(
+                400,
+                `${relation[0].toUpperCase()}${relation.slice(1)} mobile number must be a valid Philippine mobile number in 09XXXXXXXXX format.`
+            );
+        }
+        family[relation] = { ...member, mobile: normalized };
+    }
     const nativeStatus = safeText(family.parent_native_status).toLowerCase();
     if (!['yes, father only', 'yes, mother only', 'yes, both parents', 'no'].includes(nativeStatus)) {
         throw createHttpError(400, 'Select whether your parents are native of Marilao.');

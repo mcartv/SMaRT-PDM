@@ -115,7 +115,21 @@ const authorizeRoles = (...roles) => async (req,res,next) => {
     const tokenRole=String(req.user?.role||'').toLowerCase();
     // Admin is a protected capability, not a reason to deny another
     // explicitly requested office role. An Admin-only route remains Admin-only.
-    if (required.includes('admin') && tokenRole === 'admin') return next();
+    // SMARTPDM_PHASE2_DB_ADMIN_GATE_V1: token identity alone never grants administrator rights.
+    if (required.includes('admin') && tokenRole === 'admin') {
+        try {
+            const adminGrant = await db.query(
+              `SELECT 1 FROM public.rbac_user_roles ur
+                 JOIN public.rbac_roles r ON r.role_id=ur.role_id
+                 WHERE ur.user_id=$1 AND ur.is_active=TRUE AND r.is_active=TRUE
+                   AND r.role_scope='staff' AND r.role_code='admin' LIMIT 1`,
+              [userId]);
+            if (adminGrant.rowCount) return next();
+        } catch (err) {
+            console.error('[RBAC administrator grant]', err.message);
+            return res.status(503).json({message:'Authorization temporarily unavailable'});
+        }
+    }
     if (required.length === 1 && required[0] === 'admin') {
         return res.status(403).json({message:'OSFA Coordinator access required'});
     }

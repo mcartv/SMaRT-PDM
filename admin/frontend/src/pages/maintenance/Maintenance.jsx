@@ -1,3 +1,4 @@
+// OFFICE_ACCOUNT_AUTOLINK_V1
 // SMaRT-PDM: Maintenance — Maintenance (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
@@ -18,7 +19,6 @@ import ScholarshipProgramsPanel from './ScholarshipProgramsPanel';
 import AuditPanel from './AuditPanel';
 import AcademicYearPanel from './AcademicYearPanel';
 import RBACPanel from './RBACPanel';
-import WorkspaceScopesPanel from './WorkspaceScopesPanel'; // PHASE6D2B_WORKSPACE_SCOPE_UI_V1
 import ThemePanel from './ThemePanel';
 import LandingThemePanel from './LandingThemePanel';
 import ROSettingsPanel from './ROSettingsPanel';
@@ -32,11 +32,10 @@ import {
 const TABS = [
   { key: 'general', label: 'General', icon: Settings },
   { key: 'accounts', label: 'RBAC & Accounts', icon: UsersRound },
-  { key: 'workspace-scopes', label: 'Workspace Scopes', icon: UsersRound },
   { key: 'theme', label: 'Theme', icon: Palette },
   { key: 'scholarship-programs', label: 'Scholarship Programs', icon: GraduationCap },
   { key: 'academic-years', label: 'Academic Years', icon: CalendarRange },
-  { key: 'institutional', label: 'Institutional Management', icon: UsersRound },
+  { key: 'institutional', label: 'Offices & Courses', icon: UsersRound },
   { key: 'community', label: 'Community Service', icon: Clock3 },
   { key: 'registry', label: 'Student Registry', icon: Database },
   { key: 'audit', label: 'System Logs', icon: ClipboardList },
@@ -88,9 +87,6 @@ export default function Maintenance() {
 
       case 'accounts':
         return <RBACPanel />;
-
-      case 'workspace-scopes':
-        return <WorkspaceScopesPanel />;
 
       case 'theme':
         return (

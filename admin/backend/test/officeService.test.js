@@ -9,17 +9,30 @@ const CS = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const PD = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const DEAN = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
 function fixture() {
-    let state = { offices: [], courses: [{ course_id: IT, course_code: 'BSIT', course_name: 'Information Technology', office_id: null, is_archived: false }, { course_id: CS, course_code: 'BSCS', course_name: 'Computer Science', office_id: null, is_archived: false }],
+    let state = {
+        offices: [], courses: [{ course_id: IT, course_code: 'BSIT', course_name: 'Information Technology', office_id: null, is_archived: false }, { course_id: CS, course_code: 'BSCS', course_name: 'Computer Science', office_id: null, is_archived: false }],
         profiles: [{ user_id: PD, name: 'PD Account', office_id: OFFICE, position_id: 'pd-position', position: 'Program Director', roles: ['Program Director'], is_archived: false }, { user_id: DEAN, name: 'Dean Account', office_id: OFFICE, position_id: 'dean-position', position: 'Dean', roles: ['Program Director'], is_archived: false }],
-        leaders: [], audit: [], students: [{ course_id: IT }], applications: [{ course_id: IT }], pdAssignments: [{ course_id: IT, pd_user_id: PD }], ro: [{ department_id: IT, name: 'Library', pic: PD, is_active: true }], serviceLinks: [], deanRoles: [], managedDeans: [] };
+        leaders: [], audit: [], students: [{ course_id: IT }], applications: [{ course_id: IT }], pdAssignments: [{ course_id: IT, pd_user_id: PD }], ro: [{ department_id: IT, name: 'Library', pic: PD, is_active: true }], serviceLinks: [], deanRoles: [], managedDeans: []
+    };
     const calls = []; let snapshot; let ready = true; let failAudit = false;
     const rows = values => ({ rows: values, rowCount: values.length });
     const courseRows = values => rows(values.map(course => ({ ...course, office_name: state.offices.find(office => office.office_id === course.office_id)?.office_name || null })));
     async function query(sql, args = []) {
         calls.push({ sql, args }); const q = sql.replace(/\s+/g, ' ').trim();
         if (q === 'BEGIN') { snapshot = structuredClone(state); return rows([]); }
+        // Custom-role accounts assigned to an office.
+        // This fixture contains only built-in-role accounts.
+        if (
+            q.startsWith('SELECT a.user_id,r.role_code') &&
+            q.includes('FROM public.admin_profiles a') &&
+            q.includes('JOIN public.rbac_user_roles ur')
+        ) {
+            return rows([]);
+        }
         if (q === 'ROLLBACK') { state = snapshot; return rows([]); }
         if (q === 'COMMIT' || q.includes('pg_advisory_xact_lock')) return rows([]);
+        // OFFICE_ACCOUNT_UI_CORRECTION_20261021_V1: the original fixture contains no active custom-workspace accounts.
+        if (q.startsWith('SELECT a.user_id,r.role_code FROM public.admin_profiles a')) return rows([]);
         if (q.includes('to_regclass')) return rows([{ ready }]);
         if (q.startsWith('WITH granted AS')) { if (!state.deanRoles.includes(args[0])) { state.deanRoles.push(args[0]); state.managedDeans.push(args[0]); } return rows([]); }
         if (q.startsWith('UPDATE public.rbac_user_roles ur')) { state.deanRoles = state.deanRoles.filter(id => !state.managedDeans.includes(id) || state.leaders.some(l => l.user_id === id && state.offices.some(o => o.office_id === l.office_id && o.is_active))); return rows([]); }
@@ -178,20 +191,20 @@ test('Community Service links are optional, unique, stale-safe and independent o
 
 test('using an office as a service area creates once, supports existing areas and preserves academic/PIC records', async () => {
     const f = fixture(); await f.offices.saveOffice(null, officeBody(), f.pool);
-    const historical = structuredClone({ courses:f.state.courses, pd:f.state.pdAssignments, pic:f.state.ro[0] });
-    const created = await f.community.useOfficeAsArea(OFFICE,null,f.pool);
-    assert.equal(created.department_id,CS);
-    assert.equal(f.state.ro.length,2);
-    const repeated = await f.community.useOfficeAsArea(OFFICE,null,f.pool);
-    assert.equal(repeated.department_id,CS); assert.equal(repeated.already_linked,true);
-    assert.equal(f.state.ro.length,2);
-    await assert.rejects(f.community.useOfficeAsArea(OFFICE,IT,f.pool),{statusCode:409});
-    await f.community.setLink(CS,null,OFFICE,f.pool);
-    await f.community.useOfficeAsArea(OFFICE,IT,f.pool);
-    assert.equal(f.state.ro.length,2);
-    assert.deepEqual({ courses:f.state.courses,pd:f.state.pdAssignments,pic:f.state.ro[0] },historical);
-    f.state.ro[1].is_active=false;
-    await assert.rejects(f.community.useOfficeAsArea(OTHER,CS,f.pool),{statusCode:400});
+    const historical = structuredClone({ courses: f.state.courses, pd: f.state.pdAssignments, pic: f.state.ro[0] });
+    const created = await f.community.useOfficeAsArea(OFFICE, null, f.pool);
+    assert.equal(created.department_id, CS);
+    assert.equal(f.state.ro.length, 2);
+    const repeated = await f.community.useOfficeAsArea(OFFICE, null, f.pool);
+    assert.equal(repeated.department_id, CS); assert.equal(repeated.already_linked, true);
+    assert.equal(f.state.ro.length, 2);
+    await assert.rejects(f.community.useOfficeAsArea(OFFICE, IT, f.pool), { statusCode: 409 });
+    await f.community.setLink(CS, null, OFFICE, f.pool);
+    await f.community.useOfficeAsArea(OFFICE, IT, f.pool);
+    assert.equal(f.state.ro.length, 2);
+    assert.deepEqual({ courses: f.state.courses, pd: f.state.pdAssignments, pic: f.state.ro[0] }, historical);
+    f.state.ro[1].is_active = false;
+    await assert.rejects(f.community.useOfficeAsArea(OTHER, CS, f.pool), { statusCode: 400 });
 });
 
 test('failed audit rolls office, course and leadership changes back together', async () => {
@@ -252,9 +265,9 @@ test('office endpoints require authentication, admin role and their specific bac
     };
     try {
         require('../routes/officeRoutes');
-        for (const [user, grants, expected] of [[null, [], 401], [{ role: 'sdo', user_id: PD }, [], 403], [{ role: 'admin', user_id: PD }, [], 403], [{ role: 'admin', user_id: PD }, ['settings.view','accounts.view','courses.view'], 200]]) {
+        for (const [user, grants, expected] of [[null, [], 401], [{ role: 'sdo', user_id: PD }, [], 403], [{ role: 'admin', user_id: PD }, [], 403], [{ role: 'admin', user_id: PD }, ['settings.view', 'accounts.view', 'courses.view'], 200]]) {
             permitted = new Set(grants); let status = 200, done = false;
-            const res = { status(code) { status = code; return this; }, set() {}, json() { done = true; } };
+            const res = { status(code) { status = code; return this; }, set() { }, json() { done = true; } };
             const handlers = [...globalHandlers, ...routes.get('get /')];
             for (const handler of handlers) { let next = false; await handler({ user, method: 'GET', path: '/offices' }, res, () => { next = true; }); if (!next || done) break; }
             assert.equal(status, expected);
@@ -263,13 +276,13 @@ test('office endpoints require authentication, admin role and their specific bac
         assert.equal(routes.get('post /').length, 4);
         for (const grants of [[], ['settings.manage'], ['ro.settings_manage']]) {
             permitted = new Set(grants); let status = 200;
-            const res = { status(code) { status=code; return this; }, json() {} };
-            for (const handler of [...globalHandlers,...routes.get('post /:id/community-area')]) {
-                let next=false;
-                await handler({ user:{role:'admin',user_id:PD},method:'POST',path:'/offices/community-area' },res,()=>{next=true;});
+            const res = { status(code) { status = code; return this; }, json() { } };
+            for (const handler of [...globalHandlers, ...routes.get('post /:id/community-area')]) {
+                let next = false;
+                await handler({ user: { role: 'admin', user_id: PD }, method: 'POST', path: '/offices/community-area' }, res, () => { next = true; });
                 if (!next) break;
             }
-            assert.equal(status,403,'Office-to-area creation requires both office settings and Community Service management permissions');
+            assert.equal(status, 403, 'Office-to-area creation requires both office settings and Community Service management permissions');
         }
     } finally { Module._load = real; if (mode === undefined) delete process.env.RBAC_PERMISSION_MODE; else process.env.RBAC_PERMISSION_MODE = mode; delete require.cache[middlewarePath]; delete require.cache[routePath]; }
 });

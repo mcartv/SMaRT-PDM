@@ -700,6 +700,40 @@ function AccountDialog({ open, busy, onClose, title, description, closeLabel, ch
     </Dialog>;
 }
 
+// OFFICE_ACCOUNT_AUTOLINK_V1: no extra scope-management screen needed.
+// OFFICE_ACCESS_COURSES_ONLY_20261021_V1: office courses only; permissions remain managed through Admin's RBAC settings.
+function OfficeAccessPreview({form}) {
+  const role=String(form.role||'').toLowerCase();
+  const isOfficeRole=Boolean(role) && !['admin','sdo','guidance','pd','ro_coordinator','osfa_coordinator'].includes(role);
+  const [officeCourses,setOfficeCourses]=useState([]);
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState('');
+  useEffect(()=>{
+    if(!isOfficeRole || !form.department){setOfficeCourses([]);setError('');return;}
+    let cancelled=false;
+    setBusy(true);setError('');setOfficeCourses([]);
+    const params=new URLSearchParams({role:form.role,office:form.department});
+    fetch(buildApiUrl('/api/accounts/access-options?'+params),{
+      headers:{Authorization:'Bearer '+(sessionStorage.getItem('adminToken')||'')},cache:'no-store'
+    }).then(async response=>{
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw Error(data.error||'Unable to load the office courses.');
+      return data;
+    }).then(data=>{if(!cancelled)setOfficeCourses(data.office_courses||[]);})
+      .catch(e=>{if(!cancelled)setError(e.message||'Unable to load the office courses.');})
+      .finally(()=>{if(!cancelled)setBusy(false);});
+    return()=>{cancelled=true};
+  },[isOfficeRole,form.role,form.department]);
+  if(!isOfficeRole)return null;
+  return <section className="mt-3 rounded-lg border border-stone-200 p-3 space-y-2">
+    <p className="text-sm font-semibold">Office courses and access</p>
+    {busy?<p className="text-xs text-stone-600">Loading office courses…</p>:
+      error?<p role="alert" className="text-xs text-red-700">{error}</p>:
+      officeCourses.length?<p className="text-xs text-stone-600">{officeCourses.map(c=>c.course_code||c.course_name).join(', ')} — Automatically linked to this office.</p>:
+      <p className="text-xs text-stone-600">No active courses are assigned to this office.</p>}
+  </section>;
+}
+
 // AccountCreateModal: handles account create modal for the Accounts flow.
 function AccountCreateModal({
     open,
@@ -816,6 +850,7 @@ function AccountCreateModal({
                         {form.role === 'ro_coordinator' && <DepartmentField canAddOffice={canAddOffice} triggerClassName="h-10" role={form.role} communityArea value={form.department} onChange={value => setField('department', value)} disabled={saving} roAreas={roAreas} />}
                     </div>
 
+                    <OfficeAccessPreview form={form} courses={courses} setField={setField} disabled={saving} />
                     <CourseAssignmentField
                         form={form}
                         setField={setField}
@@ -1134,8 +1169,9 @@ function AccountEditModal({
                         {form.role === 'ro_coordinator' && <DepartmentField canAddOffice={canAddOffice} triggerClassName="h-10" role={form.role} communityArea value={form.department} onChange={value => setField('department', value)} disabled={saving} roAreas={roAreas} />}
 
                     </div>
-                    {form.role !== 'dean' && <div className="rounded-lg border border-stone-200 bg-stone-50/60 p-3"><div><label className="flex items-center gap-2 text-sm text-stone-700"><input type="checkbox" checked={form.role === 'dean' || form.dean_position === true} disabled={saving || form.role === 'dean'} onChange={event => setField('dean_position', event.target.checked)} />Dean position</label><p className="mt-1 text-xs text-stone-500">Office leadership is assigned in Institutional Management. The account keeps its existing portal role.</p></div></div>}
+                    {form.role !== 'dean' && <div className="rounded-lg border border-stone-200 bg-stone-50/60 p-3"><div><label className="flex items-center gap-2 text-sm text-stone-700"><input type="checkbox" checked={form.role === 'dean' || form.dean_position === true} disabled={saving || form.role === 'dean'} onChange={event => setField('dean_position', event.target.checked)} />Dean position</label><p className="mt-1 text-xs text-stone-500">The Dean for each office appears automatically in Offices & Courses.</p></div></div>}
 
+                    <OfficeAccessPreview form={form} courses={courses} setField={setField} disabled={saving} accountId={currentUserId} />
                     {form.role === 'pd' ? (
                         <div className="mt-3">
                             <CourseAssignmentField form={form} setField={setField} courses={courses} currentUserId={currentUserId} disabled={saving} />
@@ -1666,6 +1702,7 @@ export default function AccountsPanel() {
                 headers: getAuthHeaders(),
                 body: JSON.stringify({
                     ...form,
+                    permission_codes: undefined,
                     email: form.email.trim().toLowerCase(),
                 }),
             });
@@ -1768,6 +1805,7 @@ export default function AccountsPanel() {
                 ...editForm,
                 email: editForm.email.trim().toLowerCase(),
             };
+            delete payload.permission_codes; // Not edited from office account form.
 
             if (!payload.password && !payload.confirm_password) {
                 delete payload.password;

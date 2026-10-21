@@ -106,6 +106,12 @@ async function saveOffice(id, body, pool = db, actorId = null) {
         if (previous && previous.office_name !== name) await client.query('UPDATE public.admin_profiles SET department=$2,updated_at=now() WHERE office_id=$1', [id, name]);
         await client.query('UPDATE public.academic_course SET office_id=NULL,updated_at=now() WHERE office_id=$1 AND NOT(course_id=ANY($2::uuid[]))', [office.office_id, courses]);
         if (courses.length) await client.query('UPDATE public.academic_course SET office_id=$1,updated_at=now() WHERE course_id=ANY($2::uuid[])', [office.office_id, courses]);
+        // OFFICE_ACCOUNT_AUTOLINK_V1: keep access in sync with current office courses.
+        await require('./officeAccountAccessService').refreshOffice(client, office.office_id);
+        // Updates affecting course transfers also refresh prior owning offices.
+        if (id) await require('./officeAccountAccessService').refreshOffice(client,id);
+        for (const old of new Set(selected.rows.map(c=>c.office_id).filter(Boolean)))
+          await require('./officeAccountAccessService').refreshOffice(client,old);
         // Only an explicitly selected eligible Dean receives the supplemental Dean role. PD assignments are untouched.
         for (const [kind, userId] of Object.entries(leaders)) {
             if (!userId) await client.query('DELETE FROM public.office_academic_leaders WHERE office_id=$1 AND leadership_kind=$2', [office.office_id, kind]);

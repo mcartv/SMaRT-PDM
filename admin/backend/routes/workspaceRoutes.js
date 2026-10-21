@@ -4,6 +4,7 @@ const express=require('express');
 const db=require('../config/db');
 const {protect}=require('../middleware/authMiddleware');
 const workspaceScope=require('../services/workspaceScopeService');
+const accountAccess=require('../services/officeAccountAccessService'); // OFFICE_ACCOUNT_AUTOLINK_V1
 const router=express.Router();
 router.use((req,res,next)=>{res.set('Cache-Control','no-store');next();});
 router.use(protect,(req,res,next)=>req.user?.role==='workspace'?next():res.status(403).json({message:'Workspace access denied.'}));
@@ -21,7 +22,7 @@ router.get('/me',async(req,res)=>{
     JOIN public.rbac_permissions p ON p.permission_id=rp.permission_id
     WHERE ur.user_id=$1 AND ur.is_active=true AND r.is_active=true
       AND r.role_scope='staff' AND NOT EXISTS (SELECT 1 FROM public.rbac_staff_role_catalog catalog WHERE catalog.role_id=r.role_id) ORDER BY p.permission_code`,[userId]);
-  res.set('Cache-Control','no-store').json({role_name:roles.rows[0].role_name,permissions:permissions.rows.map(x=>x.permission_code)});
+  res.set('Cache-Control','no-store').json({role_name:roles.rows[0].role_name,permissions:(await Promise.all(permissions.rows.map(async x=>({code:x.permission_code,permitted:await accountAccess.allowed(db,userId,roles.rows[0].role_id,x.permission_code)})))).filter(x=>x.permitted).map(x=>x.code)});
  }catch(e){console.error('[workspace/me]',e.message);res.status(503).json({message:'Workspace permissions unavailable.'})}
 });
 // SMARTPDM_WORKSPACE_PHASE3_REAL_DATA_V1
@@ -56,6 +57,9 @@ router.get('/data/:module',async(req,res)=>{
         WHERE rp.role_id=r.role_id AND p.permission_code=$2)
     ORDER BY ur.assigned_at DESC LIMIT 2`,[userId,permission]);
   if(roles.rows.length!==1)return res.status(403).json({message:'An unambiguous active workspace role with this permission is required.'});
+  // OFFICE_ACCOUNT_AUTOLINK_V1: permissions are role grants minus this account's explicit removals.
+  if(!await accountAccess.allowed(db,userId,roles.rows[0].role_id,permission))return res.status(403).json({message:'This account does not have permission.'});
+  // Office assignments are automatically maintained; retain the existing four-way gate.
   const scoped=await workspaceScope.effective(db,userId,roles.rows[0].role_id);
   const courseIds=[...new Set(scoped.map(row=>String(row.course_id)).filter(Boolean))];
   if(!courseIds.length)return res.status(403).json({code:'WORKSPACE_SCOPE_REQUIRED',message:'No authorized office/course scope is assigned.'});

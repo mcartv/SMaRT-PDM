@@ -688,6 +688,11 @@ async function createAccountFromParsedData(parsedData, rawPayload = {}, actorUse
 
         await syncStaffReferences(client, user.user_id, { role, department, position });
         if (selectedOffice) await setAccountOffice(client,user.user_id,selectedOffice);
+        // Keep the Dean shown under the office in sync with the account.
+        if(role==='dean')await require('./deanOfficeAccountService').syncDeanOffice(client,{userId:user.user_id,role,officeId:selectedOffice?.office_id,actorUserId});
+        // OFFICE_ACCOUNT_AUTOLINK_V1: atomic automatic assignments and account-specific permission choices.
+        await require('./officeAccountAccessService').autoAssign(client,user.user_id,role);
+        if(rawPayload.permission_codes!==undefined)await require('./officeAccountAccessService').saveSelections(client,user.user_id,role,rawPayload.permission_codes);
         if (role === 'pd') {
             await pdCourseAssignmentService.syncAssignments({
                 userId: user.user_id,
@@ -1027,6 +1032,12 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
 
         await syncStaffReferences(client, userId, { role: nextRole, department, position, archived: nextIsArchived });
         if (selectedOffice) await setAccountOffice(client,userId,selectedOffice);
+        // Office, role, and archive changes update the office's Dean label atomically.
+        if(nextRole==='dean'||currentRole==='dean')
+          await require('./deanOfficeAccountService').syncDeanOffice(client,{userId,role:nextRole,officeId:selectedOffice?.office_id,archived:nextIsArchived,actorUserId});
+        // OFFICE_ACCOUNT_AUTOLINK_V1: reflect new role/office and preserve account-specific permission choices.
+        await require('./officeAccountAccessService').autoAssign(client,userId,nextRole);
+        if(payload.permission_codes!==undefined && !nextIsArchived)await require('./officeAccountAccessService').saveSelections(client,userId,nextRole,payload.permission_codes);
         if (nextRole === 'pd' && !nextIsArchived) {
             const existingAssignments = await pdCourseAssignmentService.getAssignmentsForUser(userId, client);
             const courseIds = payload.course_ids !== undefined

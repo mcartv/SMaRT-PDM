@@ -7,8 +7,8 @@ export default function InstitutionalManagementPanel() {
     const [view, setView] = useState('offices');
     return <div className="min-w-0 space-y-3">
         <div className="rounded-xl border border-stone-200 bg-white p-4">
-            <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>Institutional Management</h2>
-            <div className="mt-3 flex flex-wrap gap-2" aria-label="Institutional management sections">
+            <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>Offices & Courses</h2>
+            <div className="mt-3 flex flex-wrap gap-2" aria-label="Offices and courses">
                 {[
                     ['offices', 'Offices & Departments'],
                     ['courses', 'Courses'],

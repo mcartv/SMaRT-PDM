@@ -69,4 +69,27 @@ router.get('/staff-catalog', protect, authorizeRoles('admin'), requirePermission
  }catch(error){console.error('[Staff Catalog]',error.message);res.status(503).json({error:'Staff catalog temporarily unavailable.'});}
 });
 
+// OFFICE_ACCOUNT_AUTOLINK_V1: role permissions available for one account. Read only.
+router.get('/access-options', protect, authorizeRoles('admin'), requirePermission('accounts.view'), async(req,res)=>{
+ try {
+  const code=String(req.query.role||'');
+  if(!/^[a-z0-9_]{1,90}$/.test(code))return res.status(400).json({error:'Choose a valid role.'});
+  const id=req.query.user_id?String(req.query.user_id):null;
+  if(id&&!/^[0-9a-f-]{36}$/i.test(id))return res.status(400).json({error:'Invalid account.'});
+  const result=await require('../services/officeAccountAccessService').choices(require('../config/db'),code,id);
+  // OFFICE_ACCOUNT_UI_CORRECTION_20261021_V1: independently look up courses attached to the selected active office.
+  const office=String(req.query.office||'').trim();
+  if(office.length>200)return res.status(400).json({error:'Invalid office selection.'});
+  if(office){
+    const courses=await require('../config/db').query(
+      `SELECT c.course_id,c.course_code,c.course_name FROM public.academic_course c
+       JOIN public.ref_offices o ON o.office_id=c.office_id
+       WHERE o.office_name=$1 AND o.is_active=true AND COALESCE(c.is_archived,false)=false
+       ORDER BY c.course_code`,[office]);
+    result.office_courses=courses.rows;
+  } else result.office_courses=[];
+  res.set('Cache-Control','no-store').json(result);
+ }catch(e){console.error('[Account access options]',e.message);res.status(e.status||503).json({error:e.status?e.message:'Permissions are temporarily unavailable.'});}
+});
+
 module.exports = router;

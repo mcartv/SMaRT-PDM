@@ -10,11 +10,12 @@ test('SDO conditionally exposes RO Requests when the account has RO coordinator 
   assert.match(sdo, /hasRoCoordinatorAccess/);
   assert.match(sdo, /has_ro_coordinator_access/);
   assert.match(sdo, /path:\s*'\/sdo\/ro-requests'/);
-  assert.match(sdo, /label:\s*'RO Requests'/);
+  assert.match(sdo, /label:\s*'Community Service Requests'/);
 });
 
 test('shared department shell still supports scoped RO request navigation for layouts that use it', () => {
   const department = read('frontend/src/components/layout/DepartmentPortalLayout.jsx');
 
-  assert.match(department, /roQueuePath|RO Requests/);
+  assert.match(department, /roQueuePath/);
+  assert.match(department, /label:\s*'Community Service Requests'/);
 });

@@ -45,7 +45,10 @@ test('PD and RO labels retain real assignments and do not invent a program', asy
     accountRole: 'Program Director', position: 'Program Director', organizationalUnit: '—',
   });
   assert.equal(getProfileDisplay({ role: 'ro_coordinator', department: 'Library' }).organizationalUnit, 'Library');
-  assert.equal(getProfileDisplay({ role: 'ro_coordinator', department: 'Library' }).accountRole, 'RO Personnel-In-Charge');
+  assert.equal(
+    getProfileDisplay({ role: 'ro_coordinator', department: 'Library' }).accountRole,
+    'Community Service Personnel-In-Charge'
+  );
 });
 
 test('fallback profiles and unknown labels remain readable', async () => {

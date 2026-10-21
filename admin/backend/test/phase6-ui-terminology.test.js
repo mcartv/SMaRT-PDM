@@ -53,7 +53,7 @@ test('department navigation uses For Endorsement and preserves RO Requests', () 
 
   assert.match(sdoLayout, /label: 'For Endorsement'/);
   assert.match(departmentLayout, /queueLabel = 'For Endorsement'/);
-  assert.match(departmentLayout, /label: 'RO Requests'/);
+  assert.match(departmentLayout, /label: 'Community Service Requests'/);
 });
 
 test('endorsement review keeps its compact review surface and standing options', () => {

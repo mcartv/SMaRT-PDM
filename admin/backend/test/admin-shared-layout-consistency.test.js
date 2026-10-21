@@ -15,7 +15,7 @@ test('Admin keeps its own layout and complete administrator navigation', () => {
     ['applications', 'Applications'],
     ['endorsements', 'Endorsements'],
     ['scholars', 'Scholars'],
-    ['obligations', 'Obligations'],
+    ['obligations', 'Community Service'],
     ['payout', 'Payout'],
     ['reports', 'Reports'],
     ['openings', 'Openings'],

@@ -64,9 +64,7 @@ router.get('/data/:module',async(req,res)=>{
   const courseIds=[...new Set(scoped.map(row=>String(row.course_id)).filter(Boolean))];
   if(!courseIds.length)return res.status(403).json({code:'WORKSPACE_SCOPE_REQUIRED',message:'No authorized office/course scope is assigned.'});
   // Unreviewed record modules stay denied. A grant and scope alone do not unlock them.
-  if(['payouts'].includes(moduleKey))return res.status(403).json({
-    code:'WORKSPACE_RECORD_SCOPE_REQUIRED',message:'This module is awaiting scoped record integration.'
-  });
+  // PHASE6D2D3: Payouts can proceed only after all role, permission and course checks above.
   res.set('Cache-Control','no-store');
   // PHASE6D2D_APPLICATIONS_V1
   if(moduleKey==='applications'){
@@ -86,7 +84,25 @@ router.get('/data/:module',async(req,res)=>{
     return res.json({items:result.rows});
   }
   if(moduleKey==='payouts'){
-    const result=await db.query(`SELECT payout_batch_id,payout_title,batch_status,payout_date,total_amount FROM public.payout_batches WHERE COALESCE(is_archived,false)=false ORDER BY payout_date DESC NULLS LAST LIMIT 30`);
+    // PHASE6D2D3: Show only scholar payout entries whose *current* course is in the
+    // authenticated user's server-derived office/course intersection. Never expose
+    // an entire batch's total_amount, which may include other offices' scholars.
+    const result=await db.query(`SELECT pbs.payout_entry_id,pbs.payout_batch_id,
+      pb.payout_title,pb.payout_date,
+      COALESCE(NULLIF(pbs.release_status,''),pb.batch_status,'Pending') AS batch_status,
+      c.course_code,
+      COALESCE(pbs.amount_received,pb.amount_per_scholar,0) AS total_amount
+      FROM public.payout_batch_students pbs
+      JOIN public.payout_batches pb ON pb.payout_batch_id=pbs.payout_batch_id
+      JOIN public.students st ON st.student_id=pbs.student_id
+      JOIN public.academic_course c ON c.course_id=st.course_id
+      JOIN public.ref_offices o ON o.office_id=c.office_id AND o.is_active=true
+      WHERE COALESCE(pb.is_archived,false)=false
+        AND COALESCE(st.is_archived,false)=false
+        AND COALESCE(c.is_archived,false)=false
+        AND c.course_id=ANY($1::uuid[])
+      ORDER BY pb.payout_date DESC NULLS LAST,pbs.payout_entry_id DESC
+      LIMIT 30`,[courseIds]);
     return res.json({items:result.rows});
   }
   // PHASE6D2D2_SCOPED_STAFF_ACCOUNTS_V1

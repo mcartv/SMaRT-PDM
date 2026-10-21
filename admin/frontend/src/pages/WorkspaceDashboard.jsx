@@ -21,7 +21,7 @@ const MODULES = WORKSPACE_MODULES;
 // A visible permission is not proof that the scoped API is available.
 const workspaceModuleStatus = key => {
   if (['accounts','applications'].includes(key)) return {label:'Office records',detail:'Shows only the records your office is allowed to view.'};
-  if (key==='payouts') return {label:'Coming soon',detail:'Payout records will become available after office filtering is complete.'};
+  if (key==='payouts') return {label:'Office records',detail:'Shows only payout entries for scholars in your assigned courses.'};
   if (key === 'reports') return {label:'Read-only overview',detail:'A read-only summary is available when reports.view is granted.'};
   return {label:'Integration pending',detail:'Your permission is listed, but this workspace module has no connected data workflow yet.'};
 };

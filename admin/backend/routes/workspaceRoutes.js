@@ -64,7 +64,7 @@ router.get('/data/:module',async(req,res)=>{
   const courseIds=[...new Set(scoped.map(row=>String(row.course_id)).filter(Boolean))];
   if(!courseIds.length)return res.status(403).json({code:'WORKSPACE_SCOPE_REQUIRED',message:'No authorized office/course scope is assigned.'});
   // Unreviewed record modules stay denied. A grant and scope alone do not unlock them.
-  if(['payouts','accounts'].includes(moduleKey))return res.status(403).json({
+  if(['payouts'].includes(moduleKey))return res.status(403).json({
     code:'WORKSPACE_RECORD_SCOPE_REQUIRED',message:'This module is awaiting scoped record integration.'
   });
   res.set('Cache-Control','no-store');
@@ -89,10 +89,24 @@ router.get('/data/:module',async(req,res)=>{
     const result=await db.query(`SELECT payout_batch_id,payout_title,batch_status,payout_date,total_amount FROM public.payout_batches WHERE COALESCE(is_archived,false)=false ORDER BY payout_date DESC NULLS LAST LIMIT 30`);
     return res.json({items:result.rows});
   }
+  // PHASE6D2D2_SCOPED_STAFF_ACCOUNTS_V1
   if(moduleKey==='accounts'){
-    const result=await db.query(`SELECT u.user_id,u.username,trim(concat_ws(' ',a.first_name,a.last_name)) AS name,a.department
-      FROM public.users u JOIN public.admin_profiles a ON a.user_id=u.user_id
-      WHERE COALESCE(a.is_archived,false)=false ORDER BY u.created_at DESC LIMIT 30`);
+    // List only active staff in offices represented by the verified course grants.
+    // The office/course mapping is current in the database; no client-supplied filters.
+    // This is a staff directory, NOT a grant to access scholar or account credentials.
+    const result=await db.query(`SELECT u.user_id,u.username,
+        TRIM(CONCAT_WS(' ',a.first_name,a.last_name)) AS name,
+        o.office_name AS department
+      FROM public.users u
+      JOIN public.admin_profiles a ON a.user_id=u.user_id
+      JOIN public.ref_offices o ON o.office_id=a.office_id AND o.is_active=true
+      WHERE COALESCE(a.is_archived,false)=false
+        AND EXISTS (
+          SELECT 1 FROM public.academic_course c
+          WHERE c.office_id=o.office_id AND c.course_id=ANY($1::uuid[])
+            AND COALESCE(c.is_archived,false)=false
+        )
+      ORDER BY u.created_at DESC,u.user_id DESC LIMIT 30`,[courseIds]);
     return res.json({items:result.rows});
   }
   if(moduleKey==='reports'){

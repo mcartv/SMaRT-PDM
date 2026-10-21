@@ -11,13 +11,13 @@ function loadPool(relativePath, overrides = {}) {
     class Pool {
         constructor(config) { options = config; }
         on(event, callback) { events.set(event, callback); }
-        query() {}
-        connect() {}
+        query() { }
+        connect() { }
     }
     vm.runInNewContext(fs.readFileSync(path.resolve(__dirname, relativePath), 'utf8'), {
-        require: name => name === 'pg' ? { Pool } : { config() {} },
+        require: name => name === 'pg' ? { Pool } : { config() { } },
         process: { env: { DATABASE_URL: 'postgresql://test.invalid/database', ...overrides } },
-        console: { log() {}, error() {} }, module: { exports: {} },
+        console: { log() { }, error() { } }, module: { exports: {} },
     });
     return { options, events };
 }
@@ -61,7 +61,7 @@ test('RBAC pool-capacity errors return retryable 503 responses instead of generi
         for (const method of ['use', 'get', 'post', 'put', 'patch', 'delete']) {
             router[method] = (...args) => routes.push({ method, args });
         }
-        const noop = () => {};
+        const noop = () => { };
         vm.runInNewContext(fs.readFileSync(path.resolve(__dirname, '../routes/rbacManagementRoutes.js'), 'utf8'), {
             require: name => {
                 if (name === 'express') return { Router: () => router };
@@ -69,9 +69,11 @@ test('RBAC pool-capacity errors return retryable 503 responses instead of generi
                 if (name.includes('authMiddleware')) return { protect: noop, authorizeRoles: () => noop };
                 if (name.includes('rbacMiddleware')) return { requirePermission: () => noop };
                 if (name === 'crypto') return require('node:crypto');
+                if (name === '../services/workspaceScopeService') return {};
+
                 throw Error('Unexpected dependency: ' + name);
             },
-            console: { error() {} }, module: { exports: {} },
+            console: { error() { } }, module: { exports: {} },
         });
         const overview = routes.find(route => route.method === 'get' && route.args[0] === '/overview');
         const response = { headers: {}, set(key, value) { this.headers[key] = value; return this; }, status(value) { this.statusCode = value; return this; }, json(value) { this.body = value; return this; } };

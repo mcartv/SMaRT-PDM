@@ -172,4 +172,30 @@ router.patch('/roles/:id/with-permissions',manage,safe(async(req,res)=>{
   await client.query('COMMIT');res.json({ok:true,role_id:req.params.id});
  }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
 }));
+// PHASE6D2_SCOPE_V1 — admin-managed custom role and per-user intersections.
+const workspaceScope = require('../services/workspaceScopeService');
+router.get('/workspace-scopes/catalog',view,safe(async(req,res)=>{
+ const data=await workspaceScope.catalog(db);res.set('Cache-Control','no-store').json(data);
+}));
+for(const isUser of [false,true]) {
+ const path=isUser?'/workspace-scopes/roles/:roleId/users/:userId':'/workspace-scopes/roles/:roleId';
+ router.get(path,view,safe(async(req,res)=>{
+  if(!isUuid(req.params.roleId)||(isUser&&!isUuid(req.params.userId)))return res.status(400).json({error:'Invalid identifiers.'});
+  const data=await workspaceScope.get(db,req.params.roleId,isUser?req.params.userId:null);
+  res.set('Cache-Control','no-store').json(data);
+ }));
+ router.put(path,manage,safe(async(req,res)=>{
+  if(!isUuid(req.params.roleId)||(isUser&&!isUuid(req.params.userId)))return res.status(400).json({error:'Invalid identifiers.'});
+  const client=await db.connect();
+  try {await client.query('BEGIN');
+   // Serialized per role: prevent concurrent changes to parent and child scope definitions.
+   await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[String(req.params.roleId)]);
+   const result=await workspaceScope.put(client,req.params.roleId,isUser?req.params.userId:null,req.body);
+   await client.query('COMMIT');res.json(result);
+  }catch(e){await client.query('ROLLBACK');
+   if(e.status)return res.status(e.status).json({error:e.message});throw e;
+  }finally{client.release();}
+ }));
+}
+
 module.exports=router;

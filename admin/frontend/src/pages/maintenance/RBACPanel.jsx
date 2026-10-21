@@ -47,6 +47,8 @@ export default function RBACPanel(){
  // SMARTPDM_ROLES_TABLE_UX_20261013_V1
  // SMARTPDM_FIVE_ROLE_UI_SIMPLIFY_V1: fixed-role display; no archived/active selector.
  const [roleSearch,setRoleSearch]=useState('');
+  const [creatingRole,setCreatingRole]=useState(false);
+  const [newRoleName,setNewRoleName]=useState('');
  const [roleAction,setRoleAction]=useState(null);
  const [roleActionName,setRoleActionName]=useState('');
  const [roleActionBusy,setRoleActionBusy]=useState(false);
@@ -115,7 +117,7 @@ export default function RBACPanel(){
     </div>
     <div className="flex flex-wrap items-center justify-between gap-2">
      <input aria-label="Search roles" value={roleSearch} onChange={e=>setRoleSearch(e.target.value)} placeholder="Search roles..." className="w-full max-w-sm rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm focus:border-[#967458] focus:outline-none focus:ring-2 focus:ring-[#967458]/20"/>
-     <span className="text-xs text-stone-500">{visibleRoles.length} {visibleRoles.length===1?'role':'roles'} shown</span>
+     <div className="flex items-center gap-3"><span className="text-xs text-stone-500">{visibleRoles.length} {visibleRoles.length===1?'role':'roles'} shown</span><button type="button" disabled={busy} onClick={()=>setCreatingRole(true)} className="rounded-xl bg-[#67452f] px-4 py-2 text-xs font-semibold text-white">Add Role</button></div>
     </div>
     
     <div className="overflow-x-auto rounded-2xl border border-stone-200 bg-white">
@@ -125,10 +127,10 @@ export default function RBACPanel(){
        <td className="px-4 py-4 font-semibold text-stone-800">{r.role_name}</td>
        <td className="px-4 py-4"><span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${r.is_active?'bg-emerald-100 text-emerald-800':'bg-stone-100 text-stone-600'}`}>{r.is_active?'Active':'Archived'}</span></td>
        <td className="px-4 py-4"><span className="rounded-full bg-[#f4ede7] px-3 py-1 text-xs font-semibold text-[#684a35]">{roleGrantCounts.get(r.role_id)||0} granted</span></td>
-       <td className="px-4 py-4"><div className="flex justify-end gap-2">{r.role_code.startsWith('custom_')?<>
+       <td className="px-4 py-4"><div className="flex justify-end gap-2">{<>
         <button type="button" disabled={busy} onClick={()=>{setRoleActionName(r.role_name);setRoleAction({mode:'edit',role:r})}} className="rounded-xl border border-stone-300 bg-white px-4 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-50">Edit</button>
-        <button type="button" disabled={busy} onClick={()=>setRoleAction({mode:r.is_active?'archive':'restore',role:r})} className={`rounded-xl border px-4 py-2 text-xs font-semibold ${r.is_active?'border-red-200 bg-red-50 text-red-700 hover:bg-red-100':'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>{r.is_active?'Archive':'Restore'}</button>
-       </>:<span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-500">Built-in</span>}</div></td>
+        <button type="button" disabled={busy||(r.role_code==='admin'&&r.is_active)} title={r.role_code==='admin'?'Administrator role cannot be archived':undefined} onClick={()=>setRoleAction({mode:r.is_active?'archive':'restore',role:r})} className={`rounded-xl border px-4 py-2 text-xs font-semibold ${r.is_active?'border-red-200 bg-red-50 text-red-700 hover:bg-red-100':'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>{r.is_active?'Archive':'Restore'}</button>
+       </>}</div></td>
       </tr>)}</tbody>
      </table>
      {visibleRoles.length===0?<div className="px-5 py-12 text-center"><h4 className="text-sm font-semibold text-stone-700">{roleSearch?'No matching roles':'No roles found'}</h4><p className="mt-1 text-xs text-stone-500">{roleSearch?'Try another search term.':'Check the role catalog and refresh.'}</p></div>:null}

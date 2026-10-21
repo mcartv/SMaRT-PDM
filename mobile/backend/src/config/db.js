@@ -4,6 +4,11 @@ require('dotenv').config();
 
 const connectionString = process.env.DATABASE_URL;
 
+function positiveInteger(value, fallback) {
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 if (!connectionString) {
     console.error('❌ DATABASE_URL is missing in .env');
     process.exit(1);
@@ -11,6 +16,11 @@ if (!connectionString) {
 
 const pool = new Pool({
     connectionString,
+    max: positiveInteger(process.env.DB_POOL_MAX, 3),
+    idleTimeoutMillis: positiveInteger(process.env.DB_IDLE_TIMEOUT_MS, 5000),
+    connectionTimeoutMillis: positiveInteger(process.env.DB_CONNECTION_TIMEOUT_MS, 10000),
+    application_name: 'smartpdm-mobile',
+    keepAlive: true,
     ssl: {
         rejectUnauthorized: false, // required for Supabase/Render
     },

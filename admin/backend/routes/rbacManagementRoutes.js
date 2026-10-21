@@ -9,7 +9,12 @@ const router = express.Router();
 router.use(protect, authorizeRoles('admin'));
 const view = requirePermission('accounts.view');
 const manage = requirePermission('accounts.update');
-const safe = fn => async (req,res) => { try { await fn(req,res); } catch(e) { console.error('[RBAC Management]',e.message); res.status(e.code==='23505'?409:500).json({error:e.code==='23505'?'Duplicate record.':'RBAC operation failed.'}); } };
+const safe = fn => async (req,res) => { try { await fn(req,res); } catch(e) { console.error('[RBAC Management]',e.message);
+  if (['EMAXCONNSESSION','53300'].includes(e.code) || /max clients|MaxClientsInSessionMode|timeout exceeded when trying to connect/i.test(e.message || '')) {
+    res.set('Retry-After','5');
+    return res.status(503).json({code:'DATABASE_BUSY',error:'Database connections are busy. Please try again shortly.'});
+  }
+  res.status(e.code==='23505'?409:500).json({error:e.code==='23505'?'Duplicate record.':'RBAC operation failed.'}); } };
 const crypto = require('crypto');
 const isUuid = x => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(x||''));
 router.get('/overview',view,safe(async(req,res)=>{

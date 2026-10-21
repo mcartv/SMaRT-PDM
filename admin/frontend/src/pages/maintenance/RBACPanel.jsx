@@ -42,12 +42,12 @@ export default function RBACPanel(){
  const [eligibleUsers,setEligibleUsers]=useState([]);
  const [selectedUser,setSelectedUser]=useState(''); // SMARTPDM_CONSOLIDATED_ROLE_ASSIGNMENTS_V1
 
- const [tab,setTab]=useState('accounts'),[data,setData]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[role,setRole]=useState('');
+ const [tab,setTab]=useState(() => { const section = new URLSearchParams(window.location.search).get('section'); return ['roles','permissions'].includes(section) ? section : 'accounts'; }),[data,setData]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[role,setRole]=useState('');
  // SMARTPDM_ATOMIC_CREATE_ROLE_MODAL_V1
  // SMARTPDM_ROLES_TABLE_UX_20261013_V1
  // SMARTPDM_FIVE_ROLE_UI_SIMPLIFY_V1: fixed-role display; no archived/active selector.
  const [roleSearch,setRoleSearch]=useState('');
-  const [creatingRole,setCreatingRole]=useState(false);
+  const [creatingRole,setCreatingRole]=useState(() => { const query = new URLSearchParams(window.location.search); return query.get('section') === 'roles' && query.get('action') === 'add'; });
   const [newRoleName,setNewRoleName]=useState('');
  const [roleAction,setRoleAction]=useState(null);
  const [roleActionName,setRoleActionName]=useState('');

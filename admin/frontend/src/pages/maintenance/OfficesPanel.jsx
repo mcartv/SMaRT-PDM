@@ -57,6 +57,7 @@ export default function OfficesPanel() {
     const [statusTarget, setStatusTarget] = useState(null);
     const [saving, setSaving] = useState(false);
     const lock = useRef(false);
+    const initialEditorOpened = useRef(false);
     const generation = useRef(0);
 
     const request = useCallback(async (path = '', init = {}) => {
@@ -106,6 +107,12 @@ export default function OfficesPanel() {
     const currentMemberPage = Math.min(memberPage, memberPages);
     const visibleCourses = courses.filter(course => (!course.is_archived || form.course_ids.includes(course.course_id)) && `${course.course_code} ${course.course_name}`.toLowerCase().includes(courseSearch.trim().toLowerCase())).sort((a, b) => Number(form.course_ids.includes(b.course_id)) - Number(form.course_ids.includes(a.course_id)) || a.course_code.localeCompare(b.course_code));
     const ready = data?.schemaReady === true;
+    useEffect(() => {
+        if (initialEditorOpened.current || !ready || !canManage) return;
+        initialEditorOpened.current = true;
+        const query = new URLSearchParams(window.location.search);
+        if (query.get('tab') === 'institutional' && query.get('section') === 'offices' && query.get('action') === 'add') setEditor({id:null});
+    }, [ready, canManage]);
     const editingOffice = offices.find(office => office.office_id === editor?.id);
     const deanApplies = editingOffice?.supports_dean === true;
     const leadersFor = officeId => (data?.leaders || []).filter(leader => leader.office_id === officeId);

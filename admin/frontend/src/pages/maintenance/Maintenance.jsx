@@ -74,7 +74,7 @@ function TopNav({ tabs, active, onChange }) {
 
 // SMART-PDM_MAINTENANCE_VIEWPORT_FIT_V1
 export default function Maintenance() {
-  const [tab, setTab] = useState('general');
+  const [tab, setTab] = useState(() => { const requested = new URLSearchParams(window.location.search).get('tab'); return TABS.some(item => item.key === requested) ? requested : 'general'; });
   const [themeView, setThemeView] = useState('landing');
   const { theme } = usePortalTheme('admin');
 

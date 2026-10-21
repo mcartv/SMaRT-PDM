@@ -1,3 +1,4 @@
+// SMARTPDM_ADVANCED_ACCESS_NAV_V6
 // SMARTPDM_RBAC_COMPACT_UI_20261013_SELECTOR_SAFE_V2
 // SMARTPDM_RBAC_MIGRATION_20261013_V1
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -38,13 +39,13 @@ function formatPermissionLabel(code) {
   return verb + ' ' + noun;
 }
 
-const tabs = [['accounts', 'User Accounts'], ['roles', 'Roles'], ['permissions', 'Role Permissions']];
+const tabs = [['accounts', 'User Accounts'], ['roles', 'Roles']];
 export default function RBACPanel() {
   const [capabilities, setCapabilities] = useState(null);
   const [eligibleUsers, setEligibleUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState('');
 
-  const [tab, setTab] = useState(() => { const section = new URLSearchParams(window.location.search).get('section'); return ['roles', 'permissions'].includes(section) ? section : 'accounts'; }), [data, setData] = useState(null), [error, setError] = useState(''), [busy, setBusy] = useState(false), [role, setRole] = useState('');
+  const [tab, setTab] = useState(() => { const section = new URLSearchParams(window.location.search).get('section'); return ['roles', 'permissions'].includes(section) ? 'roles' : 'accounts'; }), [data, setData] = useState(null), [error, setError] = useState(''), [busy, setBusy] = useState(false), [role, setRole] = useState('');
   const [roleSearch, setRoleSearch] = useState('');
   const [creatingRole, setCreatingRole] = useState(() => { const query = new URLSearchParams(window.location.search); return query.get('section') === 'roles' && query.get('action') === 'add'; });
   const [newRoleName, setNewRoleName] = useState('');
@@ -118,8 +119,8 @@ export default function RBACPanel() {
       <div className="flex flex-wrap items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f4e9dc] text-[#704b35]"><ShieldCheck size={20} /></div><div><h2 className="text-base font-bold tracking-tight text-stone-900">Access Management</h2><p className="text-xs text-stone-500">Manage users and permissions across the configured roles.</p></div></div>
       <div className="mt-4 flex flex-wrap gap-2">{tabs.map(([key, label]) => <button key={key} onClick={() => setTab(key)} className={`rounded-lg px-3 py-2 text-sm font-semibold ${tab === key ? 'text-white shadow-sm' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`} style={tab === key ? { background: 'var(--portal-base)' } : {}}>{label}</button>)}</div>
     </div>
-    {tab === 'accounts' ? <AccountsPanel /> : tab === 'roles' ? <RoleCrudPanel /> : <div className="rounded-2xl border border-stone-200 bg-white p-4 sm:p-5 space-y-4 shadow-sm">
-      <div className="flex items-center justify-between gap-2 border-b border-stone-100 pb-3"><div><h3 className="text-base font-bold text-stone-900">{tabs.find(x => x[0] === tab)?.[1]}</h3><p className="mt-0.5 text-xs text-stone-500">{tab === 'permissions' ? 'Select a role and fine-tune its access.' : 'Review configured system roles.'}</p></div><button type="button" onClick={reload} className="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-50" title="Refresh data"><RefreshCw size={15} /> Refresh</button></div>
+    {tab === 'accounts' ? <AccountsPanel /> : tab === 'roles' ? <div className="space-y-3"><RoleCrudPanel /><div className="flex justify-end"><button type="button" onClick={() => setTab('permissions')} className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-50">Advanced access · User assignments and portal settings</button></div></div> : <div className="rounded-2xl border border-stone-200 bg-white p-4 sm:p-5 space-y-4 shadow-sm">
+      <div className="flex items-center justify-between gap-2 border-b border-stone-100 pb-3"><div><h3 className="text-base font-bold text-stone-900">{tabs.find(x => x[0] === tab)?.[1] || 'Advanced access'}</h3><p className="mt-0.5 text-xs text-stone-500">{tab === 'permissions' ? 'Select a role and fine-tune its access.' : 'Review configured system roles.'}</p></div><button type="button" onClick={() => setTab('roles')} className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-600">Back to Roles</button><button type="button" onClick={reload} className="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-50" title="Refresh data"><RefreshCw size={15} /> Refresh</button></div>
       {error ? <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error} {error.includes('401') ? 'Please sign out and sign in again if your Admin session has expired.' : ''}</p> : null}
       {!data && !error ? <p className="text-sm text-stone-500">Loading...</p> : tab === 'roles' ? <>
 

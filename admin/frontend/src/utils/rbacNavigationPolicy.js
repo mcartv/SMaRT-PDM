@@ -24,6 +24,15 @@ export const NAV_PERMISSIONS = Object.freeze({
   '/pd/ro-requests': ['ro.assign', 'ro.view'],
   '/guidance/ro-requests': ['ro.assign', 'ro.view'],
   '/ro-coordinator/queue': 'ro.view',
+  // SMARTPDM_PHASE4A_NAV_VISIBILITY_V1: secondary staff menus obey active grants.
+  '/sdo/reports': 'reports.view',
+  '/sdo/settings': 'settings.view',
+  '/pd/reports': 'reports.view',
+  '/pd/settings': 'settings.view',
+  '/guidance/reports': 'reports.view',
+  '/guidance/settings': 'settings.view',
+  '/ro-coordinator/reports': 'reports.view',
+  '/ro-coordinator/settings': 'settings.view',
 });
 
 // Longest matching route wins. Unlisted routes retain existing portal-level controls.

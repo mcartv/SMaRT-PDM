@@ -50,26 +50,34 @@ export function RbacPermissionProvider({ children }) {
     void refresh();
     const onSessionChange = () => void refresh();
     const onForceRefresh = () => void refresh(true);
-    window.addEventListener('focus', onSessionChange);
+    // SMARTPDM_PHASE4B_PERMISSION_REVALIDATION_V1
+    const onVisibilityRecheck = () => {
+      if (document.visibilityState === 'visible') void refresh(true);
+    };
+    window.addEventListener('focus', onForceRefresh);
     window.addEventListener('storage', onSessionChange);
     window.addEventListener('popstate', onSessionChange);
     window.addEventListener('portal-session:invalidated', onSessionChange);
     window.addEventListener('portal-session:established', onSessionChange);
     window.addEventListener('smartpdm:rbac-refresh', onForceRefresh);
+    document.addEventListener('visibilitychange', onVisibilityRecheck);
     // React Router navigations and same-tab sessionStorage writes do not emit
     // native storage/popstate events. Observe session identity cheaply instead.
     const interval = window.setInterval(onSessionChange, 1000);
+    const permissionRecheckInterval = window.setInterval(onVisibilityRecheck, 60_000);
     return () => {
       generationRef.current += 1;
       inFlightRef.current = '';
       currentRef.current = '';
       window.clearInterval(interval);
-      window.removeEventListener('focus', onSessionChange);
+      window.clearInterval(permissionRecheckInterval);
+      window.removeEventListener('focus', onForceRefresh);
       window.removeEventListener('storage', onSessionChange);
       window.removeEventListener('popstate', onSessionChange);
       window.removeEventListener('portal-session:invalidated', onSessionChange);
       window.removeEventListener('portal-session:established', onSessionChange);
       window.removeEventListener('smartpdm:rbac-refresh', onForceRefresh);
+      document.removeEventListener('visibilitychange', onVisibilityRecheck);
     };
   }, [refresh]);
 

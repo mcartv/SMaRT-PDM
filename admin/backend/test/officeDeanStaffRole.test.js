@@ -7,16 +7,27 @@ const { resolveStaffRole } = require('../utils/staffRoles');
 function staffFixture() {
     const roles = { pd: true, dean: true, admin: false };
     const calls = [];
-    const client = { async query(sql, args = []) {
-        calls.push(sql);
-        if (sql.startsWith('SELECT role_id')) return { rows: [{ role_id: 'pd' }], rowCount: 1 };
-        if (sql.startsWith('UPDATE public.rbac_user_roles')) { roles.pd = false; if (args[1]) roles.dean = false; }
-        else if (sql.startsWith('INSERT INTO public.rbac_user_roles') && sql.includes('VALUES')) roles[args[1]] = args[2];
-        else if (sql.startsWith('SELECT to_regclass')) return { rows: [{ ready: true }] };
-        else if (sql.startsWith('SELECT 1 FROM public.office_academic_leaders')) return { rows: [{}], rowCount: 1 };
-        else if (sql.startsWith('WITH granted AS')) roles.dean = true;
-        return { rows: [], rowCount: 0 };
-    } };
+    const client = {
+        async query(sql, args = []) {
+            calls.push(sql);
+            if (
+                /SELECT/i.test(sql) &&
+                /public\.rbac_staff_role_catalog|public\.rbac_roles/i.test(sql) &&
+                !/public\.rbac_user_roles/i.test(sql)
+            ) {
+                return {
+                    rows: [{ role_id: 'pd' }],
+                    rowCount: 1,
+                };
+            }
+            if (sql.startsWith('UPDATE public.rbac_user_roles')) { roles.pd = false; if (args[1]) roles.dean = false; }
+            else if (sql.startsWith('INSERT INTO public.rbac_user_roles') && sql.includes('VALUES')) roles[args[1]] = args[2];
+            else if (sql.startsWith('SELECT to_regclass')) return { rows: [{ ready: true }] };
+            else if (sql.startsWith('SELECT 1 FROM public.office_academic_leaders')) return { rows: [{}], rowCount: 1 };
+            else if (sql.startsWith('WITH granted AS')) roles.dean = true;
+            return { rows: [], rowCount: 0 };
+        }
+    };
     return { client, roles, calls };
 }
 test('editing a Dean preserves the primary PD role and supplemental Dean role without administrator access', async () => {
@@ -35,6 +46,6 @@ test('archiving and restoring an assigned Dean disables then restores supplement
 });
 
 test('standalone Dean identity cannot fall back to the Admin backing account family', () => {
-    assert.equal(resolveStaffRole({rbac_staff_role:'dean',user_role:'Admin',admin_id:'profile',position:'Dean'}),'dean');
-    assert.equal(resolveStaffRole({rbac_staff_role:'pd',user_role:'Admin',position:'Dean'}),'pd');
+    assert.equal(resolveStaffRole({ rbac_staff_role: 'dean', user_role: 'Admin', admin_id: 'profile', position: 'Dean' }), 'dean');
+    assert.equal(resolveStaffRole({ rbac_staff_role: 'pd', user_role: 'Admin', position: 'Dean' }), 'pd');
 });

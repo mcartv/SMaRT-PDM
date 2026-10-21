@@ -1135,6 +1135,13 @@ async function archiveStaffAccount(userId, actorUserId = null) {
             [userId]
         );
         await revokeStaffSessionVersion(client, userId);
+        // PHASE5B_ARCHIVE_RBAC_V1: preserve assignments, but revoke staff grants atomically.
+        await client.query(
+            `UPDATE public.rbac_user_roles ur SET is_active=false
+             FROM public.rbac_roles r WHERE r.role_id=ur.role_id
+               AND ur.user_id=$1 AND ur.is_active AND r.role_scope='staff'`,
+            [userId]
+        );
         await pdCourseAssignmentService.releaseAssignments(userId, client);
         await client.query(
             `UPDATE ro_area_coordinators
@@ -1182,6 +1189,25 @@ async function restoreStaffAccount(userId) {
         // Restoring an account deliberately does not revive its old browser
         // sessions. The user must sign in again and receive the new version.
         await revokeStaffSessionVersion(client, userId);
+        // PHASE5B_RESTORE_RBAC_V1: do not guess a role from legacy users.role.
+        // A restoration is permitted only when one unambiguous active-catalog role
+        // is recorded for this account. Ambiguous history requires manual review.
+        const primaryRoles = await client.query(
+            `SELECT ur.role_id FROM public.rbac_user_roles ur
+             JOIN public.rbac_roles r ON r.role_id=ur.role_id
+             JOIN public.rbac_staff_role_catalog c ON c.role_id=r.role_id
+             WHERE ur.user_id=$1 AND r.role_scope='staff'
+               AND r.is_active=true AND c.is_active=true
+             ORDER BY ur.assigned_at DESC, ur.role_id`, [userId]
+        );
+        if (primaryRoles.rows.length !== 1) {
+            throw createHttpError(409, 'Cannot safely restore the account role; review historical RBAC assignments.');
+        }
+        await client.query(
+            `UPDATE public.rbac_user_roles SET is_active=true
+             WHERE user_id=$1 AND role_id=$2`,
+            [userId, primaryRoles.rows[0].role_id]
+        );
         if (existing.role === 'pd') {
             await pdCourseAssignmentService.restoreLatestReleasedAssignments(userId, client);
         }

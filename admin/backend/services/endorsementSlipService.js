@@ -892,6 +892,7 @@ async function fetchSlipDetail(slipId, actor = null) {
     };
 }
 
+// PHASE5H_ACTIVE_CATALOG_TARGETING_V1
 // fetchStaffTargetsByRole: fetches and returns fetch staff targets by role for the Endorsement flow.
 async function fetchStaffTargetsByRole(role, { courseId = null } = {}) {
     const { rows } = await pool.query(
@@ -903,6 +904,12 @@ async function fetchStaffTargetsByRole(role, { courseId = null } = {}) {
             ap.admin_id,
             ap.department,
             ap.position,
+            (SELECT c.app_role_code FROM public.rbac_user_roles ur
+                           JOIN public.rbac_roles r ON r.role_id=ur.role_id
+                           JOIN public.rbac_staff_role_catalog c ON c.role_id=r.role_id
+                          WHERE ur.user_id=u.user_id AND ur.is_active=true AND r.is_active=true
+                            AND r.role_scope='staff' AND c.is_active=true
+                          ORDER BY ur.assigned_at DESC, c.app_role_code LIMIT 1) AS rbac_staff_role,
             ap.first_name,
             ap.last_name
         from users u
@@ -912,7 +919,7 @@ async function fetchStaffTargetsByRole(role, { courseId = null } = {}) {
     );
 
     let targets = rows
-        .filter((row) => resolveStaffRole(row) === role)
+        .filter((row) => row.rbac_staff_role === role)
         .filter((row) => safeText(row.email))
         .map((row) => ({
             user_id: row.user_id,

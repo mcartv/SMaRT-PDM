@@ -30,35 +30,22 @@ class _SuccessScreenState extends State<SuccessScreen> {
         widget.printableApplicationService ?? PrintableApplicationService();
   }
 
-  // _mapPayload: handles map payload for the success screen flow.
-  Map<String, dynamic>? _mapPayload(dynamic value) {
-    if (value is Map<String, dynamic>) return value;
-    if (value is Map) {
-      return value.map((key, mapValue) => MapEntry('$key', mapValue));
-    }
-    return null;
-  }
-
   // _handleGeneratePdf: handles handle generate pdf for the success screen flow.
-  Future<void> _handleGeneratePdf({
-    required String applicationId,
-    required Map<String, dynamic>? submissionPayload,
-  }) async {
+  Future<void> _handleGeneratePdf({required String applicationId}) async {
     if (_isGeneratingPdf) return;
 
     setState(() => _isGeneratingPdf = true);
 
     try {
-      // Export the persisted form whenever it is available. This is the
-      // source of truth after submission and includes the complete saved
-      // application rather than a possibly stale route payload.
-      final bytes = applicationId.trim().isNotEmpty
-          ? await _printableApplicationService
-                .generateBytesFromMySubmittedApplicationForm()
-          : await _printableApplicationService
-                .generateBytesFromSubmissionPayload(
-                  submissionPayload ?? const {},
-                );
+      // Form-02 is always generated from the persisted submitted snapshot.
+      // A route payload could be stale and has no finalized signature evidence.
+      if (applicationId.trim().isEmpty) {
+        throw StateError(
+          'The submitted application is not available yet. Please try the download again shortly.',
+        );
+      }
+      final bytes = await _printableApplicationService
+          .generateBytesFromMySubmittedApplicationForm();
 
       if (!mounted) return;
 
@@ -185,9 +172,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
     final openingId = payload['openingId']?.toString() ?? '';
     final openingTitle = payload['openingTitle']?.toString();
     final programName = payload['programName']?.toString();
-    final submissionPayload = _mapPayload(payload['submissionPayload']);
-    final canGeneratePdf =
-        submissionPayload != null || applicationId.trim().isNotEmpty;
+    final canGeneratePdf = applicationId.trim().isNotEmpty;
     final canUploadRequirements =
         payload['canUploadRequirements'] == true ||
         openingId.trim().isNotEmpty ||
@@ -417,7 +402,6 @@ class _SuccessScreenState extends State<SuccessScreen> {
                           ? null
                           : () => _handleGeneratePdf(
                               applicationId: applicationId,
-                              submissionPayload: submissionPayload,
                             ),
                     ),
 

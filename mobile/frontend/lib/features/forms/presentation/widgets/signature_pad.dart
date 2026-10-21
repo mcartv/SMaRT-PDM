@@ -92,7 +92,9 @@ Future<Uint8List> exportSignaturePng(SignaturePadController controller) async {
   if (controller.isEmpty) throw StateError('Signature is empty.');
   const size = Size(900, 360);
   final recorder = ui.PictureRecorder();
-  final canvas = Canvas(recorder)..drawColor(Colors.white, BlendMode.src);
+  // The pad itself remains white for usability, but exported evidence must
+  // retain alpha so it can overlay the official PDF without obscuring it.
+  final canvas = Canvas(recorder);
   _SignaturePainter(controller.strokes).paint(canvas, size);
   final image = await recorder.endRecording().toImage(
     size.width.toInt(),

@@ -92,6 +92,22 @@ async function getMySubmittedFormData(req, res) {
     }
 }
 
+async function getMySubmittedFormSignatureEvidence(req, res) {
+    try {
+        const userId = getRequestUserId(req);
+        if (!userId) return res.status(401).json({ error: 'Authentication required.' });
+        res.setHeader('Cache-Control', 'no-store, private');
+        return res.status(200).json(
+            await applicationService.getMySubmittedFormSignatureEvidence(userId)
+        );
+    } catch (error) {
+        console.error('SUBMITTED APPLICATION SIGNATURE EVIDENCE ROUTE ERROR:', error);
+        return res.status(getSafeStatusCode(error)).json({
+            error: error.message || 'Failed to load finalized signature evidence.',
+        });
+    }
+}
+
 // getMyApplicationById: reads and returns get my application by id for the Applications flow.
 async function getMyApplicationById(req, res) {
     try {
@@ -280,6 +296,7 @@ module.exports = {
     uploadSigningDocument,
     getMyFormData,
     getMySubmittedFormData,
+    getMySubmittedFormSignatureEvidence,
     getMyApplicationById,
     saveMyFormData,
     getMyDocuments,

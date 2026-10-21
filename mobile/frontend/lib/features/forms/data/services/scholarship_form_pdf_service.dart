@@ -1,18 +1,36 @@
 // SMaRT-PDM: Scholars — scholarship form pdf service (mobile service); calls APIs or shared services and returns processed results.
 import 'dart:io';
 import 'dart:ui' show Offset, Rect, Size;
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MissingPluginException, rootBundle;
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:smartpdm_mobileapp/features/forms/data/services/signature_image_processor.dart';
 import 'package:smartpdm_mobileapp/shared/models/saved_application_print_model.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
+/// Finalized, integrity-checked signature evidence for an already submitted
+/// application. This is intentionally separate from mutable form state.
+class FinalizedFormSignatureEvidence {
+  const FinalizedFormSignatureEvidence({
+    required this.studentSignaturePng,
+    required this.guardianSignaturePng,
+  });
+
+  final Uint8List studentSignaturePng;
+  final Uint8List guardianSignaturePng;
+}
+
 class ScholarshipFormPdfService {
+  ScholarshipFormPdfService({Future<ByteData> Function()? templateLoader})
+    : _templateLoader = templateLoader;
+
   static const double _imageWidth = 2550;
   static const double _imageHeight = 3900;
   static const String _notAvailable = 'N/A';
+  final Future<ByteData> Function()? _templateLoader;
 
   static String _printableValue(String value) {
     final clean = value.trim();
@@ -32,20 +50,39 @@ class ScholarshipFormPdfService {
 
   // generateBytesFromSavedApplication: handles generate bytes from saved application for the Scholars flow.
   Future<Uint8List> generateBytesFromSavedApplication(
-    SavedApplicationPrintModel model,
-  ) async {
+    SavedApplicationPrintModel model, {
+    FinalizedFormSignatureEvidence? signatures,
+  }) async {
     ByteData templateBytes;
     try {
-      templateBytes = await rootBundle.load(
-        'assets/files/scholarship_app_form.pdf',
-      );
+      templateBytes =
+          await (_templateLoader?.call() ??
+              rootBundle.load('assets/files/scholarship_app_form.pdf'));
     } catch (e) {
+      if (signatures != null) {
+        throw StateError(
+          'The official Form-02 template is unavailable. Please try the download again later.',
+        );
+      }
       return _generateFallbackPdfBytes(model);
     }
 
     final document = PdfDocument(
       inputBytes: templateBytes.buffer.asUint8List(),
     );
+    // The checked-in Form-02 PDF has an empty trailing page. Remove only
+    // trailing pages with no extractable content before creating any optional
+    // overflow-details page below, so legitimate generated detail pages remain.
+    while (document.pages.count > 1 &&
+        PdfTextExtractor(document)
+            .extractText(
+              startPageIndex: document.pages.count - 1,
+              endPageIndex: document.pages.count - 1,
+            )
+            .trim()
+            .isEmpty) {
+      document.pages.removeAt(document.pages.count - 1);
+    }
 
     final page = document.pages[0];
 
@@ -245,6 +282,37 @@ class ScholarshipFormPdfService {
         pen,
         middle,
         Offset(bounds.right - 1.5, bounds.top + 1.5),
+      );
+    }
+
+    // The official template was calibrated from its 2550x3900 source image.
+    // These two blank signature lanes are immediately above the printed-name
+    // and date row at y=2905. The benefactor/staff lane is intentionally not
+    // touched.
+    void drawSignature(Uint8List png, Rect bounds) {
+      final prepared = prepareSignatureImageForPdf(png);
+      // PdfBitmap retains PNG alpha, so no white backing rectangle is painted
+      // over the official template.
+      final image = PdfBitmap(prepared.png);
+      final imageWidth = prepared.width.toDouble();
+      final imageHeight = prepared.height.toDouble();
+      if (imageWidth <= 0 || imageHeight <= 0) {
+        throw StateError('Finalized signature evidence is invalid.');
+      }
+      final scale = math.min(
+        bounds.width / imageWidth,
+        bounds.height / imageHeight,
+      );
+      final width = imageWidth * scale;
+      final height = imageHeight * scale;
+      page.graphics.drawImage(
+        image,
+        Rect.fromLTWH(
+          bounds.left + ((bounds.width - width) / 2),
+          bounds.top + ((bounds.height - height) / 2),
+          width,
+          height,
+        ),
       );
     }
 
@@ -724,6 +792,14 @@ class ScholarshipFormPdfService {
     );
 
     // ── Signatures ───────────────────────────────────────────────────
+    if (signatures != null) {
+      // These boxes are the blank signing lanes. They sit below the
+      // certification statement and above the printed names/dates; the
+      // benefactor/staff area is intentionally untouched.
+      drawSignature(signatures.studentSignaturePng, r(115, 2835, 720, 55));
+      drawSignature(signatures.guardianSignaturePng, r(1280, 2835, 850, 55));
+    }
+
     // Printed names/dates stay inside the signature row and shrink if needed.
     drawFittingText(
       model.applicantPrintedName,
@@ -754,8 +830,11 @@ class ScholarshipFormPdfService {
 
     if (additionalDetails.isNotEmpty) {
       final extraPage = document.pages.add();
-      final detailsText = additionalDetails.asMap().entries
-          .map((entry) => 'Detail ${entry.key + 1}\n${entry.value}').join('\n\n');
+      final detailsText = additionalDetails
+          .asMap()
+          .entries
+          .map((entry) => 'Detail ${entry.key + 1}\n${entry.value}')
+          .join('\n\n');
       PdfTextElement(
         text:
             'APPLICATION FORM - ADDITIONAL DETAILS\n${model.applicantPrintedName}\n\n$detailsText',

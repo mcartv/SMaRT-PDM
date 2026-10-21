@@ -13,13 +13,8 @@ void main() {
     expect(source, isNot(contains('XFile(generatedFile.path)')));
     expect(source, isNot(contains('generateFromApplicationId(applicationId)')));
 
-    expect(
-      source,
-      contains(
-        'generateBytesFromSubmissionPayload(submissionPayload ?? const {})',
-      ),
-    );
     expect(source, contains('generateBytesFromMySubmittedApplicationForm()'));
+    expect(source, isNot(contains('generateBytesFromSubmissionPayload(')));
     expect(source, contains('saveAndOpenDownloadedFile('));
     expect(source, contains("contentType: 'application/pdf'"));
   });

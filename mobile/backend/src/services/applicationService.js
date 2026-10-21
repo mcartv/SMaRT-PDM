@@ -37,6 +37,11 @@ const APPLICATION_DRAFT_TABLE = 'application_form_drafts';
 const APPLICATION_DOCUMENT_BUCKET = normalizeStorageBucketName(
     process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET || 'documents'
 );
+const FORM_SIGNATURE_DOCUMENT_TYPES = Object.freeze([
+    'Student Signature',
+    'Guardian Signature',
+]);
+const MAX_FORM_SIGNATURE_BYTES = 2 * 1024 * 1024;
 const ENDORSEMENT_SLIP_BUCKET = normalizeStorageBucketName(
     process.env.SUPABASE_ENDORSEMENT_SLIP_BUCKET ||
     process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET ||
@@ -4281,6 +4286,112 @@ async function getMySubmittedFormData(userId) {
     };
 }
 
+// getMySubmittedFormSignatureEvidence: returns only the two PNGs that were
+// finalized with the applicant's current submitted application.  The lookup is
+// deliberately anchored to the finalized session and its immutable document
+// versions instead of the mutable document row or the applicant's draft.
+async function getMySubmittedFormSignatureEvidence(userId) {
+    if (!userId) throw createHttpError(401, 'Authentication required.');
+
+    const submitted = await getMySubmittedFormData(userId);
+    const applicationId = safeText(submitted?.application?.application_id);
+    if (!submitted?.has_application || !applicationId) {
+        throw createHttpError(404, 'Submitted application is not available.');
+    }
+
+    const { data: session, error: sessionError } = await supabase
+        .from('application_signing_sessions')
+        .select([
+            'signing_session_id',
+            'application_id',
+            'application_form_hash',
+            'finalized_at',
+            'status',
+            'student_signature_path',
+            'student_signature_sha256',
+            'guardian_signature_path',
+            'guardian_signature_sha256',
+        ].join(','))
+        .eq('user_id', userId)
+        .eq('application_id', applicationId)
+        .eq('status', 'finalized')
+        .not('finalized_at', 'is', null)
+        .maybeSingle();
+    if (sessionError) throw sessionError;
+    if (!session?.application_form_hash) {
+        throw createHttpError(
+            409,
+            'Finalized signature evidence is unavailable for this submitted application. Please contact OSFA for assistance.'
+        );
+    }
+
+    const { data: versions, error: versionsError } = await supabase
+        .from('application_document_versions')
+        .select('version_id, application_id, document_type, file_path, content_sha256, file_size_bytes, legacy_unhashed')
+        .eq('application_id', applicationId)
+        .in('document_type', FORM_SIGNATURE_DOCUMENT_TYPES);
+    if (versionsError) throw versionsError;
+
+    const evidence = {};
+    for (const [key, documentType, pathKey, hashKey] of [
+        ['student_signature', 'Student Signature', 'student_signature_path', 'student_signature_sha256'],
+        ['guardian_signature', 'Guardian Signature', 'guardian_signature_path', 'guardian_signature_sha256'],
+    ]) {
+        const expectedPath = safeText(session[pathKey]);
+        const expectedHash = safeText(session[hashKey]).toLowerCase();
+        const version = (versions || []).find((candidate) =>
+            candidate.document_type === documentType &&
+            safeText(candidate.file_path) === expectedPath &&
+            safeText(candidate.content_sha256).toLowerCase() === expectedHash &&
+            candidate.legacy_unhashed !== true
+        );
+        if (!expectedPath || !/^[a-f0-9]{64}$/.test(expectedHash) || !version?.version_id) {
+            throw createHttpError(
+                409,
+                'Finalized signature evidence is incomplete or no longer matches its submitted version. Please contact OSFA for assistance.'
+            );
+        }
+        evidence[key] = { path: expectedPath, hash: expectedHash, versionId: version.version_id };
+    }
+
+    const downloads = await Promise.all(
+        Object.values(evidence).map(async (item) => {
+            const { data, error } = await supabase.storage
+                .from(APPLICATION_DOCUMENT_BUCKET)
+                .download(item.path);
+            if (error) throw error;
+            return Buffer.from(await data.arrayBuffer());
+        })
+    );
+
+    const signatures = {};
+    for (const [index, key] of ['student_signature', 'guardian_signature'].entries()) {
+        const bytes = downloads[index];
+        const expected = evidence[key];
+        const isPng = bytes.length >= 8 && bytes.subarray(0, 8).equals(
+            Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+        );
+        const hash = crypto.createHash('sha256').update(bytes).digest('hex');
+        if (!isPng || bytes.length > MAX_FORM_SIGNATURE_BYTES || hash !== expected.hash) {
+            throw createHttpError(
+                409,
+                'Finalized signature evidence failed integrity verification. Please contact OSFA for assistance.'
+            );
+        }
+        signatures[key] = {
+            png_base64: bytes.toString('base64'),
+            version_id: expected.versionId,
+        };
+    }
+
+    return {
+        application_id: applicationId,
+        signing_session_id: session.signing_session_id,
+        finalized_at: session.finalized_at,
+        signatures,
+    };
+}
+
 // getMyApplicationById: reads and returns get my application by id for the Applications flow.
 async function getMyApplicationById(userId, applicationId) {
     const normalizedApplicationId = safeText(applicationId);
@@ -5349,6 +5460,7 @@ async function submitMyApplicationForm(userId, payload = {}) {
 module.exports = {
     getMyFormData,
     getMySubmittedFormData,
+    getMySubmittedFormSignatureEvidence,
     getMyApplicationById,
     saveMyFormData,
     getMyDocuments,

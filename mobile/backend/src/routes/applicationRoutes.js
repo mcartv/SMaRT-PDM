@@ -22,6 +22,11 @@ router.get(
     protect,
     applicationController.getMySubmittedFormData
 );
+router.get(
+    '/me/submitted-form/signatures',
+    protect,
+    applicationController.getMySubmittedFormSignatureEvidence
+);
 router.post('/me/form-data', protect, applicationController.saveMyFormData);
 router.put('/me/form-data', protect, applicationController.saveMyFormData);
 router.get('/me/documents', protect, applicationController.getMyDocuments);

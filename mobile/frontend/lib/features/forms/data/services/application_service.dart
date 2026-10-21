@@ -63,6 +63,15 @@ class ApplicationService {
     return _apiClient.getObject('/api/applications/me/submitted-form');
   }
 
+  // fetchMySubmittedFormSignatureEvidence: retrieves the server-verified,
+  // finalized signature images for the authenticated applicant's submission.
+  Future<Map<String, dynamic>> fetchMySubmittedFormSignatureEvidence() async {
+    return _apiClient.getObject(
+      '/api/applications/me/submitted-form/signatures',
+      timeout: const Duration(seconds: 30),
+    );
+  }
+
   // updateSubmittedApplication: updates update submitted application for the Applications flow.
   Future<Map<String, dynamic>> updateSubmittedApplication(
     ApplicationData applicationData, {

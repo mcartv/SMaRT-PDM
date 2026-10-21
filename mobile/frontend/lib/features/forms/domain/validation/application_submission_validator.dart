@@ -111,7 +111,6 @@ class ApplicationSubmissionValidator {
         label: 'Aims and ambition essay',
         value: data.aimsAndAmbitionEssay,
       ),
-      ..._validateCertificationFields(data),
     ]);
   }
 
@@ -119,7 +118,10 @@ class ApplicationSubmissionValidator {
   ApplicationSubmissionValidationResult validateSubmissionPreflight(
     ApplicationData data,
   ) {
-    return validateReviewReadiness(data);
+    return ApplicationSubmissionValidationResult(<ApplicationSubmissionIssue>[
+      ...validateReviewReadiness(data).issues,
+      ..._validateCertificationFields(data),
+    ]);
   }
 
   static int essayWordCount(String value) {
@@ -340,7 +342,8 @@ class ApplicationSubmissionValidator {
     }
 
     final zipError = data.zipCode.trim().toUpperCase() == 'N/A'
-        ? null : AppFieldValidators.zipCode(data.zipCode);
+        ? null
+        : AppFieldValidators.zipCode(data.zipCode);
     if (zipError != null) {
       issues.add(
         ApplicationSubmissionIssue(
@@ -393,12 +396,17 @@ class ApplicationSubmissionValidator {
   List<ApplicationSubmissionIssue> _validateFamilyFields(ApplicationData data) {
     final issues = <ApplicationSubmissionIssue>[];
 
+    final fatherIsListed = data.fatherPresent && !data.guardianOnly;
+    final motherIsListed = data.motherPresent && !data.guardianOnly;
+
+    // Middle names are optional for parents. Listed parents still require a
+    // first and last name; parents explicitly marked absent are exempt.
     final familyNames = <String, String>{
-      'fatherLastName': data.fatherLastName,
-      'fatherFirstName': data.fatherFirstName,
+      if (fatherIsListed) 'fatherLastName': data.fatherLastName,
+      if (fatherIsListed) 'fatherFirstName': data.fatherFirstName,
       'fatherMiddleName': data.fatherMiddleName,
-      'motherLastName': data.motherLastName,
-      'motherFirstName': data.motherFirstName,
+      if (motherIsListed) 'motherLastName': data.motherLastName,
+      if (motherIsListed) 'motherFirstName': data.motherFirstName,
       'motherMiddleName': data.motherMiddleName,
       'siblingLastName': data.siblingLastName,
       'siblingFirstName': data.siblingFirstName,
@@ -408,16 +416,21 @@ class ApplicationSubmissionValidator {
       'guardianMiddleName': data.guardianMiddleName,
     };
 
+    final requiredFamilyNames = Map<String, String>.from(familyNames)
+      ..remove('fatherMiddleName')
+      ..remove('motherMiddleName');
     final requiredFamilyFields = <String, String>{
-      ...familyNames,
-      'fatherMobile': data.fatherMobile,
-      'fatherEducationalAttainment': data.fatherEducationalAttainment,
-      'fatherOccupation': data.fatherOccupation,
-      'fatherCompanyNameAndAddress': data.fatherCompanyNameAndAddress,
-      'motherMobile': data.motherMobile,
-      'motherEducationalAttainment': data.motherEducationalAttainment,
-      'motherOccupation': data.motherOccupation,
-      'motherCompanyNameAndAddress': data.motherCompanyNameAndAddress,
+      ...requiredFamilyNames,
+      if (fatherIsListed)
+        'fatherEducationalAttainment': data.fatherEducationalAttainment,
+      if (fatherIsListed) 'fatherOccupation': data.fatherOccupation,
+      if (fatherIsListed)
+        'fatherCompanyNameAndAddress': data.fatherCompanyNameAndAddress,
+      if (motherIsListed)
+        'motherEducationalAttainment': data.motherEducationalAttainment,
+      if (motherIsListed) 'motherOccupation': data.motherOccupation,
+      if (motherIsListed)
+        'motherCompanyNameAndAddress': data.motherCompanyNameAndAddress,
       'siblingMobile': data.siblingMobile,
       'siblingEducationalAttainment': data.siblingEducationalAttainment,
       'siblingOccupation': data.siblingOccupation,
@@ -524,11 +537,15 @@ class ApplicationSubmissionValidator {
       required String label,
       required String value,
     }) {
-      if (value.trim().toUpperCase() == 'N/A') return;
+      final isFather = field == 'fatherMobile';
+      final isMother = field == 'motherMobile';
+      final required =
+          (isFather && fatherIsListed) || (isMother && motherIsListed);
+      if (!required && value.trim().toUpperCase() == 'N/A') return;
       final error = AppFieldValidators.philippineMobile(
         value,
         label: label,
-        required: false,
+        required: required,
       );
       if (error != null) {
         issues.add(

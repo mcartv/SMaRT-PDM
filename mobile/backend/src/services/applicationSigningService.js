@@ -73,6 +73,10 @@ function hashApplicationForm(payload = {}) {
     delete copy.signing_session_id;
     delete copy.signingSessionId;
     delete copy.edit_existing_application;
+    // Certification is acknowledged at final submission after evidence is
+    // captured. It is not applicant-entered form content and must not cause a
+    // false signature/session mismatch when the final acknowledgement changes.
+    delete copy.certification;
     return crypto.createHash('sha256')
         .update(stableJson(canonicalizeApplicationForm(copy)))
         .digest('hex');

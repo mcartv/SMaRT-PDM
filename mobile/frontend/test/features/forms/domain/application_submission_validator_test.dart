@@ -6,26 +6,102 @@ void main() {
   group('ApplicationSubmissionValidator', () {
     const validator = ApplicationSubmissionValidator();
 
-    test('requires every family entry while accepting explicit N/A', () {
-      final data = _validApplicationData();
-      expect(validator.validateFamilyProgression(data).isValid, isTrue);
-      data.guardianMobile = '  ';
+    test(
+      'requires every applicable family entry while accepting explicit N/A',
+      () {
+        final data = _validApplicationData();
+        expect(validator.validateFamilyProgression(data).isValid, isTrue);
+        data.guardianMobile = '  ';
+        expect(
+          validator
+              .validateFamilyProgression(data)
+              .issueForField('guardianMobile'),
+          isNotNull,
+        );
+        data.guardianMobile = 'N/A';
+        expect(validator.validateFamilyProgression(data).isValid, isTrue);
+        data.parentNativeStatus = '';
+        expect(
+          validator
+              .validateFamilyProgression(data)
+              .issueForField('parentNativeStatus'),
+          isNotNull,
+        );
+      },
+    );
+
+    test('accepts blank parent middle names and preserves supplied values', () {
+      final blankMiddleNames = _validApplicationData()
+        ..fatherMiddleName = ''
+        ..motherMiddleName = '';
       expect(
-        validator
-            .validateFamilyProgression(data)
-            .issueForField('guardianMobile'),
-        isNotNull,
+        validator.validateFamilyProgression(blankMiddleNames).isValid,
+        isTrue,
       );
-      data.guardianMobile = 'N/A';
-      expect(validator.validateFamilyProgression(data).isValid, isTrue);
-      data.parentNativeStatus = '';
+
+      final suppliedMiddleNames = _validApplicationData()
+        ..fatherMiddleName = 'Dela Cruz'
+        ..motherMiddleName = 'Santos';
+      expect(
+        validator.validateFamilyProgression(suppliedMiddleNames).isValid,
+        isTrue,
+      );
+      expect(suppliedMiddleNames.fatherMiddleName, 'Dela Cruz');
+      expect(suppliedMiddleNames.motherMiddleName, 'Santos');
+    });
+
+    test('requires valid mobile numbers for each listed parent', () {
+      final missingFather = _validApplicationData()..fatherMobile = '';
       expect(
         validator
-            .validateFamilyProgression(data)
-            .issueForField('parentNativeStatus'),
-        isNotNull,
+            .validateFamilyProgression(missingFather)
+            .issueForField('fatherMobile')
+            ?.message,
+        'Father mobile number is required.',
+      );
+
+      final invalidMother = _validApplicationData()..motherMobile = '0917';
+      expect(
+        validator
+            .validateFamilyProgression(invalidMother)
+            .issueForField('motherMobile')
+            ?.message,
+        'Mother mobile number must be exactly 11 digits and start with 09.',
       );
     });
+
+    test('does not require a mobile for a parent explicitly marked absent', () {
+      final data = _validApplicationData()
+        ..fatherPresent = false
+        ..fatherFirstName = ''
+        ..fatherLastName = ''
+        ..fatherMiddleName = ''
+        ..fatherMobile = ''
+        ..fatherEducationalAttainment = ''
+        ..fatherOccupation = ''
+        ..fatherCompanyNameAndAddress = '';
+
+      expect(validator.validateFamilyProgression(data).isValid, isTrue);
+    });
+
+    test(
+      'does not replace a missing listed-parent mobile with N/A in payload',
+      () {
+        final data = ApplicationData()
+          ..fatherPresent = true
+          ..motherPresent = true
+          ..fatherMobile = ''
+          ..motherMobile = '09170000002';
+
+        final family =
+            data.toSubmissionPayload()['family'] as Map<String, dynamic>;
+        expect((family['father'] as Map<String, dynamic>)['mobile'], isEmpty);
+        expect(
+          (family['mother'] as Map<String, dynamic>)['mobile'],
+          '09170000002',
+        );
+      },
+    );
 
     test(
       'address requires street but subdivision, block and phase may be empty',
@@ -124,6 +200,18 @@ void main() {
         ]),
       );
     });
+
+    test(
+      'allows an otherwise complete application to proceed from review to signing before certification',
+      () {
+        final data = _validApplicationData()
+          ..certificationRead = false
+          ..agree = false;
+
+        expect(validator.validateReviewReadiness(data).isValid, isTrue);
+        expect(validator.validateSubmissionPreflight(data).isValid, isFalse);
+      },
+    );
 
     test('accepts a fully valid submission snapshot', () {
       final result = validator.validateSubmissionPreflight(
@@ -298,13 +386,13 @@ ApplicationData _validApplicationData() {
     ..street = '295 Aguinaldo St.'
     ..subdivision = 'N/A'
     ..learnersReferenceNumber = 'N/A'
-    ..fatherMiddleName = 'N/A'
-    ..fatherMobile = 'N/A'
+    ..fatherMiddleName = ''
+    ..fatherMobile = '09170000001'
     ..fatherEducationalAttainment = 'N/A'
     ..fatherOccupation = 'N/A'
     ..fatherCompanyNameAndAddress = 'N/A'
-    ..motherMiddleName = 'N/A'
-    ..motherMobile = 'N/A'
+    ..motherMiddleName = ''
+    ..motherMobile = '09170000002'
     ..motherEducationalAttainment = 'N/A'
     ..motherOccupation = 'N/A'
     ..motherCompanyNameAndAddress = 'N/A'

@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_signing.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
-import 'package:flutter/material.dart';
 
 void main() {
   group('SigningState', () {
@@ -21,6 +20,20 @@ void main() {
       state.guardianId = Uint8List.fromList(<int>[1]);
       expect(state.validationMessage, 'Consent acknowledgment is required.');
     });
+
+    test(
+      'uploaded signature images satisfy readiness and clear independently',
+      () {
+        final state = SigningState()
+          ..studentSignatureUpload = Uint8List.fromList(<int>[1])
+          ..guardianSignatureUpload = Uint8List.fromList(<int>[2]);
+
+        expect(state.validationMessage, 'A parent or guardian ID is required.');
+        state.clearStudentSignature();
+        expect(state.validationMessage, 'Student signature is required.');
+        expect(state.guardianSignatureUpload, isNotNull);
+      },
+    );
 
     test('requires server-confirmed session before it is ready', () {
       final state = SigningState()
@@ -87,17 +100,20 @@ void main() {
       expect(state.sessionId, 'session-1');
     });
 
-    test('optional family phones are canonical in each submission payload', () {
-      final data = ApplicationData()
-        ..fatherMobile = ''
-        ..motherMobile = '  '
-        ..guardianMobile = 'n/a';
-      final family =
-          data.toSubmissionPayload()['family'] as Map<String, dynamic>;
-      expect((family['father'] as Map<String, dynamic>)['mobile'], 'N/A');
-      expect((family['mother'] as Map<String, dynamic>)['mobile'], 'N/A');
-      expect((family['guardian'] as Map<String, dynamic>)['mobile'], 'N/A');
-    });
+    test(
+      'listed-parent phones are not replaced with placeholders in payload',
+      () {
+        final data = ApplicationData()
+          ..fatherMobile = ''
+          ..motherMobile = '  '
+          ..guardianMobile = 'n/a';
+        final family =
+            data.toSubmissionPayload()['family'] as Map<String, dynamic>;
+        expect((family['father'] as Map<String, dynamic>)['mobile'], '');
+        expect((family['mother'] as Map<String, dynamic>)['mobile'], '');
+        expect((family['guardian'] as Map<String, dynamic>)['mobile'], 'N/A');
+      },
+    );
 
     test(
       'signature controllers remain owned by SigningState across step rebuilds',
@@ -160,12 +176,52 @@ void main() {
           applicant,
           contains(
             RegExp(
-              r'case ApplicationSubmissionSection\.certification:\s+return 5;',
+              r'case ApplicationSubmissionSection\.certification:\s+return 6;',
             ),
           ),
         );
       },
     );
+
+    test(
+      'application navigation places review before signing and final submit',
+      () {
+        final source = File(
+          'lib/features/applicant/presentation/screens/new_applicant_screen.dart',
+        ).readAsStringSync();
+        expect(
+          source.indexOf("'Review'"),
+          lessThan(source.indexOf("'Signing'")),
+        );
+        expect(
+          source.indexOf("'Signing'"),
+          lessThan(source.indexOf("'Submit'")),
+        );
+        expect(source, contains('finalConfirmationOnly: true'));
+      },
+    );
+
+    test('final certification changes do not invalidate signed evidence', () {
+      final state = SigningState()
+        ..sessionId = 'session-1'
+        ..studentSigned = true
+        ..guardianSigned = true;
+      state.invalidateIfFormChanged(<String, dynamic>{
+        'personal': <String, dynamic>{'first_name': 'Ada'},
+        'certification': <String, dynamic>{
+          'certification_read': false,
+          'agree': false,
+        },
+      });
+      state.invalidateIfFormChanged(<String, dynamic>{
+        'personal': <String, dynamic>{'first_name': 'Ada'},
+        'certification': <String, dynamic>{
+          'certification_read': true,
+          'agree': true,
+        },
+      });
+      expect(state.sessionId, 'session-1');
+    });
 
     test(
       'step keys are unique while AnimatedSwitcher keeps two steps mounted',

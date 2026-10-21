@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_signing_service.dart';
+import 'package:smartpdm_mobileapp/features/forms/data/services/signature_image_processor.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/widgets/intake_form_ui.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/widgets/signature_pad.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
@@ -13,6 +14,8 @@ class SigningState extends ChangeNotifier {
   String? _formFingerprint;
   final SignaturePadController studentPad = SignaturePadController();
   final SignaturePadController guardianPad = SignaturePadController();
+  Uint8List? studentSignatureUpload;
+  Uint8List? guardianSignatureUpload;
   Uint8List? guardianId;
   String guardianIdName = '';
   bool consent = false;
@@ -23,6 +26,11 @@ class SigningState extends ChangeNotifier {
   bool guardianSigned = false;
   bool _requiresReconfirmation = false;
   String? _reconfirmationMessage;
+
+  bool get hasStudentSignature =>
+      studentSigned || !studentPad.isEmpty || studentSignatureUpload != null;
+  bool get hasGuardianSignature =>
+      guardianSigned || !guardianPad.isEmpty || guardianSignatureUpload != null;
 
   bool get isReady =>
       sessionId != null &&
@@ -36,10 +44,10 @@ class SigningState extends ChangeNotifier {
       return _reconfirmationMessage ??
           'Application details changed. Reconfirm and upload the signing evidence again.';
     }
-    if (!studentSigned) {
+    if (!hasStudentSignature) {
       return 'Student signature is required.';
     }
-    if (!guardianSigned) {
+    if (!hasGuardianSignature) {
       return 'Parent or guardian signature is required.';
     }
     if (guardianId == null) {
@@ -71,8 +79,8 @@ class SigningState extends ChangeNotifier {
 
   void markUploaded(String uploadedSessionId, Map<String, dynamic> payload) {
     sessionId = uploadedSessionId;
-    studentSigned = !studentPad.isEmpty;
-    guardianSigned = !guardianPad.isEmpty;
+    studentSigned = hasStudentSignature;
+    guardianSigned = hasGuardianSignature;
     _formFingerprint = _canonicalJson(payload);
     _requiresReconfirmation = false;
     _reconfirmationMessage = null;
@@ -100,6 +108,7 @@ class SigningState extends ChangeNotifier {
 
   void clearStudentSignature() {
     studentPad.clear();
+    studentSignatureUpload = null;
     studentSigned = false;
     _invalidateEvidence(
       'Student signature was cleared. Upload signing evidence again.',
@@ -108,6 +117,7 @@ class SigningState extends ChangeNotifier {
 
   void clearGuardianSignature() {
     guardianPad.clear();
+    guardianSignatureUpload = null;
     guardianSigned = false;
     _invalidateEvidence(
       'Parent or guardian signature was cleared. Upload signing evidence again.',
@@ -148,7 +158,17 @@ class SigningState extends ChangeNotifier {
   }
 }
 
-String _canonicalJson(Object? value) => jsonEncode(_canonicalJsonValue(value));
+String _canonicalJson(Object? value) {
+  // Certification is a final-submit acknowledgement, not applicant-entered
+  // form content. It is intentionally outside the signing fingerprint so it
+  // can be confirmed after signatures without invalidating valid evidence.
+  if (value is Map) {
+    final signingPayload = Map<Object?, Object?>.from(value)
+      ..remove('certification');
+    return jsonEncode(_canonicalJsonValue(signingPayload));
+  }
+  return jsonEncode(_canonicalJsonValue(value));
+}
 
 Object? _canonicalJsonValue(Object? value) {
   if (value is Map) {
@@ -170,11 +190,16 @@ class StepSigning extends StatefulWidget {
     required this.state,
     required this.onChanged,
     this.showErrors = false,
+    this.pickSignatureImage,
   });
   final ApplicationData data;
   final SigningState state;
   final VoidCallback onChanged;
   final bool showErrors;
+
+  /// Test seam for the signature picker. Guardian-ID selection intentionally
+  /// continues to use the platform picker directly.
+  final Future<XFile?> Function(ImageSource source)? pickSignatureImage;
   @override
   State<StepSigning> createState() => _StepSigningState();
 }
@@ -239,11 +264,91 @@ class _StepSigningState extends State<StepSigning> {
     widget.onChanged();
   }
 
+  Future<void> _pickSignature(bool isStudent, ImageSource source) async {
+    try {
+      final file =
+          await (widget.pickSignatureImage?.call(source) ??
+              _picker.pickImage(
+                source: source,
+                imageQuality: 88,
+                maxWidth: 2200,
+              ));
+      if (file == null || !mounted) return;
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty || bytes.length > 8 * 1024 * 1024) {
+        throw StateError('Use a readable signature image smaller than 8 MB.');
+      }
+      final png = prepareUploadedSignaturePng(bytes);
+      if (png.length > 2 * 1024 * 1024) {
+        throw StateError(
+          'This signature image is too detailed. Choose a smaller image and try again.',
+        );
+      }
+      if (!mounted) return;
+      setState(() {
+        if (isStudent) {
+          widget.state.studentSignatureUpload = png;
+        } else {
+          widget.state.guardianSignatureUpload = png;
+        }
+        widget.state.error = null;
+      });
+      widget.onChanged();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        widget.state.error = error.toString().replaceFirst('Bad state: ', '');
+      });
+    }
+  }
+
+  Future<void> _chooseSignatureUpload(bool isStudent, String title) async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text('Upload $title'),
+              subtitle: const Text('Choose where to get the signature image.'),
+            ),
+            ListTile(
+              key: const ValueKey('signature-upload-camera'),
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Camera'),
+              subtitle: const Text('Capture a signature image'),
+              onTap: () => Navigator.of(sheetContext).pop(ImageSource.camera),
+            ),
+            ListTile(
+              key: const ValueKey('signature-upload-gallery'),
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Gallery'),
+              subtitle: const Text('Choose an existing signature image'),
+              onTap: () => Navigator.of(sheetContext).pop(ImageSource.gallery),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => Navigator.of(sheetContext).pop(),
+                child: const Text('Cancel'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source != null && mounted) await _pickSignature(isStudent, source);
+  }
+
   Future<void> _upload() async {
     final uploadGeneration = widget.state.beginUpload();
     if (uploadGeneration == null) return;
-    if (widget.state.studentPad.isEmpty ||
-        widget.state.guardianPad.isEmpty ||
+    if (!widget.state.hasStudentSignature ||
+        !widget.state.hasGuardianSignature ||
         widget.state.guardianId == null ||
         !widget.state.consent ||
         _guardianName.text.trim().isEmpty ||
@@ -262,8 +367,12 @@ class _StepSigningState extends State<StepSigning> {
         guardianRelationship: _relationship.text,
         consentAcknowledged: true,
       );
-      final student = await exportSignaturePng(widget.state.studentPad);
-      final guardian = await exportSignaturePng(widget.state.guardianPad);
+      final student =
+          widget.state.studentSignatureUpload ??
+          await exportSignaturePng(widget.state.studentPad);
+      final guardian =
+          widget.state.guardianSignatureUpload ??
+          await exportSignaturePng(widget.state.guardianPad);
       var uploaded = await _service.uploadBytes(
         sessionId: session.id,
         documentType: 'student_signature',
@@ -307,6 +416,7 @@ class _StepSigningState extends State<StepSigning> {
     String title,
     SignaturePadController controller,
     VoidCallback onClear,
+    bool isStudent,
   ) => IntakeCard(
     margin: const EdgeInsets.only(bottom: 16),
     padding: const EdgeInsets.all(14),
@@ -322,10 +432,41 @@ class _StepSigningState extends State<StepSigning> {
         const SizedBox(height: 8),
         SignaturePad(controller: controller, label: title),
         const SizedBox(height: 8),
+        OutlinedButton.icon(
+          key: ValueKey(
+            isStudent
+                ? 'student-signature-upload-button'
+                : 'guardian-signature-upload-button',
+          ),
+          onPressed: () => _chooseSignatureUpload(isStudent, title),
+          icon: const Icon(Icons.upload_file_outlined),
+          label: const Text('Upload Signature'),
+        ),
+        if (isStudent
+            ? widget.state.studentSignatureUpload != null
+            : widget.state.guardianSignatureUpload != null) ...[
+          const SizedBox(height: 8),
+          Semantics(
+            label: '$title uploaded signature preview',
+            child: Image.memory(
+              isStudent
+                  ? widget.state.studentSignatureUpload!
+                  : widget.state.guardianSignatureUpload!,
+              height: 72,
+              fit: BoxFit.contain,
+            ),
+          ),
+        ],
+        const SizedBox(height: 8),
         LayoutBuilder(
           builder: (context, constraints) {
+            final hasUpload = isStudent
+                ? widget.state.studentSignatureUpload != null
+                : widget.state.guardianSignatureUpload != null;
             final status = Text(
-              controller.isEmpty
+              hasUpload
+                  ? 'Uploaded signature ready for preview and upload.'
+                  : controller.isEmpty
                   ? 'Draw your signature above.'
                   : 'Signature ready for preview and upload.',
             );
@@ -374,11 +515,13 @@ class _StepSigningState extends State<StepSigning> {
           'Student signature',
           widget.state.studentPad,
           widget.state.clearStudentSignature,
+          true,
         ),
         _signatureBlock(
           'Parent or guardian signature',
           widget.state.guardianPad,
           widget.state.clearGuardianSignature,
+          false,
         ),
         IntakeCard(
           margin: const EdgeInsets.only(bottom: 16),

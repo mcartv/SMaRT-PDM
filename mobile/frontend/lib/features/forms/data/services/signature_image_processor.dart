@@ -16,6 +16,18 @@ class PreparedSignatureImage {
   final int height;
 }
 
+/// Converts a camera or gallery image to the PNG-only evidence format accepted
+/// by the signing API. Decoding and re-encoding preserves alpha in existing
+/// PNG captures; white-background legacy images are deliberately left intact
+/// here and are normalized only in memory when the official PDF is produced.
+Uint8List prepareUploadedSignaturePng(Uint8List source) {
+  final decoded = img.decodeImage(source);
+  if (decoded == null || decoded.width == 0 || decoded.height == 0) {
+    throw StateError('Choose a readable signature image.');
+  }
+  return Uint8List.fromList(img.encodePng(decoded));
+}
+
 /// Normalizes finalized PNG evidence in memory, without changing stored files.
 ///
 /// Historic captures used an opaque white canvas. Only fully opaque,

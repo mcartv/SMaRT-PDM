@@ -13,10 +13,16 @@ void main() {
     expect(source, isNot(contains('XFile(generatedFile.path)')));
     expect(source, isNot(contains('generateFromApplicationId(applicationId)')));
 
-    expect(source, contains('generateBytesFromMySubmittedApplicationForm()'));
-    expect(source, isNot(contains('generateBytesFromSubmissionPayload(')));
-    expect(source, contains('saveAndOpenDownloadedFile('));
-    expect(source, contains("contentType: 'application/pdf'"));
+    expect(source, contains("signed_application_pdf_export.dart"));
+    expect(source, contains('downloadVerifiedSignedApplicationPdf('));
+
+    final exportHelper = File(
+      'lib/features/forms/presentation/utils/signed_application_pdf_export.dart',
+    ).readAsStringSync();
+    expect(exportHelper, contains('generateBytesFromMySubmittedApplicationForm()'));
+    expect(exportHelper, isNot(contains('generateBytesFromSubmissionPayload(')));
+    expect(exportHelper, contains('saveAndOpenDownloadedFile'));
+    expect(exportHelper, contains("contentType: 'application/pdf'"));
   });
 
   test('existing SuccessScreen fake tracks byte generation', () {

@@ -9,7 +9,10 @@ import 'package:smartpdm_mobileapp/features/auth/data/services/auth_service.dart
 import 'package:smartpdm_mobileapp/shared/formatters/student_id_input_formatter.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, AuthService? authService})
+    : _authService = authService;
+
+  final AuthService? _authService;
 
   @override
   // createState: creates create state for the Authentication flow.
@@ -18,11 +21,12 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   // SMART-PDM_MOBILE_AUTH_LOGIN_POLISH_PHASE2_1_V1
-  final AuthService _authService = AuthService();
+  late final AuthService _authService = widget._authService ?? AuthService();
   final _formKey = GlobalKey<FormState>();
   final _studentIdController = TextEditingController();
   final _passwordController = TextEditingController();
   final _passwordFocusNode = FocusNode();
+  final _studentIdFocusNode = FocusNode();
 
   bool _obscurePassword = true;
   bool _isLoading = false;
@@ -67,11 +71,13 @@ class _LoginScreenState extends State<LoginScreen> {
     _studentIdController.dispose();
     _passwordController.dispose();
     _passwordFocusNode.dispose();
+    _studentIdFocusNode.dispose();
     super.dispose();
   }
 
   // _handleLogin: handles handle login for the Authentication flow.
   Future<void> _handleLogin() async {
+    if (_isLoading) return;
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
@@ -191,189 +197,202 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         child: Form(
                           key: _formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Container(
-                                width: iconSize,
-                                height: iconSize,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: AppColors.darkBrown,
-                                  borderRadius: BorderRadius.circular(
-                                    isCompact ? 18 : 20,
-                                  ),
-                                ),
-                                child: Icon(
-                                  Icons.lock_person_rounded,
-                                  color: AppColors.gold,
-                                  size: isCompact ? 29 : 32,
-                                ),
-                              ),
-                              SizedBox(height: isCompact ? 16 : 18),
-                              Text(
-                                _studentName.isEmpty
-                                    ? 'Welcome back'
-                                    : 'Welcome back, $_studentName',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineMedium
-                                    ?.copyWith(
-                                      color: textColor,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                hasPrefilledId
-                                    ? 'Your Student ID is ready. Enter your password to continue.'
-                                    : 'Enter your Student ID and password to continue.',
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(color: mutedColor, height: 1.45),
-                              ),
-                              SizedBox(height: isCompact ? 18 : 20),
-                              if (hasPrefilledId)
+                          child: AutofillGroup(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
                                 Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 14,
-                                  ),
+                                  width: iconSize,
+                                  height: iconSize,
+                                  alignment: Alignment.center,
                                   decoration: BoxDecoration(
-                                    color: AppColors.gold.withValues(
-                                      alpha: isDark ? 0.16 : 0.10,
+                                    color: AppColors.darkBrown,
+                                    borderRadius: BorderRadius.circular(
+                                      isCompact ? 18 : 20,
                                     ),
-                                    borderRadius: BorderRadius.circular(17),
-                                    border: Border.all(
+                                  ),
+                                  child: Icon(
+                                    Icons.lock_person_rounded,
+                                    color: AppColors.gold,
+                                    size: isCompact ? 29 : 32,
+                                  ),
+                                ),
+                                SizedBox(height: isCompact ? 16 : 18),
+                                Text(
+                                  _studentName.isEmpty
+                                      ? 'Welcome back'
+                                      : 'Welcome back, $_studentName',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineMedium
+                                      ?.copyWith(
+                                        color: textColor,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  hasPrefilledId
+                                      ? 'Your Student ID is ready. Enter your password to continue.'
+                                      : 'Enter your Student ID and password to continue.',
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(
+                                        color: mutedColor,
+                                        height: 1.45,
+                                      ),
+                                ),
+                                SizedBox(height: isCompact ? 18 : 20),
+                                if (hasPrefilledId)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 14,
+                                    ),
+                                    decoration: BoxDecoration(
                                       color: AppColors.gold.withValues(
-                                        alpha: isDark ? 0.42 : 0.30,
+                                        alpha: isDark ? 0.16 : 0.10,
                                       ),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.badge_rounded,
-                                        color: AppColors.brown,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Text(
-                                          visibleId,
-                                          style: TextStyle(
-                                            color: textColor,
-                                            fontWeight: FontWeight.w800,
-                                            letterSpacing: 0.3,
-                                          ),
-                                        ),
-                                      ),
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.pushReplacementNamed(
-                                              context,
-                                              AppRoutes.studentLookup,
-                                              arguments: 'existing',
-                                            ),
-                                        child: const Text('Change'),
-                                      ),
-                                    ],
-                                  ),
-                                )
-                              else
-                                TextFormField(
-                                  controller: _studentIdController,
-                                  keyboardType: TextInputType.number,
-                                  inputFormatters: const [
-                                    StudentIdInputFormatter(),
-                                  ],
-                                  decoration: _inputDecoration(
-                                    label: 'Student ID *',
-                                    hint: '0000-000000',
-                                    prefixText: 'PDM-',
-                                    icon: Icons.badge_outlined,
-                                  ),
-                                  validator:
-                                      StudentIdInputFormatter.validationMessage,
-                                ),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _passwordController,
-                                focusNode: _passwordFocusNode,
-                                obscureText: _obscurePassword,
-                                textInputAction: TextInputAction.done,
-                                onFieldSubmitted: (_) => _handleLogin(),
-                                decoration:
-                                    _inputDecoration(
-                                      label: 'Password *',
-                                      hint: 'Enter your password',
-                                      icon: Icons.lock_outline_rounded,
-                                    ).copyWith(
-                                      suffixIcon: IconButton(
-                                        onPressed: () => setState(
-                                          () => _obscurePassword =
-                                              !_obscurePassword,
-                                        ),
-                                        icon: Icon(
-                                          _obscurePassword
-                                              ? Icons.visibility_off_rounded
-                                              : Icons.visibility_rounded,
-                                        ),
-                                      ),
-                                    ),
-                                validator: (value) =>
-                                    value == null || value.isEmpty
-                                    ? 'Enter your password.'
-                                    : null,
-                              ),
-                              const SizedBox(height: 10),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: TextButton(
-                                  onPressed: () => Navigator.pushNamed(
-                                    context,
-                                    AppRoutes.forgotPassword,
-                                  ),
-                                  child: Text(
-                                    'Forgot password?',
-                                    style: TextStyle(
-                                      color: isDark
-                                          ? AppColors.gold
-                                          : AppColors.brown,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              SizedBox(
-                                height: 52,
-                                child: FilledButton(
-                                  onPressed: _isLoading ? null : _handleLogin,
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: AppColors.gold,
-                                    foregroundColor: AppColors.darkBrown,
-                                    shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(17),
+                                      border: Border.all(
+                                        color: AppColors.gold.withValues(
+                                          alpha: isDark ? 0.42 : 0.30,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                  child: _isLoading
-                                      ? const SizedBox(
-                                          width: 22,
-                                          height: 22,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: AppColors.darkBrown,
-                                          ),
-                                        )
-                                      : const Text(
-                                          'Log in',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w800,
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.badge_rounded,
+                                          color: AppColors.brown,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Text(
+                                            visibleId,
+                                            style: TextStyle(
+                                              color: textColor,
+                                              fontWeight: FontWeight.w800,
+                                              letterSpacing: 0.3,
+                                            ),
                                           ),
                                         ),
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pushReplacementNamed(
+                                                context,
+                                                AppRoutes.studentLookup,
+                                                arguments: 'existing',
+                                              ),
+                                          child: const Text('Change'),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                else
+                                  TextFormField(
+                                    controller: _studentIdController,
+                                    focusNode: _studentIdFocusNode,
+                                    keyboardType: TextInputType.number,
+                                    textInputAction: TextInputAction.next,
+                                    onFieldSubmitted: (_) =>
+                                        _passwordFocusNode.requestFocus(),
+                                    autofillHints: const [
+                                      AutofillHints.username,
+                                    ],
+                                    inputFormatters: const [
+                                      StudentIdInputFormatter(),
+                                    ],
+                                    decoration: _inputDecoration(
+                                      label: 'Student ID *',
+                                      hint: '0000-000000',
+                                      prefixText: 'PDM-',
+                                      icon: Icons.badge_outlined,
+                                    ),
+                                    validator: StudentIdInputFormatter
+                                        .validationMessage,
+                                  ),
+                                const SizedBox(height: 16),
+                                TextFormField(
+                                  controller: _passwordController,
+                                  focusNode: _passwordFocusNode,
+                                  obscureText: _obscurePassword,
+                                  autofillHints: const [AutofillHints.password],
+                                  textInputAction: TextInputAction.done,
+                                  onFieldSubmitted: (_) => _handleLogin(),
+                                  decoration:
+                                      _inputDecoration(
+                                        label: 'Password *',
+                                        hint: 'Enter your password',
+                                        icon: Icons.lock_outline_rounded,
+                                      ).copyWith(
+                                        suffixIcon: IconButton(
+                                          onPressed: () => setState(
+                                            () => _obscurePassword =
+                                                !_obscurePassword,
+                                          ),
+                                          icon: Icon(
+                                            _obscurePassword
+                                                ? Icons.visibility_off_rounded
+                                                : Icons.visibility_rounded,
+                                          ),
+                                        ),
+                                      ),
+                                  validator: (value) =>
+                                      value == null || value.isEmpty
+                                      ? 'Enter your password.'
+                                      : null,
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                            ],
+                                const SizedBox(height: 10),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton(
+                                    onPressed: () => Navigator.pushNamed(
+                                      context,
+                                      AppRoutes.forgotPassword,
+                                    ),
+                                    child: Text(
+                                      'Forgot password?',
+                                      style: TextStyle(
+                                        color: isDark
+                                            ? AppColors.gold
+                                            : AppColors.brown,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  height: 52,
+                                  child: FilledButton(
+                                    onPressed: _isLoading ? null : _handleLogin,
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: AppColors.gold,
+                                      foregroundColor: AppColors.darkBrown,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(17),
+                                      ),
+                                    ),
+                                    child: _isLoading
+                                        ? const SizedBox(
+                                            width: 22,
+                                            height: 22,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: AppColors.darkBrown,
+                                            ),
+                                          )
+                                        : const Text(
+                                            'Log in',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
+                            ),
                           ),
                         ),
                       ),

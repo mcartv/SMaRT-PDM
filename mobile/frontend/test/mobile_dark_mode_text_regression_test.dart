@@ -35,7 +35,8 @@ void main() {
 
     expect(source, contains('final dialogSurface = isDark'));
     expect(source, contains('final bodyColor = isDark'));
-    expect(source, contains('isDark ? AppColors.gold : AppColors.brown'));
+    expect(source, contains('AppColors.applicantDarkTextMuted'));
+    expect(source, contains('AppColors.brown.withValues(alpha: 0.76)'));
   });
 
   test('menu uses applicant dark text palette', () {

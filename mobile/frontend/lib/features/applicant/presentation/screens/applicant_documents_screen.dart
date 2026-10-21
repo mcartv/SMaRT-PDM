@@ -1039,7 +1039,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
               if (signingDocuments.isNotEmpty) ...[
                 const SizedBox(height: 14),
                 const AppSectionHeading(
-                  title: 'Application Signing Evidence',
+                  title: 'Applicant & Parent/Guardian Signatures',
                   subtitle:
                       'These records are retained with your application. They can be replaced only when an authorized reviewer requests a correction.',
                 ),

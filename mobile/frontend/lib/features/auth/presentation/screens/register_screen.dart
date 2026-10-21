@@ -13,7 +13,10 @@ import 'package:smartpdm_mobileapp/shared/widgets/legal_document_sheet.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/shared_widgets.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+  const RegisterScreen({super.key, AuthService? authService})
+    : _authService = authService;
+
+  final AuthService? _authService;
 
   @override
   // createState: creates create state for the Authentication flow.
@@ -22,13 +25,17 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   // SMART-PDM_MOBILE_AUTH_REGISTRATION_POLISH_PHASE2_2_V1
-  final AuthService _authService = AuthService();
+  late final AuthService _authService = widget._authService ?? AuthService();
   final _formKey = GlobalKey<FormState>();
 
   final _identifierController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _identifierFocusNode = FocusNode();
+  final _emailFocusNode = FocusNode();
+  final _passwordFocusNode = FocusNode();
+  final _confirmPasswordFocusNode = FocusNode();
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -87,11 +94,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _identifierFocusNode.dispose();
+    _emailFocusNode.dispose();
+    _passwordFocusNode.dispose();
+    _confirmPasswordFocusNode.dispose();
     super.dispose();
   }
 
   // _handleRegister: handles handle register for the Authentication flow.
   Future<void> _handleRegister() async {
+    if (_isLoading) return;
     if (!_acceptedPolicies) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -229,10 +241,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   // _policyTextLink: handles policy text link for the Authentication flow.
-  Widget _policyTextLink({
-    required String label,
-    required VoidCallback onTap,
-  }) {
+  Widget _policyTextLink({required String label, required VoidCallback onTap}) {
     return TextButton(
       onPressed: onTap,
       style: TextButton.styleFrom(
@@ -417,192 +426,217 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ],
                   ),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Image.asset(
-                          'assets/images/school_logo.png',
-                          height: isCompact ? 96 : 108,
-                          fit: BoxFit.contain,
-                        ),
-                        SizedBox(height: isCompact ? 12 : 16),
-                        Text(
-                          'Finish account setup',
-                          style: titleStyle?.copyWith(color: textColor),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Your Student ID was verified. Complete the remaining details to secure your account.',
-                          style: bodyStyle,
-                          textAlign: TextAlign.center,
-                        ),
-                        if (hasRegistryRecord) ...[
-                          SizedBox(height: isCompact ? 16 : 20),
-                          _buildRegistrySummary(),
-                        ],
-                        SizedBox(height: isCompact ? 18 : 24),
-                        TextFormField(
-                          controller: _identifierController,
-                          readOnly: _isStudentIdReadOnly,
-                          textCapitalization: TextCapitalization.characters,
-                          style: const TextStyle(fontSize: 17),
-                          decoration: InputDecoration(
-                            labelText: 'Student ID *',
-                            prefixIcon: const Icon(Icons.school_outlined),
-                            suffixIcon: _isStudentIdReadOnly
-                                ? const Icon(Icons.lock_outline)
-                                : null,
-                            labelStyle: TextStyle(
-                              color: isDark
-                                  ? AppColors.applicantDarkTextMuted
-                                  : AppColors.brown,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            floatingLabelStyle: TextStyle(
-                              color: isDark
-                                  ? AppColors.gold
-                                  : AppColors.darkBrown,
-                              fontWeight: FontWeight.w800,
-                            ),
-                            focusedBorder: UnderlineInputBorder(
-                              borderSide: BorderSide(
+                  child: AutofillGroup(
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Image.asset(
+                            'assets/images/school_logo.png',
+                            height: isCompact ? 96 : 108,
+                            fit: BoxFit.contain,
+                          ),
+                          SizedBox(height: isCompact ? 12 : 16),
+                          Text(
+                            'Finish account setup',
+                            style: titleStyle?.copyWith(color: textColor),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Your Student ID was verified. Complete the remaining details to secure your account.',
+                            style: bodyStyle,
+                            textAlign: TextAlign.center,
+                          ),
+                          if (hasRegistryRecord) ...[
+                            SizedBox(height: isCompact ? 16 : 20),
+                            _buildRegistrySummary(),
+                          ],
+                          SizedBox(height: isCompact ? 18 : 24),
+                          TextFormField(
+                            controller: _identifierController,
+                            focusNode: _identifierFocusNode,
+                            readOnly: _isStudentIdReadOnly,
+                            textInputAction: TextInputAction.next,
+                            onFieldSubmitted: (_) =>
+                                _emailFocusNode.requestFocus(),
+                            autofillHints: const [AutofillHints.username],
+                            textCapitalization: TextCapitalization.characters,
+                            style: const TextStyle(fontSize: 17),
+                            decoration: InputDecoration(
+                              labelText: 'Student ID *',
+                              prefixIcon: const Icon(Icons.school_outlined),
+                              suffixIcon: _isStudentIdReadOnly
+                                  ? const Icon(Icons.lock_outline)
+                                  : null,
+                              labelStyle: TextStyle(
+                                color: isDark
+                                    ? AppColors.applicantDarkTextMuted
+                                    : AppColors.brown,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              floatingLabelStyle: TextStyle(
                                 color: isDark
                                     ? AppColors.gold
                                     : AppColors.darkBrown,
-                                width: 2,
+                                fontWeight: FontWeight.w800,
                               ),
-                            ),
-                          ),
-                          validator: _validateStudentId,
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _emailController,
-                          keyboardType: TextInputType.emailAddress,
-                          style: const TextStyle(fontSize: 17),
-                          decoration: const InputDecoration(
-                            labelText: 'Email Address *',
-                            prefixIcon: Icon(Icons.email_outlined),
-                          ),
-                          validator: (value) => AppFieldValidators.email(value),
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: _obscurePassword,
-                          style: const TextStyle(fontSize: 17),
-                          decoration: InputDecoration(
-                            labelText: 'Password *',
-                            prefixIcon: const Icon(Icons.lock_outline),
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                _obscurePassword
-                                    ? Icons.visibility_off
-                                    : Icons.visibility,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  _obscurePassword = !_obscurePassword;
-                                });
-                              },
-                            ),
-                          ),
-                          autovalidateMode: AutovalidateMode.onUserInteraction,
-                          validator: AppFieldValidators.password,
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _confirmPasswordController,
-                          obscureText: _obscureConfirmPassword,
-                          style: const TextStyle(fontSize: 17),
-                          decoration: InputDecoration(
-                            labelText: 'Confirm Password *',
-                            prefixIcon: const Icon(Icons.lock_outline),
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                _obscureConfirmPassword
-                                    ? Icons.visibility_off
-                                    : Icons.visibility,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  _obscureConfirmPassword =
-                                      !_obscureConfirmPassword;
-                                });
-                              },
-                            ),
-                          ),
-                          validator: (value) =>
-                              AppFieldValidators.confirmPassword(
-                                value,
-                                password: _passwordController.text,
-                              ),
-                        ),
-                        const SizedBox(height: 20),
-                        _buildPolicyAgreement(),
-                        const SizedBox(height: 20),
-                        SizedBox(
-                          width: double.infinity,
-                          child: _isLoading
-                              ? const Center(
-                                  child: SizedBox(
-                                    height: 24,
-                                    width: 24,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  ),
-                                )
-                              : GoldButton(
-                                  label: 'Sign Up',
-                                  onTap: _handleRegister,
+                              focusedBorder: UnderlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: isDark
+                                      ? AppColors.gold
+                                      : AppColors.darkBrown,
+                                  width: 2,
                                 ),
-                        ),
-                        const SizedBox(height: 24),
-                        Wrap(
-                          alignment: WrapAlignment.center,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          spacing: 4,
-                          runSpacing: 2,
-                          children: [
-                            Text(
-                              'Already registered?',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: mutedColor),
-                            ),
-                            TextButton(
-                              style: TextButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                  vertical: 2,
-                                ),
-                                minimumSize: Size.zero,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                visualDensity: VisualDensity.compact,
                               ),
-                              onPressed: () => Navigator.pushReplacementNamed(
-                                context,
-                                AppRoutes.login,
-                                arguments: {
-                                  'prefillStudentId':
-                                      StudentIdInputFormatter.toFullStudentId(
-                                        _identifierController.text,
-                                      ),
-                                  'focusPassword': true,
+                            ),
+                            validator: _validateStudentId,
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _emailController,
+                            focusNode: _emailFocusNode,
+                            keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
+                            onFieldSubmitted: (_) =>
+                                _passwordFocusNode.requestFocus(),
+                            autofillHints: const [AutofillHints.email],
+                            style: const TextStyle(fontSize: 17),
+                            decoration: const InputDecoration(
+                              labelText: 'Email Address *',
+                              prefixIcon: Icon(Icons.email_outlined),
+                            ),
+                            validator: (value) =>
+                                AppFieldValidators.email(value),
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _passwordController,
+                            focusNode: _passwordFocusNode,
+                            obscureText: _obscurePassword,
+                            textInputAction: TextInputAction.next,
+                            onFieldSubmitted: (_) =>
+                                _confirmPasswordFocusNode.requestFocus(),
+                            autofillHints: const [AutofillHints.newPassword],
+                            style: const TextStyle(fontSize: 17),
+                            decoration: InputDecoration(
+                              labelText: 'Password *',
+                              prefixIcon: const Icon(Icons.lock_outline),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
                                 },
                               ),
-                              child: const Text(
-                                'Log in',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            autovalidateMode:
+                                AutovalidateMode.onUserInteraction,
+                            validator: AppFieldValidators.password,
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _confirmPasswordController,
+                            focusNode: _confirmPasswordFocusNode,
+                            obscureText: _obscureConfirmPassword,
+                            textInputAction: TextInputAction.done,
+                            onFieldSubmitted: (_) =>
+                                FocusScope.of(context).nextFocus(),
+                            autofillHints: const [AutofillHints.newPassword],
+                            style: const TextStyle(fontSize: 17),
+                            decoration: InputDecoration(
+                              labelText: 'Confirm Password *',
+                              prefixIcon: const Icon(Icons.lock_outline),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscureConfirmPassword
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _obscureConfirmPassword =
+                                        !_obscureConfirmPassword;
+                                  });
+                                },
                               ),
                             ),
-                          ],
-                        ),
-                      ],
+                            validator: (value) =>
+                                AppFieldValidators.confirmPassword(
+                                  value,
+                                  password: _passwordController.text,
+                                ),
+                          ),
+                          const SizedBox(height: 20),
+                          _buildPolicyAgreement(),
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            width: double.infinity,
+                            child: _isLoading
+                                ? const Center(
+                                    child: SizedBox(
+                                      height: 24,
+                                      width: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  )
+                                : GoldButton(
+                                    label: 'Sign Up',
+                                    onTap: _handleRegister,
+                                  ),
+                          ),
+                          const SizedBox(height: 24),
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 4,
+                            runSpacing: 2,
+                            children: [
+                              Text(
+                                'Already registered?',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: mutedColor),
+                              ),
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                    vertical: 2,
+                                  ),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                onPressed: () => Navigator.pushReplacementNamed(
+                                  context,
+                                  AppRoutes.login,
+                                  arguments: {
+                                    'prefillStudentId':
+                                        StudentIdInputFormatter.toFullStudentId(
+                                          _identifierController.text,
+                                        ),
+                                    'focusPassword': true,
+                                  },
+                                ),
+                                child: const Text(
+                                  'Log in',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

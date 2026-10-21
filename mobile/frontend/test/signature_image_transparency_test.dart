@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:smartpdm_mobileapp/features/forms/data/services/signature_image_processor.dart';
@@ -56,4 +55,22 @@ void main() {
     expect(image.getPixel(10, 10).a.toInt(), 255);
     expect(image.getPixel(11, 10).a.toInt(), 80);
   });
+
+  test(
+    'uploaded transparent PNG remains transparent and uses PNG evidence',
+    () {
+      final source = img.Image(width: 24, height: 12, numChannels: 4);
+      source.setPixelRgba(8, 6, 28, 40, 51, 255);
+      source.setPixelRgba(9, 6, 100, 110, 120, 80);
+
+      final prepared = prepareUploadedSignaturePng(
+        Uint8List.fromList(img.encodePng(source)),
+      );
+      final image = img.decodePng(prepared)!;
+
+      expect(image.getPixel(0, 0).a.toInt(), 0);
+      expect(image.getPixel(8, 6).a.toInt(), 255);
+      expect(image.getPixel(9, 6).a.toInt(), 80);
+    },
+  );
 }

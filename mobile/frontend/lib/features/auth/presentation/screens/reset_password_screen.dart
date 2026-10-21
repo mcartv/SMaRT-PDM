@@ -185,125 +185,129 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     ),
                   ],
                 ),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (_error != null) ...[
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.red.withValues(alpha: 0.08),
-                            border: Border.all(color: Colors.red.shade300),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            _error!,
-                            style: TextStyle(
-                              color: isDark
-                                  ? Colors.red.shade200
-                                  : Colors.red.shade900,
-                              fontWeight: FontWeight.w600,
+                child: AutofillGroup(
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (_error != null) ...[
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withValues(alpha: 0.08),
+                              border: Border.all(color: Colors.red.shade300),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              _error!,
+                              style: TextStyle(
+                                color: isDark
+                                    ? Colors.red.shade200
+                                    : Colors.red.shade900,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
+                          const SizedBox(height: 12),
+                        ],
+                        Text(
+                          'Create a new password',
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(
+                                color: headingColor,
+                                fontSize: isCompact ? 25 : 28,
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Choose a strong password that meets all requirements below.',
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodyMedium?.copyWith(color: mutedText),
+                        ),
+                        const SizedBox(height: 20),
+                        TextFormField(
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          autofillHints: const [AutofillHints.newPassword],
+                          textInputAction: TextInputAction.next,
+                          decoration: InputDecoration(
+                            labelText: 'New Password *',
+                            prefixIcon: const Icon(Icons.lock_outline),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(borderRadius),
+                            ),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                              ),
+                              onPressed: () {
+                                setState(
+                                  () => _obscurePassword = !_obscurePassword,
+                                );
+                              },
+                            ),
+                          ),
+                          validator: _validatePassword,
+                          onChanged: (_) => setState(() {}),
                         ),
                         const SizedBox(height: 12),
-                      ],
-                      Text(
-                        'Create a new password',
-                        style: Theme.of(context).textTheme.headlineMedium
-                            ?.copyWith(
-                              color: headingColor,
-                              fontSize: isCompact ? 25 : 28,
-                              fontWeight: FontWeight.w900,
-                            ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Choose a strong password that meets all requirements below.',
-                        style: Theme.of(
-                          context,
-                        ).textTheme.bodyMedium?.copyWith(color: mutedText),
-                      ),
-                      const SizedBox(height: 20),
-                      TextFormField(
-                        controller: _passwordController,
-                        obscureText: _obscurePassword,
-                        textInputAction: TextInputAction.next,
-                        decoration: InputDecoration(
-                          labelText: 'New Password *',
-                          prefixIcon: const Icon(Icons.lock_outline),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(borderRadius),
-                          ),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
-                            ),
-                            onPressed: () {
-                              setState(
-                                () => _obscurePassword = !_obscurePassword,
-                              );
-                            },
-                          ),
+                        PasswordStrengthIndicator(
+                          password: _passwordController.text,
                         ),
-                        validator: _validatePassword,
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 12),
-                      PasswordStrengthIndicator(
-                        password: _passwordController.text,
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _confirmPasswordController,
-                        obscureText: _obscureConfirmPassword,
-                        textInputAction: TextInputAction.done,
-                        decoration: InputDecoration(
-                          labelText: 'Confirm Password *',
-                          prefixIcon: const Icon(Icons.lock_outline),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(borderRadius),
-                          ),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscureConfirmPassword
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _confirmPasswordController,
+                          obscureText: _obscureConfirmPassword,
+                          autofillHints: const [AutofillHints.newPassword],
+                          textInputAction: TextInputAction.done,
+                          decoration: InputDecoration(
+                            labelText: 'Confirm Password *',
+                            prefixIcon: const Icon(Icons.lock_outline),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(borderRadius),
                             ),
-                            onPressed: () {
-                              setState(
-                                () => _obscureConfirmPassword =
-                                    !_obscureConfirmPassword,
-                              );
-                            },
-                          ),
-                        ),
-                        validator: _validateConfirmPassword,
-                        onFieldSubmitted: (_) => _submit(),
-                      ),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        height: 52,
-                        child: _isLoading
-                            ? const Center(
-                                child: SizedBox(
-                                  height: 22,
-                                  width: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                  ),
-                                ),
-                              )
-                            : GoldButton(
-                                label: 'Reset Password',
-                                onTap: _submit,
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscureConfirmPassword
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
                               ),
-                      ),
-                    ],
+                              onPressed: () {
+                                setState(
+                                  () => _obscureConfirmPassword =
+                                      !_obscureConfirmPassword,
+                                );
+                              },
+                            ),
+                          ),
+                          validator: _validateConfirmPassword,
+                          onFieldSubmitted: (_) => _submit(),
+                        ),
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          height: 52,
+                          child: _isLoading
+                              ? const Center(
+                                  child: SizedBox(
+                                    height: 22,
+                                    width: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                    ),
+                                  ),
+                                )
+                              : GoldButton(
+                                  label: 'Reset Password',
+                                  onTap: _submit,
+                                ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

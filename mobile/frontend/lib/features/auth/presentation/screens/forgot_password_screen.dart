@@ -70,6 +70,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   // _submit: handles submit for the Authentication flow.
   Future<void> _submit() async {
+    if (_isLoading) return;
     FocusScope.of(context).unfocus();
 
     if (!_formKey.currentState!.validate()) return;
@@ -183,121 +184,122 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     ),
                   ],
                 ),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Container(
-                        width: isCompact ? 56 : 64,
-                        height: isCompact ? 56 : 64,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: AppColors.darkBrown,
-                          borderRadius: BorderRadius.circular(
-                            isCompact ? 17 : 20,
-                          ),
-                        ),
-                        child: Icon(
-                          Icons.lock_reset_rounded,
-                          color: AppColors.gold,
-                          size: isCompact ? 30 : 34,
-                        ),
-                      ),
-                      SizedBox(height: isCompact ? 16 : 22),
-                      Text(
-                        'Forgot your password?',
-                        style: Theme.of(context).textTheme.headlineMedium
-                            ?.copyWith(
-                              color: textColor,
-                              fontWeight: FontWeight.w800,
-                            ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Enter your Student ID. We will send a verification code to your registered email address.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: muted,
-                          height: 1.45,
-                        ),
-                      ),
-                      const SizedBox(height: 22),
-                      if (_error != null) ...[
+                child: AutofillGroup(
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          width: isCompact ? 56 : 64,
+                          height: isCompact ? 56 : 64,
+                          alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            color: Colors.red.withValues(alpha: 0.08),
-                            border: Border.all(color: Colors.red.shade300),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Text(
-                            _error!,
-                            style: TextStyle(
-                              color: isDark
-                                  ? Colors.red.shade200
-                                  : Colors.red.shade900,
-                              fontWeight: FontWeight.w600,
+                            color: AppColors.darkBrown,
+                            borderRadius: BorderRadius.circular(
+                              isCompact ? 17 : 20,
                             ),
                           ),
+                          child: Icon(
+                            Icons.lock_reset_rounded,
+                            color: AppColors.gold,
+                            size: isCompact ? 30 : 34,
+                          ),
                         ),
-                        const SizedBox(height: 16),
-                      ],
-                      TextFormField(
-                        controller: _studentIdController,
-                        keyboardType: TextInputType.number,
-                        textInputAction: TextInputAction.done,
-                        inputFormatters: const <TextInputFormatter>[
-                          StudentIdInputFormatter(),
+                        SizedBox(height: isCompact ? 16 : 22),
+                        Text(
+                          'Forgot your password?',
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(
+                                color: textColor,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Enter your Student ID. We will send a verification code to your registered email address.',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: muted, height: 1.45),
+                        ),
+                        const SizedBox(height: 22),
+                        if (_error != null) ...[
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withValues(alpha: 0.08),
+                              border: Border.all(color: Colors.red.shade300),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Text(
+                              _error!,
+                              style: TextStyle(
+                                color: isDark
+                                    ? Colors.red.shade200
+                                    : Colors.red.shade900,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
                         ],
-                        decoration: InputDecoration(
-                          labelText: 'Student ID *',
-                          hintText: '2024-000123',
-                          prefixIcon: const Padding(
-                            padding: EdgeInsets.only(left: 14, right: 8),
-                            child: Center(
-                              widthFactor: 1,
-                              child: Text(
-                                'PDM-',
-                                style: TextStyle(fontWeight: FontWeight.w800),
-                              ),
-                            ),
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        validator: (_) =>
-                            StudentIdInputFormatter.validationMessage(
-                              _studentIdController.text,
-                            ),
-                        onFieldSubmitted: (_) => _submit(),
-                      ),
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        height: 52,
-                        child: _isLoading
-                            ? const Center(
-                                child: SizedBox(
-                                  height: 22,
-                                  width: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                  ),
+                        TextFormField(
+                          controller: _studentIdController,
+                          autofillHints: const [AutofillHints.username],
+                          keyboardType: TextInputType.number,
+                          textInputAction: TextInputAction.done,
+                          inputFormatters: const <TextInputFormatter>[
+                            StudentIdInputFormatter(),
+                          ],
+                          decoration: InputDecoration(
+                            labelText: 'Student ID *',
+                            hintText: '2024-000123',
+                            prefixIcon: const Padding(
+                              padding: EdgeInsets.only(left: 14, right: 8),
+                              child: Center(
+                                widthFactor: 1,
+                                child: Text(
+                                  'PDM-',
+                                  style: TextStyle(fontWeight: FontWeight.w800),
                                 ),
-                              )
-                            : GoldButton(
-                                label: 'Send Verification Code',
-                                onTap: _submit,
                               ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextButton(
-                        onPressed: _goBack,
-                        child: Text(
-                          _isSignedIn ? 'Back to account' : 'Back to login',
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          validator: (_) =>
+                              StudentIdInputFormatter.validationMessage(
+                                _studentIdController.text,
+                              ),
+                          onFieldSubmitted: (_) => _submit(),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          height: 52,
+                          child: _isLoading
+                              ? const Center(
+                                  child: SizedBox(
+                                    height: 22,
+                                    width: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                    ),
+                                  ),
+                                )
+                              : GoldButton(
+                                  label: 'Send Verification Code',
+                                  onTap: _submit,
+                                ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextButton(
+                          onPressed: _goBack,
+                          child: Text(
+                            _isSignedIn ? 'Back to account' : 'Back to login',
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

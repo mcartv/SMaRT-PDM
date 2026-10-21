@@ -61,10 +61,12 @@ function buildStaffUserQuery(photoEnabled = false, lookup = 'email') {
             a.last_name,
             a.department,
             a.position,
-            COALESCE((SELECT CASE rr.role_code WHEN 'gco' THEN 'guidance' WHEN 'ro_personnel' THEN 'ro_coordinator' ELSE rr.role_code END
+            COALESCE((SELECT catalog.app_role_code
              FROM public.rbac_user_roles ur JOIN public.rbac_roles rr ON rr.role_id=ur.role_id
-             WHERE ur.user_id=u.user_id AND ur.is_active AND rr.is_active AND rr.role_scope='staff' AND rr.role_code<>'dean'
-             ORDER BY CASE WHEN rr.role_code='admin' THEN 1 ELSE 0 END, rr.role_code LIMIT 1),to_jsonb(a)->>'institutional_primary_role') AS rbac_staff_role,
+             JOIN public.rbac_staff_role_catalog catalog ON catalog.role_id=rr.role_id
+             WHERE ur.user_id=u.user_id AND ur.is_active AND rr.is_active AND rr.role_scope='staff'
+               AND catalog.is_active=true
+             ORDER BY CASE WHEN catalog.app_role_code='admin' THEN 1 ELSE 0 END, catalog.app_role_code LIMIT 1),to_jsonb(a)->>'institutional_primary_role') AS rbac_staff_role,
             COALESCE(a.is_archived, false) AS is_archived,
             ${photoEnabled ? 'a.profile_photo_url' : 'NULL::text AS profile_photo_url'}
         FROM users u
@@ -224,7 +226,8 @@ async function loginUnified(req, res) {
             AND NOT EXISTS (SELECT 1 FROM public.rbac_user_roles other_ur JOIN public.rbac_roles other_r ON other_r.role_id=other_ur.role_id WHERE other_ur.user_id=ur.user_id AND other_ur.is_active AND other_r.is_active AND other_r.role_code IN ('admin','pd','sdo','gco','ro_personnel'))
           ORDER BY ur.assigned_at DESC LIMIT 1`,[user.user_id]);
         const customRole = customRoleResult.rows[0] || null;
-        const resolvedRole = customRole ? 'workspace' : resolveStaffRole(user);
+        // PHASE3_DB_LOGIN_ROLE_V1: prefer active database catalog mapping; retain legacy profile fallback until Phase 4.
+        const resolvedRole = customRole ? 'workspace' : (user.rbac_staff_role || resolveStaffRole(user));
         const expectedIdentifier = resolvedRole === 'admin'
             ? normalizeLoginIdentifier(user.email)
             : normalizeLoginIdentifier(user.username);

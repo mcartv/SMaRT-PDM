@@ -95,10 +95,22 @@ export default function RBACPanel(){
   }catch(e){setRoleActionFeedback({success:false,message:e.message})}finally{setRoleActionBusy(false)}
  }
 
+ async function createRole(){
+  const name=newRoleName.trim();
+  if(busy||name.length<3||name.length>80)return;
+  setBusy(true);
+  try{
+   await request('/roles',{method:'POST',body:JSON.stringify({role_name:name})});
+   await reload();
+   setNewRoleName('');setCreatingRole(false);
+   showNotice('Role created. Configure its permissions under Role Permissions.');
+  }catch(e){showNotice(e.message,'error')}finally{setBusy(false)}
+ }
  // Account roles and permissions are managed here; user records remain under User Accounts.
  async function applyChange(path,method,payload){setBusy(true);setError('');try{await request(path,{method,body:JSON.stringify(payload)});await reload();showNotice('Changes saved successfully.')}catch(e){showNotice(e.message,'error')}finally{setBusy(false)}}
   function change(path,method,payload){confirmChange('Confirm RBAC change','This change may immediately affect user access. Do you want to continue?',()=>applyChange(path,method,payload))}
  return <div className="space-y-3">
+  {creatingRole?<div role="dialog" aria-modal="true" aria-label="Add role" className="fixed inset-0 z-[150] flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><h3 className="text-lg font-bold text-stone-900">Add Role</h3><p className="mt-2 text-sm text-stone-600">Create a role, then configure its permissions.</p><form onSubmit={e=>{e.preventDefault();createRole()}}><label className="mt-4 block text-sm font-semibold">Role name<input autoFocus value={newRoleName} maxLength={80} onChange={e=>setNewRoleName(e.target.value)} className="mt-2 w-full rounded-xl border p-3 text-sm" required minLength={3}/></label><div className="mt-6 flex justify-end gap-2"><button type="button" disabled={busy} onClick={()=>setCreatingRole(false)} className="rounded-xl border px-4 py-2 text-sm">Cancel</button><button type="submit" disabled={busy||newRoleName.trim().length<3} className="rounded-xl bg-[#67452f] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy?'Saving...':'Create Role'}</button></div></form></div></div>:null}
    {roleAction?<div role="dialog" aria-modal="true" aria-label={roleAction.mode==='edit'?'Edit role':'Confirm role action'} className="fixed inset-0 z-[150] flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><h3 className="text-lg font-bold text-stone-900">{roleAction.mode==='edit'?'Edit Role':roleAction.mode==='archive'?'Archive Role':'Restore Role'}</h3><p className="mt-2 text-sm text-stone-600">{roleAction.mode==='edit'?'Change the display name of this role.':roleAction.mode==='archive'?'Archiving this role stops it from granting access.':'Restore this role and its configured grants?'} </p>{roleAction.mode==='edit'?<label className="mt-4 block text-sm font-semibold">Role name<input autoFocus value={roleActionName} maxLength={80} onChange={e=>setRoleActionName(e.target.value)} className="mt-2 w-full rounded-xl border p-3 text-sm"/></label>:<p className="mt-4 rounded-xl bg-stone-50 p-3 text-sm font-semibold">{roleAction.role.role_name}</p>}<div className="mt-6 flex justify-end gap-2"><button type="button" disabled={roleActionBusy} onClick={()=>setRoleAction(null)} className="rounded-xl border px-4 py-2 text-sm">Cancel</button><button type="button" disabled={roleActionBusy||(roleAction.mode==='edit'&&roleActionName.trim().length<3)} onClick={submitRoleAction} className="rounded-xl bg-[#67452f] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{roleActionBusy?'Saving...':roleAction.mode==='edit'?'Save Changes':roleAction.mode==='archive'?'Archive Role':'Restore Role'}</button></div></div></div>:null}
    {roleActionFeedback?<div role="alertdialog" aria-modal="true" aria-label={roleActionFeedback.success?'Success':'Error'} className="fixed inset-0 z-[170] flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><h3 className="text-lg font-semibold">{roleActionFeedback.success?'Changes Saved':'Action Failed'}</h3><p className="mt-2 text-sm text-stone-600">{roleActionFeedback.message}</p><div className="mt-6 flex justify-end"><button autoFocus type="button" onClick={()=>setRoleActionFeedback(null)} className="rounded-xl bg-[#67452f] px-5 py-2 text-sm font-semibold text-white">OK</button></div></div></div>:null}
    {notice?<div role="status" className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><h3 className="font-semibold text-lg">{notice.kind==='error'?'Unable to complete action':'Success'}</h3><p className="mt-2 text-sm text-stone-600">{notice.message}</p><div className="mt-5 flex justify-end"><button autoFocus onClick={()=>setNotice(null)} className="rounded-lg bg-stone-800 px-5 py-2 text-white">OK</button></div></div></div>:null}
@@ -127,10 +139,10 @@ export default function RBACPanel(){
        <td className="px-4 py-4 font-semibold text-stone-800">{r.role_name}</td>
        <td className="px-4 py-4"><span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${r.is_active?'bg-emerald-100 text-emerald-800':'bg-stone-100 text-stone-600'}`}>{r.is_active?'Active':'Archived'}</span></td>
        <td className="px-4 py-4"><span className="rounded-full bg-[#f4ede7] px-3 py-1 text-xs font-semibold text-[#684a35]">{roleGrantCounts.get(r.role_id)||0} granted</span></td>
-       <td className="px-4 py-4"><div className="flex justify-end gap-2">{<>
+       <td className="px-4 py-4"><div className="flex justify-end gap-2">
         <button type="button" disabled={busy} onClick={()=>{setRoleActionName(r.role_name);setRoleAction({mode:'edit',role:r})}} className="rounded-xl border border-stone-300 bg-white px-4 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-50">Edit</button>
         <button type="button" disabled={busy||(r.role_code==='admin'&&r.is_active)} title={r.role_code==='admin'?'Administrator role cannot be archived':undefined} onClick={()=>setRoleAction({mode:r.is_active?'archive':'restore',role:r})} className={`rounded-xl border px-4 py-2 text-xs font-semibold ${r.is_active?'border-red-200 bg-red-50 text-red-700 hover:bg-red-100':'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>{r.is_active?'Archive':'Restore'}</button>
-       </></div></td>
+              </div></td>
       </tr>)}</tbody>
      </table>
      {visibleRoles.length===0?<div className="px-5 py-12 text-center"><h4 className="text-sm font-semibold text-stone-700">{roleSearch?'No matching roles':'No roles found'}</h4><p className="mt-1 text-xs text-stone-500">{roleSearch?'Try another search term.':'Check the role catalog and refresh.'}</p></div>:null}

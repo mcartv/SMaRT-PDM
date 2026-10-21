@@ -1,8 +1,9 @@
+// PHASE5F_CATALOG_MAPPING_V1
 'use strict';
 // Dean is a supplemental organizational role, never a portal or administrator role.
 async function grantDean(client, userId) {
     await client.query(`UPDATE public.admin_profiles a SET institutional_primary_role=(
-        SELECT CASE r.role_code WHEN 'gco' THEN 'guidance' WHEN 'ro_personnel' THEN 'ro_coordinator' ELSE r.role_code END
+        SELECT COALESCE((SELECT c.app_role_code FROM public.rbac_staff_role_catalog c WHERE c.role_id=r.role_id AND c.is_active=true LIMIT 1),r.role_code)
         FROM public.rbac_user_roles ur JOIN public.rbac_roles r ON r.role_id=ur.role_id
         WHERE ur.user_id=a.user_id AND ur.is_active=true AND r.is_active=true AND r.role_scope='staff' AND r.role_code<>'dean'
         ORDER BY CASE WHEN r.role_code='admin' THEN 1 ELSE 0 END,r.role_code LIMIT 1)

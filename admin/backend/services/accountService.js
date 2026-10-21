@@ -1,3 +1,4 @@
+// PHASE5F_CATALOG_MAPPING_V1
 // SMARTPDM_CUSTOM_ROLE_ACCOUNTS_20261013_V1
 // SMARTPDM_RBAC_MIGRATION_20261013_V1
 // SMaRT-PDM: Accounts — account Service (admin backend service); contains business logic and data operations.
@@ -486,7 +487,7 @@ async function fetchStaffAccountRow(userId, client = db, includeArchived = true)
             u.username,
             u.phone_number,
             u.role AS user_role,
-            COALESCE((SELECT CASE r.role_code WHEN 'gco' THEN 'guidance' WHEN 'ro_personnel' THEN 'ro_coordinator' ELSE r.role_code END FROM public.rbac_user_roles ur
+            COALESCE((SELECT COALESCE((SELECT c.app_role_code FROM public.rbac_staff_role_catalog c WHERE c.role_id=r.role_id AND c.is_active=true LIMIT 1),r.role_code) FROM public.rbac_user_roles ur
              JOIN public.rbac_roles r ON r.role_id=ur.role_id
              WHERE ur.user_id=u.user_id AND ur.is_active=true AND r.is_active=true
              AND r.role_scope='staff' AND r.role_code<>'dean'
@@ -530,7 +531,7 @@ async function listStaffAccounts() {
             u.username,
             u.phone_number,
             u.role AS user_role,
-            COALESCE((SELECT CASE r.role_code WHEN 'gco' THEN 'guidance' WHEN 'ro_personnel' THEN 'ro_coordinator' ELSE r.role_code END FROM public.rbac_user_roles ur
+            COALESCE((SELECT COALESCE((SELECT c.app_role_code FROM public.rbac_staff_role_catalog c WHERE c.role_id=r.role_id AND c.is_active=true LIMIT 1),r.role_code) FROM public.rbac_user_roles ur
              JOIN public.rbac_roles r ON r.role_id=ur.role_id
              WHERE ur.user_id=u.user_id AND ur.is_active=true AND r.is_active=true
              AND r.role_scope='staff' AND r.role_code<>'dean'

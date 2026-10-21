@@ -122,7 +122,7 @@ export default function RBACPanel(){
     
     <div className="overflow-x-auto rounded-2xl border border-stone-200 bg-white">
      <table className="w-full min-w-[360px] text-left text-sm">
-      <thead className="bg-stone-50 text-xs font-bold uppercase tracking-wide text-stone-500"><tr><th className="px-4 py-3">User Role</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Granted Permissions</th><th className="px-4 py-3">Role Type</th></tr></thead>
+      <thead className="bg-stone-50 text-xs font-bold uppercase tracking-wide text-stone-500"><tr><th className="px-4 py-3">User Role</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Granted Permissions</th><th className="px-4 py-3">Actions</th></tr></thead>
       <tbody className="divide-y divide-stone-100">{visibleRoles.map(r=><tr key={r.role_id} className="transition-colors hover:bg-[#faf7f4]">
        <td className="px-4 py-4 font-semibold text-stone-800">{r.role_name}</td>
        <td className="px-4 py-4"><span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${r.is_active?'bg-emerald-100 text-emerald-800':'bg-stone-100 text-stone-600'}`}>{r.is_active?'Active':'Archived'}</span></td>
@@ -130,7 +130,7 @@ export default function RBACPanel(){
        <td className="px-4 py-4"><div className="flex justify-end gap-2">{<>
         <button type="button" disabled={busy} onClick={()=>{setRoleActionName(r.role_name);setRoleAction({mode:'edit',role:r})}} className="rounded-xl border border-stone-300 bg-white px-4 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-50">Edit</button>
         <button type="button" disabled={busy||(r.role_code==='admin'&&r.is_active)} title={r.role_code==='admin'?'Administrator role cannot be archived':undefined} onClick={()=>setRoleAction({mode:r.is_active?'archive':'restore',role:r})} className={`rounded-xl border px-4 py-2 text-xs font-semibold ${r.is_active?'border-red-200 bg-red-50 text-red-700 hover:bg-red-100':'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>{r.is_active?'Archive':'Restore'}</button>
-       </>}</div></td>
+       </></div></td>
       </tr>)}</tbody>
      </table>
      {visibleRoles.length===0?<div className="px-5 py-12 text-center"><h4 className="text-sm font-semibold text-stone-700">{roleSearch?'No matching roles':'No roles found'}</h4><p className="mt-1 text-xs text-stone-500">{roleSearch?'Try another search term.':'Check the role catalog and refresh.'}</p></div>:null}

@@ -5,10 +5,12 @@ import { createPortal } from 'react-dom';
 import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import {
     Select,
     SelectContent,
     SelectItem,
+    SelectSeparator,
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
@@ -67,6 +69,7 @@ import {
     MAINTENANCE_CARD_TITLE_CLASS,
 } from './components/maintenanceTypography';
 import { toast } from 'sonner';
+import { useRbacPermissions } from '@/context/RbacPermissionContext';
 
 const ROLE_OPTIONS = [
     {
@@ -219,6 +222,26 @@ function normalizeDepartment(role, department, assignedCourses = []) {
     return '';
 }
 
+// Keep the account draft open while management is handled in a separate tab.
+function openAccountSetup(kind) {
+    const query = kind === 'role' ? 'tab=accounts&section=roles&action=add' : 'tab=institutional&section=offices&action=add';
+    const destination = window.open('/admin/maintenance?' + query, '_blank');
+    if (destination) destination.opener = null;
+    else toast.error('Allow pop-ups to open Maintenance. Your account draft is still here.');
+}
+
+function AccountRoleField({ value, onChange, options, disabled, canAdd = false }) {
+    return <div className="min-w-0"><FieldLabel>Role</FieldLabel>
+        <Select value={value} onValueChange={next => { if (next === '__maintenance_add_role__') openAccountSetup('role'); else onChange(next); }} disabled={disabled}>
+            <SelectTrigger className="h-10 w-full min-w-0 rounded-lg border-stone-200 text-sm"><SelectValue placeholder="Select a role" /></SelectTrigger>
+            <SelectContent position="popper" align="start" sideOffset={6} collisionPadding={12} className="w-[var(--radix-select-trigger-width)] min-w-0" style={{maxHeight:'min(20rem, var(--radix-select-content-available-height))'}}>
+                {options.map(option => <SelectItem key={option.value} value={option.value} className="min-h-10 whitespace-normal break-words py-2">{option.label}</SelectItem>)}
+                {canAdd && <><SelectSeparator /><SelectItem value="__maintenance_add_role__" className="min-h-10 py-2 font-medium text-[var(--portal-base)]"><Plus className="mr-1 size-4" />Add new role...</SelectItem></>}
+            </SelectContent>
+        </Select>
+    </div>;
+}
+
 // DepartmentField: handles department field for the Accounts flow.
 function DepartmentField({
     role,
@@ -229,6 +252,7 @@ function DepartmentField({
     showPdCourseGroup = true,
     communityArea = false,
     triggerClassName = 'h-9',
+    canAddOffice = false,
 }) {
     const options = communityArea
         ? roAreas
@@ -246,23 +270,24 @@ function DepartmentField({
     return (
         <div className="min-w-0">
             <FieldLabel>{communityArea ? 'Community Service Area' : 'Office'}</FieldLabel>
-            <Select value={value ?? ''} onValueChange={onChange} disabled={disabled}>
+            <Select value={value ?? ''} onValueChange={next => { if (next === '__maintenance_add_office__') openAccountSetup('office'); else onChange(next); }} disabled={disabled}>
                 <SelectTrigger
                     className={`${triggerClassName} w-full min-w-0 rounded-lg border-stone-200 text-sm [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate`}
                     title={selectedOption?.value || ''}
                 >
                     <SelectValue placeholder={communityArea ? 'Select Community Service Area' : 'Select office or department'} />
                 </SelectTrigger>
-                <SelectContent position="popper" align="start" className="w-[var(--radix-select-trigger-width)]">
+                <SelectContent position="popper" align="start" sideOffset={6} collisionPadding={12} className="w-[var(--radix-select-trigger-width)] min-w-0" style={{maxHeight:'min(20rem, var(--radix-select-content-available-height))'}}>
                     {options.map((option) => (
                         <SelectItem
                             key={option.value}
                             value={option.value}
-                            className="py-2"
+                            className="min-h-10 whitespace-normal break-words py-2"
                         >
                             {option.hint ? `${option.label} (${option.hint})` : option.label}
                         </SelectItem>
                     ))}
+                    {!communityArea && canAddOffice && <><SelectSeparator /><SelectItem value="__maintenance_add_office__" className="min-h-10 py-2 font-medium text-[var(--portal-base)]"><Plus className="mr-1 size-4" />Add new office...</SelectItem></>}
                 </SelectContent>
             </Select>
             {!communityArea && value && !selectedOption && <p className="mt-1 break-words text-xs text-amber-700">Current assignment: {value}. Select an official office before saving.</p>}
@@ -584,7 +609,7 @@ function PasswordInput({ label, value, onChange, placeholder = '', disabled = fa
     return (
         <div>
             <div className="mb-1 flex items-center gap-1.5">
-                <span className="text-[10px] font-medium uppercase tracking-wide text-stone-400">{label}</span>
+                <span className="text-xs font-medium text-stone-600">{label}</span>
                 <TooltipProvider>
                     <Tooltip>
                         <TooltipTrigger asChild>
@@ -601,9 +626,11 @@ function PasswordInput({ label, value, onChange, placeholder = '', disabled = fa
             <div className="relative">
                 <Input
                     type={visible ? 'text' : 'password'}
+                    aria-label={label}
+                    autoComplete="new-password"
                     value={value}
                     onChange={onChange}
-                    className="h-9 rounded-lg border-stone-200 pr-9 text-sm"
+                    className="h-10 rounded-lg border-stone-200 pr-9 text-sm"
                     placeholder={placeholder}
                     disabled={disabled}
                 />
@@ -657,6 +684,22 @@ function AccountModalPortal({ children }) {
     );
 }
 
+// Shared account dialog keeps keyboard focus, scrolling and actions consistent.
+function AccountDialog({ open, busy, onClose, title, description, closeLabel, children }) {
+    return <Dialog open={open} onOpenChange={next => { if (!next && !busy) onClose(); }}>
+        <DialogContent showCloseButton={false} onInteractOutside={event => event.preventDefault()} onEscapeKeyDown={event => { if (busy) event.preventDefault(); }} className="flex max-h-[calc(100dvh-1rem)] min-w-0 flex-col gap-0 overflow-hidden rounded-2xl border border-stone-200 bg-white p-0 shadow-xl sm:max-h-[calc(100dvh-2rem)] sm:max-w-3xl">
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-stone-200 bg-stone-50/80 px-4 py-4 sm:px-5">
+                <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white text-[var(--portal-base)]"><UserRound className="size-5" /></span>
+                    <div className="min-w-0"><DialogTitle className="text-base font-semibold text-stone-900">{title}</DialogTitle><DialogDescription className="mt-1 text-xs leading-relaxed text-stone-500">{description}</DialogDescription></div>
+                </div>
+                <button type="button" disabled={busy} onClick={onClose} aria-label={closeLabel} title="Close" className="flex size-9 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-500 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-base)] disabled:opacity-50"><X className="size-4" /></button>
+            </div>
+            {children}
+        </DialogContent>
+    </Dialog>;
+}
+
 // AccountCreateModal: handles account create modal for the Accounts flow.
 function AccountCreateModal({
     open,
@@ -669,43 +712,23 @@ function AccountCreateModal({
     onSubmit,
     courses,
     roAreas,
+    canAddRole = false,
+    canAddOffice = false,
 }) {
     if (!open) return null;
 
     return (
-        <AccountModalPortal>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
-            <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-stone-200 bg-white shadow-xl">
-                <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
-                    <div>
-                        <h3 className="text-sm font-semibold text-stone-800">
-                            Create User Account
-                        </h3>
-                        <p className="mt-0.5 text-xs text-stone-500">
-                            Create a Dean, Program Director, Student Discipline Officer, Guidance Counselor, or Personnel-In-Charge account.
-                        </p>
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        disabled={saving}
-                        aria-label="Close Create Account"
-                        title="Close"
-                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-600 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        <X className="h-[18px] w-[18px]" strokeWidth={2.5} />
-                    </button>
-                </div>
-
-                <form className="space-y-3 p-4" onSubmit={onSubmit}>
+        <AccountDialog open={open} busy={saving} onClose={onClose} title="Create User Account" description="Set up profile details, role assignments, and sign-in credentials." closeLabel="Close Create Account">
+                <form className="flex min-h-0 flex-1 flex-col overflow-hidden" onSubmit={onSubmit}>
+                    <div className="min-h-0 flex-1 space-y-4 overflow-x-hidden px-4 py-5 sm:px-5 [&_label]:text-xs [&_label]:normal-case [&_label]:text-stone-600" style={{overflowY: 'auto', overscrollBehavior: 'contain'}}>
+                    <h4 className="text-sm font-semibold text-stone-800">Personal &amp; contact details</h4>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div>
                             <FieldLabel>First Name</FieldLabel>
                             <Input
-                                value={form.first_name}
+                                aria-label="First name" value={form.first_name}
                                 onChange={(event) => setField('first_name', event.target.value)}
-                                className="h-9 rounded-lg border-stone-200 text-sm"
+                                className="h-10 rounded-lg border-stone-200 text-sm"
                                 disabled={saving}
                             />
                         </div>
@@ -713,9 +736,9 @@ function AccountCreateModal({
                         <div>
                             <FieldLabel>Last Name</FieldLabel>
                             <Input
-                                value={form.last_name}
+                                aria-label="Last name" value={form.last_name}
                                 onChange={(event) => setField('last_name', event.target.value)}
-                                className="h-9 rounded-lg border-stone-200 text-sm"
+                                className="h-10 rounded-lg border-stone-200 text-sm"
                                 disabled={saving}
                             />
                         </div>
@@ -729,10 +752,10 @@ function AccountCreateModal({
                                 <Input
                                     type="text"
                                     autoComplete="username"
-                                    value={form.username}
+                                    aria-label="Sign-in username" value={form.username}
                                     onChange={(event) => setField('username', event.target.value.toLowerCase())}
                                     placeholder="e.g. guidance.office"
-                                    className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
+                                    className="h-10 rounded-lg border-stone-200 pl-8 text-sm"
                                     disabled={saving}
                                 />
                             </div>
@@ -746,10 +769,10 @@ function AccountCreateModal({
                                 <Input
                                     type="email"
                                     autoComplete="email"
-                                    value={form.email}
+                                    aria-label="Email address" value={form.email}
                                     onChange={(event) => setField('email', event.target.value)}
                                     placeholder="name@example.com"
-                                    className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
+                                    className="h-10 rounded-lg border-stone-200 pl-8 text-sm"
                                     disabled={saving}
                                 />
                             </div>
@@ -766,41 +789,23 @@ function AccountCreateModal({
                                     type="tel"
                                     inputMode="numeric"
                                     maxLength={11}
-                                    value={form.phone_number}
+                                    aria-label="Phone number" value={form.phone_number}
                                     onChange={(event) =>
                                         setField('phone_number', sanitizePhoneNumberInput(event.target.value))
                                     }
                                     placeholder="09XXXXXXXXX"
-                                    className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
+                                    className="h-10 rounded-lg border-stone-200 pl-8 text-sm"
                                     disabled={saving}
                                 />
                             </div>
                         </div>
                     </div>
 
+                    <div className="border-t border-stone-100 pt-4"><h4 className="mb-3 text-sm font-semibold text-stone-800">Role &amp; assignments</h4>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div>
-                            <FieldLabel>Role</FieldLabel>
-                            <Select
-                                value={form.role}
-                                onValueChange={handleRoleChange}
-                                disabled={saving}
-                            >
-                                <SelectTrigger className="h-9 w-full rounded-lg border-stone-200 text-sm">
-                                    <SelectValue />
-                                </SelectTrigger>
+                        <AccountRoleField value={form.role} onChange={handleRoleChange} options={OPERATIONAL_ROLE_OPTIONS} disabled={saving} canAdd={canAddRole} />
 
-                                <SelectContent>
-                                    {OPERATIONAL_ROLE_OPTIONS.map((option) => (
-                                        <SelectItem key={option.value} value={option.value}>
-                                            {option.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <DepartmentField
+                        <DepartmentField canAddOffice={canAddOffice} triggerClassName="h-10"
                             role={form.role}
                             value={form.role === 'ro_coordinator' ? form.office_name : form.department}
                             onChange={(value) => setField(form.role === 'ro_coordinator' ? 'office_name' : 'department', value)}
@@ -808,7 +813,7 @@ function AccountCreateModal({
                             roAreas={roAreas}
                             showPdCourseGroup={false}
                         />
-                        {form.role === 'ro_coordinator' && <DepartmentField role={form.role} communityArea value={form.department} onChange={value => setField('department', value)} disabled={saving} roAreas={roAreas} />}
+                        {form.role === 'ro_coordinator' && <DepartmentField canAddOffice={canAddOffice} triggerClassName="h-10" role={form.role} communityArea value={form.department} onChange={value => setField('department', value)} disabled={saving} roAreas={roAreas} />}
                     </div>
 
                     <CourseAssignmentField
@@ -818,6 +823,8 @@ function AccountCreateModal({
                         disabled={saving}
                     />
 
+                    </div>
+                    <section className="border-t border-stone-100 pt-4"><h4 className="mb-3 text-sm font-semibold text-stone-800">Account security</h4>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <PasswordInput
                             label="Password"
@@ -830,28 +837,30 @@ function AccountCreateModal({
                             <FieldLabel>Confirm Password</FieldLabel>
                             <Input
                                 type="password"
-                                value={form.confirm_password}
+                                aria-label="Confirm password" value={form.confirm_password}
                                 onChange={(event) => setField('confirm_password', event.target.value)}
-                                className="h-9 rounded-lg border-stone-200 text-sm"
+                                className="h-10 rounded-lg border-stone-200 text-sm"
                                 disabled={saving}
                             />
                         </div>
                     </div>
 
+                    </section>
                     {error ? (
-                        <p className="flex items-start gap-1.5 text-xs font-medium text-red-600">
+                        <p role="alert" className="flex items-start gap-1.5 rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-600">
                             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                             <span>{error}</span>
                         </p>
                     ) : null}
 
-                    <div className="flex items-center justify-end gap-2 border-t border-stone-100 pt-3">
+                    </div>
+                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-stone-200 bg-stone-50/60 px-4 py-3 sm:px-5">
                         <Button
                             type="button"
                             variant="outline"
                             onClick={onClose}
                             disabled={saving}
-                            className="h-8 rounded-lg border-stone-200 text-xs"
+                            className="h-10 rounded-lg border-stone-200 text-xs"
                         >
                             Cancel
                         </Button>
@@ -859,7 +868,7 @@ function AccountCreateModal({
                         <Button
                             type="submit"
                             disabled={saving}
-                            className="h-8 rounded-lg border-none px-3 text-xs text-white"
+                            className="h-10 rounded-lg border-none px-3 text-xs text-white"
                             style={{ background: C.brownMid }}
                         >
                             {saving ? (
@@ -871,9 +880,7 @@ function AccountCreateModal({
                         </Button>
                     </div>
                 </form>
-            </div>
-        </div>
-        </AccountModalPortal>
+        </AccountDialog>
     );
 }
 
@@ -924,7 +931,7 @@ function AdminCreateModal({
                         <div>
                             <FieldLabel>First Name</FieldLabel>
                             <Input
-                                value={form.first_name}
+                                aria-label="First name" value={form.first_name}
                                 onChange={(event) => setField('first_name', event.target.value)}
                                 className="h-9 rounded-lg border-stone-200 text-sm"
                                 disabled={saving}
@@ -934,7 +941,7 @@ function AdminCreateModal({
                         <div>
                             <FieldLabel>Last Name</FieldLabel>
                             <Input
-                                value={form.last_name}
+                                aria-label="Last name" value={form.last_name}
                                 onChange={(event) => setField('last_name', event.target.value)}
                                 className="h-9 rounded-lg border-stone-200 text-sm"
                                 disabled={saving}
@@ -949,7 +956,7 @@ function AdminCreateModal({
                             <Input
                                 type="email"
                                 autoComplete="email"
-                                value={form.email}
+                                aria-label="Email address" value={form.email}
                                 onChange={(event) => setField('email', event.target.value)}
                                 placeholder="name@example.com"
                                 className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
@@ -970,7 +977,7 @@ function AdminCreateModal({
                             <FieldLabel>Confirm Password</FieldLabel>
                             <Input
                                 type="password"
-                                value={form.confirm_password}
+                                aria-label="Confirm password" value={form.confirm_password}
                                 onChange={(event) => setField('confirm_password', event.target.value)}
                                 className="h-9 rounded-lg border-stone-200 text-sm"
                                 disabled={saving}
@@ -1029,6 +1036,8 @@ function AccountEditModal({
     onSave,
     courses,
     roAreas,
+    canAddRole = false,
+    canAddOffice = false,
     currentUserId,
 }) {
     if (!open) return null;
@@ -1063,54 +1072,17 @@ function AccountEditModal({
     };
 
     return (
-        <AccountModalPortal>
-        <div
-            className="fixed inset-0 z-50 flex h-[100dvh] items-center justify-center bg-black/45 p-0 backdrop-blur-[3px] sm:p-4"
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => event.stopPropagation()}
-        >
-            <div
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="update-account-title"
-                className="flex h-full max-h-[100dvh] w-full max-w-3xl flex-col overflow-hidden rounded-none border border-stone-200 bg-white shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
-            >
-                <div className="flex shrink-0 items-center justify-between gap-4 border-b border-stone-200 bg-stone-50/80 px-5 py-4">
-                    <div className="flex min-w-0 items-center gap-3">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[var(--portal-base,#6f4b33)] shadow-sm ring-1 ring-stone-200">
-                            <UserRound className="h-4 w-4" />
-                        </span>
-                        <div className="min-w-0">
-                            <h3 id="update-account-title" className="text-base font-semibold text-stone-900">
-                                Update Account
-                            </h3>
-                            <p className="mt-0.5 text-xs text-stone-500">
-                                Manage profile, sign-in access, and account security.
-                            </p>
-                        </div>
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        disabled={saving}
-                        aria-label="Close Update Account"
-                        title="Close"
-                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-500 transition hover:border-stone-300 hover:bg-stone-100 hover:text-stone-800 disabled:opacity-50"
-                    >
-                        <X className="h-4 w-4" />
-                    </button>
-                </div>
-
-                <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+        <AccountDialog open={open} busy={saving} onClose={onClose} title="Update Account" description="Update profile details, role assignments, and account security." closeLabel="Close Update Account">
+                <div className="min-h-0 flex-1 space-y-4 overflow-x-hidden px-4 py-5 sm:px-5 [&_label]:text-xs [&_label]:normal-case [&_label]:text-stone-600" style={{overflowY: 'auto', overscrollBehavior: 'contain'}}>
+                    <h4 className="text-sm font-semibold text-stone-800">Personal &amp; contact details</h4>
                     <div className="grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-2">
                         <div>
                             <FieldLabel>First Name</FieldLabel>
-                            <Input value={form.first_name} onChange={(event) => setField('first_name', event.target.value)} className="h-9 rounded-lg border-stone-200 text-sm" disabled={saving} />
+                            <Input aria-label="First name" value={form.first_name} onChange={(event) => setField('first_name', event.target.value)} className="h-10 rounded-lg border-stone-200 text-sm" disabled={saving} />
                         </div>
                         <div>
                             <FieldLabel>Last Name</FieldLabel>
-                            <Input value={form.last_name} onChange={(event) => setField('last_name', event.target.value)} className="h-9 rounded-lg border-stone-200 text-sm" disabled={saving} />
+                            <Input aria-label="Last name" value={form.last_name} onChange={(event) => setField('last_name', event.target.value)} className="h-10 rounded-lg border-stone-200 text-sm" disabled={saving} />
                         </div>
 
                         {form.role !== 'admin' ? (
@@ -1121,11 +1093,11 @@ function AccountEditModal({
                                     <Input
                                         type="text"
                                         autoComplete="username"
-                                        value={form.username}
+                                        aria-label="Sign-in username" value={form.username}
                                         onChange={(event) => setField('username', event.target.value.toLowerCase())}
                                         placeholder="e.g. guidance.office"
                                         aria-invalid={usernameTooShort}
-                                        className={`h-9 rounded-lg pl-8 text-sm ${usernameTooShort ? 'border-red-300 focus-visible:ring-red-100' : 'border-stone-200'}`}
+                                        className={`h-10 rounded-lg pl-8 text-sm ${usernameTooShort ? 'border-red-300 focus-visible:ring-red-100' : 'border-stone-200'}`}
                                         disabled={saving}
                                     />
                                 </div>
@@ -1139,39 +1111,30 @@ function AccountEditModal({
                             <FieldLabel>Email Address</FieldLabel>
                             <div className="relative">
                                 <Mail className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
-                                <Input type="email" autoComplete="email" value={form.email} onChange={(event) => setField('email', event.target.value)} placeholder="name@example.com" className="h-9 rounded-lg border-stone-200 pl-8 text-sm" disabled={saving} />
+                                <Input type="email" autoComplete="email" aria-label="Email address" value={form.email} onChange={(event) => setField('email', event.target.value)} placeholder="name@example.com" className="h-10 rounded-lg border-stone-200 pl-8 text-sm" disabled={saving} />
                             </div>
                             {form.role !== 'admin' ? <p className="mt-1 text-[11px] text-stone-500">Profile contact email.</p> : null}
                         </div>
 
                         <div>
-                            <FieldLabel>Role</FieldLabel>
-                            <Select value={form.role} onValueChange={handleRoleChange} disabled={saving || form.role === 'admin'}>
-                                <SelectTrigger className="h-9 w-full rounded-lg border-stone-200 text-sm"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    {editRoleOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-<div><label className="flex items-center gap-2 text-sm text-stone-700"><input type="checkbox" checked={form.role === 'dean' || form.dean_position === true} disabled={saving || form.role === 'dean'} onChange={event => setField('dean_position', event.target.checked)} />Dean position</label><p className="mt-1 text-xs text-stone-500">Office leadership is assigned in Institutional Management. The account keeps its existing portal role.</p></div>
-                        <DepartmentField role={form.role} value={form.role === 'ro_coordinator' ? form.office_name : form.department} onChange={(value) => setField(form.role === 'ro_coordinator' ? 'office_name' : 'department', value)} disabled={saving} roAreas={roAreas} />
-                        {form.role === 'ro_coordinator' && <DepartmentField role={form.role} communityArea value={form.department} onChange={value => setField('department', value)} disabled={saving} roAreas={roAreas} />}
-
-                        <div>
                             <FieldLabel>Phone Number</FieldLabel>
                             <div className="relative">
                                 <Phone className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
-                                <Input type="tel" inputMode="numeric" maxLength={11} value={form.phone_number} onChange={(event) => setField('phone_number', sanitizePhoneNumberInput(event.target.value))} placeholder="09XXXXXXXXX" className="h-9 rounded-lg border-stone-200 pl-8 text-sm" disabled={saving} />
+                                <Input type="tel" inputMode="numeric" maxLength={11} aria-label="Phone number" value={form.phone_number} onChange={(event) => setField('phone_number', sanitizePhoneNumberInput(event.target.value))} placeholder="09XXXXXXXXX" className="h-10 rounded-lg border-stone-200 pl-8 text-sm" disabled={saving} />
                             </div>
                         </div>
                     </div>
 
-                    <p className="mt-3 rounded-lg bg-stone-50 px-3 py-2 text-[11px] leading-4 text-stone-500">
-                        {form.role === 'admin'
-                            ? 'OSFA Coordinator accounts cannot be converted to department accounts.'
-                            : 'Department roles can be changed, but cannot be converted to OSFA Coordinator.'}
-                    </p>
+                    <section className="space-y-3 border-t border-stone-100 pt-4"><h4 className="text-sm font-semibold text-stone-800">Role &amp; assignments</h4>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <AccountRoleField value={form.role} onChange={handleRoleChange} options={editRoleOptions} disabled={saving || form.role === 'admin'} canAdd={canAddRole} />
+
+
+                        <DepartmentField canAddOffice={canAddOffice} triggerClassName="h-10" role={form.role} value={form.role === 'ro_coordinator' ? form.office_name : form.department} onChange={(value) => setField(form.role === 'ro_coordinator' ? 'office_name' : 'department', value)} disabled={saving} roAreas={roAreas} />
+                        {form.role === 'ro_coordinator' && <DepartmentField canAddOffice={canAddOffice} triggerClassName="h-10" role={form.role} communityArea value={form.department} onChange={value => setField('department', value)} disabled={saving} roAreas={roAreas} />}
+
+                    </div>
+                    {form.role !== 'dean' && <div className="rounded-lg border border-stone-200 bg-stone-50/60 p-3"><div><label className="flex items-center gap-2 text-sm text-stone-700"><input type="checkbox" checked={form.role === 'dean' || form.dean_position === true} disabled={saving || form.role === 'dean'} onChange={event => setField('dean_position', event.target.checked)} />Dean position</label><p className="mt-1 text-xs text-stone-500">Office leadership is assigned in Institutional Management. The account keeps its existing portal role.</p></div></div>}
 
                     {form.role === 'pd' ? (
                         <div className="mt-3">
@@ -1179,7 +1142,8 @@ function AccountEditModal({
                         </div>
                     ) : null}
 
-                    <div className="mt-4 border-t border-stone-200 pt-4">
+                    </section>
+                    <section className="border-t border-stone-100 pt-4">
                         <div className="mb-2 flex flex-wrap items-baseline justify-between gap-1">
                             <h4 className="text-sm font-semibold text-stone-800">Password Reset</h4>
                             <p className="text-[11px] text-stone-500">Optional — leave blank to keep the current password.</p>
@@ -1188,25 +1152,25 @@ function AccountEditModal({
                             <PasswordInput label="New Password" value={form.password} onChange={(event) => setField('password', event.target.value)} placeholder="Enter a new password" disabled={saving} optional />
                             <div>
                                 <FieldLabel>Confirm New Password</FieldLabel>
-                                <Input type="password" value={form.confirm_password} onChange={(event) => setField('confirm_password', event.target.value)} className="h-9 rounded-lg border-stone-200 text-sm" placeholder="Repeat new password" disabled={saving} />
+                                <Input type="password" aria-label="Confirm password" value={form.confirm_password} onChange={(event) => setField('confirm_password', event.target.value)} className="h-10 rounded-lg border-stone-200 text-sm" placeholder="Repeat new password" disabled={saving} />
                             </div>
                         </div>
-                    </div>
+                    </section>
 
                     {error ? (
-                        <p className="mt-3 flex items-start gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
+                        <p role="alert" className="mt-3 flex items-start gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
                             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                             <span>{error}</span>
                         </p>
                     ) : null}
                 </div>
 
-                <div className="flex shrink-0 items-center justify-end gap-2 border-t border-stone-200 bg-white px-5 py-3.5">
+                <div className="flex shrink-0 items-center justify-end gap-2 border-t border-stone-200 bg-stone-50/60 px-4 py-3 sm:px-5">
                     <Button
                         variant="outline"
                         onClick={onClose}
                         disabled={saving}
-                        className="h-9 rounded-lg border-stone-200 px-4 text-sm"
+                        className="h-10 rounded-lg border-stone-200 px-4 text-sm"
                     >
                         Cancel
                     </Button>
@@ -1215,7 +1179,7 @@ function AccountEditModal({
                         onClick={onSave}
                         disabled={saving || usernameTooShort}
                         title={usernameTooShort ? 'Enter a username with at least 5 characters.' : 'Save account changes'}
-                        className="h-9 rounded-lg border-none px-4 text-sm font-medium text-white hover:brightness-95 disabled:opacity-60"
+                        className="h-10 rounded-lg border-none px-4 text-sm font-medium text-white hover:brightness-95 disabled:opacity-60"
                         style={{ background: 'var(--portal-base, #6f4b33)' }}
                     >
                         {saving ? (
@@ -1226,9 +1190,7 @@ function AccountEditModal({
                         Save Changes
                     </Button>
                 </div>
-            </div>
-        </div>
-        </AccountModalPortal>
+        </AccountDialog>
     );
 }
 
@@ -1374,6 +1336,9 @@ function AccountProfileModal({ account, onClose, onEdit }) {
 }
 
 export default function AccountsPanel() {
+    const { hasPermission } = useRbacPermissions();
+    const canAddRole = hasPermission('accounts.update');
+    const canAddOffice = ['settings.manage', 'accounts.update', 'courses.manage'].every(hasPermission);
     // SMARTPDM_DYNAMIC_STAFF_CATALOG_V1: populate display choices from active PostgreSQL references.
     const [staffCatalogRoles, setStaffCatalogRoles] = useState(() => [...ROLE_OPTIONS]);
     const [catalogRevision,setCatalogRevision] = useState(0);
@@ -1899,6 +1864,8 @@ export default function AccountsPanel() {
         <div className="space-y-4">
             {staffCatalogError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">Unable to load the account office catalog: {staffCatalogError}</p>}
             <AccountCreateModal
+                canAddRole={canAddRole}
+                canAddOffice={canAddOffice}
                 open={createOpen}
                 form={form}
                 saving={saving}
@@ -1922,6 +1889,8 @@ export default function AccountsPanel() {
             />
 
             <AccountEditModal
+                canAddRole={canAddRole}
+                canAddOffice={canAddOffice}
                 open={editOpen}
                 form={editForm}
                 setForm={setEditForm}

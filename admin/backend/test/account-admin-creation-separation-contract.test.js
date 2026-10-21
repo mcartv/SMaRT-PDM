@@ -109,23 +109,21 @@ test('Create Account modals preserve drafts on backdrop clicks and expose clear 
     panel.indexOf('function AdminCreateModal'),
     panel.indexOf('function AccountEditModal')
   );
-  const createOverlayOpening = createModal.slice(
-    createModal.indexOf('return ('),
-    createModal.indexOf('<div className="max-h')
-  );
+  const accountDialog = panel.slice(panel.indexOf('function AccountDialog'), panel.indexOf('// AccountCreateModal:')); 
   const adminOverlayOpening = adminCreateModal.slice(
     adminCreateModal.indexOf('return ('),
     adminCreateModal.indexOf('<div className="max-h')
   );
 
-  assert.doesNotMatch(createOverlayOpening, /onClick=\{onClose\}/);
+  assert.match(accountDialog, /onInteractOutside=\{event => event\.preventDefault\(\)\}/);
+  assert.match(accountDialog, /<Dialog open=\{open\}/);
   assert.doesNotMatch(adminOverlayOpening, /onClick=\{onClose\}/);
-  assert.match(createModal, /aria-label="Close Create Account"/);
+  assert.match(createModal, /closeLabel="Close Create Account"/);
   assert.match(adminCreateModal, /aria-label="Close Create OSFA Coordinator Account"/);
   assert.equal((panel.match(/placeholder="name@example\.com"/g) || []).length >= 3, true);
   assert.match(panel, /import \{ createPortal \} from 'react-dom'/);
   assert.match(panel, /function AccountModalPortal\(\{ children \}\)/);
-  assert.equal((panel.match(/<AccountModalPortal>/g) || []).length >= 4, true);
+  assert.equal((panel.match(/<AccountModalPortal>/g) || []).length >= 2, true);
   assert.match(createModal, /showPdCourseGroup=\{false\}/);
 });
 

@@ -137,4 +137,34 @@ router.put('/roles/:id/groups/:groupId',manage,safe(async(req,res)=>{
  else await db.query('DELETE FROM public.rbac_role_group_members WHERE group_id=$1 AND role_id=$2',[req.params.groupId,req.params.id]);
  res.json({ok:true});
 }));
+// SMARTPDM_ATOMIC_ROLE_EDIT_V3
+// Atomically replace a staff role's name and permissions. Admin grants are not editable.
+router.patch('/roles/:id/with-permissions',manage,safe(async(req,res)=>{
+ if(!isUuid(req.params.id))return res.status(400).json({error:'Invalid role ID.'});
+ const name=String(req.body?.role_name||'').trim();
+ const ids=req.body?.permission_ids;
+ if(name.length<3||name.length>80||!Array.isArray(ids)||ids.length>200||!ids.every(isUuid)||new Set(ids).size!==ids.length)
+  return res.status(400).json({error:'Provide a valid role name and unique permissions.'});
+ const client=await db.connect();
+ try{
+  await client.query('BEGIN');
+  const r=await client.query('SELECT role_code,role_scope,is_active FROM public.rbac_roles WHERE role_id=$1 FOR UPDATE',[req.params.id]);
+  if(!r.rowCount||r.rows[0].role_scope!=='staff') {await client.query('ROLLBACK');return res.status(404).json({error:'Staff role not found.'});}
+  if(!r.rows[0].is_active){await client.query('ROLLBACK');return res.status(409).json({error:'Restore the role before editing.'});}
+  const isAdmin=r.rows[0].role_code==='admin';
+  if(isAdmin&&ids.length){
+   const current=await client.query('SELECT permission_id FROM public.rbac_role_permissions WHERE role_id=$1',[req.params.id]);
+   const existing=current.rows.map(x=>x.permission_id).sort().join(',');
+   if(ids.slice().sort().join(',')!==existing){await client.query('ROLLBACK');return res.status(403).json({error:'Administrator permissions cannot be modified.'});}
+  }
+  if(ids.length){const valid=await client.query('SELECT permission_id FROM public.rbac_permissions WHERE permission_id=ANY($1::uuid[])',[ids]);
+   if(valid.rowCount!==ids.length){await client.query('ROLLBACK');return res.status(400).json({error:'Unknown permission selection.'});}}
+  await client.query('UPDATE public.rbac_roles SET role_name=$2 WHERE role_id=$1',[req.params.id,name]);
+  if(!isAdmin){
+   await client.query('DELETE FROM public.rbac_role_permissions WHERE role_id=$1',[req.params.id]);
+   if(ids.length)await client.query('INSERT INTO public.rbac_role_permissions(role_id,permission_id) SELECT $1,unnest($2::uuid[])',[req.params.id,ids]);
+  }
+  await client.query('COMMIT');res.json({ok:true,role_id:req.params.id});
+ }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
+}));
 module.exports=router;

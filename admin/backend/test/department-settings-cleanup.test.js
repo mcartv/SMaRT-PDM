@@ -10,7 +10,7 @@ test('SDO keeps Settings and conditionally exposes RO Requests in its current di
   assert.match(sdo, /\/sdo\/settings/);
   assert.match(sdo, /hasRoCoordinatorAccess/);
   assert.match(sdo, /\/sdo\/ro-requests/);
-  assert.match(sdo, /RO Requests/);
+  assert.match(sdo, /Community Service Requests/);
 });
 
 test('department shell still supports a maintenance path for layouts that use the shared shell', () => {

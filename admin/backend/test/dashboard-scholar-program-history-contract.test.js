@@ -39,6 +39,6 @@ test('Scholar View Profile exposes scholarship program history', () => {
   assert.match(page, /Scholarship Program History/);
   assert.match(page, /history=\{s\.program_history\}/);
   assert.doesNotMatch(page, /RO Assigned Office/);
-  assert.match(page, /Obligation History/);
+  assert.match(page, /Community Service History/);
   assert.match(page, /requestedStudentId/);
 });

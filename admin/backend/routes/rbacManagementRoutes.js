@@ -1,6 +1,6 @@
 // SMARTPDM_RBAC_MIGRATION_20261013_V1
 'use strict';
-// Admin-only RBAC management. Core roles are immutable to prevent production lockout.
+// Admin-only RBAC management. All staff roles are editable; preserve a live administrator to avoid lockout.
 const express = require('express');
 const db = require('../config/db');
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
@@ -11,7 +11,6 @@ const view = requirePermission('accounts.view');
 const manage = requirePermission('accounts.update');
 const safe = fn => async (req,res) => { try { await fn(req,res); } catch(e) { console.error('[RBAC Management]',e.message); res.status(e.code==='23505'?409:500).json({error:e.code==='23505'?'Duplicate record.':'RBAC operation failed.'}); } };
 const crypto = require('crypto');
-const coreCodes = ['admin','sdo','guidance','pd','ro_coordinator','student','benefactor'];
 const isUuid = x => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(x||''));
 router.get('/overview',view,safe(async(req,res)=>{
   const [roles,permissions,links,assignments] = await Promise.all([
@@ -57,8 +56,6 @@ router.put('/roles/:id/users/:userId',manage,safe(async(req,res)=>{
 }));
 // SMARTPDM_ATOMIC_CREATE_ROLE_MODAL_V1: create the role and all selected permissions atomically.
 router.post('/roles/with-permissions',manage,safe(async(req,res)=>{
- // SMARTPDM_FIVE_ROLE_LOCK_20261013_V2: role creation intentionally disabled; permission updates remain enabled.
- return res.status(403).json({code:'ROLE_CREATION_DISABLED',message:'New roles cannot be created. Manage permissions for the existing roles.'});
  const name=String(req.body?.role_name||'').trim();
  const ids=req.body?.permission_ids;
  if(name.length<3||name.length>80||!Array.isArray(ids)||ids.length>200||!ids.every(isUuid)||new Set(ids).size!==ids.length)
@@ -76,8 +73,6 @@ router.post('/roles/with-permissions',manage,safe(async(req,res)=>{
 }));
 // Role codes are internal identifiers; administrators only supply names.
 router.post('/roles',manage,safe(async(req,res)=>{
- // SMARTPDM_FIVE_ROLE_LOCK_20261013_V2: role creation intentionally disabled; permission updates remain enabled.
- return res.status(403).json({code:'ROLE_CREATION_DISABLED',message:'New roles cannot be created. Manage permissions for the existing roles.'});
  const name=String(req.body?.role_name||'').trim();
  if(name.length<3||name.length>80)return res.status(400).json({error:'Role name must be 3–80 characters.'});
  const code='custom_'+crypto.randomUUID().replace(/-/g,'').slice(0,24);
@@ -88,14 +83,14 @@ router.patch('/roles/:id',manage,safe(async(req,res)=>{
  if(!isUuid(req.params.id))return res.status(400).json({error:'Invalid role ID'});
  const name=String(req.body?.role_name||'').trim();
  if(name.length<3||name.length>80)return res.status(400).json({error:'Name must be 3–80 characters.'});
- const r=await db.query(`UPDATE public.rbac_roles SET role_name=$2 WHERE role_id=$1 AND role_code LIKE 'custom_%' RETURNING role_id,role_name`,[req.params.id,name]);
- if(!r.rowCount)return res.status(403).json({error:'Only custom roles can be renamed; built-in role identifiers are reserved.'});
+ const r=await db.query(`UPDATE public.rbac_roles SET role_name=$2 WHERE role_id=$1 AND role_scope='staff' RETURNING role_id,role_name`,[req.params.id,name]);
+ if(!r.rowCount)return res.status(403).json({error:'Staff role not found.'});
  res.json(r.rows[0]);
 }));
 router.patch('/roles/:id/status',manage,safe(async(req,res)=>{
  if(!isUuid(req.params.id)||typeof req.body?.is_active!=='boolean')return res.status(400).json({error:'Invalid role/status.'});
- const r=await db.query(`UPDATE public.rbac_roles SET is_active=$2 WHERE role_id=$1 AND role_code LIKE 'custom_%' RETURNING role_id,is_active`,[req.params.id,req.body.is_active]);
- if(!r.rowCount)return res.status(403).json({error:'Built-in roles cannot be archived.'});
+ const r=await db.query(`UPDATE public.rbac_roles SET is_active=$2 WHERE role_id=$1 AND role_scope='staff' AND (role_code<>'admin' OR $2=true) RETURNING role_id,is_active`,[req.params.id,req.body.is_active]);
+ if(!r.rowCount)return res.status(403).json({error:'The administrator role must stay active.'});
  res.json(r.rows[0]);
 }));
 // Built-in operational roles support configurable grants. The administrator role

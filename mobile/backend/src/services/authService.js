@@ -18,7 +18,7 @@ const REGISTRATION_OTP_EXPIRY_MS = 60 * 1000;
 function isMajorOffense(value) {
     const classification = String(value || '').trim().toLowerCase()
         .replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
-    return ['minor', 'minor offense', 'major', 'major offense', 'major disciplinary offense', 'probation', 'probationary'].includes(classification);
+    return ['minor', 'minor offense', 'major', 'major offense', 'major disciplinary offense'].includes(classification);
 }
 
 async function ensureRegistrationAllowed(student, studentNumber) {

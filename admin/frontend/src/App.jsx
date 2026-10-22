@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-
 import { Toaster } from './components/ui/sonner';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 // SMARTPDM_WORKSPACE_RBAC_20261013_V1
-import WorkspaceDashboard from './pages/WorkspaceDashboard';
+import WorkspaceDashboard from './pages/workspace/WorkspaceDashboard';
 import PortalPermissionGuard from './components/auth/PortalPermissionGuard';
 import PublicVisitorTracker from './components/system/PublicVisitorTracker';
 import WebRealtimeToastBridge from './components/system/WebRealtimeToastBridge';

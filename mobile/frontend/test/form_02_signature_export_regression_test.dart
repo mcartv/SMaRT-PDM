@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' show Rect;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
@@ -83,13 +84,13 @@ void main() {
       ).readAsStringSync();
 
       expect(source, contains('Form02Layout.signatureCellTopY'));
-      expect(source, contains('r(90, 2905, 800, 45)'));
-      expect(source, contains('r(1250, 2905, 930, 45)'));
+      expect(source, contains('drawSignatureName('));
+      expect(source, contains('r(90, Form02Layout.printedNameTopY'));
+      expect(source, contains('Form02Layout.printedNameHeight'));
       expect(source, contains('prepareSignatureImageForPdf(png)'));
       expect(source, contains('PdfBitmap(prepared.png)'));
-      expect(source, contains('bounds.width / imageWidth'));
-      expect(source, contains('bounds.height / imageHeight'));
-      expect(source, contains('availableHeight * .62'));
+      expect(source, contains('Form02Layout.signatureDestinationRect'));
+      expect(source, contains('cell.bottom - height'));
     },
   );
 
@@ -99,8 +100,21 @@ void main() {
       greaterThanOrEqualTo(Form02Layout.certificationBottomY),
     );
     expect(
+      Form02Layout.printedNameTopY + Form02Layout.printedNameHeight,
+      lessThanOrEqualTo(Form02Layout.printedNameLabelTopY),
+    );
+    expect(
       Form02Layout.signatureCellTopY + Form02Layout.signatureCellHeight,
-      lessThanOrEqualTo(Form02Layout.printedNameTopY),
+      lessThanOrEqualTo(
+        Form02Layout.printedNameTopY - Form02Layout.signatureNameGap,
+      ),
+    );
+    expect(
+      Form02Layout.signatureCellTopY,
+      greaterThanOrEqualTo(
+        Form02Layout.certificationBottomY +
+            Form02Layout.signatureCertificationGap,
+      ),
     );
     expect(Form02Layout.scholarshipDetailsBounds.right, lessThanOrEqualTo(612));
     expect(
@@ -112,6 +126,34 @@ void main() {
     expect(Form02Layout.familyTextTopOffset, greaterThanOrEqualTo(-12));
     expect(Form02Layout.familyTextHeight, greaterThanOrEqualTo(32));
     expect(Form02Layout.compactAcademicTopY, lessThan(2230));
+  });
+
+  test('signature destinations enlarge visible ink without crossing cells', () {
+    const applicantCell = Rect.fromLTWH(27.6, 689.76, 172.8, 11.28);
+    const guardianCell = Rect.fromLTWH(307.2, 689.76, 204, 11.28);
+    final wide = Form02Layout.signatureDestinationRect(
+      cell: applicantCell,
+      imageWidth: 328,
+      imageHeight: 76,
+    );
+    final tall = Form02Layout.signatureDestinationRect(
+      cell: guardianCell,
+      imageWidth: 76,
+      imageHeight: 328,
+    );
+
+    // The prior 16-pixel margin and 28-unit lane produced only 22.8 points of
+    // visible width for this representative wide signature. The new measured
+    // lane and tight crop must provide meaningfully more room.
+    expect(wide.width, greaterThan(30));
+    for (final destination in [wide, tall]) {
+      final cell = identical(destination, wide) ? applicantCell : guardianCell;
+      expect(destination.left, greaterThanOrEqualTo(cell.left));
+      expect(destination.right, lessThanOrEqualTo(cell.right));
+      expect(destination.top, greaterThanOrEqualTo(cell.top));
+      expect(destination.bottom, closeTo(cell.bottom, 0.001));
+      expect(destination.center.dx, closeTo(cell.center.dx, 0.001));
+    }
   });
 
   test(

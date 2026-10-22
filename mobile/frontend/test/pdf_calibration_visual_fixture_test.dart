@@ -1,31 +1,57 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' show Rect;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:smartpdm_mobileapp/features/forms/data/services/scholarship_form_pdf_service.dart';
+import 'package:smartpdm_mobileapp/features/forms/data/services/signature_image_processor.dart';
 import 'package:smartpdm_mobileapp/shared/models/saved_application_print_model.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 void main() {
   Uint8List signatureFixture() {
     final image = img.Image(width: 420, height: 180, numChannels: 4);
-    // A varied, multi-stroke handwritten-like fixture exercises transparent
-    // crop bounds and aspect-ratio scaling more faithfully than a line.
-    for (var x = 48; x < 368; x += 1) {
-      final wave = ((x ~/ 13) % 21) - 10;
-      final y = 84 + wave;
-      for (var thickness = -3; thickness <= 3; thickness += 1) {
-        image.setPixelRgba(x, y + thickness, 25, 35, 50, 255);
-        if (x % 5 == 0) {
-          image.setPixelRgba(x, y + thickness + 24, 25, 35, 50, 210);
+    // Representative handwritten evidence: joined, rising/falling strokes
+    // with ascenders and descenders. This deliberately rejects the earlier
+    // near-flat test line, which could not prove readable PDF rendering.
+    void stamp(int x, int y, {int alpha = 255}) {
+      for (var dy = -3; dy <= 3; dy += 1) {
+        for (var dx = -3; dx <= 3; dx += 1) {
+          if ((dx * dx) + (dy * dy) <= 9) {
+            image.setPixelRgba(x + dx, y + dy, 20, 35, 65, alpha);
+          }
         }
       }
     }
-    for (var y = 58; y < 126; y += 1) {
-      final x = 68 + ((y * 3) % 56);
-      image.setPixelRgba(x, y, 25, 35, 50, 255);
+
+    void stroke(List<(int, int)> points, {int alpha = 255}) {
+      for (
+        var pointIndex = 0;
+        pointIndex < points.length - 1;
+        pointIndex += 1
+      ) {
+        final start = points[pointIndex];
+        final end = points[pointIndex + 1];
+        final steps = (end.$1 - start.$1).abs() > (end.$2 - start.$2).abs()
+            ? (end.$1 - start.$1).abs()
+            : (end.$2 - start.$2).abs();
+        for (var step = 0; step <= steps; step += 1) {
+          stamp(
+            start.$1 + (((end.$1 - start.$1) * step) / steps).round(),
+            start.$2 + (((end.$2 - start.$2) * step) / steps).round(),
+            alpha: alpha,
+          );
+        }
+      }
     }
+
+    stroke([(55, 132), (82, 72), (106, 142), (129, 90), (151, 132)]);
+    stroke([(128, 122), (151, 102), (174, 137), (196, 95), (218, 130)]);
+    stroke([(205, 128), (232, 83), (254, 146), (279, 92), (306, 132)]);
+    stroke([(292, 126), (324, 105), (350, 136), (380, 111)], alpha: 225);
+    stroke([(70, 152), (152, 145), (235, 151), (338, 143)], alpha: 150);
     return Uint8List.fromList(img.encodePng(image));
   }
 
@@ -33,6 +59,13 @@ void main() {
     'renders a representative Form-02 calibration fixture on the template',
     () async {
       final outputPath = Platform.environment['PDF_CALIBRATION_OUTPUT'];
+      final signature = signatureFixture();
+      final prepared = prepareSignatureImageForPdf(signature);
+      expect(
+        prepared.visibleInkHeight / prepared.visibleInkWidth,
+        greaterThan(.2),
+        reason: 'The diagnostic fixture must exercise non-flat handwriting.',
+      );
       final template = await File(
         'assets/files/scholarship_app_form.pdf',
       ).readAsBytes();
@@ -110,8 +143,8 @@ void main() {
           ).generateBytesFromSavedApplication(
             model,
             signatures: FinalizedFormSignatureEvidence(
-              studentSignaturePng: signatureFixture(),
-              guardianSignaturePng: signatureFixture(),
+              studentSignaturePng: signature,
+              guardianSignaturePng: signature,
             ),
           );
       final document = PdfDocument(inputBytes: bytes);
@@ -122,6 +155,61 @@ void main() {
         final output = File(outputPath);
         await output.parent.create(recursive: true);
         await output.writeAsBytes(bytes, flush: true);
+        const pageScale = 936 / 3900;
+        final applicantCell = Rect.fromLTWH(
+          115 * 612 / 2550,
+          Form02Layout.signatureCellTopY * pageScale,
+          720 * 612 / 2550,
+          Form02Layout.signatureCellHeight * pageScale,
+        );
+        final guardianCell = Rect.fromLTWH(
+          1280 * 612 / 2550,
+          Form02Layout.signatureCellTopY * pageScale,
+          850 * 612 / 2550,
+          Form02Layout.signatureCellHeight * pageScale,
+        );
+        final applicantDestination = Form02Layout.signatureDestinationRect(
+          cell: applicantCell,
+          imageWidth: prepared.width.toDouble(),
+          imageHeight: prepared.height.toDouble(),
+        );
+        final guardianDestination = Form02Layout.signatureDestinationRect(
+          cell: guardianCell,
+          imageWidth: prepared.width.toDouble(),
+          imageHeight: prepared.height.toDouble(),
+        );
+        await File(
+          '${output.parent.path}/original-signature.png',
+        ).writeAsBytes(signature, flush: true);
+        await File(
+          '${output.parent.path}/processed-signature.png',
+        ).writeAsBytes(prepared.png, flush: true);
+        await File(
+          '${output.parent.path}/signature-diagnostics.json',
+        ).writeAsString(
+          const JsonEncoder.withIndent('  ').convert({
+            'source': {'width': 420, 'height': 180},
+            'processed': {
+              'width': prepared.width,
+              'height': prepared.height,
+              'visibleInkWidth': prepared.visibleInkWidth,
+              'visibleInkHeight': prepared.visibleInkHeight,
+            },
+            'applicantDestination': {
+              'left': applicantDestination.left,
+              'top': applicantDestination.top,
+              'width': applicantDestination.width,
+              'height': applicantDestination.height,
+            },
+            'guardianDestination': {
+              'left': guardianDestination.left,
+              'top': guardianDestination.top,
+              'width': guardianDestination.width,
+              'height': guardianDestination.height,
+            },
+          }),
+          flush: true,
+        );
         expect(output.existsSync(), isTrue);
       }
     },

@@ -36,10 +36,12 @@ void main() {
     final image = img.decodePng(prepared.png)!;
 
     expect(image.getPixel(0, 0).a.toInt(), 0);
-    expect(image.getPixel(10, 10).a.toInt(), 255);
-    expect(image.getPixel(10, 10).r.toInt(), 28);
-    expect(image.getPixel(11, 10).a.toInt(), 255);
-    expect(image.getPixel(11, 10).r.toInt(), 249);
+    // Four pixels of transparent safety padding are retained around the
+    // detected visible-ink bounds for PDF placement.
+    expect(image.getPixel(4, 4).a.toInt(), 255);
+    expect(image.getPixel(4, 4).r.toInt(), 28);
+    expect(image.getPixel(5, 4).a.toInt(), 255);
+    expect(image.getPixel(5, 4).r.toInt(), lessThan(249));
   });
 
   test('existing transparent PNG alpha is retained for PDF embedding', () {
@@ -52,8 +54,35 @@ void main() {
     );
     final image = img.decodePng(prepared.png)!;
 
-    expect(image.getPixel(10, 10).a.toInt(), 255);
-    expect(image.getPixel(11, 10).a.toInt(), 80);
+    expect(image.getPixel(4, 4).a.toInt(), 255);
+    expect(image.getPixel(5, 4).a.toInt(), 80);
+  });
+
+  test('rendering copy tightly crops and darkens faint handwritten ink', () {
+    final source = img.Image(width: 300, height: 150, numChannels: 4);
+    // Wide, multi-stroke handwriting with transparent capture padding.
+    for (var x = 70; x < 230; x += 1) {
+      final y = 72 + ((x ~/ 9) % 7);
+      source.setPixelRgba(x, y, 232, 232, 240, 255);
+      source.setPixelRgba(x, y + 1, 126, 130, 170, 110);
+    }
+    for (var y = 48; y < 96; y += 1) {
+      source.setPixelRgba(82 + ((y * 3) % 20), y, 232, 232, 240, 255);
+    }
+
+    final prepared = prepareSignatureImageForPdf(
+      Uint8List.fromList(img.encodePng(source)),
+    );
+    final image = img.decodePng(prepared.png)!;
+
+    expect(prepared.visibleInkWidth, greaterThan(150));
+    expect(prepared.visibleInkHeight, greaterThan(45));
+    expect(prepared.width, lessThan(180));
+    expect(prepared.height, lessThan(65));
+    // The opaque faint stroke is darker but remains visible; translucent
+    // anti-aliased pixels retain their original alpha.
+    expect(image.getPixel(4, 28).r.toInt(), lessThan(232));
+    expect(image.getPixel(4, 29).a.toInt(), 110);
   });
 
   test(

@@ -27,10 +27,17 @@ class FinalizedFormSignatureEvidence {
 /// answer rectangles use the PDF's 612 x 936 point coordinate system.
 @visibleForTesting
 abstract final class Form02Layout {
-  static const double certificationBottomY = 2860;
-  static const double signatureCellTopY = 2870;
-  static const double signatureCellHeight = 28;
-  static const double printedNameTopY = 2905;
+  // The official raster template's certification row ends at source Y=2871;
+  // its applicant/guardian signing row runs to the printed-label area at
+  // Y=2952. These bounds leave a small gap at either edge of user ink.
+  static const double certificationBottomY = 2871;
+  static const double signatureCellTopY = 2874;
+  static const double signatureCellHeight = 47;
+  static const double printedNameTopY = 2927;
+  static const double printedNameHeight = 24;
+  static const double printedNameLabelTopY = 2952;
+  static const double signatureCertificationGap = 3;
+  static const double signatureNameGap = 6;
 
   static const double familyTextTopOffset = -12;
   static const double familyTextHeight = 32;
@@ -38,6 +45,33 @@ abstract final class Form02Layout {
   static const double compactAcademicHeight = 48;
   static const Rect scholarshipDetailsBounds = Rect.fromLTWH(510, 550, 69, 7);
   static const Rect disciplinaryDetailsBounds = Rect.fromLTWH(300, 579, 279, 7);
+
+  /// Centres a proportional signature horizontally and anchors it just above
+  /// the printed name. The caller supplies a measured cell, never the entire
+  /// certification row, so visible ink cannot spill into neighbouring fields.
+  @visibleForTesting
+  static Rect signatureDestinationRect({
+    required Rect cell,
+    required double imageWidth,
+    required double imageHeight,
+  }) {
+    if (imageWidth <= 0 || imageHeight <= 0) {
+      throw ArgumentError.value(
+        imageWidth <= 0 ? imageWidth : imageHeight,
+        'image dimensions',
+        'must be positive',
+      );
+    }
+    final scale = math.min(cell.width / imageWidth, cell.height / imageHeight);
+    final width = imageWidth * scale;
+    final height = imageHeight * scale;
+    return Rect.fromLTWH(
+      cell.left + ((cell.width - width) / 2),
+      cell.bottom - height,
+      width,
+      height,
+    );
+  }
 }
 
 class ScholarshipFormPdfService {
@@ -328,28 +362,36 @@ class ScholarshipFormPdfService {
       // PdfBitmap retains PNG alpha, so no white backing rectangle is painted
       // over the official template.
       final image = PdfBitmap(prepared.png);
-      final imageWidth = prepared.width.toDouble();
-      final imageHeight = prepared.height.toDouble();
-      if (imageWidth <= 0 || imageHeight <= 0) {
-        throw StateError('Finalized signature evidence is invalid.');
-      }
-      final scale = math.min(
-        bounds.width / imageWidth,
-        bounds.height / imageHeight,
+      final destination = Form02Layout.signatureDestinationRect(
+        cell: bounds,
+        imageWidth: prepared.width.toDouble(),
+        imageHeight: prepared.height.toDouble(),
       );
-      final width = imageWidth * scale;
-      final height = imageHeight * scale;
-      // The prepared image is cropped to visible ink plus a small safety
-      // margin. Bias the centred mark down into the lower half of the lane,
-      // toward (but never into) the printed name below it.
-      final availableHeight = bounds.height - height;
-      page.graphics.drawImage(
-        image,
-        Rect.fromLTWH(
-          bounds.left + ((bounds.width - width) / 2),
-          bounds.top + (availableHeight * .62),
-          width,
-          height,
+      // The prepared image contains only a small transparent edge margin. Its
+      // destination is horizontally centred and bottom-aligned inside the
+      // measured signature lane, immediately above the printed name.
+      page.graphics.drawImage(image, destination);
+    }
+
+    // A printed name is a fixed signing-row value, not overflowable detail.
+    // Fit it above the template caption without consuming signature space.
+    void drawSignatureName(String value, Rect bounds) {
+      final clean = _printableValue(value);
+      final measured = smallFont.measureString(clean);
+      final scale = [
+        1.0,
+        bounds.width / measured.width,
+        (bounds.height - .25) / measured.height,
+      ].reduce((a, b) => a < b ? a : b);
+      page.graphics.drawString(
+        clean,
+        PdfStandardFont(PdfFontFamily.helvetica, smallFont.size * scale),
+        brush: brush,
+        bounds: bounds,
+        format: PdfStringFormat(
+          alignment: PdfTextAlignment.center,
+          lineAlignment: PdfVerticalAlignment.middle,
+          wordWrap: PdfWordWrapType.none,
         ),
       );
     }
@@ -861,12 +903,9 @@ class ScholarshipFormPdfService {
     }
 
     // Printed names/dates stay inside the signature row and shrink if needed.
-    drawFittingText(
+    drawSignatureName(
       model.applicantPrintedName,
-      r(90, 2905, 800, 45),
-      textFont: smallFont,
-      align: PdfTextAlignment.center,
-      minFontSize: 6.0,
+      r(90, Form02Layout.printedNameTopY, 800, Form02Layout.printedNameHeight),
     );
     drawFittingText(
       model.printedDate,
@@ -874,12 +913,14 @@ class ScholarshipFormPdfService {
       textFont: smallFont,
       align: PdfTextAlignment.center,
     );
-    drawFittingText(
+    drawSignatureName(
       model.parentGuardianPrintedName,
-      r(1250, 2905, 930, 45),
-      textFont: smallFont,
-      align: PdfTextAlignment.center,
-      minFontSize: 6.0,
+      r(
+        1250,
+        Form02Layout.printedNameTopY,
+        930,
+        Form02Layout.printedNameHeight,
+      ),
     );
     drawFittingText(
       model.printedDate,

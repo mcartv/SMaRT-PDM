@@ -25,11 +25,11 @@ const SETTINGS_TABS = [
 ];
 
 // SettingsNav: sets settings nav for the Department Settings Page flow.
-function SettingsNav({ activeTab, onChange }) {
+function SettingsNav({ activeTab, onChange, showTheme = true }) {
   return (
     <div className="sticky top-0 z-20 overflow-hidden rounded-2xl border border-stone-200 bg-white">
       <div className="flex items-center gap-6 overflow-x-auto px-4">
-        {SETTINGS_TABS.map((item) => {
+        {SETTINGS_TABS.filter(item=>showTheme || item.key!=='theme').map((item) => {
           const Icon = item.icon;
           const active = activeTab === item.key;
 
@@ -76,6 +76,7 @@ export default function DepartmentSettingsPage({
   profilePath,
   themeTitle,
   themeSubtitle,
+  showTheme = true,
 }) {
   const [activeTab, setActiveTab] = useState('account');
   const [profile, setProfile] = useState(null);
@@ -459,7 +460,7 @@ export default function DepartmentSettingsPage({
       <header>
         <h1 className="text-2xl font-semibold tracking-tight text-stone-900">Settings</h1>
         <p className="mt-1 text-sm text-stone-500">
-          Manage your account information, department theme, and sign-in security.
+          {showTheme ? 'Manage your account information, department theme, and sign-in security.' : 'Manage your account information and sign-in security.'}
         </p>
       </header>
 
@@ -469,11 +470,11 @@ export default function DepartmentSettingsPage({
         </div>
       ) : null}
 
-      <SettingsNav activeTab={activeTab} onChange={setActiveTab} />
+      <SettingsNav activeTab={activeTab} onChange={setActiveTab} showTheme={showTheme} />
 
       <main className="min-w-0">
         {activeMeta.key === 'account' ? renderAccount() : null}
-        {activeMeta.key === 'theme' ? renderTheme() : null}
+        {showTheme && activeMeta.key === 'theme' ? renderTheme() : null}
         {activeMeta.key === 'security' ? renderSecurity() : null}
       </main>
     </div>

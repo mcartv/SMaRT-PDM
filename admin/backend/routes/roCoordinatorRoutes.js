@@ -29,6 +29,8 @@ router.use(protect, async (req,res,next) => {
   const userId=req.user?.user_id||req.user?.userId||req.user?.sub;
   if(!userId)return res.status(401).json({message:'Authentication required'});
   try {
+    const assigned=await db.query('SELECT 1 FROM public.ro_area_coordinators rac JOIN public.ro_departments rd ON rd.department_id=rac.ro_area_id JOIN public.admin_profiles ap ON ap.user_id=rac.user_id WHERE rac.user_id=$1 AND rac.is_active=true AND rd.is_active=true AND COALESCE(ap.is_archived,false)=false LIMIT 1',[userId]);
+    if(assigned.rowCount){req.roCoordinatorAssigned=true;return next();}
     const granted=await db.query(`SELECT 1 FROM public.rbac_user_roles ur
       JOIN public.rbac_roles r ON r.role_id=ur.role_id
       JOIN public.rbac_role_permissions rp ON rp.role_id=r.role_id
@@ -41,6 +43,7 @@ router.use(protect, async (req,res,next) => {
 });
 // Existing assigned coordinators retain access; delegates need a live permission.
 const canAct = code => async (req,res,next) => {
+  if(req.roCoordinatorAssigned)return next();
   const userId=req.user?.user_id||req.user?.userId||req.user?.sub;
   try {
     if(await rbacService.hasPermission(userId,code))return next();
@@ -49,6 +52,7 @@ const canAct = code => async (req,res,next) => {
 };
 // Reading Community Service assignment queues is also required to make an assignment.
 const canRead = async (req,res,next) => {
+  if(req.roCoordinatorAssigned)return next();
   const userId=req.user?.user_id||req.user?.userId||req.user?.sub;
   try {
     if(await rbacService.hasPermission(userId,'ro.view') || await rbacService.hasPermission(userId,'ro.assign'))return next();

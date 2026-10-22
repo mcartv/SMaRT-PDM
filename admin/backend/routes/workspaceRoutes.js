@@ -22,7 +22,8 @@ router.get('/me',async(req,res)=>{
     JOIN public.rbac_permissions p ON p.permission_id=rp.permission_id
     WHERE ur.user_id=$1 AND ur.is_active=true AND r.is_active=true
       AND r.role_scope='staff' AND NOT EXISTS (SELECT 1 FROM public.rbac_staff_role_catalog catalog WHERE catalog.role_id=r.role_id) ORDER BY p.permission_code`,[userId]);
-  res.set('Cache-Control','no-store').json({role_name:roles.rows[0].role_name,permissions:(await Promise.all(permissions.rows.map(async x=>({code:x.permission_code,permitted:await accountAccess.allowed(db,userId,roles.rows[0].role_id,x.permission_code)})))).filter(x=>x.permitted).map(x=>x.code)});
+  const pic=await db.query(`SELECT 1 FROM public.ro_area_coordinators rac JOIN public.ro_departments d ON d.department_id=rac.ro_area_id JOIN public.admin_profiles ap ON ap.user_id=rac.user_id WHERE rac.user_id=$1 AND rac.is_active=true AND d.is_active=true AND COALESCE(ap.is_archived,false)=false LIMIT 1`,[userId]);
+  res.set('Cache-Control','no-store').json({has_ro_coordinator_access:pic.rowCount>0,role_name:roles.rows[0].role_name,permissions:(await Promise.all(permissions.rows.map(async x=>({code:x.permission_code,permitted:await accountAccess.allowed(db,userId,roles.rows[0].role_id,x.permission_code)})))).filter(x=>x.permitted).map(x=>x.code)});
  }catch(e){console.error('[workspace/me]',e.message);res.status(503).json({message:'Workspace permissions unavailable.'})}
 });
 // SMARTPDM_WORKSPACE_PHASE3_REAL_DATA_V1

@@ -1,0 +1,23 @@
+'use strict';
+const {PGlite}=require(process.env.PGLITE_MODULE || '@electric-sql/pglite');
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+(async()=>{const db=await PGlite.create();try{
+await db.exec(`CREATE TABLE rbac_roles(role_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),role_code text,role_name text,role_scope text,is_active boolean DEFAULT true);
+CREATE TABLE rbac_permissions(permission_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),permission_code text UNIQUE);
+CREATE TABLE rbac_role_permissions(role_id uuid REFERENCES rbac_roles,permission_id uuid REFERENCES rbac_permissions,PRIMARY KEY(role_id,permission_id));
+CREATE TABLE rbac_role_groups(group_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),group_code text UNIQUE);
+CREATE TABLE rbac_role_group_members(group_id uuid REFERENCES rbac_role_groups,role_id uuid REFERENCES rbac_roles,PRIMARY KEY(group_id,role_id));
+INSERT INTO rbac_permissions(permission_code) VALUES('settings.view'),('settings.manage'),('accounts.update');
+INSERT INTO rbac_role_groups(group_code) VALUES('ALL_STAFF'),('ADMIN_ONLY');
+INSERT INTO rbac_roles(role_code,role_name,role_scope) VALUES('admin','OSFA Coordinator','staff'),('pd','Program Director','staff'),('dean','Dean','staff'),('student','Student','student'),('benefactor','Benefactor','staff');`);
+const sql=fs.readFileSync(path.join(__dirname,'../../../docs/sql/default-personal-settings.sql'),'utf8');
+await db.exec(sql);await db.exec(sql);
+const grants=()=>db.query(`SELECT r.role_code,p.permission_code FROM rbac_role_permissions rp JOIN rbac_roles r USING(role_id) JOIN rbac_permissions p USING(permission_id) ORDER BY role_code`);
+assert.deepEqual((await grants()).rows,[{role_code:'dean',permission_code:'settings.view'},{role_code:'pd',permission_code:'settings.view'}]);
+await db.exec("INSERT INTO rbac_roles(role_code,role_name,role_scope) VALUES('custom_new','New Role','staff');");
+assert.equal((await grants()).rows.filter(r=>r.role_code==='custom_new' && r.permission_code==='settings.view').length,1);
+assert.equal((await db.query("SELECT 1 FROM rbac_role_group_members m JOIN rbac_roles r USING(role_id) JOIN rbac_role_groups g USING(group_id) WHERE r.role_code='custom_new' AND g.group_code='ALL_STAFF'")).rows.length,1);
+assert.equal((await db.query("SELECT 1 FROM rbac_role_group_members m JOIN rbac_role_groups g USING(group_id) WHERE g.group_code='ADMIN_ONLY'")).rows.length,0);
+assert.equal((await grants()).rows.some(r=>r.permission_code==='settings.manage'),false);
+console.log('PASS existing and future staff Settings defaults, repeat-safe SQL, self-service group membership, OSFA unchanged, student/benefactor exclusion and no administrative grants');
+}finally{await db.close()}})().catch(e=>{console.error(e);process.exitCode=1});

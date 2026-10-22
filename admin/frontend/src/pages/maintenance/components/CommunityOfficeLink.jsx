@@ -56,15 +56,15 @@ export default function CommunityOfficeLink({ area, catalog, onSaved }) {
     </OfficeLinkConfirmation>
         <Dialog open={open} onOpenChange={value => { if (!busy) setOpen(value); }}>
             <DialogContent overlayClassName="z-[60]" className="z-[61] flex max-h-[calc(100dvh-2rem)] min-w-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-lg" showCloseButton={!busy}>
-                <DialogHeader className="shrink-0 border-b p-4 pr-12"><DialogTitle>Link institutional office</DialogTitle><DialogDescription>{area.department_name}</DialogDescription></DialogHeader>
-                <div className="min-h-0 space-y-3 p-4" style={{ overflowY: 'auto', overflowX: 'hidden' }}>
+                <DialogHeader className="shrink-0 border-b p-4 pr-12"><DialogTitle>Link institutional office</DialogTitle><DialogDescription className="break-words">{area.department_name}</DialogDescription></DialogHeader>
+                <div className="min-h-0 flex-1 space-y-3 p-4" style={{ overflowY: 'auto', overflowX: 'hidden' }}>
                     <p className="text-xs text-muted-foreground">Optional. Personnel-In-Charge is managed in Community Service. Course assignments stay in Offices & Departments.</p>
                     {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
                     {busy && !data && <p className="text-sm">Loading offices...</p>}
                     {data && !data.ready && <p className="text-sm">Apply the Institutional Management migration before linking offices.</p>}
                     {data?.ready && <SearchableChoice id={'community-office-' + area.department_id} label="Institutional office" value={selected} onChange={setSelected} disabled={busy || !hasPermission('ro.settings_manage')} options={data.offices.filter(office => office.is_active || office.office_id === original).map(office => ({ value: office.office_id, label: office.office_name + (office.is_institutional === false ? ' (Legacy office)' : !office.is_active ? ' (Archived)' : '') + (data.links.some(link => link.office_id === office.office_id && link.department_id !== area.department_id) ? ' (Already linked)' : ''), disabled: office.is_institutional === false || !office.is_active || data.links.some(link => link.office_id === office.office_id && link.department_id !== area.department_id) }))} emptyLabel="No office linked" />}
                 </div>
-                <DialogFooter className="m-0 flex-row flex-wrap rounded-none p-4"><Button variant="outline" disabled={busy} onClick={() => setOpen(false)}>Cancel</Button><Button disabled={busy || !data?.ready || !hasPermission('ro.settings_manage') || (selected || null) === original} style={{ background: 'var(--portal-base)', color: 'white' }} onClick={() => setConfirming(true)}>{selected ? original ? 'Change link' : 'Link office' : 'Unlink office'}</Button></DialogFooter>
+                <DialogFooter className="m-0 shrink-0 flex-row flex-wrap rounded-none p-4"><Button variant="outline" disabled={busy} onClick={() => setOpen(false)}>Cancel</Button><Button disabled={busy || !data?.ready || !hasPermission('ro.settings_manage') || (selected || null) === original} style={{ background: 'var(--portal-base)', color: 'white' }} onClick={() => setConfirming(true)}>{selected ? original ? 'Change link' : 'Link office' : 'Unlink office'}</Button></DialogFooter>
             </DialogContent>
         </Dialog></>;
 }

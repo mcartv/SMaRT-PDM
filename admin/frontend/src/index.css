@@ -1422,11 +1422,9 @@ html.smartpdm-admin-active .portal-shell [class*="overflow-"]:has(
   overflow: hidden !important;
 }
 
-/* Radix/Vaul overlays are portalled to <body>, so they cannot be detected as
- * descendants of the Admin scroll containers. When one exists, freeze the
- * underlying Admin page scroll containers for the lifetime of that overlay.
- * Dialog/sheet/drawer content is portalled outside `.portal-shell`, therefore
- * its internal scrolling is unaffected. */
+/* Freeze background Admin scroll containers while a Radix/Vaul modal is open.
+ * Dialogs may portal into .portal-shell, so explicitly exclude every overlay
+ * content surface and its descendants to preserve their native scrolling. */
 html.smartpdm-admin-active:has(
   :is(
     [data-slot="dialog-overlay"],
@@ -1434,7 +1432,15 @@ html.smartpdm-admin-active:has(
     [data-slot="sheet-overlay"],
     [data-slot="drawer-overlay"]
   )
-) .portal-shell [class*="overflow-"] {
+) .portal-shell [class*="overflow-"]:not(:is(
+  [data-slot="dialog-content"], [data-slot="dialog-content"] *,
+  [data-slot="alert-dialog-content"], [data-slot="alert-dialog-content"] *,
+  [data-slot="sheet-content"], [data-slot="sheet-content"] *,
+  [data-slot="drawer-content"], [data-slot="drawer-content"] *,
+  [data-slot="popover-content"], [data-slot="popover-content"] *,
+  [data-slot="select-content"], [data-slot="select-content"] *,
+  [data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-content"] *
+)) {
   overflow: hidden !important;
 }
 
@@ -2139,7 +2145,7 @@ html.smartpdm-admin-active.smartpdm-admin-modal-open :is(
 ) {
   z-index: 1200 !important;
   max-width: calc(100dvw - 1rem) !important;
-  max-height: min(22rem, calc(100dvh - 1rem)) !important;
+  max-height: min(22rem, calc(100dvh - 1rem), var(--radix-popover-content-available-height, var(--radix-select-content-available-height, var(--radix-dropdown-menu-content-available-height, calc(100dvh - 1rem))))) !important;
 }
 
 /* -------------------------------------------------------------------------- */

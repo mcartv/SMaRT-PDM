@@ -17,7 +17,7 @@ export const WORKSPACE_MODULES = Object.freeze({
   payouts: {label:'Payouts', detail:'View payout entries for authorized courses', icon:Wallet, availability:'office_scope_required', viewPermission:'payouts.view'},
   ro: {label:'Community Service', detail:'Access authorized community-service operations', icon:BriefcaseBusiness, availability:'pending_integration'},
   announcements: {label:'Announcements', detail:'Access permitted announcements', icon:Bell, availability:'pending_integration'},
-  settings: {label:'Settings', detail:'View authorized settings', icon:Settings, availability:'pending_integration'},
+  settings: {label:'Settings', detail:'Manage your account details and sign-in security', icon:Settings, availability:'personal', viewPermission:'settings.view'},
   courses: {label:'Courses', detail:'Access permitted courses and departments', icon:BookOpen, availability:'pending_integration'},
   discipline: {label:'Discipline Records', detail:'Review disciplinary information within your scope', icon:ShieldCheck, availability:'pending_integration'},
   audit: {label:'System Logs', detail:'View authorized audit information', icon:Activity, availability:'pending_integration'},

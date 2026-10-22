@@ -72,8 +72,10 @@ router.post('/roles/with-permissions',manage,safe(async(req,res)=>{
    if(q.rowCount!==ids.length){await client.query('ROLLBACK');return res.status(400).json({error:'One or more permissions do not exist.'});}}
   const code='custom_'+crypto.randomUUID().replace(/-/g,'').slice(0,24);
   const created=await client.query("INSERT INTO public.rbac_roles(role_code,role_name,role_scope,is_active) VALUES($1,$2,'staff',true) RETURNING role_id,role_name,role_code",[code,name]);
-  if(ids.length)await client.query('INSERT INTO public.rbac_role_permissions(role_id,permission_id) SELECT $1,unnest($2::uuid[])',[created.rows[0].role_id,ids]);
-  await client.query('COMMIT');res.status(201).json({role:created.rows[0],permission_count:ids.length});
+  if(ids.length)await client.query('INSERT INTO public.rbac_role_permissions(role_id,permission_id) SELECT $1,unnest($2::uuid[]) ON CONFLICT DO NOTHING',[created.rows[0].role_id,ids]);
+  await client.query("INSERT INTO public.rbac_role_permissions(role_id,permission_id) SELECT $1,permission_id FROM public.rbac_permissions WHERE permission_code='settings.view' ON CONFLICT DO NOTHING RETURNING permission_id",[created.rows[0].role_id]);
+  const count=await client.query('SELECT count(*)::int AS total FROM public.rbac_role_permissions WHERE role_id=$1',[created.rows[0].role_id]);
+  await client.query('COMMIT');res.status(201).json({role:created.rows[0],permission_count:count.rows[0].total});
  }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
 }));
 // Role codes are internal identifiers; administrators only supply names.
@@ -81,7 +83,7 @@ router.post('/roles',manage,safe(async(req,res)=>{
  const name=String(req.body?.role_name||'').trim();
  if(name.length<3||name.length>80)return res.status(400).json({error:'Role name must be 3–80 characters.'});
  const code='custom_'+crypto.randomUUID().replace(/-/g,'').slice(0,24);
- const r=await db.query(`INSERT INTO public.rbac_roles(role_code,role_name,role_scope,is_active) VALUES ($1,$2,'staff',true) RETURNING role_id,role_code,role_name,role_scope,is_active`,[code,name]);
+ const r=await db.query(`WITH created AS (INSERT INTO public.rbac_roles(role_code,role_name,role_scope,is_active) VALUES ($1,$2,'staff',true) RETURNING role_id,role_code,role_name,role_scope,is_active), defaults AS (INSERT INTO public.rbac_role_permissions(role_id,permission_id) SELECT created.role_id,p.permission_id FROM created CROSS JOIN public.rbac_permissions p WHERE p.permission_code='settings.view' ON CONFLICT DO NOTHING) SELECT * FROM created`,[code,name]);
  res.status(201).json(r.rows[0]);
 }));
 router.patch('/roles/:id',manage,safe(async(req,res)=>{

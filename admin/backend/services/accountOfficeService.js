@@ -12,6 +12,6 @@ async function requireAccountOffice(name, client = db) {
     return result.rows[0];
 }
 async function setAccountOffice(client,userId,office) {
-    await client.query('UPDATE public.admin_profiles SET office_id=$2 WHERE user_id=$1',[userId,office.office_id]);
+    await client.query('UPDATE public.admin_profiles SET office_id=$2 WHERE user_id=$1',[userId,office?.office_id || null]);
 }
 module.exports = { listAccountOffices, requireAccountOffice, setAccountOffice };

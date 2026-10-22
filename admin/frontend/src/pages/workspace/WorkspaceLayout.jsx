@@ -4,7 +4,7 @@ import { LayoutDashboard, PanelLeftClose, PanelLeftOpen, LogOut, Menu, RefreshCw
 import pdmLogo from '@/assets/pdm-logo.png';
 import { buildApiUrl } from '@/api';
 import { getPortalDefaultTheme } from '@/config/portalThemes';
-import { getWorkspaceModules } from './workspaceModuleRegistry';
+import { getWorkspaceModules, WORKSPACE_MODULES } from './workspaceModuleRegistry';
 
 const linkStyle = ({ isActive }) => `flex min-h-11 items-center gap-3 rounded-lg px-3 text-[13px] font-semibold transition-colors ${isActive ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-base)]' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'}`;
 
@@ -21,12 +21,12 @@ export default function WorkspaceLayout() {
       const response = await fetch(buildApiUrl('/api/workspace/me'), {headers:{Authorization:`Bearer ${sessionStorage.getItem('workspaceToken')||''}`},cache:'no-store'});
       const data = await response.json().catch(()=>({}));
       if (!response.ok) throw Error(data.message || 'Workspace access denied.');
-      setState({loading:false,error:'',role_name:data.role_name||'Office Staff',permissions:Array.isArray(data.permissions)?data.permissions:[]});
+      setState({loading:false,error:'',has_ro_coordinator_access:data.has_ro_coordinator_access===true,role_name:data.role_name||'Office Staff',permissions:Array.isArray(data.permissions)?data.permissions:[]});
     } catch(e) { setState({loading:false,error:e.message||'Access unavailable.',role_name:'',permissions:[]}); }
     finally {setRefreshing(false);}
   },[]);
   useEffect(()=>{ reload(); const onFocus=()=>reload(); window.addEventListener('focus',onFocus); return ()=>window.removeEventListener('focus',onFocus); },[reload]);
-  const modules = useMemo(()=>getWorkspaceModules(state.permissions),[state.permissions]);
+  const modules = useMemo(()=>{ const items=getWorkspaceModules(state.permissions); if(state.has_ro_coordinator_access && !items.some(item=>item.key==='ro')) items.push({key:'ro',...WORKSPACE_MODULES.ro}); return items; },[state.permissions,state.has_ro_coordinator_access]);
   const context = useMemo(()=>({ ...state, modules, reload }),[state,modules,reload]);
   const logout=()=>{for(const store of [sessionStorage,localStorage]){store.removeItem('workspaceToken');store.removeItem('workspaceProfile');}navigate('/login',{replace:true});};
   const aside=<>

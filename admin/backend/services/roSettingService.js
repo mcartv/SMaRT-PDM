@@ -3,13 +3,6 @@ const supabase = require('../config/supabase');
 const db = require('../config/db');
 const { resolveStaffRole } = require('../utils/staffRoles');
 
-const RO_COORDINATOR_CAPABLE_ROLES = new Set(['pd', 'sdo', 'guidance', 'ro_coordinator']);
-
-// isRoCoordinatorCapableStaff: checks whether is ro coordinator capable staff for the Return of Obligations flow.
-function isRoCoordinatorCapableStaff(profile = {}) {
-    return RO_COORDINATOR_CAPABLE_ROLES.has(resolveStaffRole(profile));
-}
-
 // createHttpError: creates create http error for the Return of Obligations flow.
 function createHttpError(statusCode, message) {
     const error = new Error(message);
@@ -484,13 +477,13 @@ async function getDepartments() {
             };
         }),
         coordinator_candidates: candidateResult.rows
-            .filter((row) => isRoCoordinatorCapableStaff(row))
             .map((row) => ({
                 user_id: row.user_id,
                 name: [row.first_name, row.last_name].filter(Boolean).join(' '),
                 department: row.department || '',
                 position: row.position || '',
                 role: resolveStaffRole(row),
+                active_areas: coordinatorResult.rows.filter(person=>person.user_id===row.user_id).map(person=>({department_id:person.ro_area_id,department_name:(data || []).find(area=>area.department_id===person.ro_area_id)?.department_name || 'Another area'})),
             })),
     };
 }
@@ -501,34 +494,8 @@ async function setDepartmentCoordinator(departmentId, body = {}, actorUserId = n
 }
 
 // createDepartment: creates create department for the Return of Obligations flow.
-async function createDepartment(body = {}) {
-    const departmentName = safeText(body.department_name || body.departmentName);
-
-    if (!departmentName) {
-        throw createHttpError(400, 'RO Area name is required.');
-    }
-
-    const { data, error } = await supabase
-        .from('ro_departments')
-        .insert({
-            department_name: departmentName,
-            is_active: body.is_active !== false && body.isActive !== false,
-        })
-        .select('department_id, department_name, is_active, created_at, updated_at')
-        .single();
-
-    if (error) {
-        if (error.code === '23505') {
-            throw createHttpError(409, 'This RO Area already exists.');
-        }
-
-        throw error;
-    }
-
-    return {
-        message: 'RO Area created successfully.',
-        department: getDepartmentPayload(data),
-    };
+async function createDepartment(body = {}, actorUserId = null) {
+    return require('./roPersonnelService').createArea(body,actorUserId);
 }
 
 // updateDepartment: updates update department for the Return of Obligations flow.

@@ -555,7 +555,6 @@ function validateCreateForm(form, roAreas = [], accounts = []) {
     if (!departmentOptions.includes(form.department)) {
         return form.role === 'ro_coordinator' ? 'Select an active Community Service Area.' : 'Select a valid office or department.';
     }
-    if (form.role === 'ro_coordinator' && !(DEPARTMENT_OPTIONS[form.role] || []).some(option => option.value === form.office_name)) return 'Select a valid office or department.';
     if (form.role === 'pd' && !(form.course_ids || []).length) return 'Select at least one course for the Program Director.';
 
     return validatePasswordFields(form.password, form.confirm_password, true);
@@ -596,7 +595,6 @@ function validateEditForm(form, roAreas = [], accounts = [], excludedUserId = nu
     if (!departmentOptions.includes(form.department)) {
         return form.role === 'ro_coordinator' ? 'Select an active Community Service Area.' : 'Select a valid office or department.';
     }
-    if (form.role === 'ro_coordinator' && !(DEPARTMENT_OPTIONS[form.role] || []).some(option => option.value === form.office_name)) return 'Select a valid office or department.';
     if (form.role === 'pd' && !(form.course_ids || []).length) return 'Select at least one course for the Program Director.';
 
     return validatePasswordFields(form.password, form.confirm_password, false);
@@ -839,14 +837,14 @@ function AccountCreateModal({
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <AccountRoleField value={form.role} onChange={handleRoleChange} options={OPERATIONAL_ROLE_OPTIONS} disabled={saving} canAdd={canAddRole} />
 
-                        <DepartmentField canAddOffice={canAddOffice} triggerClassName="h-10"
+                        {form.role !== 'ro_coordinator' && <DepartmentField canAddOffice={canAddOffice} triggerClassName="h-10"
                             role={form.role}
-                            value={form.role === 'ro_coordinator' ? form.office_name : form.department}
-                            onChange={(value) => setField(form.role === 'ro_coordinator' ? 'office_name' : 'department', value)}
+                            value={form.department}
+                            onChange={(value) => setField('department', value)}
                             disabled={saving}
                             roAreas={roAreas}
                             showPdCourseGroup={false}
-                        />
+                        />}
                         {form.role === 'ro_coordinator' && <DepartmentField canAddOffice={canAddOffice} triggerClassName="h-10" role={form.role} communityArea value={form.department} onChange={value => setField('department', value)} disabled={saving} roAreas={roAreas} />}
                     </div>
 
@@ -1099,7 +1097,7 @@ function AccountEditModal({
             ...current,
             role,
             course_ids: role === 'pd' ? current.course_ids : [],
-            office_name: defaults?.department || '',
+            office_name: role === 'ro_coordinator' ? '' : defaults?.department || '',
             department: role === 'ro_coordinator'
                 ? roAreas.find((area) => area.is_active !== false && !area.coordinator)?.department_name || ''
                 : defaults?.department || current.department,
@@ -1165,7 +1163,7 @@ function AccountEditModal({
                         <AccountRoleField value={form.role} onChange={handleRoleChange} options={editRoleOptions} disabled={saving || form.role === 'admin'} canAdd={canAddRole} />
 
 
-                        <DepartmentField canAddOffice={canAddOffice} triggerClassName="h-10" role={form.role} value={form.role === 'ro_coordinator' ? form.office_name : form.department} onChange={(value) => setField(form.role === 'ro_coordinator' ? 'office_name' : 'department', value)} disabled={saving} roAreas={roAreas} />
+                        {form.role !== 'ro_coordinator' && <DepartmentField canAddOffice={canAddOffice} triggerClassName="h-10" role={form.role} value={form.department} onChange={value => setField('department', value)} disabled={saving} roAreas={roAreas} />}
                         {form.role === 'ro_coordinator' && <DepartmentField canAddOffice={canAddOffice} triggerClassName="h-10" role={form.role} communityArea value={form.department} onChange={value => setField('department', value)} disabled={saving} roAreas={roAreas} />}
 
                     </div>
@@ -1598,7 +1596,7 @@ export default function AccountsPanel() {
         setForm((current) => ({
             ...current,
             role,
-            office_name: defaults?.department || '',
+            office_name: role === 'ro_coordinator' ? '' : defaults?.department || '',
             department: role === 'ro_coordinator'
                 ? roAreas.find((area) => area.is_active !== false && !area.coordinator)?.department_name || ''
                 : defaults?.department || current.department,

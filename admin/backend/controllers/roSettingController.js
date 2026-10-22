@@ -309,7 +309,7 @@ async function setDepartmentCoordinator(req, res) {
 // createDepartment: creates create department for the Return of Obligations flow.
 async function createDepartment(req, res) {
     try {
-        const result = await roSettingService.createDepartment(req.body || {});
+        const result = await roSettingService.createDepartment(req.body || {}, getActorUserId(req));
 
         emitRoSettingUpdate(req, {
             source: 'ro_department',

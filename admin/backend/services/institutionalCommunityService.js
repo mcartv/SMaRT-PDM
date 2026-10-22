@@ -20,9 +20,8 @@ async function getLinks(pool = db) {
     return { ready: true, links: links.rows, offices: offices.rows, areas: areas.rows, suggestions: offices.rows.map(office => ({ office_id: office.office_id,
         department_ids: areas.rows.filter(area => areaNames(office).includes(area.department_name.trim().toLowerCase())).map(area => area.department_id) })) };
 }
-async function useOfficeAsArea(officeId, departmentId = null, pool = db, actorId = null) {
+async function linkOfficeArea(client,officeId,departmentId,actorId) {
     if (!isUuid(officeId) || (departmentId !== null && !isUuid(departmentId))) fail(400, 'Select a valid office and area.');
-    return transaction(async client => {
         await requireSchema(client);
         const office = (await client.query(`SELECT office_id,office_name,is_active,COALESCE((to_jsonb(ref_offices)->>'is_institutional')::boolean,true) AS is_institutional FROM public.ref_offices WHERE office_id=$1 FOR UPDATE`, [officeId])).rows[0];
         if (!office?.is_active || office.is_institutional === false) fail(400, 'Select an active office.');
@@ -47,6 +46,19 @@ async function useOfficeAsArea(officeId, departmentId = null, pool = db, actorId
         await client.query('INSERT INTO public.institutional_service_area_links(department_id,office_id) VALUES($1,$2)', [area.department_id,officeId]);
         await auditOffice(client,officeId,'USE_OFFICE_AS_COMMUNITY_SERVICE_AREA',null,{department_id:area.department_id,office_id:officeId},actorId);
         return { office_id:officeId,department_id:area.department_id,already_linked:false };
+}
+async function useOfficeAsArea(officeId,departmentId=null,pool=db,actorId=null) {
+    return transaction(client=>linkOfficeArea(client,officeId,departmentId,actorId),pool);
+}
+async function createOfficeArea(officeId,body={},actorId=null,pool=db) {
+    if(!Array.isArray(body.user_ids) || !body.user_ids.length) fail(400,'Assign at least one Personnel-In-Charge from this office.');
+    return transaction(async client=>{
+        await client.query("SELECT pg_advisory_xact_lock(hashtext('smartpdm:service-area-create'))");
+        await client.query("SELECT pg_advisory_xact_lock(hashtext('smartpdm:pic-rosters'))");
+        const link=await linkOfficeArea(client,officeId,body.department_id ?? null,actorId);
+        const assignment=await require('./roPersonnelService').setPersonnelInTransaction(link.department_id,{user_ids:body.user_ids},actorId,client,{officeId,add:true});
+        await auditOffice(client,officeId,'ASSIGN_COMMUNITY_SERVICE_PERSONNEL',null,{department_id:link.department_id,user_ids:assignment.user_ids},actorId);
+        return {...link,user_ids:assignment.user_ids};
     },pool);
 }
 async function setLink(departmentId, officeId, expectedOfficeId, pool = db, actorId = null) {
@@ -71,4 +83,4 @@ async function setLink(departmentId, officeId, expectedOfficeId, pool = db, acto
         return { department_id: departmentId, office_id: officeId };
     }, pool);
 }
-module.exports = { getLinks, setLink, useOfficeAsArea };
+module.exports = { getLinks, setLink, useOfficeAsArea, createOfficeArea };

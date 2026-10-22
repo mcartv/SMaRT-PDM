@@ -22,6 +22,7 @@ import {
     MAINTENANCE_CARD_TITLE_CLASS,
 } from './components/maintenanceTypography';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import MaintenanceFilters from './components/MaintenanceFilters';
 import { SearchableChoice, TransferConfirmation } from './components/InstitutionalControls';
 import { useRbacPermissions } from '@/context/RbacPermissionContext';
 import { buildApiUrl } from '@/api';
@@ -72,6 +73,7 @@ export default function CoursesPanel() {
     const [saving, setSaving] = useState(false);
     const [actionLoadingId, setActionLoadingId] = useState(null);
 
+    const [filters,setFilters]=useState({});
     const [search, setSearch] = useState('');
     const [pageTab, setPageTab] = useState('current');
 
@@ -155,6 +157,8 @@ export default function CoursesPanel() {
                 if (pageTab === 'current' && isArchived) return false;
                 if (pageTab === 'archived' && !isArchived) return false;
 
+                if(filters.office && (filters.office==='__none'?Boolean(course.office_id):course.office_id!==filters.office))return false;
+                if(filters.pd && Boolean(course.assigned_pd)!==(filters.pd==='yes'))return false;
                 if (!q) return true;
 
                 return (
@@ -171,7 +175,7 @@ export default function CoursesPanel() {
                 return courseCreatedTime(b) - courseCreatedTime(a)
                     || String(a.course_code || '').localeCompare(String(b.course_code || ''));
             });
-    }, [courses, search, pageTab]);
+    }, [courses, search, pageTab, filters]);
 
     // resetModal: resets reset modal for the Courses flow.
     const resetModal = () => {
@@ -411,7 +415,9 @@ export default function CoursesPanel() {
                             </button>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <MaintenanceFilters title="Course filters" fields={[{key:'office',label:'Supervising office',options:[{value:'__none',label:'No office assigned'},...offices.map(office=>({value:office.office_id,label:office.office_name}))]},{key:'pd',label:'Program Director assignment',options:[{"value":"yes","label":"Assigned"},{"value":"no","label":"Unassigned"}]}]} value={filters} onChange={setFilters}/>
+                            {Object.values(filters).some(Boolean) && <Button variant="outline" size="sm" className="h-8 text-xs" onClick={()=>setFilters({})}>Reset filters</Button>}
                             <Button
                                 size="sm"
                                 variant="outline"

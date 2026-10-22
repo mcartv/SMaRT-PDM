@@ -32,8 +32,11 @@ router.put('/community-links/:departmentId', requirePermission('ro.settings_mana
     res.json({ link });
 }));
 router.get('/options', requirePermission('courses.view'), safe(async (_req, res) => { res.set('Cache-Control', 'no-store'); res.json({ offices: await offices.options() }); }));
+router.get('/:id/community-area/personnel', requirePermission('ro.settings_manage'), safe(async (req,res) => {
+    res.set('Cache-Control','no-store');res.json({candidates:await require('../services/roPersonnelService').candidates(undefined,req.params.id)});
+}));
 router.post('/:id/community-area', requirePermission('settings.manage'), requirePermission('ro.settings_manage'), safe(async (req,res) => {
-    const link = await community.useOfficeAsArea(req.params.id,req.body?.department_id ?? null,undefined,actorId(req));
+    const link = await community.createOfficeArea(req.params.id,req.body || {},actorId(req));
     await changed(req,'community-link',link);
     events.roUpdated(req.app.get('io'), { action:'area-linked', department_id:link.department_id });
     res.json({ link });

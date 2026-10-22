@@ -1,5 +1,7 @@
 // SMaRT-PDM: Return of Obligations — ROSettings Panel (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useEffect, useMemo, useState } from 'react';
+import MaintenanceFilters from './components/MaintenanceFilters';
+import PersonnelPicker from './components/PersonnelPicker';
 import AreaPersonnelDialog from './components/AreaPersonnelDialog';
 import CommunityOfficeLink from './components/CommunityOfficeLink';
 import { Button } from '@/components/ui/button';
@@ -110,6 +112,10 @@ function DepartmentModal({
     area,
     linkCatalog,
     onLinkSaved,
+    personnel,
+    setPersonnel,
+    candidates,
+    error,
 }) {
     if (!open) return null;
 
@@ -124,7 +130,7 @@ function DepartmentModal({
                 className="flex max-h-[calc(100dvh-2rem)] w-full min-w-0 max-w-lg flex-col overflow-hidden border-stone-200 shadow-xl"
                 onClick={(event) => event.stopPropagation()}
             >
-                <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
+                <div className="flex shrink-0 items-center justify-between gap-2 border-b border-stone-100 bg-stone-50 px-4 py-3">
                     <h3 className="text-sm font-semibold text-stone-800">
                         {isEdit ? 'Edit Community Service Area' : 'Add Community Service Area'}
                     </h3>
@@ -152,10 +158,12 @@ function DepartmentModal({
                             className="h-9 rounded-lg border-stone-200 text-sm"
                         />
                     </div>
+                    {!isEdit && <PersonnelPicker candidates={candidates} value={personnel} onChange={setPersonnel} disabled={saving} />}
+                    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
                     {isEdit && area && <CommunityOfficeLink area={area} catalog={linkCatalog} editing onSaved={onLinkSaved} />}
                 </CardContent>
 
-                <div className="flex items-center justify-end gap-2 border-t border-stone-100 bg-stone-50 px-4 py-3">
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-stone-100 bg-stone-50 px-4 py-3">
                     <Button
                         variant="outline"
                         onClick={onClose}
@@ -167,7 +175,7 @@ function DepartmentModal({
 
                     <Button
                         onClick={onSave}
-                        disabled={saving || !value.trim()}
+                        disabled={saving || !value.trim() || (!isEdit && !personnel.length)}
                         className="h-8 rounded-lg border-none text-xs text-white disabled:opacity-50"
                         style={{ background: C.brownMid }}
                     >
@@ -195,10 +203,13 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
     const [requiredHours, setRequiredHours] = useState(8);
     const [allowCarryOver, setAllowCarryOver] = useState(true);
 
+    const [filters,setFilters]=useState({});
     const [search, setSearch] = useState('');
     const [pageTab, setPageTab] = useState('current');
 
     const [departmentName, setDepartmentName] = useState('');
+    const [newPersonnel,setNewPersonnel] = useState([]);
+    const [departmentError,setDepartmentError] = useState('');
     const [editingDepartmentId, setEditingDepartmentId] = useState(null);
     const [modalOpen, setModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('create');
@@ -238,6 +249,10 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
                 if (pageTab === 'current' && !isActive) return false;
                 if (pageTab === 'inactive' && isActive) return false;
 
+                const link=linkCatalog?.links?.find(item=>item.department_id===department.department_id);
+                if(filters.office && (!linkCatalog?.ready || (filters.office==='__none'?Boolean(link):filters.office==='__linked'?!link:link?.office_id!==filters.office)))return false;
+                const hasPersonnel=(department.coordinators || (department.coordinator?[department.coordinator]:[])).some(person=>!person.is_archived);
+                if(filters.pic && hasPersonnel!==(filters.pic==='yes'))return false;
                 if (!q) return true;
 
                 return String(department.department_name || '')
@@ -249,7 +264,7 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
                     String(b.department_name || '')
                 )
             );
-    }, [departments, search, pageTab]);
+    }, [departments, search, pageTab, filters, linkCatalog]);
 
     const loadLinks = async () => {
         try {
@@ -405,6 +420,7 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
     // openCreateModal: handles open create modal for the Return of Obligations flow.
     const openCreateModal = () => {
         setModalMode('create');
+        setNewPersonnel([]);setDepartmentError('');
         setEditingDepartmentId(null);
         setDepartmentName('');
         setError('');
@@ -413,6 +429,7 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
 
     // openEditModal: handles open edit modal for the Return of Obligations flow.
     const openEditModal = (department) => {
+        setDepartmentError('');
         setModalMode('edit');
         setEditingDepartmentId(department.department_id);
         setDepartmentName(department.department_name || '');
@@ -434,6 +451,7 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
     const saveDepartment = async () => {
         try {
             setDepartmentSaving(true);
+            setDepartmentError('');
             setError('');
 
             const name = String(departmentName || '').trim();
@@ -455,6 +473,7 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
                     headers: getHeaders(),
                     body: JSON.stringify({
                         departmentName: name,
+                        ...(!isEdit ? {user_ids:newPersonnel} : {}),
                     }),
                 }
             );
@@ -469,6 +488,8 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
             closeDepartmentModal();
             await loadSettings();
         } catch (err) {
+            setDepartmentError(err.message || 'Unable to save area.');
+            showAppToast('error','Unable to save Community Service Area',err.message);
             console.error('SAVE RO DEPARTMENT ERROR:', err);
             setError(err.message || 'Failed to save Community Service Area.');
         } finally {
@@ -560,6 +581,10 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
             <DepartmentModal
                 open={modalOpen}
                 mode={modalMode}
+                personnel={newPersonnel}
+                setPersonnel={setNewPersonnel}
+                candidates={coordinatorCandidates}
+                error={departmentError}
                 value={departmentName}
                 setValue={setDepartmentName}
                 onClose={closeDepartmentModal}
@@ -612,7 +637,7 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
 
             {!departmentsOnly && <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
                 <div className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                         <div>
                             <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
                                 Community Service Configuration
@@ -683,7 +708,7 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
 
             <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
                 <div className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                         <div>
                             <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
                                 {departmentsOnly ? "Offices & Departments" : "Community Service Areas"}
@@ -693,10 +718,10 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
                             </p>
                         </div>
 
-                        <div className="relative w-full md:w-[320px]">
+                        <div className="relative w-full min-w-0 lg:w-[320px] lg:shrink-0">
                             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                             <Input
-                                placeholder="Search offices and departments..."
+                                placeholder="Search Community Service Areas..."
                                 value={search}
                                 onChange={(event) => setSearch(event.target.value)}
                                 className="h-9 rounded-lg border-stone-200 bg-white pl-9 text-sm"
@@ -704,8 +729,8 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
                         </div>
                     </div>
 
-                    <div className="flex flex-col gap-3 border-t border-stone-100 pt-3 md:flex-row md:items-center md:justify-between">
-                        <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-3 border-t border-stone-100 pt-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex flex-wrap items-center gap-2">
                             <button
                                 type="button"
                                 onClick={() => setPageTab('current')}
@@ -729,12 +754,13 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
                             </button>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                            {hasSearch ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                            <MaintenanceFilters title="Community Service filters" fields={[{key:'office',label:'Office link',options:[{value:'__linked',label:'Linked to an office'},{value:'__none',label:'Independent area'},...(linkCatalog?.offices || []).map(office=>({value:office.office_id,label:office.office_name}))]},{key:'pic',label:'Personnel-In-Charge assignment',options:[{value:'yes',label:'Assigned'},{value:'no',label:'Unassigned'}]}]} value={filters} onChange={setFilters}/>
+                            {hasSearch || Object.values(filters).some(Boolean) ? (
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => setSearch('')}
+                                    onClick={() => {setSearch('');setFilters({});}}
                                     className="h-8 rounded-lg border-stone-200 text-xs"
                                 >
                                     Reset
@@ -774,11 +800,11 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
                             return (
                                 <div
                                     key={department.department_id}
-                                    className="flex min-w-0 flex-col gap-3 px-4 py-3 hover:bg-stone-50 md:flex-row md:items-center md:justify-between"
+                                    className="flex min-w-0 flex-col gap-3 px-4 py-3 hover:bg-stone-50 lg:flex-row lg:items-center lg:justify-between"
                                 >
-                                    <div className="min-w-0">
+                                    <div className="min-w-0 flex-1">
                                         <div className="flex flex-wrap items-center gap-2">
-                                            <h3 className="text-sm font-medium text-stone-900">
+                                            <h3 className="min-w-0 break-words text-sm font-medium text-stone-900 [overflow-wrap:anywhere]">
                                                 {department.department_name}
                                             </h3>
 
@@ -795,7 +821,7 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
                                         </p>
                                     </div>
 
-                                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                                    <div className="flex min-w-0 flex-wrap items-center gap-1.5 lg:max-w-[55%] lg:justify-end">
                                         <CommunityOfficeLink area={department} catalog={linkCatalog} onSaved={loadLinks} />
                                         {isActive && <AreaPersonnelDialog area={department} candidates={coordinatorCandidates} onSaved={loadSettings} disabled={loadingThis} />}
 

@@ -5,8 +5,8 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
 async function main(){const pg=await PGlite.create();try{
 await pg.exec(`CREATE ROLE anon; CREATE ROLE authenticated;
 CREATE TABLE users(user_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),role text,username text);
-CREATE TABLE admin_profiles(user_id uuid PRIMARY KEY REFERENCES users,first_name text,last_name text,department text,position text,is_archived boolean DEFAULT false);
-CREATE TABLE ro_departments(department_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),department_name text,is_active boolean DEFAULT true);
+CREATE TABLE admin_profiles(user_id uuid PRIMARY KEY REFERENCES users,first_name text,last_name text,department text,office_id uuid,position text,is_archived boolean DEFAULT false);
+CREATE TABLE ro_departments(department_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),department_name text,is_active boolean DEFAULT true,created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now());
 CREATE TABLE ref_offices(office_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),is_institutional boolean DEFAULT true);
 CREATE TABLE institutional_service_area_links(department_id uuid PRIMARY KEY REFERENCES ro_departments,office_id uuid UNIQUE REFERENCES ref_offices);
 CREATE TABLE ro_area_coordinators(coordinator_assignment_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),ro_area_id uuid REFERENCES ro_departments,user_id uuid REFERENCES users,assigned_by_user_id uuid REFERENCES users,is_active boolean DEFAULT true,assigned_at timestamptz DEFAULT now(),archived_at timestamptz,created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now());
@@ -37,15 +37,52 @@ const area=(await one("INSERT INTO ro_departments(department_name) VALUES('CCS')
 const other=(await one("INSERT INTO ro_departments(department_name) VALUES('Other') RETURNING department_id")).department_id;
 const office=await one('INSERT INTO ref_offices DEFAULT VALUES RETURNING office_id');await pg.query('INSERT INTO institutional_service_area_links VALUES($1,$2)',[area,office.office_id]);
 const real=Module._load;Module._load=function(name,parent,isMain){if(name==='../config/db')return pool;if(parent?.filename.endsWith('roCoordinatorController.js')){if(name.includes('avatarService'))return {resolveAvatarUrl:async()=>null};if(name.includes('notificationService'))return {createStaffNotifications:async()=>[],createUserNotification:async()=>({})};if(name.includes('auditLogService'))return {logAudit:async()=>{}};if(name.includes('socketEvents'))return {roUpdated(){},notificationCreated(){}};if(name.includes('studentRealtimeRelay'))return {};if(name.includes('config/supabase'))return {};}return real.call(this,name,parent,isMain)};
-let personnel,controller;try{personnel=require('../services/roPersonnelService');controller=require('../controllers/roCoordinatorController')}finally{Module._load=real}
+let personnel,controller,community;try{personnel=require('../services/roPersonnelService');community=require('../services/institutionalCommunityService');controller=require('../controllers/roCoordinatorController')}finally{Module._load=real}
+await pg.exec("ALTER TABLE ref_offices ADD COLUMN office_name text DEFAULT 'Test Office',ADD COLUMN is_active boolean DEFAULT true,ADD COLUMN description text; ALTER TABLE admin_profiles ADD COLUMN institutional_primary_role text; CREATE TABLE office_academic_leaders(id int); CREATE TABLE office_leadership_position_rules(id int); CREATE TABLE office_dean_role_grants(id int); CREATE TABLE audit_logs(user_id uuid,action_taken text,module text,entity_type text,entity_id uuid,description text,metadata jsonb,actor_role text);");
+// Creation must include personnel and roll back entirely on invalid assignments.
+await assert.rejects(personnel.createArea({department_name:'Unassigned'},a,pool),{statusCode:400});
+await assert.rejects(personnel.createArea({department_name:'Rollback',user_ids:['00000000-0000-0000-0000-000000000001']},a,pool),{statusCode:400});
+assert.equal((await one("SELECT count(*)::int n FROM ro_departments WHERE department_name='Rollback'")).n,0);
+await pg.query("UPDATE users SET role='workspace' WHERE user_id=$1",[c]);
+await pg.query("UPDATE admin_profiles SET position='Dean',office_id=$2 WHERE user_id=$1",[c,office.office_id]);
+assert.deepEqual((await personnel.candidates(pool,office.office_id)).map(p=>p.user_id),[c]);
+assert.equal((await personnel.candidates(pool)).length,3);
+const created=await personnel.createArea({department_name:'New Independent',user_ids:[a,c]},a,pool);
+assert.equal(created.user_ids.length,2);
+await personnel.setPersonnel(created.department.department_id,{user_ids:[]},a,pool);
+await assert.rejects(personnel.createArea({department_name:'new independent',user_ids:[a]},a,pool),{statusCode:409});
+await assert.rejects(personnel.setPersonnelInTransaction(area,{user_ids:[a]},a,pool,{officeId:office.office_id}),{statusCode:400});
+const newOffice=await one("INSERT INTO ref_offices(office_name) VALUES('New Office') RETURNING office_id");
+await assert.rejects(community.createOfficeArea(newOffice.office_id,{user_ids:[a]},a,pool),{statusCode:400});
+assert.equal((await one("SELECT count(*)::int n FROM ro_departments WHERE department_name='New Office'")).n,0);
+assert.equal((await one('SELECT count(*)::int n FROM institutional_service_area_links WHERE office_id=$1',[newOffice.office_id])).n,0);
+await pg.query('UPDATE admin_profiles SET office_id=$2 WHERE user_id=$1',[c,newOffice.office_id]);
+const linked=await community.createOfficeArea(newOffice.office_id,{user_ids:[c]},a,pool);
+assert.equal(linked.user_ids[0],c);
+assert.equal((await one('SELECT count(*)::int n FROM ro_area_coordinators WHERE ro_area_id=$1 AND is_active',[linked.department_id])).n,1);
+await community.createOfficeArea(newOffice.office_id,{user_ids:[c]},a,pool);
+assert.equal((await one("SELECT count(*)::int n FROM ro_departments WHERE department_name='New Office'")).n,1);
 await personnel.setPersonnel(area,{user_ids:[a,b],expected_user_ids:[]},a,pool);
+await assert.rejects(personnel.setPersonnel(other,{user_ids:[c]},a,pool),{statusCode:409});
+await assert.rejects(personnel.createArea({department_name:'Conflicting New Area',user_ids:[c]},a,pool),{statusCode:409});
+assert.equal((await one("SELECT count(*)::int n FROM ro_departments WHERE department_name='Conflicting New Area'")).n,0);
+await personnel.setPersonnel(linked.department_id,{user_ids:[]},a,pool);
 await personnel.setPersonnel(other,{user_ids:[c]},a,pool);
-await personnel.setPersonnel(other,{user_ids:[b,c],expected_user_ids:[c]},a,pool);
+await assert.rejects(personnel.setPersonnel(other,{user_ids:[b,c],expected_user_ids:[c]},a,pool),{statusCode:409});
+const singleAreaSql=fs.readFileSync(path.resolve(__dirname,'../../../docs/sql/one-active-area-per-pic.sql'),'utf8');
+await pg.query('INSERT INTO ro_area_coordinators(ro_area_id,user_id) VALUES($1,$2)',[other,b]);
+await assert.rejects(pg.exec(singleAreaSql),/Some PICs have multiple active assignments/);
+await pg.exec('ROLLBACK');
+assert.equal((await one('SELECT count(*)::int n FROM ro_area_coordinators WHERE user_id=$1 AND is_active',[b])).n,2);
+await pg.query('DELETE FROM ro_area_coordinators WHERE user_id=$1 AND ro_area_id=$2',[b,other]);
+await pg.exec(singleAreaSql);await pg.exec(singleAreaSql);
+
 await assert.rejects(pg.query('INSERT INTO ro_area_coordinators(ro_area_id,user_id) VALUES($1,$2)',[other,b]),{code:'23505'});
+assert.equal((await personnel.candidates(pool)).find(person=>person.user_id===c).active_areas[0].department_id,other);
 await pg.query('DELETE FROM institutional_service_area_links WHERE department_id=$1',[area]);
 assert.equal((await one('SELECT count(*)::int AS n FROM ro_area_coordinators WHERE ro_area_id=$1 AND is_active',[area])).n,2);
 await pg.query('INSERT INTO institutional_service_area_links VALUES($1,$2)',[area,office.office_id]);
-assert.equal((await one('SELECT count(*)::int AS n FROM ro_area_coordinators WHERE ro_area_id=$1 AND is_active',[other])).n,2);
+assert.equal((await one('SELECT count(*)::int AS n FROM ro_area_coordinators WHERE ro_area_id=$1 AND is_active',[other])).n,1);
 assert.equal((await one('SELECT count(*)::int AS n FROM ro_area_coordinators WHERE ro_area_id=$1 AND is_active',[area])).n,2);
 await assert.rejects(personnel.setPersonnel(area,{user_ids:[a,a]},a,pool),{statusCode:400});
 await assert.rejects(personnel.setPersonnel(area,{user_ids:[a],expected_user_ids:[]},a,pool),{statusCode:409});
@@ -64,7 +101,7 @@ queue=await invoke(controller.getRequests,request(b,{},{}));assert.equal(queue.p
 assert.equal((await invoke(controller.decideRequest,request(a,{placementId:placement.placement_id},{decision:'reject',remarks:'Second decision'}))).statusCode,404);
 await assert.rejects(personnel.setPersonnel(area,{user_ids:[],expected_user_ids:[a,b]},a,pool),{statusCode:409});
 await assert.rejects(personnel.setPersonnel(area,{user_ids:[a],expected_user_ids:[a,b]},a,pool),{statusCode:409});
-const requestOwner=(await one('SELECT coordinator_assignment_id FROM ro_area_coordinators WHERE user_id=$1',[a])).coordinator_assignment_id;
+const requestOwner=(await one('SELECT coordinator_assignment_id FROM ro_area_coordinators WHERE user_id=$1 AND ro_area_id=$2',[a,area])).coordinator_assignment_id;
 const pendingRequest=await one('INSERT INTO ro_scholar_requests(coordinator_assignment_id) VALUES($1) RETURNING request_id',[requestOwner]);
 await assert.rejects(personnel.setPersonnel(area,{user_ids:[b],expected_user_ids:[a,b]},a,pool),{statusCode:409});
 await pg.query("UPDATE ro_scholar_requests SET request_status='Cancelled' WHERE request_id=$1",[pendingRequest.request_id]);
@@ -83,6 +120,9 @@ await pg.query('UPDATE admin_profiles SET first_name=$2 WHERE user_id=$1',[b,'Re
 await pg.exec("CREATE FUNCTION reject_history() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'history unavailable'; END;$$; CREATE TRIGGER reject_history BEFORE INSERT ON ro_processing_history FOR EACH ROW EXECUTE FUNCTION reject_history();");
 await pg.exec('BEGIN');await assert.rejects(pg.query("UPDATE ro_time_logs SET department_validation_status='Returned',department_validated_at=now() WHERE log_id=$1",[log.log_id]),/history unavailable/);await pg.exec('ROLLBACK');assert.equal((await one('SELECT department_validation_status FROM ro_time_logs')).department_validation_status,'Approved');
 await pg.exec(allAreasMigration);assert.equal((await one('SELECT count(*)::int AS n FROM ro_processing_history')).n,2);
-console.log('PASS independent and office multiple PICs, safe removal of former office-only triggers, unlink preservation, multiple PIC roster, duplicate/stale rejection, PIC-specific scholar isolation within the same office, outsider/removal denial, actual processor attribution, repeat-decision protection, preserved assignment IDs, historical name snapshots and transactional history rollback');
+await personnel.setPersonnel(other,{user_ids:[]},a,pool);
+await personnel.setPersonnel(linked.department_id,{user_ids:[c]},a,pool);
+assert.equal((await one('SELECT count(*)::int n FROM ro_area_coordinators WHERE user_id=$1 AND is_active',[c])).n,1);
+console.log('PASS single-area PIC enforcement, database uniqueness, safe reassignment after unassigning, atomic area creation with required PICs, all-role candidates, office-only candidate validation, creation rollback, idempotent office linking, independent and office multiple PICs, safe removal of former office-only triggers, unlink preservation, multiple PIC roster, duplicate/stale rejection, PIC-specific scholar isolation within the same office, outsider/removal denial, actual processor attribution, repeat-decision protection, preserved assignment IDs, historical name snapshots and transactional history rollback');
 }finally{await pg.close()}}
 main().catch(err=>{console.error(err);process.exitCode=1});

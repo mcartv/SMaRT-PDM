@@ -233,7 +233,7 @@ async function syncStandaloneRoCoordinatorAssignment({
     active = true,
     client = db,
 }) {
-    await client.query(
+    if (!active) await client.query(
         `UPDATE ro_area_coordinators
          SET is_active = false, archived_at = now(), updated_at = now()
          WHERE user_id = $1 AND is_active = true`,
@@ -254,6 +254,12 @@ async function syncStandaloneRoCoordinatorAssignment({
     if (!areaId) {
         throw createHttpError(400, 'Select an active RO Area.');
     }
+
+    const conflicts = await client.query(
+        'SELECT 1 FROM ro_area_coordinators WHERE user_id=$1 AND is_active=true AND ro_area_id<>$2 LIMIT 1',
+        [userId, areaId]
+    );
+    if (conflicts.rowCount) throw createHttpError(409, 'This person already has a Community Service Area. Unassign them in Community Service before changing areas.');
 
     const existingResult = await client.query(
         `SELECT coordinator_assignment_id
@@ -406,14 +412,11 @@ async function hasActiveRoCoordinatorAssignment(userId, client = db) {
 // decorateStaffAccount: handles decorate staff account for the Accounts flow.
 async function decorateStaffAccount(row, client = db) {
     const account = mapStaffAccount(row);
-    const canHoldRoCoordinatorAssignment = ['pd', 'sdo', 'guidance', 'ro_coordinator'].includes(account.role);
     const [assignedCourses, hasRoCoordinatorAccess] = await Promise.all([
         account.role === 'pd'
             ? pdCourseAssignmentService.getAssignmentsForUser(account.user_id, client)
             : [],
-        canHoldRoCoordinatorAssignment
-            ? hasActiveRoCoordinatorAssignment(account.user_id, client)
-            : Promise.resolve(false),
+        hasActiveRoCoordinatorAssignment(account.user_id, client),
     ]);
 
     return {
@@ -613,7 +616,7 @@ async function createAccountFromParsedData(parsedData, rawPayload = {}, actorUse
     try {
         await client.query('BEGIN');
 
-        const selectedOffice = await requireAccountOffice(role === 'ro_coordinator' ? rawPayload.office_name : department,client);
+        const selectedOffice = role === 'ro_coordinator' ? null : await requireAccountOffice(department,client);
         const photoEnabled = await hasAdminProfilePhotoColumn(client);
         if (role === 'ro_coordinator') {
             department = await validateRoCoordinatorDepartment(department, client);
@@ -674,7 +677,7 @@ async function createAccountFromParsedData(parsedData, rawPayload = {}, actorUse
         );
 
         await syncStaffReferences(client, user.user_id, { role, department, position });
-        if (selectedOffice) await setAccountOffice(client,user.user_id,selectedOffice);
+        if (selectedOffice || role === 'ro_coordinator') await setAccountOffice(client,user.user_id,selectedOffice);
         // Keep the Dean shown under the office in sync with the account.
         if(role==='dean')await require('./deanOfficeAccountService').syncDeanOffice(client,{userId:user.user_id,role,officeId:selectedOffice?.office_id,actorUserId});
         // OFFICE_ACCOUNT_AUTOLINK_V1: atomic automatic assignments and account-specific permission choices.
@@ -703,8 +706,8 @@ async function createAccountFromParsedData(parsedData, rawPayload = {}, actorUse
         return decorateStaffAccount({
             ...user,
             ...profileResult.rows[0],
-            office_id: selectedOffice.office_id,
-            office_name: selectedOffice.office_name,
+            office_id: selectedOffice?.office_id || null,
+            office_name: selectedOffice?.office_name || '',
             rbac_staff_role: role,
         });
     } catch (error) {
@@ -859,7 +862,7 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
                 ? config.department
                 : safeText(current.department) || config.department;
         let department = nextRole === 'ro_coordinator' ? departmentInput : await validateDepartment(nextRole, departmentInput, client);
-        const selectedOffice = await requireAccountOffice(nextRole === 'ro_coordinator' ? payload.office_name ?? current.office_name : department,client);
+        const selectedOffice = nextRole === 'ro_coordinator' ? null : await requireAccountOffice(department,client);
         if (nextRole === 'ro_coordinator') {
             department = await validateRoCoordinatorDepartment(department, client);
         }
@@ -1018,7 +1021,7 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
         );
 
         await syncStaffReferences(client, userId, { role: nextRole, department, position, archived: nextIsArchived });
-        if (selectedOffice) await setAccountOffice(client,userId,selectedOffice);
+        if (selectedOffice || nextRole === 'ro_coordinator') await setAccountOffice(client,userId,selectedOffice);
         // Office, role, and archive changes update the office's Dean label atomically.
         if(nextRole==='dean'||currentRole==='dean')
           await require('./deanOfficeAccountService').syncDeanOffice(client,{userId,role:nextRole,officeId:selectedOffice?.office_id,archived:nextIsArchived,actorUserId});

@@ -22,7 +22,7 @@ function isMajorOffense(value) {
 }
 
 async function ensureRegistrationAllowed(student, studentNumber) {
-    const blockedMessage = 'You cannot sign up because SDO has an active disciplinary record (Minor or Major Offense) under your Student ID. Please contact the Student Discipline Office (SDO) for clearance.';
+    const blockedMessage = 'You cannot sign up because SDO has an active disciplinary record (Major Offense) under your Student ID. Please contact the Student Discipline Officer (SDO) for clearance.';
     if (isMajorOffense(student.offense_type)) {
         throw createHttpError(403, blockedMessage);
     }

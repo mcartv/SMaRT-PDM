@@ -22,6 +22,9 @@ import { buildApiUrl } from '@/api';
 import { showAppToast } from '@/utils/appToast';
 import { confirmArchive } from '@/utils/confirmArchive';
 import { useSocketEvent } from '@/hooks/useSocket';
+import SemesterScheduleDialog from './components/SemesterScheduleDialog';
+import { semesterScheduleStatus, formatSemesterDate } from './components/semesterSchedule';
+import { useRbacPermissions } from '@/context/RbacPermissionContext';
 import { MAINTENANCE_CARD_TITLE_CLASS } from './components/maintenanceTypography';
 
 function getTodayDateInputValue() {
@@ -349,6 +352,12 @@ function AcademicYearModal({
 }
 
 export default function AcademicYearPanel() {
+    const {hasPermission} = useRbacPermissions();
+    const [schedules,setSchedules] = useState([]);
+    const [scheduleError,setScheduleError] = useState('');
+    const [scheduleYear,setScheduleYear] = useState(null);
+    const [calendarToday,setCalendarToday] = useState(getTodayDateInputValue);
+    useEffect(() => {const timer=setInterval(()=>setCalendarToday(getTodayDateInputValue()),60000);return()=>clearInterval(timer);},[]);
     const [years, setYears] = useState([]);
     const [periods, setPeriods] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -401,7 +410,7 @@ export default function AcademicYearPanel() {
         try {
             setLoading(true);
 
-            const [yearsRes, periodsRes, currentWindowRes] =
+            const [yearsRes, periodsRes, currentWindowRes, schedulesRes] =
                 await Promise.all([
                     fetch(
                         buildApiUrl('/api/academic-years'),
@@ -419,6 +428,7 @@ export default function AcademicYearPanel() {
                         ),
                         { headers: authHeaders() }
                     ),
+                    fetch(buildApiUrl('/api/academic-years/schedules'), {headers:authHeaders(),cache:'no-store'}),
                 ]);
 
             const yearsPayload =
@@ -453,6 +463,9 @@ export default function AcademicYearPanel() {
                 );
             }
 
+            const schedulePayload = await schedulesRes.json().catch(()=>({}));
+            setScheduleError(schedulesRes.ok && Array.isArray(schedulePayload) ? '' : schedulePayload.error || 'Semester schedules are unavailable. Please try again.');
+            setSchedules(schedulesRes.ok && Array.isArray(schedulePayload) ? schedulePayload : []);
             setYears(
                 Array.isArray(yearsPayload)
                     ? yearsPayload
@@ -788,6 +801,7 @@ export default function AcademicYearPanel() {
             message: `Set ${label} as the current academic semester?`,
             details: [
                 'The previous current semester becomes historical and read-only.',
+                'Automatic switching for this academic year will be paused.',
                 `Existing records for ${label} are preserved if this is a reactivation.`,
             ],
             confirmLabel: 'Set Current',
@@ -972,6 +986,8 @@ export default function AcademicYearPanel() {
 
     return (
         <div className="space-y-3 py-0.5">
+            {scheduleYear && <SemesterScheduleDialog year={scheduleYear} periods={periods.filter(period=>period.academic_year_id===scheduleYear.academic_year_id)} schedules={schedules} today={calendarToday} onClose={()=>setScheduleYear(null)} onSaved={()=>{setScheduleYear(null);loadData();}} />}
+            {scheduleError && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">{scheduleError}</p>}
             <ActionModal
                 open={!!actionModal}
                 tone={actionModal?.tone}
@@ -1124,6 +1140,10 @@ export default function AcademicYearPanel() {
                             periodsForYear(
                                 year.academic_year_id
                             );
+                        const yearSchedules = schedules.filter(row => row.academic_year_id === year.academic_year_id);
+                        const firstSchedule = yearSchedules.find(row=>row.term==='First Semester');
+                        const secondSchedule = yearSchedules.find(row=>row.term==='Second Semester');
+                        const semesterBreak = firstSchedule && secondSchedule && calendarToday > firstSchedule.end_date && calendarToday < secondSchedule.start_date;
                         const archived =
                             year.is_archived === true;
 
@@ -1166,11 +1186,12 @@ export default function AcademicYearPanel() {
                                             </p>
                                         ) : null}
                                         <p className="mt-1 text-xs text-stone-500">
-                                            Viewing a semester does not change system state. Only “Set Current” changes which cycle is actionable.
+                                            Viewing a semester does not change the working cycle. Use Set Current or enable automatic switching in Semester Schedule.
                                         </p>
                                     </div>
 
                                     <div className="flex flex-wrap gap-1.5">
+                                        {!archived && hasPermission('settings.manage') && <Button size="sm" variant="outline" disabled={Boolean(scheduleError)} onClick={()=>setScheduleYear(year)}><CalendarRange className="mr-1.5 size-3.5" />Semester Schedule</Button>}
                                         {!archived &&
                                         !year.is_active ? (
                                             <Button
@@ -1239,9 +1260,11 @@ export default function AcademicYearPanel() {
                                     </div>
                                 </div>
 
+                                {semesterBreak && <p role="status" className="mx-3 mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">Semester break. The existing current cycle is retained until the next scheduled semester starts.</p>}
                                 <div className="grid grid-cols-1 gap-2.5 p-3 lg:grid-cols-2">
                                     {yearPeriods.map(
                                         (period) => {
+                                            const calendar = schedules.find(row=>row.period_id===period.period_id);
                                             const current =
                                                 period.is_active ===
                                                 true;
@@ -1291,11 +1314,16 @@ export default function AcademicYearPanel() {
                                                             }
                                                         >
                                                             {current
-                                                                ? 'Current'
-                                                                : 'Historical'}
+                                                                ? 'Current cycle'
+                                                                : calendar ? (semesterScheduleStatus(calendar,calendarToday) === 'In progress' ? 'Not current' : semesterScheduleStatus(calendar,calendarToday)) : 'Historical'}
                                                         </Badge>
                                                     </div>
 
+                                                    <div className="mt-3 space-y-1 text-xs text-stone-500">
+                                                        <p>{calendar ? formatSemesterDate(calendar.start_date) + ' - ' + formatSemesterDate(calendar.end_date) : 'Semester dates not set'}</p>
+                                                        <p>Schedule: {semesterScheduleStatus(calendar,calendarToday)}{calendar ? ' | Automatic switching ' + (calendar.auto_enabled ? 'on' : 'off') : ''}</p>
+                                                        {calendar?.last_error && <p role="alert" className="break-words text-amber-700">Automatic switching needs attention: {calendar.last_error}</p>}
+                                                    </div>
                                                     <div className="mt-4 flex flex-wrap gap-2">
                                                         {!archived &&
                                                         !current ? (

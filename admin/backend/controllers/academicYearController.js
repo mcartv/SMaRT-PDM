@@ -586,3 +586,16 @@ exports.restoreAcademicYear = async (
         );
     }
 };
+
+exports.getSemesterSchedules = async (req, res) => {
+    try { res.set('Cache-Control','no-store'); return res.json(await require('../services/academicSemesterAutomationService').getSchedules()); }
+    catch(error) { return sendError(res,error,'Unable to load semester schedules.'); }
+};
+exports.saveSemesterSchedules = async (req, res) => {
+    try {
+        const result = await require('../services/academicSemesterAutomationService').saveYear(req.params.id,req.body);
+        await writeAudit(req,'SAVE_SEMESTER_SCHEDULE','Updated First and Second Semester dates and automatic switching.',{entityType:'academic_year',entityId:req.params.id,metadata:req.body});
+        emitAcademicUpdate(req,'semester_schedule_updated',{academicYear:{academic_year_id:req.params.id}});
+        return res.json(result);
+    } catch(error) { return sendError(res,error,'Unable to save semester schedules.'); }
+};

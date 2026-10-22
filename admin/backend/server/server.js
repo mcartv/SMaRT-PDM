@@ -667,6 +667,17 @@ if (!global._announcementSchedulerRunning) {
     }
   };
 
+  let academicSchedulerBusy = false;
+  const runAcademicScheduler = async () => {
+    if (!global._applicationStartupReady || academicSchedulerBusy) return;
+    academicSchedulerBusy = true;
+    try {
+      if (await ensureSchedulerLeadership()) await require('../services/schedulerService').runAcademicSemesterScheduler(io);
+    } catch (error) { console.error('Academic semester scheduler error:',error.message); }
+    finally { academicSchedulerBusy = false; }
+  };
+  setInterval(runAcademicScheduler, BACKGROUND_SCHEDULER_INTERVAL_MS);
+
   runAnnouncementScheduler();
   runReminderScheduler();
   runDigestScheduler();

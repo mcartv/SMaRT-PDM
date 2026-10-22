@@ -1,6 +1,7 @@
 // SMaRT-PDM: main — main (admin frontend); supports admin-side UI behavior.
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { Analytics } from '@vercel/analytics/react';
 
 import App from './App.jsx';
 import { RbacPermissionProvider } from './context/RbacPermissionContext.jsx';
@@ -43,6 +44,7 @@ async function bootstrap() {
     <StrictMode>
       <NetworkGate>
         <RbacPermissionProvider><App /></RbacPermissionProvider>
+        <Analytics />
       </NetworkGate>
     </StrictMode>
   );

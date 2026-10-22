@@ -1,73 +1,63 @@
 // SMARTPDM_SEMESTER_AUTO_V1 — safe, date-based activation.
 const pool = require('../config/db');
 const academic = require('./academicYearService');
-const fmt = (value) => value instanceof Date ? value.toISOString().slice(0, 10) : String(value || '').slice(0, 10);
 const todayManila = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-function validDate(value) { const v = fmt(value); return /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v + 'T00:00:00Z')) && new Date(v + 'T00:00:00Z').toISOString().slice(0, 10) === v }
+function fail(message, statusCode = 400) { throw Object.assign(new Error(message), { statusCode }); }
+function validDate(value) { return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value + 'T00:00:00Z')) && new Date(value + 'T00:00:00Z').toISOString().slice(0,10) === value; }
 function validate(rows) {
-  if (!Array.isArray(rows) || rows.length !== 2) throw Error('Exactly two semester windows are required.');
-  const sorted = [...rows].sort((a, b) => a.start_date.localeCompare(b.start_date));
-  for (const r of sorted) { if (!validDate(r.start_date) || !validDate(r.end_date) || r.start_date > r.end_date) throw Error('Semester dates are invalid.'); }
-  if (sorted[0].end_date >= sorted[1].start_date) throw Error('Semester windows cannot overlap.');
-  const terms = new Set(rows.map(r => r.term)); if (terms.size !== 2 || !terms.has('First Semester') || !terms.has('Second Semester')) throw Error('First and Second Semester required.'); return sorted;
+  if (!Array.isArray(rows) || rows.length !== 2) fail('Exactly two semester windows are required.');
+  for (const row of rows) if (!row || !validDate(row.start_date) || !validDate(row.end_date) || row.start_date > row.end_date) fail('Semester dates are invalid.');
+  const terms = new Set(rows.map(row => row.term));
+  if (terms.size !== 2 || !terms.has('First Semester') || !terms.has('Second Semester')) fail('First and Second Semester required.');
+  const sorted = [...rows].sort((a,b) => a.start_date.localeCompare(b.start_date));
+  if (sorted[0].end_date >= sorted[1].start_date) fail('Semester windows cannot overlap.');
+  if (sorted[0].term !== 'First Semester') fail('First Semester must come before Second Semester.');
+  return sorted;
 }
 async function getSchedules() {
-  const { rows } = await pool.query(
-    'SELECT s.period_id,s.start_date,s.end_date,s.auto_enabled,s.last_error,s.last_attempt_at,ap.term,ay.label AS academic_year_label FROM academic_semester_schedules s JOIN academic_period ap USING(period_id) JOIN academic_years ay ON ay.academic_year_id=ap.academic_year_id ORDER BY s.start_date'); return rows.map(r => ({ ...r, start_date: fmt(r.start_date), end_date: fmt(r.end_date) }));
+  try {
+    const {rows} = await pool.query('SELECT s.period_id,s.start_date::text,s.end_date::text,s.auto_enabled,s.last_error,s.last_attempt_at,ap.term,ap.academic_year_id,ay.label AS academic_year_label FROM academic_semester_schedules s JOIN academic_period ap USING(period_id) JOIN academic_years ay ON ay.academic_year_id=ap.academic_year_id ORDER BY s.start_date');
+    return rows;
+  } catch (error) { if(error.code==='42P01') fail('Apply the academic semester schedule migration before configuring dates.',503); throw error; }
 }
-async function saveYear(academicYearId, payload) {
-  const client = await pool.connect(); try {
+async function saveYear(academicYearId, payload = {}) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(academicYearId || ''))) fail('Select a valid academic year.');
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) fail('Provide semester dates and an automatic switching setting.');
+  if (typeof payload.auto_enabled !== 'boolean') fail('Choose whether automatic semester switching is enabled.');
+  const windows = validate(payload.windows);
+  const client = await pool.connect();
+  try {
     await client.query('BEGIN');
-    const { rows: periods } = await client.query('SELECT ap.period_id,ap.term,ay.start_year,ay.end_year,ay.is_archived FROM academic_period ap JOIN academic_years ay USING(academic_year_id) WHERE ap.academic_year_id=$1 FOR UPDATE OF ap,ay', [academicYearId]);
-    if (
-      periods.length !== 2 ||
-      periods.some(p => p.is_archived)
-    ) {
-      throw Error(
-        'Select a non-archived academic year with both semesters.'
-      );
-    }
-
-    const windows = validate(periods.map(p => {
-      const input = (payload.windows || []).find(
-        w => w.term === p.term
-      );
-
-      if (!input) {
-        throw Error('Missing schedule for ' + p.term);
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('smartpdm-semester-auto-v1')::bigint)");
+    const {rows:periods} = await client.query('SELECT ap.period_id,ap.term,ay.start_year,ay.end_year,ay.start_date::text AS year_start_date,ay.end_date::text AS year_end_date,ay.is_archived FROM academic_period ap JOIN academic_years ay USING(academic_year_id) WHERE ap.academic_year_id=$1 FOR UPDATE OF ap,ay',[academicYearId]);
+    if (periods.length !== 2 || periods.some(p=>p.is_archived)) fail('Select a non-archived academic year with both semesters.');
+    const year = periods[0];
+    const minimum = year.year_start_date || year.start_year + '-01-01';
+    const maximum = year.year_end_date || year.end_year + '-12-31';
+    if (windows.some(w=>w.start_date<minimum || w.end_date>maximum)) fail('Semester dates must stay within the academic year: ' + minimum + ' to ' + maximum + '.');
+    if (payload.auto_enabled && windows.every(w=>w.end_date<todayManila())) fail('Cannot enable automation when both semesters have ended.');
+    if (payload.auto_enabled) {
+      for (const w of windows) {
+        const overlap=await client.query('SELECT 1 FROM academic_semester_schedules s JOIN academic_period ap USING(period_id) JOIN academic_years ay USING(academic_year_id) WHERE ap.academic_year_id<>$1 AND ay.is_archived=false AND s.auto_enabled=true AND s.start_date<=$3::date AND s.end_date>=$2::date LIMIT 1',[academicYearId,w.start_date,w.end_date]);
+        if(overlap.rowCount) fail('These dates overlap an automatic semester schedule in another academic year.');
       }
-
-      return {
-        period_id: p.period_id,
-        term: p.term,
-        start_date: fmt(input.start_date),
-        end_date: fmt(input.end_date)
-      };
-    }));
-    // SMARTPDM_SCHEDULE_BASED_ROLLOVER_V13: admin-selectable dates, ordered and non-overlapping.
-    const first = windows.find(w => w.term === 'First Semester');
-    const second = windows.find(w => w.term === 'Second Semester');
-    if (!first || !second || first.start_date > first.end_date ||
-      second.start_date > second.end_date || second.start_date <= first.end_date) {
-      throw Error('Semester windows must be chronological and must not overlap.');
     }
-    // An already elapsed start date cannot silently trigger historical transitions.
-    // SMARTPDM_ACADEMIC_SCHEDULE_PAST_SAFE_V1 — permit historical dates to be configured; never auto-activate completed windows.
-    const today = todayManila(); if (payload.auto_enabled === true && windows.every(w => w.end_date < today)) throw Error('Cannot enable automation when both semesters have ended.');
     for (const w of windows) {
-      await client.query(
-        'INSERT INTO academic_semester_schedules(period_id,start_date,end_date,auto_enabled,updated_at) VALUES($1,$2,$3,$4,NOW()) ON CONFLICT(period_id) DO UPDATE SET start_date=EXCLUDED.start_date,end_date=EXCLUDED.end_date,auto_enabled=EXCLUDED.auto_enabled,last_error=NULL,updated_at=NOW()',
-        [w.period_id, w.start_date, w.end_date, payload.auto_enabled === true]);
+      const period=periods.find(p=>p.term===w.term);
+      if(!period) fail('Both semester records are required.');
+      await client.query('INSERT INTO academic_semester_schedules(period_id,start_date,end_date,auto_enabled,updated_at) VALUES($1,$2,$3,$4,NOW()) ON CONFLICT(period_id) DO UPDATE SET start_date=EXCLUDED.start_date,end_date=EXCLUDED.end_date,auto_enabled=EXCLUDED.auto_enabled,last_error=NULL,updated_at=NOW()',[period.period_id,w.start_date,w.end_date,payload.auto_enabled]);
     }
-    await client.query('COMMIT'); return { ok: true };
-  } catch (e) { await client.query('ROLLBACK'); throw e } finally { client.release(); }
+    await client.query('COMMIT');
+    return {ok:true};
+  } catch(error) { await client.query('ROLLBACK'); throw error; }
+  finally { client.release(); }
 }
 async function tick() {
   const client = await pool.connect(); let locked = false;
   try {
     const l = await client.query("SELECT pg_try_advisory_lock(hashtext('smartpdm-semester-auto-v1')::bigint) AS ok"); locked = l.rows[0]?.ok === true; if (!locked) return { status: 'busy' };
     const today = todayManila(); const q = await client.query(
-      'SELECT s.period_id,ap.academic_year_id,s.start_date,s.end_date,ap.is_active,ap.term,ay.is_archived,ay.start_year,ay.end_year FROM academic_semester_schedules s JOIN academic_period ap USING(period_id) JOIN academic_years ay USING(academic_year_id) WHERE s.auto_enabled=true AND s.start_date<=$1 AND s.end_date>=$1 ORDER BY s.start_date DESC', [today]);
+      'SELECT s.period_id,ap.academic_year_id,s.start_date,s.end_date,ap.is_active,ap.term,ay.is_archived,ay.start_year,ay.end_year FROM academic_semester_schedules s JOIN academic_period ap USING(period_id) JOIN academic_years ay USING(academic_year_id) WHERE ay.is_archived=false AND s.auto_enabled=true AND s.start_date<=$1 AND s.end_date>=$1 ORDER BY s.start_date DESC', [today]);
     if (q.rows.length !== 1) return { status: q.rows.length ? 'ambiguous' : 'no-due-window' };
     const target = q.rows[0]; if (target.is_archived) return { status: 'archived' }; if (target.is_active) return { status: 'already-current' };
     // SMARTPDM_SCHEDULE_BASED_ROLLOVER_V13: schedule dates decide when an academic year starts.
@@ -87,8 +77,12 @@ async function tick() {
     try {
       const outcome = await academic.activateAcademicPeriod(target.period_id, null, { scheduled: true });
       await client.query('UPDATE academic_semester_schedules SET last_error=NULL,last_attempt_at=NOW(),last_transition_at=NOW() WHERE period_id=$1', [target.period_id]);
-      return { status: 'activated', period: outcome.period };
+      return { status: 'activated', period: outcome.period, cycle_summary: outcome.cycle_summary };
     } catch (e) { await client.query('UPDATE academic_semester_schedules SET last_error=$2,last_attempt_at=NOW() WHERE period_id=$1', [target.period_id, e.message]); return { status: 'failed', reason: e.message }; }
-  } finally { if (locked) await client.query("SELECT pg_advisory_unlock(hashtext('smartpdm-semester-auto-v1')::bigint)").catch(() => { }); client.release(); }
+  } finally {
+    let releaseError;
+    if (locked) {try {await client.query("SELECT pg_advisory_unlock(hashtext('smartpdm-semester-auto-v1')::bigint)");} catch(error) {releaseError=error;}}
+    client.release(releaseError);
+  }
 }
 module.exports = { getSchedules, saveYear, tick, validate, todayManila };

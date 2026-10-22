@@ -806,6 +806,7 @@ exports.updateAcademicYear = async (academicYearId, payload = {}) => {
 
     try {
         await client.query('BEGIN');
+        await client.query("SELECT pg_advisory_xact_lock(hashtext('smartpdm-semester-auto-v1')::bigint)");
 
         const existingResult = await client.query(
             `
@@ -861,6 +862,14 @@ exports.updateAcademicYear = async (academicYearId, payload = {}) => {
                 allowMissing: payload.start_date === undefined && payload.end_date === undefined,
             }
         );
+
+        if (dates.startDate && dates.endDate) {
+            const schema=await client.query("SELECT to_regclass('public.academic_semester_schedules') IS NOT NULL AS ready");
+            if (schema.rows[0]?.ready) {
+                const outside=await client.query('SELECT 1 FROM academic_semester_schedules s JOIN academic_period ap USING(period_id) WHERE ap.academic_year_id=$1 AND (s.start_date<$2::date OR s.end_date>$3::date) LIMIT 1',[academicYearId,dates.startDate,dates.endDate]);
+                if (outside.rowCount) throw createHttpError(409,'Adjust semester schedules before shrinking the academic year dates.');
+            }
+        }
 
         await ensureUniqueRange(
             client,
@@ -1051,6 +1060,7 @@ exports.activateAcademicPeriod = async (periodId, actorUserId = null, options = 
 
     try {
         await client.query('BEGIN');
+        if(options.scheduled !== true) await client.query("SELECT pg_advisory_xact_lock(hashtext('smartpdm-semester-auto-v1')::bigint)");
 
         const period = await getPeriodForUpdate(
             client,
@@ -1072,6 +1082,8 @@ exports.activateAcademicPeriod = async (periodId, actorUserId = null, options = 
         }
 
         if (options.scheduled !== true) {
+            const schema=await client.query("SELECT to_regclass('public.academic_semester_schedules') IS NOT NULL AS ready");
+            if(schema.rows[0]?.ready) await client.query('UPDATE academic_semester_schedules SET auto_enabled=false,updated_at=NOW() WHERE period_id IN (SELECT period_id FROM academic_period WHERE academic_year_id=$1)',[period.academic_year_id]);
             await assertCurrentAcademicYear(client, Number(period.start_year), Number(period.end_year));
         }
 

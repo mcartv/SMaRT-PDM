@@ -31,7 +31,7 @@ import {
 
 const TABS = [
   { key: 'general', label: 'General', icon: Settings },
-  { key: 'accounts', label: 'RBAC & Accounts', icon: UsersRound },
+  { key: 'accounts', label: 'Account Controls', icon: UsersRound },
   { key: 'theme', label: 'Theme', icon: Palette },
   { key: 'scholarship-programs', label: 'Scholarship Programs', icon: GraduationCap },
   { key: 'academic-years', label: 'Academic Years', icon: CalendarRange },

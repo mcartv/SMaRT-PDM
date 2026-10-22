@@ -69,3 +69,19 @@ exports.runDepartmentDigestScheduler = async () => {
         isRunning = false;
     }
 };
+
+// Explicit schedules only; gaps and completed windows retain the current cycle.
+exports.runAcademicSemesterScheduler = async (io = null) => {
+    const result = await require('./academicSemesterAutomationService').tick();
+    if(result.status !== 'activated') return result;
+    const period=result.period;
+    require('../config/appCache').invalidateNamespaces(['academic-years','program-openings']);
+    const payload={module:'academic_periods',action:'scheduled_activation',id:period.period_id,academic_period:period,updated_at:new Date().toISOString()};
+    socketEvents.maintenanceUpdated(io,payload);
+    socketEvents.renewalUpdated(io,{action:'period_changed',period_id:period.period_id,academic_year_id:period.academic_year_id});
+    socketEvents.dashboardUpdated(io,{source:'academic-period',action:'scheduled_activation'});
+    if(io) io.emit('ro:updated',{action:'period_changed',period_id:period.period_id});
+    await require('./studentRealtimeRelayService').relayModuleEvent({event:'academic:updated',payload}).catch(error=>console.error('ACADEMIC_REALTIME_RELAY_ERROR',error.message));
+    await require('./auditLogService').logAudit({actionTaken:'AUTO_ACTIVATE_ACADEMIC_PERIOD',module:'Academic Years',entityType:'academic_period',entityId:period.period_id,description:'Automatically activated '+period.term+' using the configured semester dates.',metadata:{period}}).catch(error=>console.error('ACADEMIC_SCHEDULE_AUDIT_ERROR',error.message));
+    return result;
+};

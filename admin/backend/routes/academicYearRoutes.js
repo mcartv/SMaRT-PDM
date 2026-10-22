@@ -98,4 +98,7 @@ router.patch(
     academicYearController.restoreAcademicYear
 );
 
+router.get('/schedules', ...adminOnly, requirePermission('settings.view'), academicYearController.getSemesterSchedules);
+router.put('/:id/schedules', ...adminOnly, requirePermission('settings.manage'), invalidateAcademic, academicYearController.saveSemesterSchedules);
+
 module.exports = router;

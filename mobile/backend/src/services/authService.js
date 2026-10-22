@@ -18,11 +18,11 @@ const REGISTRATION_OTP_EXPIRY_MS = 60 * 1000;
 function isMajorOffense(value) {
     const classification = String(value || '').trim().toLowerCase()
         .replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
-    return ['major', 'major offense', 'major disciplinary offense'].includes(classification);
+    return ['minor', 'minor offense', 'major', 'major offense', 'major disciplinary offense', 'probation', 'probationary'].includes(classification);
 }
 
 async function ensureRegistrationAllowed(student, studentNumber) {
-    const blockedMessage = 'You cannot sign up because SDO has recorded a major disciplinary offense under your Student ID. Please contact the Student Discipline Office (SDO) to review your record.';
+    const blockedMessage = 'You cannot sign up because SDO has an active disciplinary record (Minor or Major Offense) under your Student ID. Please contact the Student Discipline Office (SDO) for clearance.';
     if (isMajorOffense(student.offense_type)) {
         throw createHttpError(403, blockedMessage);
     }

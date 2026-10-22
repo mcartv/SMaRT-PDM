@@ -1479,32 +1479,38 @@ function DocumentPreviewPanel({ activeDoc, application }) {
 }
 const GUARDIAN_EVIDENCE_DOCUMENT_IDS = new Set(['guardian_signature', 'guardian_id']);
 
-// GuardianEvidenceComparison: keeps the finalized guardian signature and ID
-// in the same application-scoped review context. Each preview obtains its own
-// authorized, short-lived URL through DocumentPreviewPanel.
-function GuardianEvidenceComparison({ documents, application }) {
-  const guardianSignature = documents.find((document) => document.id === 'guardian_signature') || {
-    id: 'guardian_signature',
-    name: 'Parent / Guardian Signature',
+// GuardianEvidenceViewer keeps the selected evidence panel mounted when the
+// reviewer changes view. This avoids a second signed-URL request for the active
+// document; only the other evidence panel is loaded when Split is requested.
+function GuardianEvidenceViewer({ activeDoc, documents, application, viewMode }) {
+  const counterpartId = activeDoc?.id === 'guardian_signature'
+    ? 'guardian_id'
+    : 'guardian_signature';
+  const counterpart = documents.find((document) => document.id === counterpartId) || {
+    id: counterpartId,
+    name: counterpartId === 'guardian_signature'
+      ? 'Parent / Guardian Signature'
+      : 'Parent / Guardian Valid ID',
     required: false,
   };
-  const guardianId = documents.find((document) => document.id === 'guardian_id') || {
-    id: 'guardian_id',
-    name: 'Parent / Guardian Valid ID',
-    required: false,
-  };
+  const isSplit = viewMode === 'split';
 
   return (
-    <section aria-label="Guardian signature and valid ID comparison" className="space-y-3">
-      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-        <p className="font-semibold">Guardian signature comparison</p>
-        <p className="mt-1 text-xs leading-relaxed text-amber-800">
-          Compare manually only. This view supports review and does not establish identity automatically.
-        </p>
-      </div>
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
-        <DocumentPreviewPanel activeDoc={guardianSignature} application={application} />
-        <DocumentPreviewPanel activeDoc={guardianId} application={application} />
+    <section
+      aria-label={isSplit ? 'Guardian signature and valid ID comparison' : 'Guardian signing evidence preview'}
+      className="space-y-3"
+    >
+      {isSplit ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-semibold">Guardian signature comparison</p>
+          <p className="mt-1 text-xs leading-relaxed text-amber-800">
+            Compare manually only. This view supports review and does not establish identity automatically.
+          </p>
+        </div>
+      ) : null}
+      <div className={isSplit ? 'grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4' : ''}>
+        <DocumentPreviewPanel activeDoc={activeDoc} application={application} />
+        {isSplit ? <DocumentPreviewPanel activeDoc={counterpart} application={application} /> : null}
       </div>
     </section>
   );
@@ -3648,8 +3654,14 @@ export default function DocumentVerification() {
 
   const [activeDocId, setActiveDocId] = useState('certificate_of_registration');
   const [viewMode, setViewMode] = useState('preview');
+  const [signingViewMode, setSigningViewMode] = useState('preview');
   const [submitting, setSubmitting] = useState(false);
   const [reviewActionSaving, setReviewActionSaving] = useState(false);
+
+  const handleDocumentSelection = useCallback((documentId) => {
+    setActiveDocId(documentId);
+    setSigningViewMode('preview');
+  }, []);
 
   const [docStatuses, setDocStatuses] = useState({});
   const [docComments, setDocComments] = useState({});
@@ -4070,6 +4082,12 @@ export default function DocumentVerification() {
       loadBirthValidationContext();
     }
   }, [activeDocId, loadBirthValidationContext]);
+
+  // Signing comparison is intentionally local to the current document. OCR
+  // view choices retain their established behavior when reviewers change tabs.
+  useEffect(() => {
+    setSigningViewMode('preview');
+  }, [activeDocId]);
 
   const applyPiAvailability = useCallback((payload = {}) => {
     const data = payload?.data || payload || {};
@@ -5706,7 +5724,7 @@ export default function DocumentVerification() {
           <ChecklistCard
             docs={docs}
             activeDocId={activeDocId}
-            onSelectDoc={setActiveDocId}
+            onSelectDoc={handleDocumentSelection}
             verifiedCount={verifiedCount}
             rejectedCount={rejectedCount}
             reuploadCount={reuploadCount}
@@ -5741,7 +5759,7 @@ export default function DocumentVerification() {
                             type="button"
                             role="tab"
                             aria-selected={isActive}
-                            onClick={() => setActiveDocId(document.id)}
+                            onClick={() => handleDocumentSelection(document.id)}
                             className={`h-9 shrink-0 rounded-lg px-3 text-xs font-medium transition-all sm:px-3.5 sm:text-[13px] ${isActive
                               ? 'text-white shadow-sm'
                               : 'text-stone-600 hover:bg-white hover:text-stone-900'
@@ -5798,11 +5816,55 @@ export default function DocumentVerification() {
               </div>
             )}
 
+            {GUARDIAN_EVIDENCE_DOCUMENT_IDS.has(activeDoc?.id) && (
+              <div className="flex flex-wrap items-center gap-2.5 border-b border-stone-100 bg-stone-50/50 px-3 py-3 sm:gap-3 sm:px-4">
+                <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400">View</span>
+                <div
+                  className="inline-flex min-w-0 flex-1 flex-wrap items-center rounded-xl bg-stone-100 p-1 sm:flex-none"
+                  role="tablist"
+                  aria-label="Guardian signing evidence view"
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={signingViewMode === 'preview'}
+                    onClick={() => setSigningViewMode('preview')}
+                    className={`h-9 flex-1 rounded-lg px-3 text-xs font-medium transition-all sm:flex-none sm:px-3.5 sm:text-[13px] ${signingViewMode === 'preview'
+                      ? 'bg-white text-stone-900 shadow-sm ring-1 ring-stone-200'
+                      : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
+                      }`}
+                  >
+                    Preview
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={signingViewMode === 'split'}
+                    onClick={() => setSigningViewMode('split')}
+                    className={`h-9 flex-1 rounded-lg px-3 text-xs font-medium transition-all sm:flex-none sm:px-3.5 sm:text-[13px] ${signingViewMode === 'split'
+                      ? 'bg-white text-stone-900 shadow-sm ring-1 ring-stone-200'
+                      : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
+                      }`}
+                  >
+                    <span className="inline-flex items-center gap-1.5">
+                      <Columns2 className="h-3.5 w-3.5" />
+                      Split
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="bg-stone-50/30 p-3 sm:p-4">
               {!activeDoc ? (
                 <p className="text-[15px] text-stone-400">No document selected.</p>
               ) : GUARDIAN_EVIDENCE_DOCUMENT_IDS.has(activeDoc.id) ? (
-                <GuardianEvidenceComparison documents={docs} application={application} />
+                <GuardianEvidenceViewer
+                  activeDoc={activeDoc}
+                  documents={docs}
+                  application={application}
+                  viewMode={signingViewMode}
+                />
               ) : !activeDocumentSupportsOcr ? (
                 <DocumentPreviewPanel activeDoc={activeDoc} application={application} />
               ) : viewMode === 'preview' ? (

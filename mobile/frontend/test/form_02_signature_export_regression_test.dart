@@ -82,16 +82,37 @@ void main() {
         'lib/features/forms/data/services/scholarship_form_pdf_service.dart',
       ).readAsStringSync();
 
-      expect(source, contains('r(115, 2835, 720, 55)'));
-      expect(source, contains('r(1280, 2835, 850, 55)'));
+      expect(source, contains('Form02Layout.signatureCellTopY'));
       expect(source, contains('r(90, 2905, 800, 45)'));
       expect(source, contains('r(1250, 2905, 930, 45)'));
       expect(source, contains('prepareSignatureImageForPdf(png)'));
       expect(source, contains('PdfBitmap(prepared.png)'));
       expect(source, contains('bounds.width / imageWidth'));
       expect(source, contains('bounds.height / imageHeight'));
+      expect(source, contains('availableHeight * .62'));
     },
   );
+
+  test('signature and compact answer geometry stays inside Form-02 cells', () {
+    expect(
+      Form02Layout.signatureCellTopY,
+      greaterThanOrEqualTo(Form02Layout.certificationBottomY),
+    );
+    expect(
+      Form02Layout.signatureCellTopY + Form02Layout.signatureCellHeight,
+      lessThanOrEqualTo(Form02Layout.printedNameTopY),
+    );
+    expect(Form02Layout.scholarshipDetailsBounds.right, lessThanOrEqualTo(612));
+    expect(
+      Form02Layout.disciplinaryDetailsBounds.right,
+      lessThanOrEqualTo(612),
+    );
+    expect(Form02Layout.scholarshipDetailsBounds.height, lessThanOrEqualTo(7));
+    expect(Form02Layout.disciplinaryDetailsBounds.height, lessThanOrEqualTo(7));
+    expect(Form02Layout.familyTextTopOffset, greaterThanOrEqualTo(-12));
+    expect(Form02Layout.familyTextHeight, greaterThanOrEqualTo(32));
+    expect(Form02Layout.compactAcademicTopY, lessThan(2230));
+  });
 
   test(
     'additional detail pages remain conditional rather than becoming blank defaults',

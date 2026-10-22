@@ -32,9 +32,8 @@ void main() {
     ).readAsStringSync();
 
     expect(source, contains('final currentEnrollment = ['));
-    expect(source, contains('r(80, 2230, 325, 55)'));
-    expect(source, contains('r(420, 2230, 445, 55)'));
-    expect(source, contains('r(890, 2230, 445, 55)'));
+    expect(source, contains('Form02Layout.compactAcademicTopY'));
+    expect(source, contains('Form02Layout.compactAcademicHeight'));
 
     expect(source, contains('model.supportParents'));
     expect(source, contains('model.supportScholarship'));

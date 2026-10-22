@@ -23,6 +23,23 @@ class FinalizedFormSignatureEvidence {
   final Uint8List guardianSignaturePng;
 }
 
+/// Measured Form-02 geometry. Source units use the 2550 x 3900 template scan;
+/// answer rectangles use the PDF's 612 x 936 point coordinate system.
+@visibleForTesting
+abstract final class Form02Layout {
+  static const double certificationBottomY = 2860;
+  static const double signatureCellTopY = 2870;
+  static const double signatureCellHeight = 28;
+  static const double printedNameTopY = 2905;
+
+  static const double familyTextTopOffset = -12;
+  static const double familyTextHeight = 32;
+  static const double compactAcademicTopY = 2222;
+  static const double compactAcademicHeight = 48;
+  static const Rect scholarshipDetailsBounds = Rect.fromLTWH(510, 550, 69, 7);
+  static const Rect disciplinaryDetailsBounds = Rect.fromLTWH(300, 579, 279, 7);
+}
+
 class ScholarshipFormPdfService {
   ScholarshipFormPdfService({Future<ByteData> Function()? templateLoader})
     : _templateLoader = templateLoader;
@@ -98,15 +115,35 @@ class ScholarshipFormPdfService {
     final pageWidth = page.size.width;
     final pageHeight = page.size.height;
 
+    // The original scan is 2550 x 3900. Family rows sit 10 source pixels
+    // higher than their nominal guide lines in that scan; keep that measured
+    // calibration explicit instead of applying a hidden range-wide transform.
+    const familyRowYOffset = <int, double>{
+      1304: -10,
+      1310: -10,
+      1347: -10,
+      1390: -10,
+      1434: -10,
+    };
+
     // r: handles r for the Scholars flow.
     Rect r(double x, double y, double w, double h) {
       return Rect.fromLTWH(
         x * pageWidth / _imageWidth,
-        (y >= 1304 && y <= 1434 ? y - 10 : y) * pageHeight / _imageHeight,
+        (y + (familyRowYOffset[y.round()] ?? 0)) * pageHeight / _imageHeight,
         w * pageWidth / _imageWidth,
         h * pageHeight / _imageHeight,
       );
     }
+
+    // Family values sit above printed underlines. The narrow bound reserves a
+    // measured lower gap so a glyph descender cannot touch that underline.
+    Rect familyValueRect(double x, double y, double w) => r(
+      x,
+      y + Form02Layout.familyTextTopOffset,
+      w,
+      Form02Layout.familyTextHeight,
+    );
 
     // drawText: handles draw text for the Scholars flow.
     void drawText(
@@ -269,20 +306,17 @@ class ScholarshipFormPdfService {
     void drawCheck(bool checked, Rect bounds) {
       if (!checked) return;
       final pen = PdfPen(blueColor, width: 1.2);
+      final center = Offset(bounds.center.dx, bounds.center.dy);
+      final halfWidth = bounds.width * .30;
+      final halfHeight = bounds.height * .30;
+      final start = Offset(center.dx - halfWidth, center.dy);
       final middle = Offset(
-        bounds.left + bounds.width * .4,
-        bounds.bottom - 1.5,
+        center.dx - halfWidth * .22,
+        center.dy + halfHeight,
       );
-      page.graphics.drawLine(
-        pen,
-        Offset(bounds.left + 1.5, bounds.top + bounds.height * .5),
-        middle,
-      );
-      page.graphics.drawLine(
-        pen,
-        middle,
-        Offset(bounds.right - 1.5, bounds.top + 1.5),
-      );
+      final end = Offset(center.dx + halfWidth, center.dy - halfHeight);
+      page.graphics.drawLine(pen, start, middle);
+      page.graphics.drawLine(pen, middle, end);
     }
 
     // The official template was calibrated from its 2550x3900 source image.
@@ -305,11 +339,15 @@ class ScholarshipFormPdfService {
       );
       final width = imageWidth * scale;
       final height = imageHeight * scale;
+      // The prepared image is cropped to visible ink plus a small safety
+      // margin. Bias the centred mark down into the lower half of the lane,
+      // toward (but never into) the printed name below it.
+      final availableHeight = bounds.height - height;
       page.graphics.drawImage(
         image,
         Rect.fromLTWH(
           bounds.left + ((bounds.width - width) / 2),
-          bounds.top + ((bounds.height - height) / 2),
+          bounds.top + (availableHeight * .62),
           width,
           height,
         ),
@@ -344,7 +382,7 @@ class ScholarshipFormPdfService {
       bounds: const Rect.fromLTWH(24, 261, 135, 10),
     );
     drawText(
-      'Block/Lot: ${_printableValue(model.houseLotBlockNo)}  Phase: ${_printableValue(model.phase)}',
+      'Block/Lot: ${_printableValue(model.houseLotBlockNo).replaceFirst(RegExp(r'^block\s*/\s*lot\s*:\s*', caseSensitive: false), '')}  Phase: ${_printableValue(model.phase)}',
       const Rect.fromLTWH(24, 261, 135, 10),
       textFont: smallFont,
     );
@@ -374,85 +412,85 @@ class ScholarshipFormPdfService {
     // Row Ys: LastName=1304, FirstName=1347, MiddleName=1390, Mobile=1434
     drawFittingText(
       model.fatherLastName,
-      r(740, 1304, 270, 40),
+      familyValueRect(740, 1304, 270),
       textFont: smallFont,
     );
     drawFittingText(
       model.fatherFirstName,
-      r(740, 1347, 270, 40),
+      familyValueRect(740, 1347, 270),
       textFont: smallFont,
     );
     drawFittingText(
       model.fatherMiddleName,
-      r(740, 1390, 270, 40),
+      familyValueRect(740, 1390, 270),
       textFont: smallFont,
     );
     drawFittingText(
       model.fatherMobile,
-      r(700, 1434, 310, 40),
+      familyValueRect(700, 1434, 310),
       textFont: smallFont,
     );
 
     drawFittingText(
       model.motherLastName,
-      r(1205, 1304, 290, 40),
+      familyValueRect(1205, 1304, 290),
       textFont: smallFont,
     );
     drawFittingText(
       model.motherFirstName,
-      r(1205, 1347, 290, 40),
+      familyValueRect(1205, 1347, 290),
       textFont: smallFont,
     );
     drawFittingText(
       model.motherMiddleName,
-      r(1205, 1390, 290, 40),
+      familyValueRect(1205, 1390, 290),
       textFont: smallFont,
     );
     drawFittingText(
       model.motherMobile,
-      r(1165, 1434, 330, 40),
+      familyValueRect(1165, 1434, 330),
       textFont: smallFont,
     );
 
     drawFittingText(
       model.siblingLastName,
-      r(1695, 1304, 290, 40),
+      familyValueRect(1695, 1304, 290),
       textFont: smallFont,
     );
     drawFittingText(
       model.siblingFirstName,
-      r(1695, 1347, 290, 40),
+      familyValueRect(1695, 1347, 290),
       textFont: smallFont,
     );
     drawFittingText(
       model.siblingMiddleName,
-      r(1695, 1390, 290, 40),
+      familyValueRect(1695, 1390, 290),
       textFont: smallFont,
     );
     drawFittingText(
       model.siblingMobile,
-      r(1655, 1434, 330, 40),
+      familyValueRect(1655, 1434, 330),
       textFont: smallFont,
     );
 
     drawFittingText(
       model.guardianLastName,
-      r(2180, 1304, 230, 40),
+      familyValueRect(2180, 1304, 230),
       textFont: smallFont,
     );
     drawFittingText(
       model.guardianFirstName,
-      r(2180, 1347, 230, 40),
+      familyValueRect(2180, 1347, 230),
       textFont: smallFont,
     );
     drawFittingText(
       model.guardianMiddleName,
-      r(2180, 1390, 230, 40),
+      familyValueRect(2180, 1390, 230),
       textFont: smallFont,
     );
     drawFittingText(
       model.guardianMobile,
-      r(2140, 1434, 270, 40),
+      familyValueRect(2140, 1434, 270),
       textFont: smallFont,
     );
 
@@ -677,21 +715,21 @@ class ScholarshipFormPdfService {
 
     drawFittingText(
       currentEnrollment,
-      r(80, 2230, 325, 55),
+      r(80, Form02Layout.compactAcademicTopY, 325, Form02Layout.compactAcademicHeight),
       textFont: smallFont,
       align: PdfTextAlignment.center,
       minFontSize: 6.0,
     );
     drawFittingText(
       model.studentNumber,
-      r(420, 2230, 445, 55),
+      r(420, Form02Layout.compactAcademicTopY, 445, Form02Layout.compactAcademicHeight),
       textFont: smallFont,
       align: PdfTextAlignment.center,
       minFontSize: 6.0,
     );
     drawFittingText(
       model.learnersReferenceNumber,
-      r(890, 2230, 445, 55),
+      r(890, Form02Layout.compactAcademicTopY, 445, Form02Layout.compactAcademicHeight),
       textFont: smallFont,
       align: PdfTextAlignment.center,
       minFontSize: 6.0,
@@ -712,12 +750,14 @@ class ScholarshipFormPdfService {
       model.supportLoan,
       const Rect.fromLTWH(485.2, 532.94, 12.5, 9.15),
     );
-    drawFittingText(
-      model.supportOther ? model.financialSupportOther : '',
-      r(2205, 2230, 250, 55),
-      textFont: smallFont,
-      minFontSize: 6.0,
-    );
+    if (model.supportOther) {
+      drawFittingText(
+        model.financialSupportOther,
+        r(2205, Form02Layout.compactAcademicTopY, 250, Form02Layout.compactAcademicHeight),
+        textFont: smallFont,
+        minFontSize: 6.0,
+      );
+    }
 
     // ── Scholarship history ──────────────────────────────────────────
     // Yes / No plus the four printed scholarship-level checkboxes.
@@ -754,12 +794,14 @@ class ScholarshipFormPdfService {
         model.scholarshipDetails.trim(),
     ].join(' | ');
 
-    drawFittingText(
-      scholarshipHistoryDetails,
-      const Rect.fromLTWH(510, 555, 69, 9),
-      textFont: smallFont,
-      minFontSize: 6.0,
-    );
+    if (model.hadScholarship) {
+      drawFittingText(
+        scholarshipHistoryDetails,
+        Form02Layout.scholarshipDetailsBounds,
+        textFont: smallFont,
+        minFontSize: 6.0,
+      );
+    }
 
     // ── Disciplinary record ──────────────────────────────────────────
     drawCheck(
@@ -770,12 +812,14 @@ class ScholarshipFormPdfService {
       model.noDisciplinaryRecord,
       const Rect.fromLTWH(66.8, 575.72, 13.75, 8.1),
     );
-    drawFittingText(
-      model.disciplinaryDetails,
-      const Rect.fromLTWH(300, 577, 279, 9),
-      textFont: smallFont,
-      minFontSize: 6.0,
-    );
+    if (model.hasDisciplinaryRecord) {
+      drawFittingText(
+        model.disciplinaryDetails,
+        Form02Layout.disciplinaryDetailsBounds,
+        textFont: smallFont,
+        minFontSize: 6.0,
+      );
+    }
 
     // ── Essays ───────────────────────────────────────────────────────
     // "Write a short essay..." label at Y≈2448. Content area below.
@@ -796,8 +840,24 @@ class ScholarshipFormPdfService {
       // These boxes are the blank signing lanes. They sit below the
       // certification statement and above the printed names/dates; the
       // benefactor/staff area is intentionally untouched.
-      drawSignature(signatures.studentSignaturePng, r(115, 2835, 720, 55));
-      drawSignature(signatures.guardianSignaturePng, r(1280, 2835, 850, 55));
+      drawSignature(
+        signatures.studentSignaturePng,
+        r(
+          115,
+          Form02Layout.signatureCellTopY,
+          720,
+          Form02Layout.signatureCellHeight,
+        ),
+      );
+      drawSignature(
+        signatures.guardianSignaturePng,
+        r(
+          1280,
+          Form02Layout.signatureCellTopY,
+          850,
+          Form02Layout.signatureCellHeight,
+        ),
+      );
     }
 
     // Printed names/dates stay inside the signature row and shrink if needed.

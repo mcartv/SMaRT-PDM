@@ -1,0 +1,13 @@
+# Multiple Community Service Personnel-In-Charge
+
+Run supabase/migrations/20261022110000_multiple_community_service_personnel.sql manually before using multiple assignments. Then run supabase/migrations/20261022113000_allow_multiple_pic_for_all_areas.sql. The earlier 20261022111500_limit_multiple_pic_to_offices.sql is superseded; do not run it afterward. The new migration also removes its restrictions if it was already applied. The application does not run these migrations. It is repeat-safe and retains existing assignment IDs, decisions and attendance records.
+
+Maintenance > Community Service > Personnel opens a searchable checkbox list. Save replaces the area's active roster. Office-linked and independent areas both support multiple explicitly assigned PICs using the same checkbox selector. Linking or unlinking an office does not change PIC assignments or scholar ownership. Each account can appear only once per area. Existing eligible account types and RBAC permissions remain required; office membership alone does not authorize processing.
+
+Each active PIC sees only the placement, scholar-request and attendance records tied to their own PIC assignment. Sharing an office does not share scholar access. Only the designated PIC receives scholar request notifications. Removed or archived people lose that access. PIC access cannot be removed while that person has active scholar assignments or pending/acknowledged scholar requests; finish or explicitly reassign their work first. Placement coordinator_assignment_id remains a routing/history reference; decided_by_user_id and decided_at identify the actual processor. Attendance retains department_validated_by and department_validated_at. Reports use the actual placement decision maker when available.
+
+The migration adds ro_processing_history. Database triggers record each future approval, rejection or return, including actor ID, name snapshot, server time, and previous/new records, in the same transaction. A history write failure rolls back the decision. Existing historical records are preserved; past processing events are not invented or backfilled. The table is not exposed to public or authenticated Data API clients.
+
+The last PIC cannot be removed while pending or approved, uncleared placements remain. Roster snapshots reject stale edits. Removing a person does not rewrite old processing references. Approved attendance cannot be silently approved again. Row locks serialize attendance processing.
+
+Offline verification: set PGLITE_MODULE to a temporary @electric-sql/pglite installation, then run node admin/backend/scripts/verifyMultipleAreaPersonnel.cjs. The verification uses isolated PostgreSQL and the real roster service/controller; it does not connect to the live database.

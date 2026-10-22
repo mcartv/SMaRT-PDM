@@ -750,6 +750,7 @@ async function findRoCoordinator(department) {
           AND rac.is_active = true
           AND rd.is_active = true
           AND COALESCE(ap.is_archived, false) = false
+        ORDER BY rac.assigned_at,rac.coordinator_assignment_id
         LIMIT 1
         `,
         [department.department_id]

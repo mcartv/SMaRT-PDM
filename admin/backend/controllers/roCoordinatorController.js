@@ -125,6 +125,7 @@ async function getCoordinator(req) {
     first_name: result.rows[0].first_name,
     last_name: result.rows[0].last_name,
     assignments: result.rows,
+    areaIds: [...new Set(result.rows.map(row => row.department_id))],
     assignmentIds: result.rows.map((row) => row.coordinator_assignment_id),
     departments: result.rows.map((row) => row.department),
     department: result.rows.map((row) => row.department).join(', '),
@@ -212,6 +213,7 @@ exports.getRequests = async (req, res) => {
     const result = await db.query(
       `SELECT rp.placement_id, rp.placement_status AS coordinator_status,
               rp.coordinator_remarks, rp.decided_at AS coordinator_decided_at,
+              rp.decided_by_user_id, concat_ws(' ',processor.first_name,processor.last_name) AS processed_by_name,
               rp.admin_remarks AS remarks, rp.requested_at AS assigned_at,
               rp.created_at, rp.updated_at,
               ro.ro_id, ro.student_id, ro.application_id, ro.ro_status,
@@ -224,6 +226,7 @@ exports.getRequests = async (req, res) => {
        JOIN return_of_obligations ro ON ro.ro_id = rp.ro_id
        JOIN ro_departments rd ON rd.department_id = rp.ro_area_id
        JOIN students s ON s.student_id = ro.student_id
+       LEFT JOIN admin_profiles processor ON processor.user_id = rp.decided_by_user_id
        LEFT JOIN academic_course ac ON ac.course_id = s.course_id
        LEFT JOIN scholarship_program sp ON sp.program_id = ro.program_id
        LEFT JOIN program_openings po ON po.opening_id = ro.opening_id
@@ -690,6 +693,8 @@ exports.getAttendanceQueue = async (req, res) => {
          rtl.department_validation_status,
          rtl.department_validation_remarks,
          rtl.department_validated_at,
+         rtl.department_validated_by,
+         (SELECT concat_ws(' ',ap.first_name,ap.last_name) FROM admin_profiles ap WHERE ap.user_id=rtl.department_validated_by) AS processed_by_name,
          rp.placement_status,
          rd.department_name AS assigned_area,
          ro.required_hours,
@@ -811,6 +816,7 @@ exports.validateAttendance = async (req, res) => {
            rtl.student_id,
            rtl.duration_minutes,
            rtl.log_status,
+           rtl.department_validation_status,
            ro.required_hours
          FROM ro_time_logs rtl
          JOIN ro_placements rp ON rp.placement_id = rtl.placement_id
@@ -819,7 +825,7 @@ exports.validateAttendance = async (req, res) => {
            AND rp.coordinator_assignment_id = ANY($2::uuid[])
            AND rp.placement_status = 'Approved'
            AND rtl.log_status = 'Timed Out'
-         LIMIT 1`,
+         FOR UPDATE OF rtl,ro`,
         [req.params.logId, coordinator.assignmentIds]
       );
 
@@ -830,6 +836,11 @@ exports.validateAttendance = async (req, res) => {
         return res.status(404).json({
           message: 'This attendance log is unavailable for your department.',
         });
+      }
+
+      if (candidate.department_validation_status === 'Approved') {
+        await client.query('ROLLBACK');
+        return res.status(409).json({message:'This attendance was already processed. Refresh to see the accountable person.'});
       }
 
       if (decision === 'approve') {
@@ -947,14 +958,14 @@ exports.validateAttendance = async (req, res) => {
              validated_minutes = $2,
              progress_status = CASE
                WHEN ro_status = 'Cleared' THEN 'Cleared'
-               WHEN $2 >= required_hours * 60 AND required_hours > 0 THEN 'For Validation'
-               WHEN $1 > 0 OR $2 > 0 THEN 'In Progress'
+               WHEN $2::integer >= required_hours * 60 AND required_hours > 0 THEN 'For Validation'
+               WHEN $1::integer > 0 OR $2::integer > 0 THEN 'In Progress'
                ELSE 'Not Started'
              END,
              assignment_status = CASE
                WHEN ro_status = 'Cleared' THEN 'Cleared'
-               WHEN $2 >= required_hours * 60 AND required_hours > 0 THEN 'For Validation'
-               WHEN $1 > 0 OR $2 > 0 THEN 'In Progress'
+               WHEN $2::integer >= required_hours * 60 AND required_hours > 0 THEN 'For Validation'
+               WHEN $1::integer > 0 OR $2::integer > 0 THEN 'In Progress'
                ELSE assignment_status
              END,
              updated_at = now()

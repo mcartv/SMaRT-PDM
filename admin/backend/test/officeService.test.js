@@ -33,12 +33,13 @@ function fixture() {
         if (q === 'COMMIT' || q.includes('pg_advisory_xact_lock')) return rows([]);
         // OFFICE_ACCOUNT_UI_CORRECTION_20261021_V1: the original fixture contains no active custom-workspace accounts.
         if (q.startsWith('SELECT a.user_id,r.role_code FROM public.admin_profiles a')) return rows([]);
+        if (q.startsWith('SELECT count(*)::int AS count FROM public.ro_area_coordinators')) return rows([{count:state.ro.filter(area=>area.department_id===args[0] && area.pic).length}]);
         if (q.includes('to_regclass')) return rows([{ ready }]);
         if (q.startsWith('WITH granted AS')) { if (!state.deanRoles.includes(args[0])) { state.deanRoles.push(args[0]); state.managedDeans.push(args[0]); } return rows([]); }
         if (q.startsWith('UPDATE public.rbac_user_roles ur')) { state.deanRoles = state.deanRoles.filter(id => !state.managedDeans.includes(id) || state.leaders.some(l => l.user_id === id && state.offices.some(o => o.office_id === l.office_id && o.is_active))); return rows([]); }
         if (q.startsWith('DELETE FROM public.office_dean_role_grants')) { state.managedDeans = state.managedDeans.filter(id => state.deanRoles.includes(id)); return rows([]); }
         if (q.startsWith('SELECT department_id,department_name,is_active FROM public.ro_departments')) return rows(state.ro.map(area => ({ ...area, department_name: area.department_name || area.name })));
-        if (q.startsWith('SELECT department_id,is_active FROM public.ro_departments WHERE lower')) return rows(state.ro.filter(area => (area.department_name || area.name).trim().toLowerCase() === args[0].trim().toLowerCase()));
+        if (q.startsWith('SELECT department_id,is_active FROM public.ro_departments WHERE lower')) return rows(state.ro.filter(area => args[0].includes((area.department_name || area.name).trim().toLowerCase())));
         if (q.startsWith('INSERT INTO public.ro_departments')) { const area = { department_id: CS, department_name: args[0], is_active: true }; state.ro.push(area); return rows([area]); }
         if (q.startsWith('SELECT department_id,is_active FROM public.ro_departments')) return rows(state.ro.filter(area => area.department_id === args[0]));
         if (q.startsWith('SELECT department_id,office_id FROM public.institutional_service_area_links')) return rows(state.serviceLinks);
@@ -285,4 +286,28 @@ test('office endpoints require authentication, admin role and their specific bac
             assert.equal(status, 403, 'Office-to-area creation requires both office settings and Community Service management permissions');
         }
     } finally { Module._load = real; if (mode === undefined) delete process.env.RBAC_PERMISSION_MODE; else process.env.RBAC_PERMISSION_MODE = mode; delete require.cache[middlewarePath]; delete require.cache[routePath]; }
+});
+
+
+test('verified college aliases reuse existing areas; ambiguous or inactive matches never create duplicates', async () => {
+    for (const [name, alias] of [['College of Computer Studies (CCS)', 'CCS Office'], ['College of Hospitality and Tourism Management (CHTM)', 'CHTM Office'], ['Student Welfare and Development Office', 'Student Disciplinary Office']]) {
+        const f = fixture();
+        f.state.offices.push({ office_id: OFFICE, office_name: name, is_active: true });
+        f.state.ro[0].name = alias;
+        const before = structuredClone(f.state.ro);
+        const linked = await f.community.useOfficeAsArea(OFFICE, null, f.pool);
+        assert.equal(linked.department_id, IT);
+        assert.deepEqual(f.state.ro, before);
+        assert.equal((await f.community.useOfficeAsArea(OFFICE, null, f.pool)).already_linked, true);
+    }
+    const f = fixture();
+    f.state.offices.push({ office_id: OFFICE, office_name: 'College of Computer Studies (CCS)', is_active: true });
+    f.state.ro[0].name = 'CCS Office';
+    f.state.ro[0].is_active = false;
+    await assert.rejects(f.community.useOfficeAsArea(OFFICE, null, f.pool), { statusCode: 409 });
+    f.state.ro[0].is_active = true;
+    f.state.ro.push({ department_id: CS, name: 'College of Computer Studies (CCS)', is_active: true });
+    await assert.rejects(f.community.useOfficeAsArea(OFFICE, null, f.pool), { statusCode: 409 });
+    assert.equal(f.state.serviceLinks.length, 0);
+    assert.equal(f.state.ro.length, 2);
 });

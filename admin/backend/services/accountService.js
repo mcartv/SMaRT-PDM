@@ -220,22 +220,9 @@ async function validateRoCoordinatorDepartment(department, client = db) {
 
 // assertRoCoordinatorAreaAvailable: handles assert ro coordinator area available for the Accounts flow.
 async function assertRoCoordinatorAreaAvailable(department, excludedUserId = null, client = db) {
-    const result = await client.query(
-        `
-        SELECT rac.user_id
-        FROM ro_area_coordinators rac
-        JOIN ro_departments rd ON rd.department_id = rac.ro_area_id
-        WHERE LOWER(TRIM(rd.department_name)) = LOWER(TRIM($1))
-          AND rac.is_active = true
-          AND ($2::uuid IS NULL OR rac.user_id <> $2::uuid)
-        LIMIT 1
-        `,
-        [department, excludedUserId]
-    );
-
-    if (result.rows.length) {
-        throw createHttpError(409, 'This RO Area already has an active coordinator.');
-    }
+    // Multiple active personnel may share office-linked or independent areas.
+    // Serialize account-side roster changes with Maintenance assignments.
+    await client.query('SELECT department_id FROM ro_departments WHERE LOWER(TRIM(department_name))=LOWER(TRIM($1)) FOR UPDATE',[department]);
 }
 
 // syncStandaloneRoCoordinatorAssignment: synchronizes sync standalone ro coordinator assignment for the Accounts flow.

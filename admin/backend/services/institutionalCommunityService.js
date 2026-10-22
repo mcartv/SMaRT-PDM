@@ -1,6 +1,15 @@
 'use strict';
 const db = require('../config/db');
 const { isUuid, fail, schemaReady, requireSchema, transaction, auditOffice } = require('./institutionalRelationsService');
+// Only verified historical names; do not infer relationships from similar words.
+function areaNames(office) {
+    const aliases = {
+        'Student Welfare and Development Office': ['Student Disciplinary Office'],
+        'College of Computer Studies (CCS)': ['CCS Office'],
+        'College of Hospitality and Tourism Management (CHTM)': ['CHTM Office'],
+    };
+    return [office.office_name, ...(aliases[office.office_name] || [])].map(name => name.trim().toLowerCase());
+}
 async function getLinks(pool = db) {
     if (!await schemaReady(pool)) return { ready: false, links: [], offices: [] };
     const [links, offices, areas] = await Promise.all([
@@ -8,7 +17,8 @@ async function getLinks(pool = db) {
         pool.query("SELECT office_id,office_name,is_active,COALESCE((to_jsonb(ref_offices)->>'is_institutional')::boolean,true) AS is_institutional FROM public.ref_offices WHERE COALESCE((to_jsonb(ref_offices)->>'is_institutional')::boolean,true)=true OR EXISTS(SELECT 1 FROM public.institutional_service_area_links l WHERE l.office_id=ref_offices.office_id) ORDER BY office_name"),
         pool.query('SELECT department_id,department_name,is_active FROM public.ro_departments ORDER BY department_name'),
     ]);
-    return { ready: true, links: links.rows, offices: offices.rows, areas: areas.rows };
+    return { ready: true, links: links.rows, offices: offices.rows, areas: areas.rows, suggestions: offices.rows.map(office => ({ office_id: office.office_id,
+        department_ids: areas.rows.filter(area => areaNames(office).includes(area.department_name.trim().toLowerCase())).map(area => area.department_id) })) };
 }
 async function useOfficeAsArea(officeId, departmentId = null, pool = db, actorId = null) {
     if (!isUuid(officeId) || (departmentId !== null && !isUuid(departmentId))) fail(400, 'Select a valid office and area.');
@@ -26,7 +36,7 @@ async function useOfficeAsArea(officeId, departmentId = null, pool = db, actorId
             area = (await client.query('SELECT department_id,is_active FROM public.ro_departments WHERE department_id=$1 FOR UPDATE', [departmentId])).rows[0];
             if (!area?.is_active) fail(400, 'Select an active Community Service Area.');
         } else {
-            const matching = await client.query("SELECT department_id,is_active FROM public.ro_departments WHERE lower(btrim(department_name))=lower(btrim($1)) FOR UPDATE", [office.office_name]);
+            const matching = await client.query("SELECT department_id,is_active FROM public.ro_departments WHERE lower(btrim(department_name))=ANY($1::text[]) FOR UPDATE", [areaNames(office)]);
             if (matching.rowCount > 1) fail(409, 'Multiple areas have this name. Select the correct existing area.');
             area = matching.rows[0];
             if (area && !area.is_active) fail(409, 'A matching area is inactive. Restore it in Community Service before linking.');

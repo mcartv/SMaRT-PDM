@@ -2368,7 +2368,7 @@ async function getRoComplianceRows({
         JOIN ro_departments rd ON rd.department_id = rp.ro_area_id
         LEFT JOIN ro_area_coordinators rac
           ON rac.coordinator_assignment_id = rp.coordinator_assignment_id
-        LEFT JOIN admin_profiles pic ON pic.user_id = rac.user_id
+        LEFT JOIN admin_profiles pic ON pic.user_id = COALESCE(rp.decided_by_user_id,rac.user_id)
         WHERE rp.ro_id = ro.ro_id
           AND rp.placement_status = 'Approved'
       ) placement_details ON placement_details.assigned_areas IS NOT NULL

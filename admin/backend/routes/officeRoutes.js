@@ -27,7 +27,9 @@ router.get('/community-links', requirePermission('ro.view'), safe(async (_req, r
 }));
 router.put('/community-links/:departmentId', requirePermission('ro.settings_manage'), safe(async (req, res) => {
     const link = await community.setLink(req.params.departmentId, req.body?.office_id, req.body?.expected_office_id, undefined, actorId(req));
-    await changed(req, 'community-link', link); res.json({ link });
+    await changed(req, 'community-link', link);
+    events.roUpdated(req.app.get('io'), { action: 'area-linked', department_id: link.department_id });
+    res.json({ link });
 }));
 router.get('/options', requirePermission('courses.view'), safe(async (_req, res) => { res.set('Cache-Control', 'no-store'); res.json({ offices: await offices.options() }); }));
 router.post('/:id/community-area', requirePermission('settings.manage'), requirePermission('ro.settings_manage'), safe(async (req,res) => {

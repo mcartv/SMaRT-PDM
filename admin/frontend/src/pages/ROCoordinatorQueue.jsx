@@ -656,7 +656,7 @@ export default function ROCoordinatorQueue({
                             ? <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500" />
                             : <RotateCcw className="mx-auto h-8 w-8 text-amber-500" />}
                           <p className="mt-2 text-sm font-semibold text-stone-800">Decision completed</p>
-                          <p className="mt-1 text-xs text-stone-500">{formatDate(request.coordinator_decided_at)}</p>
+                          <p className="mt-1 text-xs text-stone-500">{request.processed_by_name && <span className="block">Processed by {request.processed_by_name}</span>}{formatDate(request.coordinator_decided_at)}</p>
                         </div>
                       )}
                     </aside>

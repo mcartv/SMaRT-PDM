@@ -1,5 +1,6 @@
 // SMaRT-PDM: Return of Obligations — ROSettings Panel (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useEffect, useMemo, useState } from 'react';
+import AreaPersonnelDialog from './components/AreaPersonnelDialog';
 import CommunityOfficeLink from './components/CommunityOfficeLink';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -106,6 +107,9 @@ function DepartmentModal({
     onClose,
     onSave,
     saving,
+    area,
+    linkCatalog,
+    onLinkSaved,
 }) {
     if (!open) return null;
 
@@ -148,6 +152,7 @@ function DepartmentModal({
                             className="h-9 rounded-lg border-stone-200 text-sm"
                         />
                     </div>
+                    {isEdit && area && <CommunityOfficeLink area={area} catalog={linkCatalog} editing onSaved={onLinkSaved} />}
                 </CardContent>
 
                 <div className="flex items-center justify-end gap-2 border-t border-stone-100 bg-stone-50 px-4 py-3">
@@ -184,6 +189,7 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
     const [activeSetting, setActiveSetting] = useState(null);
     // SMARTPDM_FIVE_PHASE_UI_V1
     const [departments, setDepartments] = useState([]);
+    const [linkCatalog, setLinkCatalog] = useState(null);
     const [coordinatorCandidates, setCoordinatorCandidates] = useState([]);
 
     const [requiredHours, setRequiredHours] = useState(8);
@@ -245,9 +251,18 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
             );
     }, [departments, search, pageTab]);
 
+    const loadLinks = async () => {
+        try {
+            const response = await fetch(buildApiUrl('/api/offices/community-links'), { headers: getHeaders(), cache: 'no-store' });
+            if (!response.ok) throw new Error('Unable to load office links');
+            setLinkCatalog(await response.json());
+        } catch { setLinkCatalog(null); }
+    };
+
     // loadSettings: loads and returns load settings for the Return of Obligations flow.
     const loadSettings = async () => {
         try {
+            loadLinks();
             setLoading(true);
             setError('');
 
@@ -384,34 +399,6 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
             setError(err.message || 'Failed to save RO setting.');
         } finally {
             setSaving(false);
-        }
-    };
-
-    // assignCoordinator: handles assign coordinator for the Return of Obligations flow.
-    const assignCoordinator = async (department, userId) => {
-        try {
-            setDepartmentActionId(department.department_id);
-            setError('');
-
-            const response = await fetch(
-                buildApiUrl(`/api/ro-settings/departments/${department.department_id}/coordinator`),
-                {
-                    method: 'PUT',
-                    headers: getHeaders(),
-                    body: JSON.stringify({ user_id: userId || null }),
-                }
-            );
-            const payload = await response.json().catch(() => ({}));
-            if (!response.ok) {
-                throw new Error(payload.error || 'Failed to update the Community Service Area personnel-in-charge.');
-            }
-
-            showAppToast('success', 'Personnel-In-Charge updated', payload.message || 'Community Service Area personnel-in-charge updated.');
-            await loadSettings();
-        } catch (actionError) {
-            setError(actionError.message || 'Failed to update the Community Service Area personnel-in-charge.');
-        } finally {
-            setDepartmentActionId('');
         }
     };
 
@@ -577,6 +564,9 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
                 setValue={setDepartmentName}
                 onClose={closeDepartmentModal}
                 onSave={saveDepartment}
+                area={departments.find(item => item.department_id === editingDepartmentId)}
+                linkCatalog={linkCatalog}
+                onLinkSaved={loadLinks}
                 saving={departmentSaving}
             />
 
@@ -798,36 +788,16 @@ export default function ROSettingsPanel({ departmentsOnly = false }) {
                                         <p className="mt-1 truncate text-xs text-stone-400">
                                             Updated {formatDateTime(department.updated_at || department.created_at)}
                                         </p>
-                                        <p className={`mt-1 truncate text-xs font-medium ${department.coordinator ? 'text-cyan-700' : 'text-amber-700'}`}>
-                                            {department.coordinator
-                                                ? `Personnel-In-Charge: ${department.coordinator.name}`
+                                        <p className={`mt-1 truncate text-xs font-medium ${department.coordinators?.some(p=>!p.is_archived) ? 'text-cyan-700' : 'text-amber-700'}`}>
+                                            {department.coordinators?.some(p=>!p.is_archived)
+                                                ? `Personnel-In-Charge: ${department.coordinators.filter(p=>!p.is_archived).map(p=>p.name).join(', ')}`
                                                 : 'Personnel-In-Charge: Unassigned'}
                                         </p>
                                     </div>
 
                                     <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                                        <CommunityOfficeLink area={department} />
-                                        {isActive ? (
-                                            <select
-                                                value={department.coordinator?.user_id || ''}
-                                                onChange={(event) =>
-                                                    assignCoordinator(department, event.target.value)
-                                                }
-                                                disabled={loadingThis}
-                                                className="h-8 max-w-[230px] rounded-lg border border-stone-200 bg-white px-2 text-xs text-stone-700 outline-none focus:border-orange-700"
-                                                aria-label={`Personnel-In-Charge for ${department.department_name}`}
-                                            >
-                                                <option value="">Unassigned</option>
-                                                {coordinatorCandidates.map((candidate) => (
-                                                    <option
-                                                        key={candidate.user_id}
-                                                        value={candidate.user_id}
-                                                    >
-                                                        {candidate.name} - {candidate.position || candidate.department || 'User'}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        ) : null}
+                                        <CommunityOfficeLink area={department} catalog={linkCatalog} onSaved={loadLinks} />
+                                        {isActive && <AreaPersonnelDialog area={department} candidates={coordinatorCandidates} onSaved={loadSettings} disabled={loadingThis} />}
 
                                         <Button
                                             size="sm"

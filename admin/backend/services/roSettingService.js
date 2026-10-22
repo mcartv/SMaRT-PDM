@@ -442,11 +442,10 @@ async function getDepartments() {
           ap.first_name,
           ap.last_name,
           ap.department,
-          ap.position
+          ap.position, COALESCE(ap.is_archived,false) AS is_archived
         FROM ro_area_coordinators rac
         JOIN admin_profiles ap ON ap.user_id = rac.user_id
         WHERE rac.is_active = true
-          AND COALESCE(ap.is_archived, false) = false
         `
       ),
       db.query(
@@ -467,24 +466,21 @@ async function getDepartments() {
     ]);
     const { data, error } = departmentResult;
     if (error) throw error;
-    const coordinators = new Map(
-        coordinatorResult.rows.map((row) => [
-            String(row.ro_area_id),
-            {
-                coordinator_assignment_id: row.coordinator_assignment_id,
-                user_id: row.user_id,
-                name: [row.first_name, row.last_name].filter(Boolean).join(' '),
-                department: row.department,
-                position: row.position,
-            },
-        ])
-    );
+    const coordinators = new Map();
+    for (const row of coordinatorResult.rows) {
+        const key=String(row.ro_area_id);
+        if(!coordinators.has(key)) coordinators.set(key,[]);
+        coordinators.get(key).push({coordinator_assignment_id:row.coordinator_assignment_id,user_id:row.user_id,
+            name:[row.first_name,row.last_name].filter(Boolean).join(' '),department:row.department,position:row.position,is_archived:row.is_archived});
+    }
+    for(const people of coordinators.values()) people.sort((a,b)=>a.name.localeCompare(b.name));
     return {
         items: (Array.isArray(data) ? data : []).map((row) => {
             const department = getDepartmentPayload(row);
             return {
                 ...department,
-                coordinator: coordinators.get(String(department.department_id)) || null,
+                coordinators: coordinators.get(String(department.department_id)) || [],
+                coordinator: coordinators.get(String(department.department_id))?.[0] || null,
             };
         }),
         coordinator_candidates: candidateResult.rows
@@ -501,144 +497,7 @@ async function getDepartments() {
 
 // setDepartmentCoordinator: sets set department coordinator for the Return of Obligations flow.
 async function setDepartmentCoordinator(departmentId, body = {}, actorUserId = null) {
-    if (!departmentId) {
-        throw createHttpError(400, 'RO Area is required.');
-    }
-
-    const userId = safeText(body.user_id || body.userId) || null;
-    const client = await db.connect();
-
-    try {
-        await client.query('BEGIN');
-        const areaResult = await client.query(
-            `SELECT department_id, department_name, is_active
-             FROM ro_departments
-             WHERE department_id = $1
-             FOR UPDATE`,
-            [departmentId]
-        );
-        const area = areaResult.rows[0];
-        if (!area) throw createHttpError(404, 'RO Area not found.');
-        if (!area.is_active) throw createHttpError(409, 'Activate this RO Area before assigning a coordinator.');
-
-        const pendingResult = await client.query(
-            `SELECT COUNT(*)::int AS pending_count
-             FROM ro_placements
-             WHERE ro_area_id = $1
-               AND placement_status = 'Pending'`,
-            [departmentId]
-        );
-        const pendingCount = Number(pendingResult.rows[0]?.pending_count || 0);
-
-        if (!userId && pendingCount > 0) {
-            throw createHttpError(
-                409,
-                `This RO Area still has ${pendingCount} pending request${pendingCount === 1 ? '' : 's'}. Reassign a coordinator instead of removing one.`
-            );
-        }
-
-        let assignment = null;
-        if (userId) {
-            const profileResult = await client.query(
-                `SELECT
-                   ap.user_id,
-                   ap.first_name,
-                   ap.last_name,
-                   ap.department,
-                   ap.position,
-                   u.role AS user_role
-                 FROM admin_profiles ap
-                 JOIN users u ON u.user_id = ap.user_id
-                 WHERE ap.user_id = $1
-                   AND COALESCE(ap.is_archived, false) = false
-                 LIMIT 1`,
-                [userId]
-            );
-            if (!profileResult.rows.length) {
-                throw createHttpError(400, 'Select an active account.');
-            }
-            if (!isRoCoordinatorCapableStaff(profileResult.rows[0])) {
-                throw createHttpError(
-                    400,
-                    'Only Program Director, Student Discipline Officer, Guidance Counselor, or RO Personnel-In-Charge accounts can be assigned to an RO Area.'
-                );
-            }
-
-            await client.query(
-                `UPDATE ro_area_coordinators
-                 SET is_active = false, archived_at = now(), updated_at = now()
-                 WHERE ro_area_id = $1
-                   AND is_active = true
-                   AND user_id <> $2`,
-                [departmentId, userId]
-            );
-
-            const existingResult = await client.query(
-                `SELECT coordinator_assignment_id
-                 FROM ro_area_coordinators
-                 WHERE ro_area_id = $1 AND user_id = $2
-                 ORDER BY created_at DESC
-                 LIMIT 1`,
-                [departmentId, userId]
-            );
-
-            if (existingResult.rows.length) {
-                const result = await client.query(
-                    `UPDATE ro_area_coordinators
-                     SET is_active = true,
-                         assigned_by_user_id = $2,
-                         assigned_at = now(),
-                         archived_at = NULL,
-                         updated_at = now()
-                     WHERE coordinator_assignment_id = $1
-                     RETURNING *`,
-                    [existingResult.rows[0].coordinator_assignment_id, actorUserId]
-                );
-                assignment = result.rows[0];
-            } else {
-                const result = await client.query(
-                    `INSERT INTO ro_area_coordinators (
-                       ro_area_id, user_id, assigned_by_user_id
-                     )
-                     VALUES ($1, $2, $3)
-                     RETURNING *`,
-                    [departmentId, userId, actorUserId]
-                );
-                assignment = result.rows[0];
-            }
-
-            await client.query(
-                `UPDATE ro_placements
-                 SET coordinator_assignment_id = $2, updated_at = now()
-                 WHERE ro_area_id = $1
-                   AND placement_status = 'Pending'`,
-                [departmentId, assignment.coordinator_assignment_id]
-            );
-        } else {
-            await client.query(
-                `UPDATE ro_area_coordinators
-                 SET is_active = false, archived_at = now(), updated_at = now()
-                 WHERE ro_area_id = $1 AND is_active = true`,
-                [departmentId]
-            );
-        }
-
-        await client.query('COMMIT');
-        return {
-            message: userId
-                ? 'RO Area personnel-in-charge assigned successfully.'
-                : 'RO Area personnel-in-charge removed successfully.',
-            assignment,
-        };
-    } catch (error) {
-        await client.query('ROLLBACK');
-        if (error.code === '23505' && error.constraint === 'uq_ro_area_active_coordinator') {
-            throw createHttpError(409, 'This RO Area already has an active coordinator.');
-        }
-        throw error;
-    } finally {
-        client.release();
-    }
+    return require('./roPersonnelService').setPersonnel(departmentId,body,actorUserId);
 }
 
 // createDepartment: creates create department for the Return of Obligations flow.

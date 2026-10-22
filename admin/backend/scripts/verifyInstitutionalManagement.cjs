@@ -24,9 +24,14 @@ async function main() {
             CREATE TABLE rbac_user_roles(user_id uuid REFERENCES users(user_id),role_id uuid REFERENCES rbac_roles(role_id),is_active boolean DEFAULT true,assigned_at timestamptz DEFAULT now(),PRIMARY KEY(user_id,role_id));
             CREATE TABLE rbac_staff_role_offices(office_id uuid REFERENCES ref_offices(office_id),app_role_code text);
             CREATE TABLE rbac_role_permissions(role_id uuid REFERENCES rbac_roles(role_id),permission_code text);
+            -- Office updates also synchronize existing custom-role course scopes.
+            CREATE TABLE workspace_role_office_scopes(role_id uuid REFERENCES rbac_roles,office_id uuid REFERENCES ref_offices,PRIMARY KEY(role_id,office_id));
+            CREATE TABLE workspace_user_office_scopes(user_id uuid REFERENCES users,role_id uuid REFERENCES rbac_roles,office_id uuid REFERENCES ref_offices,PRIMARY KEY(user_id,role_id,office_id));
+            CREATE TABLE workspace_role_course_scopes(role_id uuid REFERENCES rbac_roles,course_id uuid REFERENCES academic_course,PRIMARY KEY(role_id,course_id));
+            CREATE TABLE workspace_user_course_scopes(user_id uuid REFERENCES users,role_id uuid REFERENCES rbac_roles,course_id uuid REFERENCES academic_course,PRIMARY KEY(user_id,role_id,course_id));
             CREATE TABLE ro_departments(department_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),department_name text UNIQUE,is_active boolean DEFAULT true);
             CREATE TABLE ro_department_courses(department_id uuid REFERENCES ro_departments(department_id),course_id uuid REFERENCES academic_course(course_id));
-            CREATE TABLE ro_area_coordinators(department_id uuid REFERENCES ro_departments(department_id),user_id uuid REFERENCES users(user_id));
+            CREATE TABLE ro_area_coordinators(department_id uuid REFERENCES ro_departments(department_id),user_id uuid REFERENCES users(user_id),ro_area_id uuid GENERATED ALWAYS AS (department_id) STORED,is_active boolean DEFAULT true);
             CREATE TABLE program_director_course_assignments(pd_user_id uuid REFERENCES users(user_id),course_id uuid REFERENCES academic_course(course_id),is_active boolean DEFAULT true);
             CREATE TABLE students(student_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),course_id uuid REFERENCES academic_course(course_id));
             CREATE TABLE audit_logs(log_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_id uuid REFERENCES users(user_id),action_taken text,module text,entity_type text,entity_id text,description text,metadata jsonb,actor_role text,actor_email text,"timestamp" timestamptz DEFAULT now());
@@ -66,7 +71,7 @@ async function main() {
         const cs = await one("SELECT course_id FROM academic_course WHERE course_code='BSCS'");
         await pg.query('INSERT INTO program_director_course_assignments(pd_user_id,course_id) VALUES($1,$2)', [director,it.course_id]);
         const area = await one("SELECT department_id FROM ro_departments WHERE department_name='Clinic'");
-        await pg.query('INSERT INTO ro_area_coordinators VALUES($1,$2)', [area.department_id,director]);
+        await pg.query('INSERT INTO ro_area_coordinators(department_id,user_id) VALUES($1,$2)', [area.department_id,director]);
         await pg.query('INSERT INTO ro_department_courses VALUES($1,$2)', [area.department_id,cs.course_id]);
         const query = async (sql, args) => { const result = await pg.query(sql,args); return { ...result, rowCount: result.rows.length || result.affectedRows || 0 }; };
         const pool = { query, connect: async () => ({ query, release() {} }) };

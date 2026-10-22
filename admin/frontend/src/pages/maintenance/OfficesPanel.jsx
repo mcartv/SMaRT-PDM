@@ -39,6 +39,7 @@ export default function OfficesPanel() {
     const canManage = ['settings.manage', 'accounts.update', 'courses.manage'].every(hasPermission);
     const canChangeStatus = hasPermission('settings.manage');
     const [data, setData] = useState(null);
+    const [linkCatalog, setLinkCatalog] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [search, setSearch] = useState('');
@@ -66,6 +67,12 @@ export default function OfficesPanel() {
         if (!response.ok) throw new Error(payload.error || 'Unable to load offices. Please try again.');
         return payload;
     }, []);
+    const loadLinks = useCallback(async () => {
+        if (!hasPermission('ro.view')) return;
+        try { setLinkCatalog(await request('/community-links')); } catch { setLinkCatalog(null); }
+    }, [request, hasPermission]);
+    useEffect(() => { loadLinks(); }, [loadLinks]);
+    useSocketEvent('roUpdated', loadLinks, [loadLinks]);
     const load = useCallback(async () => {
         const version = ++generation.current;
         setLoading(true); setError('');
@@ -100,7 +107,7 @@ export default function OfficesPanel() {
         const dean = (data?.leaders || []).find(leader => leader.office_id === detailsId && leader.leadership_kind === 'dean');
         if (dean) addPerson(members.find(person => person.user_id === dean.user_id));
         return [...people.values()].map(person => ({ ...person, courses: [...person.courses].sort() }))
-            .sort((a,b) => Number(b.courses.length > 0) - Number(a.courses.length > 0) || (a.name || '').localeCompare(b.name || ''));
+            .sort((a,b) => Number(b.user_id === dean?.user_id) - Number(a.user_id === dean?.user_id) || Number(b.courses.length > 0) - Number(a.courses.length > 0) || (a.name || '').localeCompare(b.name || ''));
     }, [data,membersByOffice,detailsId,members]);
     const matchingPersonnel = officePersonnel.filter(person => (person.name + ' ' + person.position + ' ' + person.courses.join(' ')).toLowerCase().includes(memberSearch.trim().toLowerCase()));
     const memberPages = Math.max(1, Math.ceil(matchingPersonnel.length / PAGE_SIZE));
@@ -182,7 +189,7 @@ export default function OfficesPanel() {
                             <div className="mt-2 flex flex-wrap gap-1.5">{linkedCourses.length ? linkedCourses.map((course, index) => <span key={course.course_id} title={course.course_name} className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${['bg-sky-100 text-sky-800','bg-violet-100 text-violet-800','bg-emerald-100 text-emerald-800','bg-amber-100 text-amber-800'][index % 4]}`}>{course.course_code}{course.is_archived ? ' (Archived)' : ''}</span>) : <span className="inline-flex rounded-full bg-stone-100 px-2.5 py-1 text-[10px] font-semibold text-stone-600">No courses linked</span>}</div>
                             {office.supports_dean === true && <p className={`mt-1 break-words text-xs font-medium ${dean ? 'text-cyan-700' : 'text-amber-700'}`}>Dean: {dean ? personName(dean.user_id) : 'Unassigned'}{dean && members.find(member => member.user_id === dean.user_id)?.is_archived ? ' (Archived account)' : ''}</p>}
                         </div>
-                        <div className="flex min-w-0 flex-wrap items-center gap-1.5 md:shrink-0"><OfficeServiceAreaAction office={office} /><Button size="sm" variant="outline" className="h-8 rounded-lg border-stone-200 px-2 text-xs sm:h-7" onClick={() => { setDetailsId(office.office_id); setMemberSearch(''); setMemberPage(1); }}><UsersRound className="size-3.5" />Details</Button>{canManage && office.is_active && <Button size="sm" variant="outline" className="h-8 rounded-lg border-stone-200 px-2 text-xs sm:h-7" disabled={saving || !ready} onClick={() => openEditor(office)}><Pencil className="mr-1 h-3.5 w-3.5" />Edit</Button>}{!office.is_protected ? <>{canChangeStatus && <Button size="sm" variant="outline" className={`h-8 rounded-lg px-2 text-xs sm:h-7 ${office.is_active ? 'border-red-200 text-red-700 hover:bg-red-50' : 'border-green-200 text-green-700 hover:bg-green-50'}`} disabled={saving || !ready} onClick={() => setStatusTarget(office)}><Power className="mr-1 h-3.5 w-3.5" />{office.is_active ? 'Archive' : 'Restore'}</Button>}</> : <span className="text-xs text-stone-400">Protected office</span>}</div>
+                        <div className="flex min-w-0 flex-wrap items-center gap-1.5 md:shrink-0"><OfficeServiceAreaAction office={office} catalog={linkCatalog} onSaved={loadLinks} /><Button size="sm" variant="outline" className="h-8 rounded-lg border-stone-200 px-2 text-xs sm:h-7" onClick={() => { setDetailsId(office.office_id); setMemberSearch(''); setMemberPage(1); }}><UsersRound className="size-3.5" />Details</Button>{canManage && office.is_active && <Button size="sm" variant="outline" className="h-8 rounded-lg border-stone-200 px-2 text-xs sm:h-7" disabled={saving || !ready} onClick={() => openEditor(office)}><Pencil className="mr-1 h-3.5 w-3.5" />Edit</Button>}{!office.is_protected ? <>{canChangeStatus && <Button size="sm" variant="outline" className={`h-8 rounded-lg px-2 text-xs sm:h-7 ${office.is_active ? 'border-red-200 text-red-700 hover:bg-red-50' : 'border-green-200 text-green-700 hover:bg-green-50'}`} disabled={saving || !ready} onClick={() => setStatusTarget(office)}><Power className="mr-1 h-3.5 w-3.5" />{office.is_active ? 'Archive' : 'Restore'}</Button>}</> : <span className="text-xs text-stone-400">Protected office</span>}</div>
                     </div>;
                 })}</div>}
             </div>

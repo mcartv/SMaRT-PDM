@@ -885,7 +885,11 @@ export default function EndorsementQueue({
 
       <AlertDialog open={Boolean(confirmAction)} onOpenChange={(open) => { if (!open && !savingSlipId) setConfirmAction(null); }}>
         {confirm ? (
-          <AlertDialogContent className="rounded-3xl">
+          <AlertDialogContent
+            container={typeof document !== 'undefined' ? document.body : undefined}
+            overlayClassName="z-[100]"
+            className="z-[110] max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-3xl"
+          >
             <AlertDialogHeader>
               <AlertDialogMedia
                 className={

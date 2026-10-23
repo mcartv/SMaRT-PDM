@@ -1,3 +1,4 @@
+import OsfaLogo from '@/components/landing/OsfaLogo';
 // SMaRT-PDM: Smart PDMLanding — Smart PDMLanding (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -1823,7 +1824,8 @@ export default function SmartPDMLanding() {
           <div className="grid gap-8 border-b border-white/15 pb-7 lg:grid-cols-[1.15fr_1.25fr_0.8fr]">
             <div>
               <div className="flex items-center gap-4">
-                <div className="flex shrink-0 items-center gap-2.5" aria-label="PDM and Municipality of Marilao">
+                <div className="flex shrink-0 items-center gap-2.5" aria-label="Institution logos">
+                  <OsfaLogo className="h-14 w-14 shrink-0 object-contain" separatorClassName="h-9 w-px shrink-0 bg-white/25" />
                   <img
                     src={pdmLogo}
                     alt="PDM seal"

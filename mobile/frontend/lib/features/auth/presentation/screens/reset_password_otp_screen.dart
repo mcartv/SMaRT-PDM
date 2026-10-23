@@ -149,8 +149,9 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
     } catch (e) {
       _showMessage(e.toString(), isError: true);
     } finally {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -175,8 +176,9 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
     } catch (e) {
       _showMessage(e.toString(), isError: true);
     } finally {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

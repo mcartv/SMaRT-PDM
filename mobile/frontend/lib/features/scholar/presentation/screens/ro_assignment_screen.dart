@@ -249,80 +249,6 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     _loadRo(silent: true);
   }
 
-  // _guessImageMimeType: handles guess image mime type for the Scholars flow.
-  String _guessImageMimeType({required XFile file, required Uint8List bytes}) {
-    final providedMime = (file.mimeType ?? '').trim().toLowerCase();
-
-    if (providedMime.startsWith('image/')) {
-      return providedMime == 'image/jpg' ? 'image/jpeg' : providedMime;
-    }
-
-    final name = file.name.trim().toLowerCase();
-
-    if (name.endsWith('.png')) return 'image/png';
-    if (name.endsWith('.webp')) return 'image/webp';
-    if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
-
-    if (bytes.length >= 3 &&
-        bytes[0] == 0xFF &&
-        bytes[1] == 0xD8 &&
-        bytes[2] == 0xFF) {
-      return 'image/jpeg';
-    }
-
-    if (bytes.length >= 8 &&
-        bytes[0] == 0x89 &&
-        bytes[1] == 0x50 &&
-        bytes[2] == 0x4E &&
-        bytes[3] == 0x47 &&
-        bytes[4] == 0x0D &&
-        bytes[5] == 0x0A &&
-        bytes[6] == 0x1A &&
-        bytes[7] == 0x0A) {
-      return 'image/png';
-    }
-
-    if (bytes.length >= 12 &&
-        bytes[0] == 0x52 &&
-        bytes[1] == 0x49 &&
-        bytes[2] == 0x46 &&
-        bytes[3] == 0x46 &&
-        bytes[8] == 0x57 &&
-        bytes[9] == 0x45 &&
-        bytes[10] == 0x42 &&
-        bytes[11] == 0x50) {
-      return 'image/webp';
-    }
-
-    return 'image/jpeg';
-  }
-
-  // _extensionFromMimeType: handles extension from mime type for the Scholars flow.
-  String _extensionFromMimeType(String mimeType) {
-    final value = mimeType.trim().toLowerCase();
-
-    if (value == 'image/png') return 'png';
-    if (value == 'image/webp') return 'webp';
-
-    return 'jpg';
-  }
-
-  // _safeRoPhotoFileName: handles safe ro photo file name for the Scholars flow.
-  String _safeRoPhotoFileName({required XFile file, required String mimeType}) {
-    final rawName = file.name.trim();
-    final lowerName = rawName.toLowerCase();
-
-    if (lowerName.endsWith('.jpg') ||
-        lowerName.endsWith('.jpeg') ||
-        lowerName.endsWith('.png') ||
-        lowerName.endsWith('.webp')) {
-      return rawName;
-    }
-
-    final extension = _extensionFromMimeType(mimeType);
-    return 'ro-proof-${DateTime.now().millisecondsSinceEpoch}.$extension';
-  }
-
   // _pickRoProofPhoto: handles pick ro proof photo for the Scholars flow.
   Future<RoPickedPhoto?> _pickRoProofPhoto(ImageSource source) async {
     if (source != ImageSource.camera) {
@@ -580,7 +506,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.18),
+                            color: Colors.black.withValues(alpha: 0.18),
                             blurRadius: 28,
                             offset: const Offset(0, 14),
                           ),
@@ -657,7 +583,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                               decoration: BoxDecoration(
                                 color: isDark
                                     ? scheme.surfaceContainerHigh
-                                    : Colors.white.withOpacity(0.74),
+                                    : Colors.white.withValues(alpha: 0.74),
                                 borderRadius: AppRadii.card,
                                 border: Border.all(
                                   color: isDark
@@ -745,8 +671,8 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                                     vertical: 6,
                                                   ),
                                               decoration: BoxDecoration(
-                                                color: Colors.black.withOpacity(
-                                                  0.62,
+                                                color: Colors.black.withValues(
+                                                  alpha: 0.62,
                                                 ),
                                                 borderRadius: AppRadii.status,
                                               ),
@@ -798,7 +724,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                                 height: 32,
                                                 decoration: BoxDecoration(
                                                   color: Colors.black
-                                                      .withOpacity(0.62),
+                                                      .withValues(alpha: 0.62),
                                                   shape: BoxShape.circle,
                                                 ),
                                                 child: const Icon(
@@ -1503,89 +1429,6 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     );
   }
 
-  // _showNoteSheet: handles show note sheet for the Scholars flow.
-  Future<String?> _showNoteSheet({
-    required String title,
-    required String hint,
-    required String primaryLabel,
-    bool requiredInput = false,
-  }) async {
-    _noteController.clear();
-
-    return showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) {
-        final bottom = MediaQuery.of(context).viewInsets.bottom;
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        final scheme = Theme.of(context).colorScheme;
-
-        return Padding(
-          padding: EdgeInsets.fromLTRB(18, 18, 18, bottom + 18),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 44,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: scheme.outline,
-                  borderRadius: AppRadii.status,
-                ),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                title,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: _noteController,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  hintText: hint,
-                  border: OutlineInputBorder(borderRadius: AppRadii.card),
-                ),
-              ),
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: isDark
-                        ? AppColors.gold
-                        : AppColors.darkBrown,
-                    foregroundColor: isDark
-                        ? AppColors.darkBrown
-                        : Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  onPressed: () {
-                    final text = _noteController.text.trim();
-
-                    if (requiredInput && text.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Please enter your reason first.'),
-                        ),
-                      );
-                      return;
-                    }
-
-                    Navigator.pop(context, text);
-                  },
-                  child: Text(primaryLabel),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   // _showSnack: handles show snack for the Scholars flow.
   void _showSnack(String message) {
     if (!mounted) return;
@@ -1601,10 +1444,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
   }
 
   // _studentSafeError: handles student safe error for the Scholars flow.
-  String _studentSafeError(
-    Object error, {
-    required String fallback,
-  }) {
+  String _studentSafeError(Object error, {required String fallback}) {
     final message = _cleanError(error);
     if (message.isEmpty) return fallback;
 
@@ -3066,69 +2906,6 @@ class _ProofPreviewCard extends StatelessWidget {
   }
 }
 
-class _NoticeHeader extends StatelessWidget {
-  const _NoticeHeader({required this.item});
-
-  final RoAssignment item;
-
-  @override
-  // build: builds build for the Scholars flow.
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final scheme = Theme.of(context).colorScheme;
-    final statusTone = item.isCleared
-        ? AppStatusTone.success
-        : item.hasConflict
-        ? AppStatusTone.danger
-        : item.progressStatus == 'For Validation'
-        ? AppStatusTone.inProgress
-        : AppStatusTone.brand;
-
-    final statusLabel = item.isCleared
-        ? 'Cleared'
-        : item.hasConflict
-        ? 'Concern Reported'
-        : item.assignmentStatus;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const AppIconTile(icon: Icons.assignment_turned_in_rounded),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                item.title,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-              ),
-              if (item.programName.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  item.programName,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-              const SizedBox(height: AppSpacing.sm),
-              AppStatusCapsule(
-                label: statusLabel,
-                tone: statusTone,
-                compact: true,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _NoticeDetails extends StatelessWidget {
   const _NoticeDetails({required this.item, required this.formatMinutes});
 
@@ -3138,9 +2915,6 @@ class _NoticeDetails extends StatelessWidget {
   @override
   // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final scheme = Theme.of(context).colorScheme;
-
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -3361,11 +3135,13 @@ class _ActiveSessionBox extends StatelessWidget {
 
     final boxColor = requirementReached
         ? (isDark ? const Color(0xFF173D28) : const Color(0xFFE8F5E9))
-        : (isDark ? const Color(0xFF4A380F) : AppColors.gold.withOpacity(0.12));
+        : (isDark
+              ? const Color(0xFF4A380F)
+              : AppColors.gold.withValues(alpha: 0.12));
 
     final borderColor = requirementReached
-        ? Colors.green.withOpacity(0.45)
-        : AppColors.gold.withOpacity(0.45);
+        ? Colors.green.withValues(alpha: 0.45)
+        : AppColors.gold.withValues(alpha: 0.45);
 
     return Container(
       width: double.infinity,
@@ -3489,7 +3265,7 @@ class _LogsSection extends StatelessWidget {
           decoration: BoxDecoration(
             color: isDark
                 ? scheme.surfaceContainerHigh
-                : Colors.black.withOpacity(0.03),
+                : Colors.black.withValues(alpha: 0.03),
             borderRadius: AppRadii.control,
           ),
           child: Column(
@@ -3546,15 +3322,15 @@ class _InfoBox extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final readableColor = isDark
-        ? Color.alphaBlend(Colors.white.withOpacity(0.36), color)
+        ? Color.alphaBlend(Colors.white.withValues(alpha: 0.36), color)
         : color;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: AppRadii.card,
-        border: Border.all(color: color.withOpacity(0.25)),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3589,39 +3365,6 @@ class _InfoBox extends StatelessWidget {
   }
 }
 
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.label, required this.color});
-
-  final String label;
-  final Color color;
-
-  @override
-  // build: builds build for the Scholars flow.
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final readableColor = isDark
-        ? Color.alphaBlend(Colors.white.withOpacity(0.36), color)
-        : color;
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 120),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withOpacity(isDark ? 0.22 : 0.12),
-        borderRadius: AppRadii.status,
-        border: Border.all(
-          color: readableColor.withOpacity(isDark ? 0.58 : 0.28),
-        ),
-      ),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: readableColor, fontWeight: FontWeight.w900),
-      ),
-    );
-  }
-}
-
 class _StateCard extends StatelessWidget {
   const _StateCard({
     required this.icon,
@@ -3640,7 +3383,6 @@ class _StateCard extends StatelessWidget {
   @override
   // build: builds build for the Scholars flow.
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final scheme = Theme.of(context).colorScheme;
 
     return Padding(

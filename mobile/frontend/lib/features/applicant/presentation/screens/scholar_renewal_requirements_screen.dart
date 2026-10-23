@@ -604,31 +604,6 @@ class _ScholarRenewalRequirementsScreenState
     }
   }
 
-  // _renewalDocumentStatusLabel: handles renewal document status label for the Scholars flow.
-  String _renewalDocumentStatusLabel(String status) {
-    switch (status.trim().toLowerCase()) {
-      case 'verified':
-      case 'complete':
-      case 'completed':
-        return 'Documents Verified';
-      case 'documents ready':
-      case 'ready':
-        return 'Documents Ready';
-      case 'under review':
-      case 'submitted':
-        return 'Documents Under Review';
-      case 'requires reupload':
-      case 'needs reupload':
-      case 'reupload required':
-        return 'File Update Needed';
-      case 'missing docs':
-      case 'missing':
-        return 'Documents Needed';
-      default:
-        return status.trim().isEmpty ? 'Documents Needed' : status;
-    }
-  }
-
   // _renewalPeriodLabel: handles renewal period label for the Scholars flow.
   String _renewalPeriodLabel(ScholarRenewalPackage package) {
     final parts = <String>[

@@ -97,10 +97,11 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
         _loadError = 'Failed to load your support tickets.';
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isLoadingTickets = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingTickets = false;
+        });
+      }
     }
   }
 
@@ -168,8 +169,9 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
       if (!mounted) return;
       _showErrorSnackBar('Failed to submit the support ticket.');
     } finally {
-      if (!mounted) return;
-      setState(() => _isSubmitting = false);
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
     }
   }
 

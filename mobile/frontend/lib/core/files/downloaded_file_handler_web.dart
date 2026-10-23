@@ -1,5 +1,6 @@
 // SMaRT-PDM: downloaded file handler web — downloaded file handler web (mobile frontend); supports mobile UI behavior.
-// ignore_for_file: deprecated_member_use
+// This implementation is conditionally imported only on web.
+// ignore_for_file: deprecated_member_use, avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 import 'dart:typed_data';
 

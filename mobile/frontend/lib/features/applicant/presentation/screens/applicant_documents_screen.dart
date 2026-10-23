@@ -135,15 +135,16 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
             'Unable to load your documents. Check your connection and try again.';
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _isRefreshing = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isRefreshing = false;
+        });
 
-      if (_pendingRealtimeReload && _uploadingDocuments.isEmpty) {
-        _pendingRealtimeReload = false;
-        scheduleMicrotask(() => _loadPackage(silent: true));
+        if (_pendingRealtimeReload && _uploadingDocuments.isEmpty) {
+          _pendingRealtimeReload = false;
+          scheduleMicrotask(() => _loadPackage(silent: true));
+        }
       }
     }
   }
@@ -456,9 +457,10 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
         isError: true,
       );
     } finally {
-      if (!mounted) return;
-      setState(() => _uploadingDocuments.remove(document.id));
-      unawaited(_loadPackage(silent: true));
+      if (mounted) {
+        setState(() => _uploadingDocuments.remove(document.id));
+        unawaited(_loadPackage(silent: true));
+      }
     }
   }
 
@@ -1485,8 +1487,8 @@ class _DocumentCard extends StatelessWidget {
             : AppColors.applicantLightSurface,
         borderRadius: AppRadii.card,
         border: Border.all(
-          color: statusColor.withOpacity(
-            document.needsReplacement ? 0.42 : 0.18,
+          color: statusColor.withValues(
+            alpha: document.needsReplacement ? 0.42 : 0.18,
           ),
           width: document.needsReplacement ? 1.5 : 1,
         ),
@@ -1667,10 +1669,10 @@ class _DocumentCard extends StatelessWidget {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (uploadButton != null) uploadButton,
+                    ?uploadButton,
                     if (uploadButton != null && previewButton != null)
                       const SizedBox(height: 8),
-                    if (previewButton != null) previewButton,
+                    ?previewButton,
                   ],
                 );
               }
@@ -1766,7 +1768,7 @@ class _DocumentStatus extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.12),
+          color: color.withValues(alpha: 0.12),
           borderRadius: AppRadii.status,
         ),
         child: Text(

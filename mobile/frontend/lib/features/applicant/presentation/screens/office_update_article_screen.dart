@@ -1,5 +1,4 @@
 // SMaRT-PDM: office update article screen — office update article screen (mobile screen); loads state, handles user actions, and renders the screen.
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';

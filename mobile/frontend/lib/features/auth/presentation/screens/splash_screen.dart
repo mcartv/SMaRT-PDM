@@ -192,12 +192,18 @@ class _SplashScreenState extends State<SplashScreen> {
             Positioned(
               top: -70,
               right: -80,
-              child: _Orb(size: 230, color: AppColors.gold.withOpacity(0.24)),
+              child: _Orb(
+                size: 230,
+                color: AppColors.gold.withValues(alpha: 0.24),
+              ),
             ),
             Positioned(
               top: 145,
               left: -110,
-              child: _Orb(size: 250, color: AppColors.brown.withOpacity(0.07)),
+              child: _Orb(
+                size: 250,
+                color: AppColors.brown.withValues(alpha: 0.07),
+              ),
             ),
             Center(
               child: SingleChildScrollView(
@@ -214,7 +220,9 @@ class _SplashScreenState extends State<SplashScreen> {
                           borderRadius: BorderRadius.circular(30),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.darkBrown.withOpacity(0.20),
+                              color: AppColors.darkBrown.withValues(
+                                alpha: 0.20,
+                              ),
                               blurRadius: 34,
                               offset: const Offset(0, 18),
                             ),
@@ -243,7 +251,7 @@ class _SplashScreenState extends State<SplashScreen> {
                               'Use your official PDM Student ID to log in or create an account.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.72),
+                                color: Colors.white.withValues(alpha: 0.72),
                                 height: 1.45,
                               ),
                             ),
@@ -257,11 +265,11 @@ class _SplashScreenState extends State<SplashScreen> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(28),
                           border: Border.all(
-                            color: AppColors.gold.withOpacity(0.24),
+                            color: AppColors.gold.withValues(alpha: 0.24),
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.06),
+                              color: Colors.black.withValues(alpha: 0.06),
                               blurRadius: 28,
                               offset: const Offset(0, 14),
                             ),
@@ -313,7 +321,9 @@ class _SplashScreenState extends State<SplashScreen> {
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(18),
                                   borderSide: BorderSide(
-                                    color: AppColors.gold.withOpacity(0.24),
+                                    color: AppColors.gold.withValues(
+                                      alpha: 0.24,
+                                    ),
                                   ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
@@ -369,7 +379,8 @@ class _SplashScreenState extends State<SplashScreen> {
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: AppColors.darkBrown,
                                   side: BorderSide(
-                                    color: Theme.of(context).brightness ==
+                                    color:
+                                        Theme.of(context).brightness ==
                                             Brightness.dark
                                         ? const Color(0xFF665E57)
                                         : const Color(0xFFD2D2D2),

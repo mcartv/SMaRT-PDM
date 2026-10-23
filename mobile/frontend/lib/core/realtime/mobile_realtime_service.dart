@@ -4,7 +4,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:socket_io_client/socket_io_client.dart' as io;
 
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_events.dart';
 
@@ -66,7 +66,7 @@ class MobileRealtimeService extends ChangeNotifier {
   static final MobileRealtimeService instance =
       MobileRealtimeService._internal();
 
-  IO.Socket? _socket;
+  io.Socket? _socket;
 
   final StreamController<MobileRealtimeEvent> _eventController =
       StreamController<MobileRealtimeEvent>.broadcast();
@@ -188,7 +188,7 @@ class MobileRealtimeService extends ChangeNotifier {
         'extraHeaders': {'Authorization': 'Bearer $_token'},
     };
 
-    final socket = IO.io(nextBaseUrl, options);
+    final socket = io.io(nextBaseUrl, options);
     _socket = socket;
     _registerCoreHandlers(socket);
     _registerAppEventHandlers(socket);
@@ -276,7 +276,7 @@ class MobileRealtimeService extends ChangeNotifier {
   }
 
   // _registerCoreHandlers: handles register core handlers for the mobile realtime service flow.
-  void _registerCoreHandlers(IO.Socket socket) {
+  void _registerCoreHandlers(io.Socket socket) {
     socket.onConnect((_) {
       _isConnected = true;
       _isBackendBridgeHealthy = false;
@@ -340,7 +340,7 @@ class MobileRealtimeService extends ChangeNotifier {
   }
 
   // _registerAppEventHandlers: handles register app event handlers for the mobile realtime service flow.
-  void _registerAppEventHandlers(IO.Socket socket) {
+  void _registerAppEventHandlers(io.Socket socket) {
     for (final eventName in defaultEventNames) {
       socket.on(eventName, (data) {
         _handleServerEvent(eventName, data);

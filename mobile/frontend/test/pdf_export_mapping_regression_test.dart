@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:smartpdm_mobileapp/features/forms/data/services/scholarship_form_pdf_service.dart';
 import 'package:smartpdm_mobileapp/shared/models/saved_application_print_model.dart';
 
 void main() {
@@ -159,7 +160,14 @@ void main() {
     expect(source, contains('model.siblingCompanyNameAddress'));
 
     expect(source, contains('model.studentNumber,'));
-    expect(source, contains('r(420, 2230, 445, 55),'));
+    expect(
+      source,
+      contains(
+        'r(420, Form02Layout.compactAcademicTopY, 445, Form02Layout.compactAcademicHeight)',
+      ),
+    );
+    expect(Form02Layout.compactAcademicTopY, 2222);
+    expect(Form02Layout.compactAcademicHeight, 48);
     expect(source, contains('align: PdfTextAlignment.center,'));
     expect(source, contains('minFontSize: 6.0,'));
     expect(source, contains("static const String _notAvailable = 'N/A';"));

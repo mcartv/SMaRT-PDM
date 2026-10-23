@@ -846,40 +846,37 @@ class _StepFamilyState extends State<StepFamily> {
           ),
         ),
         const SizedBox(height: 4),
-        Wrap(
-          children: nativeOptions.map((option) {
-            return Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Radio<String>(
-                  value: option.key,
-                  groupValue: selectedParentNative,
-                  onChanged: (value) {
-                    if (value == null) return;
-
-                    setState(() {
-                      selectedParentNative = value;
-                      widget.data.parentNativeStatus = value;
-
-                      if (value != 'No') {
-                        parentPreviousTownProvinceController.clear();
-                        widget.data.parentPreviousTownProvince = '';
-                      } else {
-                        parentMarilaoResidencyDurationController.clear();
-                        widget.data.parentMarilaoResidencyDuration = '';
-                      }
-                    });
-
-                    widget.onChanged();
-                  },
-                ),
-                Text(
-                  option.value,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ],
-            );
-          }).toList(),
+        RadioGroup<String>(
+          groupValue: selectedParentNative,
+          onChanged: (value) {
+            if (value == null) return;
+            setState(() {
+              selectedParentNative = value;
+              widget.data.parentNativeStatus = value;
+              if (value != 'No') {
+                parentPreviousTownProvinceController.clear();
+                widget.data.parentPreviousTownProvince = '';
+              } else {
+                parentMarilaoResidencyDurationController.clear();
+                widget.data.parentMarilaoResidencyDuration = '';
+              }
+            });
+            widget.onChanged();
+          },
+          child: Wrap(
+            children: nativeOptions.map((option) {
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Radio<String>(value: option.key),
+                  Text(
+                    option.value,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
         ),
         const SizedBox(height: 16),
         if (selectedParentNative != 'No')

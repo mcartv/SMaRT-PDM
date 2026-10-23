@@ -63,7 +63,6 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         _courses = courses;
         _isLoadingCourses = false;
       });
-
     } catch (e) {
       debugPrint('COURSE LOAD ERROR: $e');
 
@@ -136,11 +135,11 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     } catch (e) {
       _showMessage(e.toString(), isError: true);
     } finally {
-      if (!mounted) return;
-
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 

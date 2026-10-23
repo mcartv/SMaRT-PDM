@@ -710,24 +710,20 @@ class _StepAcademicState extends State<StepAcademic> {
             context,
           ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
-        Row(
-          children: [
-            Radio<bool>(
-              value: true,
-              groupValue: value,
-              onChanged: (v) => onChanged(v ?? false),
-            ),
-            const SizedBox(width: 4),
-            Text('Yes'),
-            const SizedBox(width: 16),
-            Radio<bool>(
-              value: false,
-              groupValue: value,
-              onChanged: (v) => onChanged(v ?? false),
-            ),
-            const SizedBox(width: 4),
-            Text('No'),
-          ],
+        RadioGroup<bool>(
+          groupValue: value,
+          onChanged: (v) => onChanged(v ?? false),
+          child: const Row(
+            children: [
+              Radio<bool>(value: true),
+              SizedBox(width: 4),
+              Text('Yes'),
+              SizedBox(width: 16),
+              Radio<bool>(value: false),
+              SizedBox(width: 4),
+              Text('No'),
+            ],
+          ),
         ),
       ],
     );

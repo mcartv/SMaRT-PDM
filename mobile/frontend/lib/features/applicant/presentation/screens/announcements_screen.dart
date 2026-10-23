@@ -368,7 +368,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     }
     final selected = match;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _openAnnouncement(selected!);
+      if (mounted) _openAnnouncement(selected);
     });
   }
 

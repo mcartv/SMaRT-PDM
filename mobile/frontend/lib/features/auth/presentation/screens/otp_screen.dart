@@ -27,6 +27,7 @@ class _OtpScreenState extends State<OtpScreen> {
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
 
   bool _isLoading = false;
+  bool _isLeaving = false;
   int _resendCooldown = 0;
   Timer? _cooldownTimer;
 
@@ -112,6 +113,15 @@ class _OtpScreenState extends State<OtpScreen> {
     return true;
   }
 
+  Future<void> _leaveRegistration() async {
+    if (_isLeaving) return;
+    _isLeaving = true;
+    final canLeave = await _handleBackPress();
+    if (!mounted) return;
+    _isLeaving = false;
+    if (canLeave) Navigator.of(context).pop();
+  }
+
   // _verifyOtp: handles verify otp for the Authentication flow.
   Future<void> _verifyOtp() async {
     FocusScope.of(context).unfocus();
@@ -157,8 +167,9 @@ class _OtpScreenState extends State<OtpScreen> {
     } catch (_) {
       _showMessage('Unable to verify the OTP. Try again.', isError: true);
     } finally {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -312,8 +323,11 @@ class _OtpScreenState extends State<OtpScreen> {
     final isCompact =
         MediaQuery.sizeOf(context).width < 360 || textScale > 1.15;
 
-    return WillPopScope(
-      onWillPop: _handleBackPress,
+    return PopScope<Object?>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) unawaited(_leaveRegistration());
+      },
       child: Scaffold(
         backgroundColor: isDark
             ? AppColors.applicantDarkBackground
@@ -324,11 +338,7 @@ class _OtpScreenState extends State<OtpScreen> {
           foregroundColor: isDark ? Colors.white : Colors.black,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
-            onPressed: () async {
-              final canLeave = await _handleBackPress();
-              if (!mounted || !canLeave) return;
-              Navigator.of(context).pop();
-            },
+            onPressed: _leaveRegistration,
           ),
         ),
         body: SafeArea(

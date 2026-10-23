@@ -86,8 +86,7 @@ test('RO cards keep full labels and place status with the relevant content', () 
   assert.doesNotMatch(card, /maxLines: 1/);
   assert.match(card, /label: 'Ongoing'/);
   assert.match(card, /formatMinutes\(item\.validatedMinutes\)/);
-  const notice = sectionBetween(ro, 'class _NoticeHeader', 'class _NoticeDetails');
-  assert.match(notice, /AppStatusCapsule/);
+  assert.match(card, /AppStatusCapsule/);
 });
 
 test('RO time actions stack on narrow screens or larger text', () => {

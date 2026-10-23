@@ -2936,15 +2936,17 @@ body {
     gap: 0.625rem !important;
   }
 
-  .public-responsive-header-inner > a img:first-child {
+  .public-responsive-header-inner > a img.institution-primary-logo {
     width: 2.5rem !important;
     height: 2.5rem !important;
   }
 
-  .public-responsive-header-inner > a img:last-child {
+  .public-responsive-header-inner > a img.institution-municipal-logo {
     width: 2.15rem !important;
     height: 2.15rem !important;
   }
+
+
 
   .public-responsive-header-inner > a > span:last-child > span:first-child {
     font-size: 0.78rem !important;
@@ -3067,15 +3069,17 @@ body {
     height: 4.5rem !important;
   }
 
-  .smartpdm-auth-page > .public-responsive-header img:first-child {
+  .smartpdm-auth-page > .public-responsive-header img.institution-primary-logo {
     width: 2.5rem !important;
     height: 2.5rem !important;
   }
 
-  .smartpdm-auth-page > .public-responsive-header img:last-child {
+  .smartpdm-auth-page > .public-responsive-header img.institution-municipal-logo {
     width: 2.15rem !important;
     height: 2.15rem !important;
   }
+
+
 
   .smartpdm-auth-grid {
     align-items: flex-start !important;
@@ -3200,15 +3204,17 @@ body {
     gap: 0.35rem !important;
   }
 
-  .smartpdm-auth-page > .public-responsive-header img:first-child {
+  .smartpdm-auth-page > .public-responsive-header img.institution-primary-logo {
     width: 2.25rem !important;
     height: 2.25rem !important;
   }
 
-  .smartpdm-auth-page > .public-responsive-header img:last-child {
+  .smartpdm-auth-page > .public-responsive-header img.institution-municipal-logo {
     width: 1.9rem !important;
     height: 1.9rem !important;
   }
+
+
 
   .smartpdm-auth-page > .public-responsive-header .public-responsive-header-inner > a > span:last-child > span:first-child {
     font-size: clamp(0.68rem, 3.2vw, 0.78rem) !important;
@@ -3314,15 +3320,17 @@ body {
     padding-inline: 0.6rem !important;
   }
 
-  .smartpdm-auth-page > .public-responsive-header img:first-child {
+  .smartpdm-auth-page > .public-responsive-header img.institution-primary-logo {
     width: 2rem !important;
     height: 2rem !important;
   }
 
-  .smartpdm-auth-page > .public-responsive-header img:last-child {
+  .smartpdm-auth-page > .public-responsive-header img.institution-municipal-logo {
     width: 1.7rem !important;
     height: 1.7rem !important;
   }
+
+
 
   .smartpdm-auth-page > .public-responsive-header .public-responsive-header-inner > a > span:last-child > span:first-child {
     font-size: 0.67rem !important;
@@ -3412,15 +3420,17 @@ body {
     min-height: 3.4rem !important;
   }
 
-  .smartpdm-auth-page > .public-responsive-header img:first-child {
+  .smartpdm-auth-page > .public-responsive-header img.institution-primary-logo {
     width: 1.9rem !important;
     height: 1.9rem !important;
   }
 
-  .smartpdm-auth-page > .public-responsive-header img:last-child {
+  .smartpdm-auth-page > .public-responsive-header img.institution-municipal-logo {
     width: 1.6rem !important;
     height: 1.6rem !important;
   }
+
+
 
   .smartpdm-auth-grid {
     padding-top: 2.55rem !important;
@@ -3472,15 +3482,17 @@ body {
     padding-bottom: 0.55rem !important;
   }
 
-  .smartpdm-auth-page > .public-responsive-header img:first-child {
+  .smartpdm-auth-page > .public-responsive-header img.institution-primary-logo {
     width: 2.75rem !important;
     height: 2.75rem !important;
   }
 
-  .smartpdm-auth-page > .public-responsive-header img:last-child {
+  .smartpdm-auth-page > .public-responsive-header img.institution-municipal-logo {
     width: 2.35rem !important;
     height: 2.35rem !important;
   }
+
+
 
   .smartpdm-auth-back-nav {
     top: 0.9rem !important;

@@ -23,6 +23,11 @@ const upload = multer({
     },
 });
 
+const logo = require('../services/portalLogoService');
+const ownLogoKey = req => req.user?.user_id ? `account/${req.user.user_id}` : null;
+router.get('/me/sidebar-logo', protect, allStaff, logo.handler(ownLogoKey, 'read'));
+router.patch('/me/sidebar-logo', protect, allStaff, profilePhotoLimiter, upload.single('file'), logo.handler(ownLogoKey, 'upload'));
+router.delete('/me/sidebar-logo', protect, allStaff, profilePhotoLimiter, logo.handler(ownLogoKey, 'reset'));
 router.get('/me', protect, allStaff, accountController.getCurrentStaffProfile);
 router.patch('/me', protect, allStaff, profileEditLimiter, accountController.updateCurrentStaffProfile);
 router.post('/me/password/verify', protect, allStaff, passwordActionLimiter, accountController.verifyCurrentStaffPassword);

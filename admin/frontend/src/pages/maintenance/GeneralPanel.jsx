@@ -1,3 +1,4 @@
+import PortalLogoSettings from '@/components/department/PortalLogoSettings';
 // SMaRT-PDM: Maintenance — General Panel (admin frontend page); loads data, handles page actions, and renders the admin view.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
@@ -367,6 +368,7 @@ export default function GeneralPanel() {
     const { theme: userTheme } = usePortalTheme('admin');
     const SECTION_OPTIONS = [
         { key: 'office', label: 'Office & Contact' },
+        { key: 'logo', label: 'Logo' },
         { key: 'landing', label: 'Landing Content' },
         { key: 'application', label: 'Application Window' },
         { key: 'system', label: 'System' },
@@ -1216,6 +1218,15 @@ export default function GeneralPanel() {
                         ))}
                     </div>
                 </div>
+
+                {activeSection === 'logo' ? (
+                    <SectionFrame
+                        title="Logo"
+                        description="Manage the OSFA logo displayed first in public landing page headers. Enable Edit mode to make changes."
+                    >
+                        <PortalLogoSettings publicLogo tokenStorageKey="adminToken" disabled={!generalEditing} />
+                    </SectionFrame>
+                ) : null}
 
                 {activeSection === 'office' ? (
                     <SectionFrame

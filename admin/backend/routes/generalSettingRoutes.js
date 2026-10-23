@@ -24,6 +24,11 @@ const invalidateGeneralSettings = invalidateCacheOnSuccess([
     'general-settings',
 ]);
 
+const logo = require('../services/portalLogoService');
+const logoUpload = require('multer')({storage:require('multer').memoryStorage(),limits:{fileSize:3*1024*1024}});
+router.get('/logo', logo.handler(() => 'public', 'read'));
+router.patch('/logo', ...adminOnly, requirePermission('settings.manage'), logoUpload.single('file'), logo.handler(() => 'public', 'upload'));
+router.delete('/logo', ...adminOnly, requirePermission('settings.manage'), logo.handler(() => 'public', 'reset'));
 router.get('/public', publicGeneralCache, generalSettingController.getPublicGeneralSettings);
 router.get('/', ...adminOnly, requirePermission('settings.view'), adminGeneralCache, generalSettingController.getGeneralSettings);
 router.patch('/', ...adminOnly, requirePermission('settings.manage'), invalidateGeneralSettings, generalSettingController.updateGeneralSettings);

@@ -1,3 +1,4 @@
+import usePortalLogo from '@/hooks/usePortalLogo';
 // SMaRT-PDM: SDOLayout — SDOLayout (admin frontend component); renders reusable UI and handles local interactions.
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router';
@@ -55,6 +56,7 @@ const baseNavItems = [
 ];
 
 export default function SDOLayout() {
+  const portalLogo = usePortalLogo('sdoToken');
   const navigate = useNavigate();
   const { status: rbacStatus, hasPermission: rbacHasPermission } = useRbacPermissions();
   const location = useLocation();
@@ -359,7 +361,7 @@ export default function SDOLayout() {
         {/* Logo Section */}
         <div className="flex items-center gap-3 px-4 h-16 border-b border-white/10 shrink-0">
           <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0 shadow-sm">
-            <img src={pdmLogo} alt="PDM" className="w-5 h-5 object-contain" />
+            <img src={portalLogo} onError={e=>{e.currentTarget.onerror=null;e.currentTarget.src=pdmLogo;}} alt="PDM" className="w-5 h-5 object-contain" />
           </div>
 
           {!collapsed && (

@@ -1,3 +1,4 @@
+import usePortalLogo from '@/hooks/usePortalLogo';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, PanelLeftClose, PanelLeftOpen, LogOut, Menu, RefreshCw, ShieldCheck, X, Bell } from 'lucide-react';
@@ -9,6 +10,7 @@ import { getWorkspaceModules, WORKSPACE_MODULES } from './workspaceModuleRegistr
 const linkStyle = ({ isActive }) => `flex min-h-11 items-center gap-3 rounded-lg px-3 text-[13px] font-semibold transition-colors ${isActive ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-base)]' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'}`;
 
 export default function WorkspaceLayout() {
+  const portalLogo = usePortalLogo('workspaceToken');
   const navigate = useNavigate();
   const theme = getPortalDefaultTheme('admin');
   const [collapsed, setCollapsed] = useState(false);
@@ -31,7 +33,7 @@ export default function WorkspaceLayout() {
   const logout=()=>{for(const store of [sessionStorage,localStorage]){store.removeItem('workspaceToken');store.removeItem('workspaceProfile');}navigate('/login',{replace:true});};
   const aside=<>
     <div className="flex h-[86px] items-center justify-between border-b border-stone-200 px-4">
-      <div className={`flex items-center gap-2.5 ${collapsed?'lg:hidden':''}`}><img src={pdmLogo} alt="SMaRT-PDM logo" className="h-11 w-11 object-contain"/><div className="min-w-0"><div className="text-[15px] font-extrabold tracking-tight text-stone-900">SMaRT-PDM</div><div className="text-[11px] font-medium text-stone-500">Office Portal</div></div></div>
+      <div className={`flex items-center gap-2.5 ${collapsed?'lg:hidden':''}`}><img src={portalLogo} onError={e=>{e.currentTarget.onerror=null;e.currentTarget.src=pdmLogo;}} alt="SMaRT-PDM logo" className="h-11 w-11 object-contain"/><div className="min-w-0"><div className="text-[15px] font-extrabold tracking-tight text-stone-900">SMaRT-PDM</div><div className="text-[11px] font-medium text-stone-500">Office Portal</div></div></div>
       <button aria-label={collapsed?'Expand sidebar':'Collapse sidebar'} className="hidden rounded-lg p-2 text-stone-500 hover:bg-stone-100 lg:block" onClick={()=>setCollapsed(v=>!v)}>{collapsed?<PanelLeftOpen size={18}/>:<PanelLeftClose size={18}/>}</button>
       <button aria-label="Close navigation" className="lg:hidden" onClick={()=>setMobileOpen(false)}><X size={20}/></button>
     </div>

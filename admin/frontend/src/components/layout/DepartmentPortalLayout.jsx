@@ -1,3 +1,4 @@
+import usePortalLogo from '@/hooks/usePortalLogo';
 // SMaRT-PDM: Department Portal Layout — Department Portal Layout (admin frontend component); renders reusable UI and handles local interactions.
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router';
@@ -80,6 +81,7 @@ export default function DepartmentPortalLayout({
   roQueuePath = '',
 }) {
   const navigate = useNavigate();
+  const portalLogo = usePortalLogo(tokenStorageKey);
   const { status: rbacStatus, hasPermission: rbacHasPermission } = useRbacPermissions();
   const location = useLocation();
   const notifRef = useRef(null);
@@ -357,7 +359,7 @@ export default function DepartmentPortalLayout({
       >
         <div className="relative flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-4">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 shadow-sm">
-            <img src={pdmLogo} alt="PDM" className="h-5 w-5 object-contain" />
+            <img src={portalLogo} onError={e=>{e.currentTarget.onerror=null;e.currentTarget.src=pdmLogo;}} alt="PDM" className="h-5 w-5 object-contain" />
           </div>
 
           <div className={`portal-responsive-sidebar-copy min-w-0 ${collapsed ? 'hidden' : ''}`}>

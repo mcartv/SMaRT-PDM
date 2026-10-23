@@ -1,3 +1,4 @@
+import PortalLogoSettings from './PortalLogoSettings';
 // SMaRT-PDM: Department Settings Page — Department Settings Page (admin frontend component); renders reusable UI and handles local interactions.
 import { createElement, useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -7,6 +8,7 @@ import {
   KeyRound,
   Loader2,
   Palette,
+  Image,
   ShieldCheck,
   UserRound,
 } from 'lucide-react';
@@ -21,6 +23,7 @@ import { getProfileDisplay } from '@/utils/profileDisplay';
 const SETTINGS_TABS = [
   { key: 'account', label: 'Account', icon: UserRound },
   { key: 'theme', label: 'Theme', icon: Palette },
+  { key: 'logo', label: 'Logo', icon: Image },
   { key: 'security', label: 'Security', icon: ShieldCheck },
 ];
 
@@ -460,7 +463,7 @@ export default function DepartmentSettingsPage({
       <header>
         <h1 className="text-2xl font-semibold tracking-tight text-stone-900">Settings</h1>
         <p className="mt-1 text-sm text-stone-500">
-          {showTheme ? 'Manage your account information, department theme, and sign-in security.' : 'Manage your account information and sign-in security.'}
+          {showTheme ? 'Manage your account information, department theme, sidebar logo, and sign-in security.' : 'Manage your account information, sidebar logo, and sign-in security.'}
         </p>
       </header>
 
@@ -474,6 +477,7 @@ export default function DepartmentSettingsPage({
 
       <main className="min-w-0">
         {activeMeta.key === 'account' ? renderAccount() : null}
+        {activeMeta.key === 'logo' ? <PortalLogoSettings tokenStorageKey={tokenStorageKey} /> : null}
         {showTheme && activeMeta.key === 'theme' ? renderTheme() : null}
         {activeMeta.key === 'security' ? renderSecurity() : null}
       </main>

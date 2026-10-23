@@ -368,7 +368,7 @@ export default function GeneralPanel() {
     const { theme: userTheme } = usePortalTheme('admin');
     const SECTION_OPTIONS = [
         { key: 'office', label: 'Office & Contact' },
-        { key: 'logo', label: 'Logo' },
+        { key: 'logo', label: 'Office Logo' },
         { key: 'landing', label: 'Landing Content' },
         { key: 'application', label: 'Application Window' },
         { key: 'system', label: 'System' },
@@ -1221,8 +1221,8 @@ export default function GeneralPanel() {
 
                 {activeSection === 'logo' ? (
                     <SectionFrame
-                        title="Logo"
-                        description="Manage the OSFA logo displayed first in public landing page headers. Enable Edit mode to make changes."
+                        title="Office Logo"
+                        description="Manage the OSFA logo displayed first in public landing page headers and footers. Enable Edit mode to make changes."
                     >
                         <PortalLogoSettings publicLogo tokenStorageKey="adminToken" disabled={!generalEditing} />
                     </SectionFrame>

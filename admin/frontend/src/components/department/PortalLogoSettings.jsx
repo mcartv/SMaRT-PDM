@@ -29,8 +29,8 @@ export default function PortalLogoSettings({ tokenStorageKey, publicLogo = false
     finally { setBusy(false); if (input.current) input.current.value=''; }
   }
   return <section className="my-4 rounded-2xl border border-stone-200 bg-white p-4">
-    <h3 className="text-sm font-semibold">{publicLogo ? 'Landing page logo' : 'Sidebar logo'}</h3>
-    <p className="mt-1 text-xs text-stone-500">{publicLogo ? 'Displayed in public landing page headers.' : 'Personalize your sidebar. This applies only to your account.'} The default is the PDM logo.</p>
+    <h3 className="text-sm font-semibold">{publicLogo ? 'Office logo' : 'Sidebar logo'}</h3>
+    <p className="mt-1 text-xs text-stone-500">{publicLogo ? 'Displayed first in public landing page headers and footers.' : 'Personalize your sidebar. This applies only to your account.'} The default is the PDM logo.</p>
     <div className="mt-4 flex flex-wrap items-center gap-3">
       <img src={logo} onError={e=>{e.currentTarget.onerror=null;e.currentTarget.src=pdmLogo;}} alt="Current logo" className="h-16 w-16 shrink-0 rounded-lg border bg-stone-50 p-1 object-contain" />
       <input ref={input} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" aria-label="Choose logo image" disabled={disabled || busy} onChange={e=>{if(e.target.files?.[0])save(e.target.files[0]);}} />

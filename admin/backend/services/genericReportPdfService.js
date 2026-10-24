@@ -72,7 +72,7 @@ function extractTable(sheet) {
       if (populated.length >= Math.min(2, columnCount)) { headerRow = n; break; }
     }
   }
-  if (!headerRow) return { headings: [], rows: [], subtitle: '' };
+  if (!headerRow) return { headings: [], rows: [], subtitle: '', reportTitle: '' };
   const headings = Array.from({ length: columnCount }, (_, c) =>
     cellText(sheet.getRow(headerRow), c + 1) || declared[c] || 'Column ' + (c + 1));
   const rows = [];
@@ -83,8 +83,9 @@ function extractTable(sheet) {
     if (!values.some(Boolean) || (values.slice(1).every(v => !v) && /^for renewal$/i.test(values[0]))) continue;
     rows.push(values);
   }
-  const subtitle = headerRow > 1 ? cellText(sheet.getRow(headerRow - 2), 1) : '';
-  return { headings, rows, subtitle };
+  const subtitle = headerRow > 2 ? cellText(sheet.getRow(headerRow - 2), 1) : '';
+  const reportTitle = headerRow > 3 ? cellText(sheet.getRow(headerRow - 3), 1) : '';
+  return { headings, rows, subtitle, reportTitle };
 }
 
 function numericColumn(label) {
@@ -215,7 +216,7 @@ function workbookToPdf(workbook, title = 'SMaRT-PDM Report', filename = 'report.
     let pages = 0;
     const printable = 841.89 - PAGE_MARGIN * 2;
     for (const sheet of workbook.worksheets) {
-      const { headings, rows, subtitle } = extractTable(sheet);
+      const { headings, rows, subtitle, reportTitle } = extractTable(sheet);
       if (!headings.length) continue;
       const panels = panelColumns(headings, rows, printable);
       for (const [panelIndex, indexes] of panels.entries()) {
@@ -224,7 +225,7 @@ function workbookToPdf(workbook, title = 'SMaRT-PDM Report', filename = 'report.
         do {
           doc.addPage();
           pages += 1;
-          let y = drawReportHeader(doc, sheet.name, title, subtitle, rows.length, panelIndex + 1, panels.length);
+          let y = drawReportHeader(doc, sheet.name, reportTitle || title, subtitle, rows.length, panelIndex + 1, panels.length);
           y = drawColumnHeader(doc, headings, indexes, widths, y);
           const bottom = doc.page.height - 53;
           if (!rows.length) {
